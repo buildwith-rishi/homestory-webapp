@@ -1,18 +1,50 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --color-primary: #DC5800;
+  /* Brand Colors - KEEP */
+  --color-primary: #dc5800;
+  --primary-orange: #dc5800;
+  --primary-orange-light: #ff6b1a;
+  --primary-orange-dark: #b34700;
   --color-secondary: #321300;
-  --color-background: #FFFFFF;
-  --color-ash: #C2C5BB;
-  --color-olive: #7A7F4D;
-  --color-rose: #D08C7A;
-  --color-teal: #0F5257;
-  --color-burgundy: #650D1B;
+  --dark-brown: #321300;
+  --color-background: #ffffff;
+  --color-ash: #c2c5bb;
+  --color-olive: #7a7f4d;
+  --color-rose: #d08c7a;
+  --color-teal: #0f5257;
+  --color-burgundy: #650d1b;
+
+  /* Dashboard Neutrals - Light Mode */
+  --surface-0: #ffffff;
+  --surface-1: #f9fafb;
+  --surface-2: #f3f4f6;
+  --surface-3: #e5e7eb;
+
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+
+  /* Enhanced Semantic Colors */
+  --success: #10b981;
+  --success-light: #d1fae5;
+  --warning: #f59e0b;
+  --warning-light: #fef3c7;
+  --error: #ef4444;
+  --error-light: #fee2e2;
+  --info: #3b82f6;
+  --info-light: #dbeafe;
+
+  /* Stage Colors for Projects */
+  --stage-requirements: #3b82f6;
+  --stage-design: #8b5cf6;
+  --stage-procurement: #f59e0b;
+  --stage-execution: #dc5800;
+  --stage-handover: #10b981;
 
   --space-xs: 4px;
   --space-sm: 8px;
@@ -35,8 +67,8 @@
 }
 
 @font-face {
-  font-family: 'NeueHaas Grotesk Display Pro';
-  src: local('Helvetica Neue'), local('Arial');
+  font-family: "NeueHaas Grotesk Display Pro";
+  src: local("Helvetica Neue"), local("Arial");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -54,7 +86,7 @@ html {
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter Tight', 'Inter', sans-serif;
+  font-family: "Inter Tight", "Inter", sans-serif;
   font-size: 16px;
   line-height: 1.1;
   color: var(--color-secondary);
@@ -82,19 +114,191 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(194, 197, 187, 0.2);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-ash);
-  border-radius: var(--radius-full);
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary);
+  background: rgba(156, 163, 175, 0.5);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-ash) rgba(194, 197, 187, 0.2);
+  scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+}
+
+/* Scrollbar for sidebar specifically */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.2);
+  border-radius: 2px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.4);
+}
+
+/* Custom scrollbar for sidebar navigation */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(243, 244, 246, 0.5);
+  border-radius: 3px;
+  margin: 8px 0;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.6);
+}
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) rgba(243, 244, 246, 0.5);
+}
+
+/* Dashboard Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 88, 0, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(220, 88, 0, 0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+.animate-count-up {
+  animation: count-up 0.6s ease-out;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    var(--surface-3) 50%,
+    var(--surface-2) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Smooth Transitions */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-bounce {
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Smooth transitions for interactive elements */
+button,
+a,
+input,
+select {
+  transition: all 0.2s ease;
 }

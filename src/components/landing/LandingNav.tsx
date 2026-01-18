@@ -1,18 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogIn } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import gsap from 'gsap';
-import { Logo } from '../shared';
-import { Button } from '../ui';
-import { useScrollPosition } from '../../hooks/useScrollPosition';
-import { smoothScrollTo } from '../../utils/smoothScroll';
+import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, X, LogIn } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import gsap from "gsap";
+import { Logo } from "../shared";
+import { Button } from "../ui";
+import { useScrollPosition } from "../../hooks/useScrollPosition";
+import { smoothScrollTo } from "../../utils/smoothScroll";
 
 const navLinks = [
-  { label: 'Portfolio', href: 'portfolio' },
-  { label: 'Process', href: 'process' },
-  { label: 'Testimonials', href: 'testimonials' },
-  { label: 'FAQ', href: 'faq' },
+  { label: "Portfolio", href: "portfolio" },
+  { label: "Process", href: "process" },
+  { label: "Testimonials", href: "testimonials" },
+  { label: "FAQ", href: "faq" },
 ];
 
 const LandingNav: React.FC = () => {
@@ -23,7 +23,7 @@ const LandingNav: React.FC = () => {
   const navLinksRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const isScrolled = scrollY > 100;
-  const shouldHide = scrollDirection === 'down' && scrollY > 200;
+  const shouldHide = scrollDirection === "down" && scrollY > 200;
 
   useEffect(() => {
     const calculateScrollProgress = () => {
@@ -34,8 +34,8 @@ const LandingNav: React.FC = () => {
       setScrollProgress(progress);
     };
 
-    window.addEventListener('scroll', calculateScrollProgress);
-    return () => window.removeEventListener('scroll', calculateScrollProgress);
+    window.addEventListener("scroll", calculateScrollProgress);
+    return () => window.removeEventListener("scroll", calculateScrollProgress);
   }, []);
 
   useEffect(() => {
@@ -56,14 +56,14 @@ const LandingNav: React.FC = () => {
             x: x * strength * 0.3,
             y: y * strength * 0.3,
             duration: 0.3,
-            ease: 'power2.out',
+            ease: "power2.out",
           });
         } else {
           gsap.to(link, {
             x: 0,
             y: 0,
             duration: 0.3,
-            ease: 'power2.out',
+            ease: "power2.out",
           });
         }
       };
@@ -73,16 +73,16 @@ const LandingNav: React.FC = () => {
           x: 0,
           y: 0,
           duration: 0.3,
-          ease: 'power2.out',
+          ease: "power2.out",
         });
       };
 
-      link.addEventListener('mousemove', handleMouseMove);
-      link.addEventListener('mouseleave', handleMouseLeave);
+      link.addEventListener("mousemove", handleMouseMove);
+      link.addEventListener("mouseleave", handleMouseLeave);
 
       return () => {
-        link.removeEventListener('mousemove', handleMouseMove);
-        link.removeEventListener('mouseleave', handleMouseLeave);
+        link.removeEventListener("mousemove", handleMouseMove);
+        link.removeEventListener("mouseleave", handleMouseLeave);
       };
     });
   }, []);
@@ -98,13 +98,15 @@ const LandingNav: React.FC = () => {
         className="fixed top-0 left-0 right-0 h-0.5 bg-primary z-50"
         style={{
           width: `${scrollProgress}%`,
-          transformOrigin: 'left',
+          transformOrigin: "left",
         }}
       />
 
       <motion.nav
         className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-          isScrolled ? 'bg-white/90 backdrop-blur-xl shadow-lg' : 'bg-transparent'
+          isScrolled
+            ? "bg-white/90 backdrop-blur-xl shadow-lg"
+            : "bg-transparent"
         }`}
         initial={false}
         animate={{
@@ -114,11 +116,14 @@ const LandingNav: React.FC = () => {
       >
         <div className="container mx-auto px-6">
           <div className="flex items-center justify-between h-18 lg:h-18">
-            <button onClick={() => smoothScrollTo('hero')} className="focus:outline-none">
+            <button
+              onClick={() => smoothScrollTo("hero")}
+              className="focus:outline-none"
+            >
               <Logo
                 variant="full"
-                colorScheme={isScrolled ? 'default' : 'default'}
-                size={130}
+                colorScheme={isScrolled ? "default" : "default"}
+                size={160}
               />
             </button>
 
@@ -138,13 +143,16 @@ const LandingNav: React.FC = () => {
 
             <div className="hidden lg:flex items-center gap-3">
               <button
-                onClick={() => navigate('/login')}
+                onClick={() => navigate("/login")}
                 className="flex items-center gap-2 px-4 py-2 text-secondary hover:text-primary transition-colors"
               >
                 <LogIn size={18} />
                 <span className="text-sm font-medium">Admin</span>
               </button>
-              <Button onClick={() => handleNavClick('quote')} rightIcon={<span>→</span>}>
+              <Button
+                onClick={() => handleNavClick("quote")}
+                rightIcon={<span>→</span>}
+              >
                 Get Quote
               </Button>
             </div>
@@ -170,7 +178,7 @@ const LandingNav: React.FC = () => {
           >
             <div className="container mx-auto px-6 py-6">
               <div className="flex justify-between items-center mb-12">
-                <Logo variant="full" size={130} />
+                <Logo variant="full" size={160} />
                 <button
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="text-secondary hover:text-primary transition-colors"
@@ -197,7 +205,7 @@ const LandingNav: React.FC = () => {
 
               <div className="flex flex-col gap-4">
                 <Button
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate("/login")}
                   variant="secondary"
                   className="w-full"
                   leftIcon={<LogIn size={18} />}
@@ -205,7 +213,7 @@ const LandingNav: React.FC = () => {
                   Admin Login
                 </Button>
                 <Button
-                  onClick={() => handleNavClick('quote')}
+                  onClick={() => handleNavClick("quote")}
                   className="w-full"
                   rightIcon={<span>→</span>}
                 >

@@ -1,125 +1,161 @@
 import React from 'react';
-import { Phone, Play, FileText, User, TrendingUp, Clock } from 'lucide-react';
+import { Phone, Play, FileText, User, TrendingUp, TrendingDown, Clock, Settings as SettingsIcon } from 'lucide-react';
 import { Card, Button, Badge, Toggle } from '../../components/ui';
-import { StatCard } from '../../components/dashboard/StatCard';
+
+interface Call {
+  id: number;
+  phone: string;
+  duration: string;
+  summary: string;
+  outcomes: string[];
+  timestamp: string;
+}
+
+const recentCalls: Call[] = [
+  {
+    id: 1,
+    phone: '+91 98765 43210',
+    duration: '4:32',
+    summary: 'Caller inquired about 2BHK pricing in Indiranagar',
+    outcomes: ['Quote provided', 'Meeting scheduled for Jan 18'],
+    timestamp: '3 min ago',
+  },
+  {
+    id: 2,
+    phone: '+91 98123 45678',
+    duration: '12:15',
+    summary: 'Detailed discussion about 3BHK villa interiors',
+    outcomes: ['Budget discussed', 'Style preferences noted'],
+    timestamp: '1 hour ago',
+  },
+  {
+    id: 3,
+    phone: '+91 97654 32109',
+    duration: '2:18',
+    summary: 'Quick FAQ about material quality and warranty',
+    outcomes: ['FAQ answered', 'Brochure sent'],
+    timestamp: '2 hours ago',
+  },
+];
 
 export const VoiceAgentPage: React.FC = () => {
-  const recentCalls = [
-    {
-      id: 1,
-      phone: '+91 98765 43210',
-      duration: '4:32',
-      summary: 'Caller inquired about 2BHK pricing in Indiranagar',
-      outcomes: ['Quote provided', 'Meeting scheduled for Jan 18'],
-      timestamp: '3 min ago',
-    },
-    {
-      id: 2,
-      phone: '+91 98123 45678',
-      duration: '12:15',
-      summary: 'Detailed discussion about 3BHK villa interiors',
-      outcomes: ['Budget discussed', 'Style preferences noted'],
-      timestamp: '1 hour ago',
-    },
-    {
-      id: 3,
-      phone: '+91 97654 32109',
-      duration: '2:18',
-      summary: 'Quick FAQ about material quality and warranty',
-      outcomes: ['FAQ answered', 'Brochure sent'],
-      timestamp: '2 hours ago',
-    },
-  ];
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-display-lg text-secondary">Voice Agent</h1>
-          <p className="font-body text-body text-ash mt-1">
-            AI-powered phone assistant analytics
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">Voice Agent</h1>
+          <p className="text-gray-600 mt-1">AI-powered phone assistant analytics</p>
         </div>
-        <Button variant="secondary">Settings</Button>
+        <Button className="rounded-xl">
+          <SettingsIcon className="w-4 h-4" />
+          Settings
+        </Button>
       </div>
 
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6">
+        {/* Agent Status Card */}
+        <Card className="p-6 rounded-xl border-2 border-gray-200 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-teal/10 rounded-full flex items-center justify-center">
-              <Phone size={24} className="text-teal" />
+            <div className="w-14 h-14 bg-gradient-to-br from-teal-400 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Phone className="w-7 h-7 text-white" />
             </div>
             <Toggle defaultChecked />
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 bg-teal rounded-full animate-pulse" />
-              <p className="font-body font-medium text-lg text-secondary">Agent Active</p>
+              <div className="w-2.5 h-2.5 bg-teal-500 rounded-full animate-pulse" />
+              <p className="text-lg font-semibold text-gray-900">Agent Active</p>
             </div>
-            <p className="font-body text-sm text-ash">24/7 Availability</p>
+            <p className="text-sm text-gray-600">24/7 Availability</p>
           </div>
         </Card>
 
-        <StatCard
-          icon={Phone}
-          label="Calls This Week"
-          value={247}
-          change={{ value: 18, isPositive: true }}
-          iconColor="primary"
-        />
+        {/* Calls This Week Card */}
+        <Card className="p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Phone className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
+              <TrendingUp className="w-3 h-3" />
+              18%
+            </div>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600 mb-1">Calls This Week</p>
+            <p className="text-3xl font-bold text-gray-900">247</p>
+          </div>
+        </Card>
 
-        <StatCard
-          icon={Clock}
-          label="Average Duration"
-          value="12 min"
-          change={{ value: 2, isPositive: false }}
-          iconColor="olive"
-        />
+        {/* Average Duration Card */}
+        <Card className="p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Clock className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
+              <TrendingDown className="w-3 h-3" />
+              2%
+            </div>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600 mb-1">Average Duration</p>
+            <p className="text-3xl font-bold text-gray-900">12 min</p>
+          </div>
+        </Card>
       </div>
 
-      <Card>
-        <div className="p-6 border-b border-ash/10 flex items-center justify-between">
-          <h2 className="font-display text-display-sm text-secondary">Recent Calls</h2>
-          <Button variant="ghost" size="sm">View All →</Button>
+      {/* Recent Calls */}
+      <Card className="rounded-xl overflow-hidden border border-gray-200">
+        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-transparent flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">Recent Calls</h2>
+          <Button variant="ghost" className="text-orange-600 hover:bg-orange-100 rounded-lg">
+            View All →
+          </Button>
         </div>
 
-        <div className="divide-y divide-ash/10">
+        <div className="divide-y divide-gray-200">
           {recentCalls.map((call) => (
-            <div key={call.id} className="p-6 hover:bg-ash/5 transition-colors">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <Phone size={18} className="text-primary" />
+            <div key={call.id} className="p-6 hover:bg-gray-50 transition-colors">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                    <Phone className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <p className="font-body font-medium text-secondary">{call.phone}</p>
-                    <p className="font-body text-sm text-ash">{call.timestamp}</p>
+                    <p className="text-lg font-semibold text-gray-900">{call.phone}</p>
+                    <p className="text-sm text-gray-500">{call.timestamp}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-body text-sm text-ash">Duration</p>
-                  <p className="font-body font-medium text-secondary">{call.duration}</p>
+                  <p className="text-sm text-gray-600">Duration</p>
+                  <p className="text-lg font-semibold text-gray-900">{call.duration}</p>
                 </div>
               </div>
 
-              <p className="font-body text-sm text-secondary mb-3">{call.summary}</p>
+              <p className="text-sm text-gray-700 mb-4 leading-relaxed">{call.summary}</p>
 
               <div className="flex flex-wrap gap-2 mb-4">
                 {call.outcomes.map((outcome, i) => (
-                  <Badge key={i} className="bg-teal/10 text-teal">
+                  <Badge key={i} className="bg-teal-100 text-teal-700 rounded-lg border border-teal-200">
                     ● {outcome}
                   </Badge>
                 ))}
               </div>
 
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" leftIcon={<Play />}>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="ghost" size="sm" className="rounded-lg text-orange-600 hover:bg-orange-100">
+                  <Play className="w-4 h-4" />
                   Play Recording
                 </Button>
-                <Button variant="ghost" size="sm" leftIcon={<FileText />}>
+                <Button variant="ghost" size="sm" className="rounded-lg text-blue-600 hover:bg-blue-100">
+                  <FileText className="w-4 h-4" />
                   Transcript
                 </Button>
-                <Button variant="ghost" size="sm" leftIcon={<User />}>
+                <Button variant="ghost" size="sm" className="rounded-lg text-emerald-600 hover:bg-emerald-100">
+                  <User className="w-4 h-4" />
                   View Lead
                 </Button>
               </div>

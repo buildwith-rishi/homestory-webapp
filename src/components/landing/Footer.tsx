@@ -1,25 +1,42 @@
-import React, { useState } from 'react';
-import { MapPin, Phone, Mail, Instagram, Facebook, Youtube, Linkedin } from 'lucide-react';
-import { Logo, BrandPattern } from '../shared';
-import { Button, Input } from '../ui';
-import { smoothScrollTo } from '../../utils/smoothScroll';
+import React, { useState } from "react";
+import {
+  MapPin,
+  Phone,
+  Mail,
+  Instagram,
+  Facebook,
+  Youtube,
+  Linkedin,
+} from "lucide-react";
+import { Logo, BrandPattern } from "../shared";
+import { Button, Input } from "../ui";
+import { smoothScrollTo } from "../../utils/smoothScroll";
 
 const Footer: React.FC = () => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
 
   const handleSubscribe = () => {
-    console.log('Subscribe:', email);
-    setEmail('');
+    console.log("Subscribe:", email);
+    setEmail("");
   };
 
   return (
     <footer className="relative bg-secondary text-white pt-16 pb-8">
-      <BrandPattern color="white" opacity={0.05} className="absolute bottom-0 right-0 w-1/3 h-1/3" />
+      <BrandPattern
+        color="white"
+        opacity={0.05}
+        className="absolute bottom-0 right-0 w-1/3 h-1/3"
+      />
 
       <div className="relative z-10 container mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
           <div>
-            <Logo variant="full" colorScheme="light" size={130} className="mb-4" />
+            <Logo
+              variant="full"
+              colorScheme="light"
+              size={160}
+              className="mb-4"
+            />
             <p className="font-body text-sm text-white/70 leading-relaxed">
               We help you create a space that truly feels like yours.
             </p>
@@ -30,7 +47,7 @@ const Footer: React.FC = () => {
               Quick Links
             </h3>
             <ul className="space-y-3">
-              {['Portfolio', 'Process', 'Testimonials', 'FAQ'].map((link) => (
+              {["Portfolio", "Process", "Testimonials", "FAQ"].map((link) => (
                 <li key={link}>
                   <button
                     onClick={() => smoothScrollTo(link.toLowerCase())}
@@ -49,7 +66,10 @@ const Footer: React.FC = () => {
             </h3>
             <ul className="space-y-3">
               <li className="flex items-start gap-2">
-                <MapPin className="text-white/50 flex-shrink-0 mt-0.5" size={16} />
+                <MapPin
+                  className="text-white/50 flex-shrink-0 mt-0.5"
+                  size={16}
+                />
                 <span className="font-body text-sm text-white/70">
                   Bangalore, Karnataka, India
                 </span>
@@ -116,7 +136,7 @@ const Footer: React.FC = () => {
               © 2026 Good Homestory. All rights reserved.
             </p>
             <div className="flex gap-6">
-              {['Privacy Policy', 'Terms', 'Sitemap'].map((link) => (
+              {["Privacy Policy", "Terms", "Sitemap"].map((link) => (
                 <a
                   key={link}
                   href="#"

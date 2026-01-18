@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import { DashboardSidebar } from '../../components/dashboard/DashboardSidebar';
-import { DashboardHeader } from '../../components/dashboard/DashboardHeader';
+import React, { useState } from "react";
+import { Outlet } from "react-router-dom";
+import { DashboardSidebar } from "../../components/dashboard/DashboardSidebar";
+import { DashboardHeader } from "../../components/dashboard/DashboardHeader";
 
 export const DashboardLayout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -13,15 +13,17 @@ export const DashboardLayout: React.FC = () => {
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
+      <DashboardHeader sidebarCollapsed={sidebarCollapsed} />
+
       <div
         className={`transition-all duration-300 ${
-          sidebarCollapsed ? 'ml-16' : 'ml-60'
+          sidebarCollapsed ? "ml-20" : "ml-72"
         }`}
       >
-        <DashboardHeader />
-
-        <main className="mt-16 p-6 min-h-[calc(100vh-64px)]">
-          <Outlet />
+        <main className="pt-20 px-6 pb-8 min-h-screen">
+          <div className="max-w-[1600px] mx-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
