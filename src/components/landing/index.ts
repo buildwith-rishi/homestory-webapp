@@ -1,0 +1,13 @@
+export { default as LandingNav } from './LandingNav';
+export { default as HeroSection } from './HeroSection';
+export { default as SocialProof } from './SocialProof';
+export { default as VirtualTour } from './VirtualTour';
+export { default as Portfolio } from './Portfolio';
+export { default as QuoteCalculator } from './QuoteCalculator';
+export { default as Testimonials } from './Testimonials';
+export { default as Process } from './Process';
+export { default as FAQ } from './FAQ';
+export { default as FinalCTA } from './FinalCTA';
+export { default as Footer } from './Footer';
+export { default as FloatingActions } from './FloatingActions';
+export { default as VoiceAgentModal } from './VoiceAgentModal';
