@@ -9,7 +9,7 @@ export const MeetingsPage: React.FC = () => {
     {
       id: 1,
       title: 'Sharma Family - Initial Consultation',
-      client: 'Rajesh Sharma',
+      client: 'Rajesh Singh',
       date: '2026-01-20',
       time: '10:00 AM',
       duration: '45 mins',
