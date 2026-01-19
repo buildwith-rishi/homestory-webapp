@@ -1,114 +1,106 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
-import { Button } from '../ui';
+import React, { useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 interface FAQItem {
   question: string;
   answer: string;
 }
 
-const faqs: FAQItem[] = [
-  {
-    question: 'What areas in Bangalore do you serve?',
-    answer:
-      'We serve all major areas of Bangalore including Whitefield, HSR Layout, Koramangala, Indiranagar, JP Nagar, Jayanagar, and more. We also take projects in Chennai, Kochi, and Mangalore.',
-  },
-  {
-    question: 'What is the typical timeline for a project?',
-    answer:
-      'A standard 3BHK interior project takes 60-90 days from design approval to handover. This varies based on project scope and customization requirements.',
-  },
-  {
-    question: 'Do you provide a warranty?',
-    answer:
-      'Yes, we provide a 10-year warranty on all modular furniture and fittings. This covers manufacturing defects and normal wear.',
-  },
-  {
-    question: 'What is included in your pricing?',
-    answer:
-      'Our pricing includes design, materials, manufacturing, installation, and project management. We provide completely transparent quotations with no hidden costs.',
-  },
-  {
-    question: 'Can I see your previous work?',
-    answer:
-      'Absolutely! You can explore our portfolio section above, take 360° virtual tours of completed projects, or visit our experience center in Bangalore.',
-  },
-  {
-    question: 'Do you offer financing options?',
-    answer:
-      'Yes, we have partnered with leading banks to offer easy EMI options. You can spread your payment over 12-36 months with attractive interest rates.',
-  },
-];
-
 const FAQ: React.FC = () => {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
+
+  const faqs: FAQItem[] = [
+    {
+      question: "What services does Good Homestory offer?",
+      answer:
+        "We offer comprehensive interior design and construction services including residential interiors, commercial spaces, complete renovations, modular kitchens, custom furniture, and turnkey projects. From concept to completion, we handle everything.",
+    },
+    {
+      question: "How much does an interior design project cost?",
+      answer:
+        "Project costs vary based on scope, space size, and material choices. Residential projects typically range from ₹15L to ₹1.5Cr+. We provide detailed quotes after understanding your requirements during the free consultation.",
+    },
+    {
+      question: "How long does a typical project take?",
+      answer:
+        "Timelines depend on project complexity. A 2-3 BHK apartment typically takes 3-4 months, while larger villas may take 6-8 months. We provide a detailed timeline during the design phase and track progress through our CRM.",
+    },
+    {
+      question: "Do you provide 3D designs before starting work?",
+      answer:
+        "Yes! Every project includes detailed 3D visualizations, mood boards, and material samples. You'll see exactly how your space will look before we begin construction. We iterate designs until you're 100% satisfied.",
+    },
+    {
+      question: "Can I choose my own materials and vendors?",
+      answer:
+        "Absolutely! While we work with trusted suppliers for quality and pricing, you're welcome to source materials yourself. We provide material specifications and can coordinate with your vendors.",
+    },
+    {
+      question: "What warranty do you provide?",
+      answer:
+        "We offer a 30-day satisfaction guarantee and 1-year warranty on all workmanship. Appliances and materials carry manufacturer warranties. Our team is available for support even after project completion.",
+    },
+  ];
+
+  const toggleFAQ = (index: number) => {
+    setOpenIndex(openIndex === index ? null : index);
+  };
 
   return (
-    <section id="faq" className="py-24 bg-ash/5">
+    <section id="faq" className="py-20 bg-white">
       <div className="container mx-auto px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mb-16"
-        >
-          <h2 className="font-display text-display-lg text-secondary mb-4">
+        {/* Section Header */}
+        <div className="text-center mb-12">
+          <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
             Frequently Asked Questions
           </h2>
-          <p className="font-body text-body-lg text-secondary/70">
-            Everything you need to know
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Everything you need to know about working with Good Homestory
           </p>
-        </motion.div>
+        </div>
 
-        <div className="max-w-3xl mx-auto">
-          <div className="space-y-4">
-            {faqs.map((faq, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-lg overflow-hidden"
+        {/* FAQ List */}
+        <div className="max-w-3xl mx-auto space-y-3">
+          {faqs.map((faq, index) => (
+            <div
+              key={index}
+              className="bg-white border border-gray-200 rounded-lg overflow-hidden"
+            >
+              <button
+                onClick={() => toggleFAQ(index)}
+                className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
               >
-                <button
-                  onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                  className="w-full px-6 py-5 flex justify-between items-center text-left hover:bg-ash/5 transition-colors"
-                  aria-expanded={openIndex === index}
-                >
-                  <span className="font-body font-medium text-lg text-secondary pr-4">
-                    {faq.question}
-                  </span>
-                  <ChevronDown
-                    className={`text-primary flex-shrink-0 transition-transform duration-300 ${
-                      openIndex === index ? 'rotate-180' : ''
-                    }`}
-                    size={24}
-                  />
-                </button>
+                <span className="font-semibold text-gray-900 pr-8">
+                  {faq.question}
+                </span>
+                <ChevronDown
+                  className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform ${
+                    openIndex === index ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
 
-                <AnimatePresence>
-                  {openIndex === index && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <div className="px-6 pb-5">
-                        <p className="font-body text-body text-secondary/80">{faq.answer}</p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
-          </div>
+              {openIndex === index && (
+                <div className="px-6 pb-4">
+                  <p className="text-gray-600 leading-relaxed">{faq.answer}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
-          <div className="text-center mt-12">
-            <p className="font-body text-body text-secondary mb-4">Still have questions?</p>
-            <Button variant="secondary">Contact Us</Button>
+        {/* Contact CTA */}
+        <div className="text-center mt-12">
+          <div className="inline-block bg-gray-50 rounded-xl px-8 py-6 border border-gray-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">
+              Still have questions?
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Can't find the answer you're looking for? We're here to help.
+            </p>
+            <button className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold transition-colors">
+              Contact Our Team
+            </button>
           </div>
         </div>
       </div>

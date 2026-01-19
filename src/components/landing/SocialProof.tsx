@@ -1,84 +1,52 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { BrandPattern } from '../shared';
-import { useInView } from '../../hooks/useInView';
-
-const metrics = [
-  { value: 460, label: 'Projects Completed', suffix: '+' },
-  { value: 10, label: 'Years of Excellence', suffix: '+' },
-  { value: 4.9, label: 'Client Rating', suffix: '★', decimal: true },
-  { value: 50, label: 'Projects Delivered', suffix: 'Cr+', prefix: '₹' },
-];
-
-const Counter: React.FC<{ value: number; suffix?: string; prefix?: string; decimal?: boolean }> = ({
-  value,
-  suffix = '',
-  prefix = '',
-  decimal = false,
-}) => {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { threshold: 0.5 });
-  const [hasAnimated, setHasAnimated] = useState(false);
-
-  useEffect(() => {
-    if (isInView && !hasAnimated) {
-      setHasAnimated(true);
-      let start = 0;
-      const end = value;
-      const duration = 1500;
-      const increment = end / (duration / 16);
-
-      const timer = setInterval(() => {
-        start += increment;
-        if (start >= end) {
-          setCount(end);
-          clearInterval(timer);
-        } else {
-          setCount(start);
-        }
-      }, 16);
-
-      return () => clearInterval(timer);
-    }
-  }, [isInView, value, hasAnimated]);
-
-  const displayValue = decimal ? count.toFixed(1) : Math.floor(count);
-
-  return (
-    <div ref={ref} className="font-display text-4xl lg:text-5xl text-white">
-      {prefix}{displayValue}{suffix}
-    </div>
-  );
-};
+import React from "react";
+import { Award, Users, TrendingUp, Home } from "lucide-react";
 
 const SocialProof: React.FC = () => {
-  return (
-    <section className="relative bg-secondary py-12 lg:py-16 overflow-hidden">
-      <BrandPattern color="white" opacity={0.03} />
+  const stats = [
+    { icon: Home, label: "Projects Completed", value: "500+" },
+    { icon: Users, label: "Happy Clients", value: "450+" },
+    { icon: TrendingUp, label: "Years of Excellence", value: "12+" },
+    { icon: Award, label: "Industry Awards", value: "25+" },
+  ];
 
-      <div className="relative z-10 container mx-auto px-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-0">
-          {metrics.map((metric, index) => (
-            <motion.div
-              key={metric.label}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1, duration: 0.5 }}
-              viewport={{ once: true }}
-              className={`text-center ${
-                index < metrics.length - 1 ? 'lg:border-r lg:border-white/20' : ''
-              }`}
-            >
-              <Counter
-                value={metric.value}
-                suffix={metric.suffix}
-                prefix={metric.prefix}
-                decimal={metric.decimal}
-              />
-              <p className="font-body text-body-sm text-white/70 mt-2">{metric.label}</p>
-            </motion.div>
+  return (
+    <section className="py-16 bg-gray-50 border-y border-gray-200">
+      <div className="container mx-auto px-6">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+          {stats.map((stat, index) => (
+            <div key={index} className="text-center">
+              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center mx-auto mb-3 shadow-sm">
+                <stat.icon className="w-6 h-6 text-orange-500" />
+              </div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">
+                {stat.value}
+              </div>
+              <div className="text-sm text-gray-600">{stat.label}</div>
+            </div>
           ))}
+        </div>
+
+        {/* Trusted By */}
+        <div className="text-center">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-6">
+            Trusted By Leading Developers
+          </p>
+
+          <div className="flex flex-wrap justify-center gap-8 items-center opacity-40">
+            {[
+              "Prestige",
+              "Brigade",
+              "Sobha",
+              "Embassy",
+              "Godrej",
+              "Puravankara",
+            ].map((client, index) => (
+              <div key={index} className="text-gray-400 font-bold text-lg">
+                {client}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

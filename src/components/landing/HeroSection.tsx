@@ -1,264 +1,141 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
-import { Button } from '../ui';
-import { BrandPattern } from '../shared';
-import { smoothScrollTo } from '../../utils/smoothScroll';
-import { ChevronDown } from 'lucide-react';
+import React from "react";
+import { smoothScrollTo } from "../../utils/smoothScroll";
+import { ArrowRight, Star, CheckCircle2 } from "lucide-react";
 
 const HeroSection: React.FC = () => {
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [isHoveringButton, setIsHoveringButton] = useState(false);
-  const [ripplePosition, setRipplePosition] = useState({ x: 0, y: 0 });
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const sectionRef = useRef<HTMLElement>(null);
-  const { scrollY } = useScroll();
-
-  const y = useTransform(scrollY, [0, 500], [0, 150]);
-  const smoothY = useSpring(y, { stiffness: 100, damping: 20 });
-  const scale = useTransform(scrollY, [0, 500], [1, 1.05]);
-
-  const headline = "Every home is a story worth getting right.";
-  const words = headline.split(' ');
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!sectionRef.current) return;
-      const rect = sectionRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left - rect.width / 2) / rect.width;
-      const y = (e.clientY - rect.top - rect.height / 2) / rect.height;
-      setMousePosition({ x, y });
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setRipplePosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
-      setIsHoveringButton(true);
-      setTimeout(() => setIsHoveringButton(false), 600);
-    }
-    smoothScrollTo('quote');
-  };
-
   return (
-    <section ref={sectionRef} id="hero" className="relative min-h-screen flex items-center bg-gradient-to-b from-white via-gray-50/30 to-white overflow-hidden">
-      <motion.div
-        className="absolute w-[600px] h-[600px] rounded-full blur-[150px] opacity-30 pointer-events-none"
-        style={{
-          background: 'radial-gradient(circle, #DC5800 0%, transparent 70%)',
-          top: '20%',
-          right: '10%',
-        }}
-        animate={{
-          y: [0, 30, 0],
-          scale: [1, 1.1, 1],
-        }}
-        transition={{
-          duration: 10,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-
-      <motion.div
-        className="absolute w-10 h-10 rounded-full bg-primary/40"
-        style={{
-          top: '20%',
-          left: '10%',
-        }}
-        animate={{
-          y: [0, -20, 0],
-          rotate: [0, 180, 360],
-        }}
-        transition={{
-          duration: 6,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-
-      <motion.div
-        className="absolute w-16 h-16 rounded-full bg-primary/30"
-        style={{
-          bottom: '25%',
-          right: '15%',
-        }}
-        animate={{
-          y: [0, 25, 0],
-          rotate: [0, -180, -360],
-        }}
-        transition={{
-          duration: 8,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-
-      <motion.div
-        className="absolute w-12 h-12 rounded-full bg-primary/20"
-        style={{
-          top: '60%',
-          left: '15%',
-        }}
-        animate={{
-          y: [0, -30, 0],
-          scale: [1, 1.2, 1],
-        }}
-        transition={{
-          duration: 7,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      />
-
-      <BrandPattern opacity={0.02} className="absolute inset-0" />
-
-      <div className="container mx-auto px-6 py-32 relative z-10">
+    <section id="hero" className="relative bg-white">
+      <div className="container mx-auto px-6 py-16 lg:py-24">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Left Content */}
           <div>
-            <h1 className="font-display text-4xl lg:text-[56px] leading-[1.1] text-secondary mb-6">
-              {words.map((word, index) => (
-                <motion.span
-                  key={index}
-                  initial={{ opacity: 0, y: 100 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.8,
-                    delay: index * 0.08,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  className="inline-block mr-3"
-                >
-                  {word}
-                </motion.span>
-              ))}
+            {/* Trust Badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-50 rounded-full mb-6">
+              <Star className="w-3.5 h-3.5 text-orange-500 fill-orange-500" />
+              <span className="text-xs font-medium text-gray-700">
+                Rated 4.9/5 by 500+ Happy Clients
+              </span>
+            </div>
+
+            {/* Main Headline */}
+            <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 leading-tight mb-6">
+              Transform Your Space Into A{" "}
+              <span className="text-orange-500">Dream Home</span>
             </h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 1.0, ease: [0.22, 1, 0.36, 1] }}
-              className="font-body text-lg lg:text-xl text-secondary/80 mb-8 max-w-[500px]"
-            >
-              We help you create a space that truly feels like yours. One that reflects your
-              culture, your routines, your chaos and your calm.
-            </motion.p>
+            {/* Subheadline */}
+            <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+              Award-winning interior design and construction services that bring
+              your vision to life. From concept to completion, we create spaces
+              you'll love.
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <motion.button
-                ref={buttonRef}
-                onClick={handleButtonClick}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="relative px-8 py-4 bg-primary text-white font-semibold rounded-full overflow-hidden group shadow-lg hover:shadow-2xl transition-shadow"
+            {/* Feature List */}
+            <div className="flex flex-wrap gap-6 mb-10">
+              {["Free 3D Design", "30-Day Guarantee", "Turnkey Solutions"].map(
+                (feature, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    <span className="text-sm font-medium text-gray-700">
+                      {feature}
+                    </span>
+                  </div>
+                ),
+              )}
+            </div>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-wrap gap-4 mb-12">
+              <button
+                onClick={() => smoothScrollTo("quote")}
+                className="group px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
               >
-                <span className="relative z-10 flex items-center gap-2">
-                  Get Your Free Quote
-                  <motion.span
-                    animate={{ x: [0, 5, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  >
-                    →
-                  </motion.span>
-                </span>
+                Get Free Quote
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
 
-                {isHoveringButton && (
-                  <motion.span
-                    className="absolute inset-0 bg-white/30 rounded-full"
-                    initial={{ scale: 0, x: ripplePosition.x, y: ripplePosition.y }}
-                    animate={{ scale: 4, opacity: 0 }}
-                    transition={{ duration: 0.6 }}
-                    style={{
-                      transformOrigin: `${ripplePosition.x}px ${ripplePosition.y}px`,
-                    }}
-                  />
-                )}
+              <button
+                onClick={() => smoothScrollTo("portfolio")}
+                className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-900 rounded-lg font-semibold border border-gray-300 transition-colors"
+              >
+                View Portfolio
+              </button>
+            </div>
 
-                <motion.span
-                  className="absolute inset-0 bg-gradient-to-r from-orange-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                />
-              </motion.button>
-            </motion.div>
+            {/* Stats */}
+            <div className="flex gap-8 pt-8 border-t border-gray-200">
+              <div>
+                <div className="text-2xl font-bold text-gray-900">500+</div>
+                <div className="text-sm text-gray-600">Projects Completed</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">12+</div>
+                <div className="text-sm text-gray-600">Years Experience</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">50+</div>
+                <div className="text-sm text-gray-600">Team Members</div>
+              </div>
+            </div>
           </div>
 
-          <motion.div
-            style={{ y: smoothY }}
-            className="relative"
-          >
-            <motion.div
-              className="absolute -inset-4 bg-gradient-to-br from-primary/20 to-orange-600/20 rounded-2xl blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-            />
+          {/* Right Image */}
+          <div className="relative lg:h-[600px]">
+            {/* Main Image */}
+            <div className="relative h-full rounded-2xl overflow-hidden shadow-xl">
+              <img
+                src="https://images.unsplash.com/photo-1600210492493-0946911123ea?w=800&auto=format&fit=crop"
+                alt="Modern Living Room"
+                className="w-full h-full object-cover"
+              />
 
-            <motion.div
-              className="relative rounded-2xl overflow-hidden shadow-2xl group"
-              style={{
-                scale,
-                rotateX: mousePosition.y * 2,
-                rotateY: mousePosition.x * 2,
-              }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            >
-              <motion.div
-                className="aspect-[4/3] bg-gradient-to-br from-primary/20 to-orange-600/10 relative"
-                animate={{
-                  scale: [1, 1.05, 1],
-                }}
-                transition={{
-                  duration: 20,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-              >
-                <img
-                  src="https://images.pexels.com/photos/1457842/pexels-photo-1457842.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
-                  alt="Modern interior design living room"
-                  className="w-full h-full object-cover hoverable-image"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-secondary/40 via-transparent to-transparent" />
-              </motion.div>
-              <BrandPattern opacity={0.03} className="absolute inset-0 pointer-events-none" />
-            </motion.div>
-
-            <motion.div
-              className="absolute -bottom-4 -right-4 w-24 h-24 bg-white rounded-2xl shadow-xl flex items-center justify-center"
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 1.5, duration: 0.5, type: 'spring' }}
-            >
-              <div className="text-center">
-                <div className="text-3xl font-display font-bold text-primary">460+</div>
-                <div className="text-xs text-secondary/70">Projects</div>
+              {/* Overlay Badge */}
+              <div className="absolute bottom-6 left-6 right-6 bg-white rounded-xl p-4 shadow-lg">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-500 mb-1">
+                      Recent Project
+                    </div>
+                    <div className="text-base font-bold text-gray-900 mb-2">
+                      Modern 3BHK in Whitefield
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className="w-3.5 h-3.5 text-orange-500 fill-orange-500"
+                        />
+                      ))}
+                      <span className="text-xs text-gray-600 ml-1">
+                        (5.0 Rating)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right ml-4">
+                    <div className="text-xl font-bold text-orange-500">
+                      ₹45L
+                    </div>
+                    <div className="text-xs text-gray-500">Budget</div>
+                  </div>
+                </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+
+            {/* Floating Badge */}
+            <div className="absolute top-6 right-6 bg-orange-500 rounded-xl px-4 py-3 shadow-lg">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-white" />
+                <div className="text-left">
+                  <div className="text-lg font-bold text-white">98%</div>
+                  <div className="text-xs text-orange-100">
+                    On-Time Delivery
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <motion.div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 cursor-pointer"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2, duration: 0.8 }}
-        onClick={() => smoothScrollTo('portfolio')}
-      >
-        <span className="text-sm text-secondary/60 font-body">Scroll to explore</span>
-        <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <ChevronDown className="text-primary" size={24} />
-        </motion.div>
-      </motion.div>
     </section>
   );
 };
