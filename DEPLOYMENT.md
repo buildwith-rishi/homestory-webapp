@@ -19,6 +19,7 @@ The website logo has been properly configured for Netlify deployment.
    - Logo serves at `/logo.png` in production
 
 ### File Structure:
+
 ```
 project/
 ├── public/
@@ -32,7 +33,9 @@ project/
 ```
 
 ### Logo Component Usage:
+
 The logo is used via the `Logo` component in:
+
 - `src/components/shared/Logo.tsx` - Main logo component
 - `src/components/dashboard/DashboardSidebar.tsx` - Sidebar branding
 - `src/components/landing/LandingNav.tsx` - Landing page navigation
@@ -43,11 +46,13 @@ All references use `/logo.png` which works correctly in both development and pro
 ## Deployment Steps:
 
 ### 1. Build the Project
+
 ```bash
 npm run build
 ```
 
 ### 2. Verify Build Output
+
 ```bash
 ls -lh dist/logo.png
 # Should show: ~22KB file
@@ -56,12 +61,14 @@ ls -lh dist/logo.png
 ### 3. Deploy to Netlify
 
 **Option A: Manual Deploy**
+
 ```bash
 # If you have Netlify CLI installed:
 netlify deploy --prod --dir=dist
 ```
 
 **Option B: Git-based Deploy**
+
 1. Commit all changes:
    ```bash
    git add .
@@ -71,7 +78,9 @@ netlify deploy --prod --dir=dist
 2. Netlify will auto-deploy from your repository
 
 ### 4. Verify Deployment
+
 After deployment, check:
+
 - ✅ Logo appears in navigation bar
 - ✅ Logo appears in dashboard sidebar
 - ✅ Favicon shows in browser tab
@@ -84,18 +93,21 @@ After deployment, check:
 ⚠️ **Always keep logo in `public/` folder** - Don't move it back to project root
 
 ⚠️ **Image paths in Vite:**
+
 - Files in `public/` folder are served at root path (`/logo.png`)
 - Files imported in code go through bundler (use `import logo from './logo.png'`)
 
 ## Troubleshooting:
 
 ### Logo Still Not Showing?
+
 1. Clear Netlify cache and redeploy
 2. Check browser console for 404 errors
 3. Verify logo exists in deployed site: `https://your-site.netlify.app/logo.png`
 4. Hard refresh browser (Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows)
 
 ### Build Issues?
+
 ```bash
 # Clean and rebuild
 rm -rf dist node_modules
