@@ -1,8 +1,8 @@
 export enum UserRole {
-  ADMIN = 'admin',
-  MANAGER = 'manager',
-  ENGINEER = 'engineer',
-  CUSTOMER = 'customer'
+  ADMIN = "admin",
+  MANAGER = "manager",
+  ENGINEER = "engineer",
+  CUSTOMER = "customer",
 }
 
 export interface User {
@@ -16,11 +16,11 @@ export interface User {
 }
 
 export enum ProjectStage {
-  PRE_CONSTRUCTION = 'pre_construction',
-  EXECUTION = 'execution',
-  FINISHING = 'finishing',
-  FINAL_FIXES = 'final_fixes',
-  COMPLETE = 'complete'
+  PRE_CONSTRUCTION = "pre_construction",
+  EXECUTION = "execution",
+  FINISHING = "finishing",
+  FINAL_FIXES = "final_fixes",
+  COMPLETE = "complete",
 }
 
 export interface Task {
@@ -48,33 +48,33 @@ export interface Project {
   actualEndDate?: string;
   siteEngineerId?: string;
   budget?: number;
-  status: 'active' | 'on_hold' | 'completed';
+  status: "active" | "on_hold" | "completed";
   createdAt: string;
   updatedAt: string;
 }
 
 export enum LeadStage {
-  INQUIRY = 'inquiry',
-  CONTACTED = 'contacted',
-  MEETING_SCHEDULED = 'meeting_scheduled',
-  PROPOSAL_SENT = 'proposal_sent',
-  NEGOTIATION = 'negotiation',
-  WON = 'won',
-  LOST = 'lost'
+  INQUIRY = "inquiry",
+  CONTACTED = "contacted",
+  MEETING_SCHEDULED = "meeting_scheduled",
+  PROPOSAL_SENT = "proposal_sent",
+  NEGOTIATION = "negotiation",
+  WON = "won",
+  LOST = "lost",
 }
 
 export enum LeadSource {
-  WEBSITE = 'website',
-  INSTAGRAM = 'instagram',
-  REFERRAL = 'referral',
-  WALK_IN = 'walk_in',
-  OTHER = 'other'
+  WEBSITE = "website",
+  INSTAGRAM = "instagram",
+  REFERRAL = "referral",
+  WALK_IN = "walk_in",
+  OTHER = "other",
 }
 
 export interface LeadActivity {
   id: string;
   leadId: string;
-  type: 'call' | 'email' | 'meeting' | 'note' | 'stage_change';
+  type: "call" | "email" | "meeting" | "note" | "stage_change";
   description: string;
   createdBy: string;
   createdAt: string;
@@ -107,7 +107,7 @@ export interface AIAnalysis {
   summary: string;
   actionItems: string[];
   keyPoints: string[];
-  sentiment: 'positive' | 'neutral' | 'negative';
+  sentiment: "positive" | "neutral" | "negative";
   concerns: string[];
   decisions: string[];
 }
@@ -125,7 +125,7 @@ export interface Meeting {
   recordingUrl?: string;
   transcription?: TranscriptionSegment[];
   aiAnalysis?: AIAnalysis;
-  status: 'scheduled' | 'completed' | 'cancelled';
+  status: "scheduled" | "completed" | "cancelled";
   createdAt: string;
   updatedAt: string;
 }
@@ -144,7 +144,7 @@ export interface Communication {
   id: string;
   customerId: string;
   projectId?: string;
-  type: 'update' | 'photo' | 'video' | 'issue' | 'milestone';
+  type: "update" | "photo" | "video" | "issue" | "milestone";
   title: string;
   content: string;
   media?: string[];
@@ -153,24 +153,24 @@ export interface Communication {
 }
 
 export enum IssueCategory {
-  MATERIAL = 'material',
-  QUALITY = 'quality',
-  SAFETY = 'safety',
-  DELAY = 'delay',
-  OTHER = 'other'
+  MATERIAL = "material",
+  QUALITY = "quality",
+  SAFETY = "safety",
+  DELAY = "delay",
+  OTHER = "other",
 }
 
 export enum IssueSeverity {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  CRITICAL = 'critical'
+  LOW = "low",
+  MEDIUM = "medium",
+  HIGH = "high",
+  CRITICAL = "critical",
 }
 
 export enum IssueStatus {
-  OPEN = 'open',
-  IN_PROGRESS = 'in_progress',
-  RESOLVED = 'resolved'
+  OPEN = "open",
+  IN_PROGRESS = "in_progress",
+  RESOLVED = "resolved",
 }
 
 export interface Issue {
@@ -213,17 +213,17 @@ export interface UploadedPhoto {
 }
 
 export enum InstagramPostType {
-  SINGLE = 'single',
-  CAROUSEL = 'carousel',
-  REEL = 'reel',
-  STORY = 'story'
+  SINGLE = "single",
+  CAROUSEL = "carousel",
+  REEL = "reel",
+  STORY = "story",
 }
 
 export enum InstagramPostStatus {
-  DRAFT = 'draft',
-  SCHEDULED = 'scheduled',
-  PUBLISHED = 'published',
-  FAILED = 'failed'
+  DRAFT = "draft",
+  SCHEDULED = "scheduled",
+  PUBLISHED = "published",
+  FAILED = "failed",
 }
 
 export interface InstagramPost {
@@ -234,7 +234,7 @@ export interface InstagramPost {
   location?: string;
   media: {
     url: string;
-    type: 'image' | 'video';
+    type: "image" | "video";
     altText?: string;
   }[];
   scheduledDate?: string;
@@ -286,7 +286,7 @@ export interface DirectMessage {
   unread: boolean;
   messages: {
     id: string;
-    from: 'user' | 'brand';
+    from: "user" | "brand";
     text: string;
     timestamp: string;
   }[];
@@ -304,7 +304,7 @@ export interface Comment {
 
 export interface NotificationType {
   id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: "info" | "success" | "warning" | "error";
   title: string;
   message: string;
   read: boolean;
@@ -313,7 +313,7 @@ export interface NotificationType {
 
 export interface ProjectFilters {
   stage?: ProjectStage;
-  status?: 'active' | 'on_hold' | 'completed';
+  status?: "active" | "on_hold" | "completed";
   search?: string;
 }
 
@@ -333,4 +333,35 @@ export interface PipelineStats {
   won: number;
   lost: number;
   conversionRate: number;
+}
+
+// Widget System Types
+export type WidgetCategory =
+  | "featured"
+  | "sales"
+  | "leads"
+  | "team"
+  | "actions";
+
+export interface WidgetDefinition {
+  id: string;
+  name: string;
+  description: string;
+  category: WidgetCategory;
+  icon: string; // Lucide icon name
+  defaultSize: { w: number; h: number };
+  minSize?: { w: number; h: number };
+  maxSize?: { w: number; h: number };
+}
+
+export interface DashboardWidget {
+  instanceId: string;
+  widgetId: string;
+  position: { x: number; y: number };
+  size: { w: number; h: number };
+}
+
+export interface DashboardLayout {
+  widgets: DashboardWidget[];
+  lastModified: string;
 }

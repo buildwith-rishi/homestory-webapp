@@ -19,8 +19,16 @@ export function LoginPage() {
 
     try {
       await login(email, password);
+      // Successful login will redirect via AuthContext
     } catch (err) {
-      setError("Invalid email or password");
+      // Display specific error message from API
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(
+          "Unable to login. Please check your credentials and try again.",
+        );
+      }
     } finally {
       setLoading(false);
     }

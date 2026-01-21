@@ -116,8 +116,10 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
       {/* Navigation Sections - Scrollable */}
       <nav
-        className="flex-1 overflow-y-auto overflow-x-hidden py-6 px-3 custom-scrollbar"
-        style={{ minHeight: 0 }}
+        className="flex-1 overflow-y-scroll overflow-x-hidden py-6 px-3 sidebar-scroll"
+        style={{
+          minHeight: 0,
+        }}
       >
         {navigationSections.map((section, sectionIndex) => (
           <div key={section.title} className={sectionIndex > 0 ? "mt-8" : ""}>

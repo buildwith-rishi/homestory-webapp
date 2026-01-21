@@ -1,14 +1,14 @@
-import { createContext, useContext, useEffect, ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
-import { User, UserRole } from '../types';
+import { createContext, useContext, useEffect, ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../stores/authStore";
+import { User, UserRole } from "../types";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   hasRole: (role: UserRole | UserRole[]) => boolean;
 }
 
@@ -16,16 +16,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading, login, logout, setUser } = useAuthStore();
+  const { user, isAuthenticated, isLoading, login, logout, setUser } =
+    useAuthStore();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         setUser(parsedUser);
       } catch {
-        localStorage.removeItem('user');
+        localStorage.removeItem("user");
         setUser(null);
       }
     } else {
@@ -37,15 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login(email, password);
     const currentUser = useAuthStore.getState().user;
     if (currentUser) {
-      localStorage.setItem('user', JSON.stringify(currentUser));
-      navigate('/dashboard');
+      localStorage.setItem("user", JSON.stringify(currentUser));
+      navigate("/dashboard");
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    localStorage.removeItem('user');
-    navigate('/login');
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
   };
 
   const hasRole = (role: UserRole | UserRole[]) => {
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
 }

@@ -210,17 +210,6 @@ export const LeadsPage: React.FC = () => {
                   <span>{lead.budget}</span>
                 </div>
               </div>
-
-              <div className="flex gap-2 pt-3 border-t">
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg text-sm">
-                  <Phone className="w-4 h-4" />
-                  Call
-                </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-lg text-sm">
-                  <MessageSquare className="w-4 h-4" />
-                  Chat
-                </button>
-              </div>
             </Card>
           );
         })}

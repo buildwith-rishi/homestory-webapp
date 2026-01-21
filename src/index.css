@@ -81,6 +81,9 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-y: scroll;
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #e5e7eb;
 }
 
 body {
@@ -91,6 +94,9 @@ body {
   line-height: 1.1;
   color: var(--color-secondary);
   background-color: var(--color-background);
+  overflow-y: scroll;
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #e5e7eb;
 }
 
 ::selection {
@@ -109,71 +115,151 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #e5e7eb;
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.3);
-  border-radius: 4px;
+  background: #9ca3af;
+  border-radius: 6px;
+  border: 2px solid #e5e7eb;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.5);
+  background: #6b7280;
 }
 
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #e5e7eb;
 }
 
 /* Scrollbar for sidebar specifically */
 .scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
+  width: 10px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
+  background: #e5e7eb;
+  border-radius: 5px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.2);
-  border-radius: 2px;
+  background: #9ca3af;
+  border-radius: 5px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.4);
+  background: #6b7280;
 }
 
 /* Custom scrollbar for sidebar navigation */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(243, 244, 246, 0.5);
-  border-radius: 3px;
+  background: #e5e7eb;
+  border-radius: 5px;
   margin: 8px 0;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.4);
-  border-radius: 3px;
-  transition: background 0.2s;
+  background: #9ca3af;
+  border-radius: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.6);
+  background: #6b7280;
+}
+
+/* Sidebar scrollbar - always visible track */
+.sidebar-scroll {
+  overflow-y: scroll !important;
+  scrollbar-width: auto !important;
+  scrollbar-color: #9ca3af #e5e7eb !important;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 10px !important;
+  display: block !important;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: #e5e7eb !important;
+  border-radius: 5px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #9ca3af !important;
+  border-radius: 5px;
+  min-height: 30px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280 !important;
 }
 
 /* Firefox scrollbar */
 .custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.4) rgba(243, 244, 246, 0.5);
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #e5e7eb;
+}
+
+/* Modal scrollbar - More prominent */
+.modal-scroll::-webkit-scrollbar {
+  width: 12px;
+}
+
+.modal-scroll::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 6px;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 6px;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Always show scrollbar */
+.overflow-y-auto {
+  scrollbar-gutter: stable;
+}
+
+/* Ensure scrollbar is visible on all browsers - PROMINENT */
+.force-scrollbar {
+  overflow-y: scroll !important;
+  scrollbar-width: auto !important;
+  scrollbar-color: #9ca3af #e5e7eb !important;
+}
+
+.force-scrollbar::-webkit-scrollbar {
+  width: 12px !important;
+  display: block !important;
+}
+
+.force-scrollbar::-webkit-scrollbar-track {
+  background: #e5e7eb !important;
+  border-radius: 6px;
+}
+
+.force-scrollbar::-webkit-scrollbar-thumb {
+  background: #9ca3af !important;
+  border-radius: 6px;
+  min-height: 40px;
+}
+
+.force-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280 !important;
 }
 
 /* Dashboard Animations */
