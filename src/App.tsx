@@ -19,6 +19,7 @@ import {
   Customers,
   Marketing,
   Analytics,
+  UserManagement,
 } from "./pages/dashboard";
 import { InstagramPage } from "./pages/instagram";
 import { MobileAppShell } from "./components/mobile/MobileAppShell";
@@ -75,6 +76,14 @@ function App() {
             <Route path="customers" element={<Customers />} />
             <Route path="marketing" element={<Marketing />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route
+              path="users"
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+                  <UserManagement />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           <Route

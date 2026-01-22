@@ -10,3 +10,4 @@ export { SettingsPage } from "./Settings";
 export { Customers } from "./Customers";
 export { Marketing } from "./Marketing";
 export { Analytics } from "./Analytics";
+export { UserManagement } from "./UserManagement";

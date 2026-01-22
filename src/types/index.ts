@@ -365,3 +365,45 @@ export interface DashboardLayout {
   widgets: DashboardWidget[];
   lastModified: string;
 }
+
+// Admin - User Management Types
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role:
+    | "ADMIN"
+    | "FOUNDER_ARCHITECT"
+    | "PROJECT_MANAGER"
+    | "DESIGNER"
+    | "SITE_ENGINEER"
+    | "SALES_EXECUTIVE"
+    | "CUSTOMER";
+  phone?: string;
+  avatar?: string;
+  isBanned: boolean;
+  banReason?: string;
+  bannedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastLogin?: string;
+}
+
+export interface CreateUserRequest {
+  name: string;
+  email: string;
+  password: string;
+  role:
+    | "ADMIN"
+    | "FOUNDER_ARCHITECT"
+    | "PROJECT_MANAGER"
+    | "DESIGNER"
+    | "SITE_ENGINEER"
+    | "SALES_EXECUTIVE"
+    | "CUSTOMER";
+  phone?: string;
+}
+
+export interface BanUserRequest {
+  reason: string;
+}

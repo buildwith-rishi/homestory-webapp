@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import ReactDOM from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -133,28 +134,53 @@ export const WidgetLibraryModal: React.FC = () => {
 
   if (!widgetLibraryOpen) return null;
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {widgetLibraryOpen && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop - covers entire viewport */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={closeWidgetLibrary}
-            className="fixed inset-0 bg-black/40 z-50"
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              backgroundColor: "rgba(17, 24, 39, 0.5)",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+              zIndex: 9998,
+            }}
           />
 
           {/* Modal */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "1rem",
+              pointerEvents: "none",
+            }}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
-              className="w-full max-w-5xl h-[85vh] bg-white rounded-2xl shadow-2xl pointer-events-auto overflow-hidden flex flex-col"
+              className="w-full max-w-5xl h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              style={{ pointerEvents: "auto" }}
             >
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -363,6 +389,8 @@ export const WidgetLibraryModal: React.FC = () => {
       )}
     </AnimatePresence>
   );
+
+  return ReactDOM.createPortal(modalContent, document.body);
 };
 
 export default WidgetLibraryModal;

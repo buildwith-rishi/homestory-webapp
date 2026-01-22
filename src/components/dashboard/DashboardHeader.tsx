@@ -1,15 +1,7 @@
-import React, { useState, useRef, useEffect } from "react";
+import React from "react";
 import { useLocation } from "react-router-dom";
-import {
-  Search,
-  Bell,
-  ChevronRight,
-  FolderKanban,
-  ChevronDown,
-  Check,
-} from "lucide-react";
+import { Search, Bell, ChevronRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
-import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 
 interface DashboardHeaderProps {
   sidebarCollapsed?: boolean;
@@ -20,25 +12,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const { user } = useAuth();
   const location = useLocation();
-  const { selectedProjectId, setSelectedProjectId, projects, selectedProject } =
-    useProjectFilter();
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Get breadcrumb from current path
   const getBreadcrumb = () => {
@@ -72,99 +45,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <span className="text-gray-900 font-semibold">{getBreadcrumb()}</span>
         </div>
 
-        {/* Center: Project Filter Dropdown */}
-        <div className="flex-shrink-0" ref={dropdownRef}>
-          <div className="relative">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-3 px-4 py-2 bg-white border-2 border-gray-200 rounded-xl hover:border-orange-300 hover:shadow-sm transition-all w-[280px]"
-            >
-              <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <FolderKanban className="w-4 h-4 text-orange-600" />
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-xs text-gray-500 font-medium">Viewing</p>
-                <p className="text-sm font-semibold text-gray-900 truncate">
-                  {selectedProject ? selectedProject.name : "All Projects"}
-                </p>
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isDropdownOpen ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {/* Dropdown Menu */}
-            {isDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50 max-h-96 overflow-y-auto force-scrollbar">
-                {/* All Projects Option */}
-                <button
-                  onClick={() => {
-                    setSelectedProjectId(null);
-                    setIsDropdownOpen(false);
-                  }}
-                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
-                    !selectedProjectId ? "bg-orange-50" : ""
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0">
-                    <FolderKanban className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-semibold text-gray-900">
-                      All Projects
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      View all ongoing projects
-                    </p>
-                  </div>
-                  {!selectedProjectId && (
-                    <Check className="w-5 h-5 text-orange-600" />
-                  )}
-                </button>
-
-                <div className="h-px bg-gray-200 my-1" />
-
-                {/* Individual Projects */}
-                {projects.map((project) => (
-                  <button
-                    key={project.id}
-                    onClick={() => {
-                      setSelectedProjectId(project.id);
-                      setIsDropdownOpen(false);
-                    }}
-                    className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
-                      selectedProjectId === project.id ? "bg-orange-50" : ""
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-blue-600">
-                        {project.client
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .slice(0, 2)}
-                      </span>
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {project.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {project.client} • {project.status}
-                      </p>
-                    </div>
-                    {selectedProjectId === project.id && (
-                      <Check className="w-5 h-5 text-orange-600 flex-shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Right: Search, Notifications, and User Profile */}
-        <div className="flex items-center gap-4 flex-shrink-0">
+        <div className="flex items-center gap-4 flex-shrink-0 ml-auto">
           {/* Search Bar */}
           <div className="relative">
             <Search

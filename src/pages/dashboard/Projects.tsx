@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Card, Button, Badge, Progress } from "../../components/ui";
 import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
+import { ProjectDetailsSidebar } from "../../components/dashboard/ProjectDetailsSidebar";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 
 const stages = ["Requirements", "Design", "Material", "Execution", "Handover"];
@@ -126,6 +127,9 @@ export const ProjectsPage: React.FC = () => {
   const [view, setView] = useState<"grid" | "kanban">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [selectedProjectDetails, setSelectedProjectDetails] =
+    useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>(mockProjects);
   const { selectedProject } = useProjectFilter();
 
@@ -171,6 +175,11 @@ export const ProjectsPage: React.FC = () => {
 
     setProjects((prev) => [...prev, newProject]);
     setIsModalOpen(false);
+  };
+
+  const handleViewDetails = (project: Project) => {
+    setSelectedProjectDetails(project);
+    setIsSidebarOpen(true);
   };
 
   return (
@@ -380,7 +389,12 @@ export const ProjectsPage: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                  <Button variant="ghost" size="sm" className="rounded-lg">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={() => handleViewDetails(project)}
+                  >
                     View Details
                   </Button>
                 </div>
@@ -437,6 +451,12 @@ export const ProjectsPage: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateProject}
+      />
+
+      <ProjectDetailsSidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        project={selectedProjectDetails}
       />
     </div>
   );

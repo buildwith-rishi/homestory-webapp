@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ReactDOM from "react-dom";
 import {
   Plus,
   Phone,
@@ -215,37 +216,68 @@ export const LeadsPage: React.FC = () => {
         })}
       </div>
 
-      {selectedLead && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-end">
-          <div className="w-full max-w-md h-full bg-white shadow-2xl overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Lead Details</h2>
-              <button
-                onClick={() => setSelectedLead(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="text-center">
-                <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
-                  {selectedLead.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </div>
-                <h3 className="text-xl font-bold">{selectedLead.name}</h3>
-                <Badge
-                  className={`mt-2 rounded-lg ${stageColors[selectedLead.stage]}`}
+      {selectedLead &&
+        ReactDOM.createPortal(
+          <>
+            {/* Backdrop - covers entire viewport */}
+            <div
+              onClick={() => setSelectedLead(null)}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                backgroundColor: "rgba(17, 24, 39, 0.5)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+                zIndex: 9998,
+              }}
+            />
+            {/* Sidebar */}
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: "100%",
+                maxWidth: "448px",
+                zIndex: 9999,
+                backgroundColor: "white",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                overflow: "auto",
+              }}
+            >
+              <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold">Lead Details</h2>
+                <button
+                  onClick={() => setSelectedLead(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
                 >
-                  {selectedLead.stage}
-                </Badge>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
+                    {selectedLead.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")}
+                  </div>
+                  <h3 className="text-xl font-bold">{selectedLead.name}</h3>
+                  <Badge
+                    className={`mt-2 rounded-lg ${stageColors[selectedLead.stage]}`}
+                  >
+                    {selectedLead.stage}
+                  </Badge>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>,
+          document.body,
+        )}
     </div>
   );
 };

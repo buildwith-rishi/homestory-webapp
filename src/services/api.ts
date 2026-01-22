@@ -317,8 +317,87 @@ export const leadsAPI = {
   },
 };
 
+// Admin API - User Management
+export const adminAPI = {
+  // Get all users
+  getAllUsers: async () => {
+    return fetchAPI("/api/users", { method: "GET" });
+  },
+
+  // Get user by ID
+  getUserById: async (userId: string) => {
+    return fetchAPI(`/api/users/${userId}`, { method: "GET" });
+  },
+
+  // Create a new user
+  createUser: async (userData: {
+    name: string;
+    email: string;
+    password: string;
+    role:
+      | "ADMIN"
+      | "FOUNDER_ARCHITECT"
+      | "PROJECT_MANAGER"
+      | "DESIGNER"
+      | "SITE_ENGINEER"
+      | "SALES_EXECUTIVE"
+      | "CUSTOMER";
+    phone?: string;
+  }) => {
+    return fetchAPI("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify(userData),
+    });
+  },
+
+  // Update user
+  updateUser: async (
+    userId: string,
+    userData: {
+      name?: string;
+      role?:
+        | "ADMIN"
+        | "FOUNDER_ARCHITECT"
+        | "PROJECT_MANAGER"
+        | "DESIGNER"
+        | "SITE_ENGINEER"
+        | "SALES_EXECUTIVE"
+        | "CUSTOMER";
+      phone?: string;
+    },
+  ) => {
+    return fetchAPI(`/api/users/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify(userData),
+    });
+  },
+
+  // Ban a user
+  banUser: async (userId: string, reason: string) => {
+    return fetchAPI(`/api/admin/users/${userId}/ban`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  // Unban a user
+  unbanUser: async (userId: string) => {
+    return fetchAPI(`/api/admin/users/${userId}/unban`, {
+      method: "POST",
+    });
+  },
+
+  // Delete a user (soft delete)
+  deleteUser: async (userId: string) => {
+    return fetchAPI(`/api/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+};
+
 export default {
   auth: authAPI,
   projects: projectsAPI,
   leads: leadsAPI,
+  admin: adminAPI,
 };

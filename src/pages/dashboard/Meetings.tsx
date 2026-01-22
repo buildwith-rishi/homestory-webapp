@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import ReactDOM from "react-dom";
 import {
   Calendar,
   Clock,
@@ -418,100 +419,141 @@ export const MeetingsPage: React.FC = () => {
       </div>
 
       {/* Meeting Detail Modal */}
-      {selectedMeeting && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 animate-fade-in">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-              <h2 className="text-xl font-bold text-gray-900">
-                Meeting Details
-              </h2>
-              <button
-                onClick={() => setSelectedMeeting(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+      {selectedMeeting &&
+        ReactDOM.createPortal(
+          <>
+            {/* Backdrop - covers entire viewport */}
+            <div
+              onClick={() => setSelectedMeeting(null)}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                backgroundColor: "rgba(17, 24, 39, 0.5)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+                zIndex: 9998,
+              }}
+            />
+            {/* Modal */}
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: 9999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "1rem",
+                pointerEvents: "none",
+              }}
+            >
+              <Card
+                className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl"
+                style={{ pointerEvents: "auto" }}
               >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Meeting Info */}
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className={`w-14 h-14 rounded-xl ${statusColors[selectedMeeting.status].bg} flex items-center justify-center`}
+                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Meeting Details
+                  </h2>
+                  <button
+                    onClick={() => setSelectedMeeting(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    {React.createElement(typeIcons[selectedMeeting.type], {
-                      className: `w-7 h-7 ${statusColors[selectedMeeting.status].text}`,
-                    })}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900">
-                      {selectedMeeting.title}
-                    </h3>
-                    <p className="text-gray-600">{selectedMeeting.client}</p>
-                  </div>
-                  <Badge
-                    className={`rounded-lg ${statusColors[selectedMeeting.status].bg} ${statusColors[selectedMeeting.status].text} border ${statusColors[selectedMeeting.status].border}`}
-                  >
-                    {selectedMeeting.status.replace("_", " ")}
-                  </Badge>
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-xs text-gray-600 mb-1">Date & Time</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(selectedMeeting.date).toLocaleDateString(
-                        "en-US",
-                        { month: "long", day: "numeric", year: "numeric" },
-                      )}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {selectedMeeting.time} • {selectedMeeting.duration}
-                    </p>
-                  </div>
-                  {selectedMeeting.location && (
-                    <div className="p-3 bg-gray-50 rounded-xl">
-                      <p className="text-xs text-gray-600 mb-1">Location</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {selectedMeeting.location}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Attendees */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                  Attendees
-                </h4>
-                <div className="flex gap-3">
-                  {selectedMeeting.attendees?.map((attendee, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-semibold">
-                        {attendee}
+                <div className="p-6 space-y-6">
+                  {/* Meeting Info */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div
+                        className={`w-14 h-14 rounded-xl ${statusColors[selectedMeeting.status].bg} flex items-center justify-center`}
+                      >
+                        {React.createElement(typeIcons[selectedMeeting.type], {
+                          className: `w-7 h-7 ${statusColors[selectedMeeting.status].text}`,
+                        })}
                       </div>
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-gray-900">
+                          {selectedMeeting.title}
+                        </h3>
+                        <p className="text-gray-600">
+                          {selectedMeeting.client}
+                        </p>
+                      </div>
+                      <Badge
+                        className={`rounded-lg ${statusColors[selectedMeeting.status].bg} ${statusColors[selectedMeeting.status].text} border ${statusColors[selectedMeeting.status].border}`}
+                      >
+                        {selectedMeeting.status.replace("_", " ")}
+                      </Badge>
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t">
-                <Button className="flex-1 rounded-xl">
-                  <Phone className="w-4 h-4" />
-                  Start Call
-                </Button>
-                <Button variant="secondary" className="flex-1 rounded-xl">
-                  <FileText className="w-4 h-4" />
-                  View Notes
-                </Button>
-              </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-gray-50 rounded-xl">
+                        <p className="text-xs text-gray-600 mb-1">
+                          Date & Time
+                        </p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {new Date(selectedMeeting.date).toLocaleDateString(
+                            "en-US",
+                            { month: "long", day: "numeric", year: "numeric" },
+                          )}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {selectedMeeting.time} • {selectedMeeting.duration}
+                        </p>
+                      </div>
+                      {selectedMeeting.location && (
+                        <div className="p-3 bg-gray-50 rounded-xl">
+                          <p className="text-xs text-gray-600 mb-1">Location</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {selectedMeeting.location}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Attendees */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 mb-3">
+                      Attendees
+                    </h4>
+                    <div className="flex gap-3">
+                      {selectedMeeting.attendees?.map((attendee, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-semibold">
+                            {attendee}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4 border-t">
+                    <Button className="flex-1 rounded-xl">
+                      <Phone className="w-4 h-4" />
+                      Start Call
+                    </Button>
+                    <Button variant="secondary" className="flex-1 rounded-xl">
+                      <FileText className="w-4 h-4" />
+                      View Notes
+                    </Button>
+                  </div>
+                </div>
+              </Card>
             </div>
-          </Card>
-        </div>
-      )}
+          </>,
+          document.body,
+        )}
 
       {/* Empty State */}
       {filteredMeetings.length === 0 && (

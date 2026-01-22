@@ -12,11 +12,12 @@ export const WelcomeBanner: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-1">
-        {getGreeting()}, {user?.name || "Admin"}
+    <div className="py-6 px-1">
+      <h1 className="text-3xl font-bold text-gray-900 mb-1.5">
+        {getGreeting()},{" "}
+        <span className="text-orange-600">{user?.name || "Admin User"}</span>
       </h1>
-      <p className="text-gray-600">
+      <p className="text-gray-500">
         Here's what's happening with your projects today.
       </p>
     </div>

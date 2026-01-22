@@ -1,5 +1,5 @@
-import React from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Home,
   Users2,
@@ -15,10 +15,16 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Shield,
+  ChevronDown,
+  Check,
+  Layers,
 } from "lucide-react";
 import Logo from "../shared/Logo";
 import BrandPattern from "../shared/BrandPattern";
 import { useAuth } from "../../contexts/AuthContext";
+import { useProjectFilter } from "../../contexts/ProjectFilterContext";
+import { UserRole } from "../../types";
 
 interface DashboardSidebarProps {
   collapsed: boolean;
@@ -34,6 +40,7 @@ interface NavItem {
   icon: React.ElementType;
   label: string;
   path: string;
+  adminOnly?: boolean;
 }
 
 const navigationSections: NavSection[] = [
@@ -64,6 +71,12 @@ const navigationSections: NavSection[] = [
     title: "Account",
     items: [
       { icon: TeamIcon, label: "Team", path: "/dashboard/engineers" },
+      {
+        icon: Shield,
+        label: "User Management",
+        path: "/dashboard/users",
+        adminOnly: true,
+      },
       { icon: Settings, label: "Settings", path: "/dashboard/settings" },
     ],
   },
@@ -75,6 +88,22 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 }) => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { selectedProjectId, setSelectedProjectId, projects, selectedProject } =
+    useProjectFilter();
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+
+  // Determine if the current page should show the project filter
+  const projectFilterPages = [
+    "/dashboard/leads",
+    "/dashboard/projects",
+    "/dashboard/customers",
+    "/dashboard/updates",
+    "/dashboard/meetings",
+  ];
+  const shouldShowProjectFilter = projectFilterPages.some((page) =>
+    location.pathname.startsWith(page),
+  );
 
   const handleLogout = async () => {
     await logout();
@@ -121,6 +150,108 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           minHeight: 0,
         }}
       >
+        {/* Project Filter Dropdown - Shows on relevant pages */}
+        {shouldShowProjectFilter && !collapsed && (
+          <div className="mb-6 px-1">
+            <h3 className="px-2 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Filter by Project
+            </h3>
+            <div className="relative">
+              <button
+                onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-gradient-to-r from-orange-50 to-orange-100/50 border border-orange-200 rounded-lg hover:shadow-sm transition-all"
+              >
+                <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <Layers className="w-3.5 h-3.5 text-orange-600" />
+                </div>
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-xs font-semibold text-gray-900 truncate">
+                    {selectedProject ? selectedProject.name : "All Projects"}
+                  </p>
+                </div>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${
+                    isProjectDropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isProjectDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-50 max-h-80 overflow-y-auto force-scrollbar">
+                  {/* All Projects Option */}
+                  <button
+                    onClick={() => {
+                      setSelectedProjectId(null);
+                      setIsProjectDropdownOpen(false);
+                    }}
+                    className={`w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-gray-50 transition-colors ${
+                      !selectedProjectId ? "bg-orange-50" : ""
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-md bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Layers className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-xs font-semibold text-gray-900">
+                        All Projects
+                      </p>
+                      <p className="text-[10px] text-gray-500">View all data</p>
+                    </div>
+                    {!selectedProjectId && (
+                      <Check className="w-4 h-4 text-orange-600" />
+                    )}
+                  </button>
+
+                  <div className="h-px bg-gray-200" />
+
+                  {/* Individual Projects */}
+                  {projects.map((project) => (
+                    <button
+                      key={project.id}
+                      onClick={() => {
+                        setSelectedProjectId(project.id);
+                        setIsProjectDropdownOpen(false);
+                      }}
+                      className={`w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-gray-50 transition-colors ${
+                        selectedProjectId === project.id ? "bg-orange-50" : ""
+                      }`}
+                    >
+                      <div className="w-7 h-7 rounded-md bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-[10px] font-bold text-blue-600">
+                          {project.client
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </span>
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="text-xs font-semibold text-gray-900 truncate">
+                          {project.name}
+                        </p>
+                        <p className="text-[10px] text-gray-500">
+                          {project.client}
+                        </p>
+                      </div>
+                      {selectedProjectId === project.id && (
+                        <Check className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Compact indicator when sidebar is collapsed */}
+        {shouldShowProjectFilter && collapsed && selectedProjectId && (
+          <div className="mb-4 px-3">
+            <div className="w-full h-1 bg-orange-500 rounded-full" />
+          </div>
+        )}
+
         {navigationSections.map((section, sectionIndex) => (
           <div key={section.title} className={sectionIndex > 0 ? "mt-8" : ""}>
             {!collapsed && (
@@ -132,40 +263,46 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
               <div className="h-px bg-gray-200 mx-3 mb-3" />
             )}
             <div className="space-y-1">
-              {section.items.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  end={item.path === "/dashboard"}
-                  className={({ isActive }) =>
-                    `flex items-center h-11 px-3 rounded-lg transition-all group relative ${
-                      collapsed ? "justify-center" : ""
-                    } ${
-                      isActive
-                        ? "bg-primary/5 text-primary font-medium"
-                        : "text-gray-700 hover:bg-gray-50"
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <item.icon
-                        size={20}
-                        strokeWidth={2}
-                        className={isActive ? "text-primary" : "text-gray-600"}
-                      />
-                      {!collapsed && (
-                        <span className="ml-3 text-sm">{item.label}</span>
-                      )}
-                      {collapsed && (
-                        <div className="absolute left-full ml-2 bg-gray-900 text-white px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap text-sm z-50 shadow-lg">
-                          {item.label}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </NavLink>
-              ))}
+              {section.items
+                .filter(
+                  (item) => !item.adminOnly || user?.role === UserRole.ADMIN,
+                )
+                .map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.path === "/dashboard"}
+                    className={({ isActive }) =>
+                      `flex items-center h-11 px-3 rounded-lg transition-all group relative ${
+                        collapsed ? "justify-center" : ""
+                      } ${
+                        isActive
+                          ? "bg-primary/5 text-primary font-medium"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <item.icon
+                          size={20}
+                          strokeWidth={2}
+                          className={
+                            isActive ? "text-primary" : "text-gray-600"
+                          }
+                        />
+                        {!collapsed && (
+                          <span className="ml-3 text-sm">{item.label}</span>
+                        )}
+                        {collapsed && (
+                          <div className="absolute left-full ml-2 bg-gray-900 text-white px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap text-sm z-50 shadow-lg">
+                            {item.label}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
             </div>
           </div>
         ))}
