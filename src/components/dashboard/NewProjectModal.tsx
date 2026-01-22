@@ -306,11 +306,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         }}
       >
         <div
-          className="relative bg-white rounded-3xl shadow-2xl w-full max-w-5xl my-8 max-h-[90vh] flex flex-col transform transition-all border border-gray-100"
+          className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl my-6 max-h-[92vh] flex flex-col transform transition-all border border-gray-100"
           style={{ pointerEvents: "auto" }}
         >
           {/* Header - Fixed */}
-          <div className="flex items-center justify-between px-8 py-6 flex-shrink-0 bg-gradient-to-br from-orange-50 via-white to-orange-50/30 rounded-t-3xl border-b border-orange-100">
+          <div className="flex items-center justify-between px-8 py-5 flex-shrink-0 bg-gradient-to-br from-orange-50 via-white to-orange-50/30 rounded-t-3xl border-b border-orange-100">
             <div>
               <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                 Create New Project
@@ -331,8 +331,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
           </div>
 
           {/* Progress Steps */}
-          <div className="px-8 py-5 bg-white border-b border-gray-100">
-            <div className="flex items-center justify-between max-w-3xl mx-auto">
+          <div className="px-8 py-4 bg-white border-b border-gray-100">
+            <div className="flex items-center justify-between max-w-full mx-auto">
               {steps.map((step, index) => (
                 <React.Fragment key={step.number}>
                   <div className="flex flex-col items-center flex-1">
@@ -380,11 +380,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
           >
             <div
               className="overflow-y-scroll flex-1 px-8 py-6 space-y-6 force-scrollbar"
-              style={{ maxHeight: "calc(90vh - 280px)" }}
+              style={{ maxHeight: "calc(92vh - 240px)" }}
             >
               {/* Step 1: Basic Information */}
               {currentStep === 1 && (
-                <div className="space-y-5 max-w-4xl mx-auto">
+                <div className="space-y-5 max-w-full mx-auto">
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/60 rounded-xl p-4 shadow-sm">
                     <p className="text-sm text-blue-800 font-semibold flex items-center gap-2">
                       <span className="text-lg">📋</span>
@@ -757,7 +757,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
               {/* Step 2: Pipeline Selection */}
               {currentStep === 2 && (
-                <div className="space-y-5 max-w-4xl mx-auto">
+                <div className="space-y-5 max-w-full mx-auto">
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/60 rounded-xl p-4 shadow-sm">
                     <p className="text-sm text-blue-800 font-semibold flex items-center gap-2">
                       <span className="text-lg">🎯</span>
@@ -903,11 +903,13 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
               {/* Step 3: Design Details */}
               {currentStep === 3 && (
-                <div className="space-y-5 max-w-4xl mx-auto">
+                <div className="space-y-5 max-w-full mx-auto">
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/60 rounded-xl p-4 shadow-sm">
                     <p className="text-sm text-blue-800 font-semibold flex items-center gap-2">
                       <span className="text-lg">🎨</span>
-                      Configure your design requirements
+                      {formData.pipelineType === "design-only"
+                        ? "Configure your design requirements"
+                        : "Configure comprehensive design & planning details"}
                     </p>
                   </div>
 
@@ -1010,12 +1012,13 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                   </div>
 
                   {/* Design Deliverables */}
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-5 rounded-xl border border-gray-200/60 shadow-sm">
+                    <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-orange-500" />
                       Required Deliverables
                     </h3>
                     <div className="space-y-3">
-                      <label className="flex items-center gap-3 cursor-pointer">
+                      <label className="flex items-center gap-3 cursor-pointer group">
                         <input
                           type="checkbox"
                           checked={formData.moodboardRequired}
@@ -1024,8 +1027,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           }
                           className="w-5 h-5 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
                         />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
                             Moodboard
                           </p>
                           <p className="text-xs text-gray-500">
@@ -1034,7 +1037,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-3 cursor-pointer">
+                      <label className="flex items-center gap-3 cursor-pointer group">
                         <input
                           type="checkbox"
                           checked={formData.threeDVisualsRequired}
@@ -1046,8 +1049,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           }
                           className="w-5 h-5 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
                         />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
                             3D Visuals & Renders
                           </p>
                           <p className="text-xs text-gray-500">
@@ -1056,7 +1059,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-3 cursor-pointer">
+                      <label className="flex items-center gap-3 cursor-pointer group">
                         <input
                           type="checkbox"
                           checked={formData.floorPlanRequired}
@@ -1065,8 +1068,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           }
                           className="w-5 h-5 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
                         />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
                             Detailed Floor Plans
                           </p>
                           <p className="text-xs text-gray-500">
@@ -1076,13 +1079,188 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       </label>
                     </div>
                   </div>
+
+                  {/* Additional Fields for Design + Execution Pipeline */}
+                  {formData.pipelineType === "design-execution" && (
+                    <>
+                      {/* Space Planning & Layout */}
+                      <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 p-5 rounded-xl border border-purple-200/60 shadow-sm">
+                        <h3 className="text-sm font-bold text-purple-900 mb-4 flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-purple-600" />
+                          Advanced Design Planning
+                        </h3>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Space Planning Requirements
+                            </label>
+                            <textarea
+                              value={formData.description}
+                              onChange={(e) =>
+                                handleChange("description", e.target.value)
+                              }
+                              placeholder="Describe special requirements like open kitchen, home office, entertainment area, etc."
+                              rows={3}
+                              className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-white"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Expected Revisions
+                              </label>
+                              <select className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
+                                <option>1-2 Revisions</option>
+                                <option>3-4 Revisions</option>
+                                <option>5+ Revisions</option>
+                                <option>Unlimited Revisions</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Client Involvement Level
+                              </label>
+                              <select className="w-full px-4 py-2.5 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
+                                <option>Minimal (Trust Designer)</option>
+                                <option>Moderate (Regular Updates)</option>
+                                <option>High (Frequent Collaboration)</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Material & Finishes Preferences */}
+                      <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 p-5 rounded-xl border border-amber-200/60 shadow-sm">
+                        <h3 className="text-sm font-bold text-amber-900 mb-4 flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-amber-600" />
+                          Material & Finish Preferences
+                        </h3>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Preferred Material Quality
+                            </label>
+                            <div className="flex flex-wrap gap-2.5">
+                              {[
+                                "Premium",
+                                "Mid-Range",
+                                "Budget-Friendly",
+                                "Mixed",
+                              ].map((quality) => (
+                                <button
+                                  key={quality}
+                                  type="button"
+                                  className="px-4 py-2 rounded-lg text-sm font-medium border-2 border-amber-200 hover:border-amber-400 bg-white hover:bg-amber-50 text-gray-700 transition-all"
+                                >
+                                  {quality}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Flooring Preference
+                              </label>
+                              <Input
+                                placeholder="e.g., Hardwood, Tiles, Marble"
+                                className="border-amber-200 focus:ring-amber-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Wall Finish Preference
+                              </label>
+                              <Input
+                                placeholder="e.g., Paint, Wallpaper, Texture"
+                                className="border-amber-200 focus:ring-amber-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Furniture & Decor Requirements */}
+                      <div className="bg-gradient-to-br from-green-50 to-green-100/50 p-5 rounded-xl border border-green-200/60 shadow-sm">
+                        <h3 className="text-sm font-bold text-green-900 mb-4 flex items-center gap-2">
+                          <Home className="w-4 h-4 text-green-600" />
+                          Furniture & Decor
+                        </h3>
+                        <div className="space-y-3">
+                          <label className="flex items-center gap-3 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                                Custom Furniture Design
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Bespoke furniture pieces tailored to space
+                              </p>
+                            </div>
+                          </label>
+
+                          <label className="flex items-center gap-3 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                                Lighting Design Plan
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Comprehensive lighting layout and fixtures
+                              </p>
+                            </div>
+                          </label>
+
+                          <label className="flex items-center gap-3 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                                Soft Furnishings & Decor
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Curtains, cushions, rugs, and accessories
+                              </p>
+                            </div>
+                          </label>
+
+                          <label className="flex items-center gap-3 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                                Art & Decor Sourcing
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Selection and procurement of art pieces
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
               {/* Step 4: Execution Details (only for design-execution) */}
               {currentStep === 4 &&
                 formData.pipelineType === "design-execution" && (
-                  <div className="space-y-6 max-w-3xl mx-auto">
+                  <div className="space-y-6 max-w-full mx-auto">
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <p className="text-sm text-blue-800 font-medium">
                         🏗️ Configure execution and project management details
@@ -1238,7 +1416,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 formData.pipelineType === "design-only") ||
                 (currentStep === 5 &&
                   formData.pipelineType === "design-execution")) && (
-                <div className="space-y-6 max-w-3xl mx-auto">
+                <div className="space-y-6 max-w-full mx-auto">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-sm text-blue-800 font-medium">
                       ✅ Review your project details before creating
