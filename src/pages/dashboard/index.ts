@@ -2,6 +2,7 @@ export { DashboardLayout } from "./DashboardLayout";
 export { DashboardOverview } from "./Overview";
 export { MeetingsPage } from "./Meetings";
 export { ProjectsPage } from "./Projects";
+export { ProjectDetails } from "./ProjectDetails";
 export { LeadsPage } from "./Leads";
 export { UpdatesPage } from "./Updates";
 export { VoiceAgentPage } from "./VoiceAgent";

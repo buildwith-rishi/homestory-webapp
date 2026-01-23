@@ -11,6 +11,7 @@ import {
   DashboardOverview,
   MeetingsPage,
   ProjectsPage,
+  ProjectDetails,
   LeadsPage,
   UpdatesPage,
   VoiceAgentPage,
@@ -21,6 +22,8 @@ import {
   Analytics,
   UserManagement,
 } from "./pages/dashboard";
+import { MeetingRoom } from "./pages/dashboard/MeetingRoom";
+import { MeetingsCalendarPage } from "./pages/dashboard/MeetingsCalendar";
 import { InstagramPage } from "./pages/instagram";
 import { MobileAppShell } from "./components/mobile/MobileAppShell";
 import {
@@ -67,7 +70,12 @@ function App() {
           >
             <Route index element={<DashboardOverview />} />
             <Route path="meetings" element={<MeetingsPage />} />
+            <Route
+              path="meetings/calendar"
+              element={<MeetingsCalendarPage />}
+            />
             <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/:projectId" element={<ProjectDetails />} />
             <Route path="engineers" element={<EngineersPage />} />
             <Route path="updates" element={<UpdatesPage />} />
             <Route path="leads" element={<LeadsPage />} />
@@ -91,6 +99,16 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.MANAGER]}>
                 <InstagramPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Meeting Room - Full screen experience */}
+          <Route
+            path="/dashboard/meeting-room"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.MANAGER]}>
+                <MeetingRoom />
               </ProtectedRoute>
             }
           />

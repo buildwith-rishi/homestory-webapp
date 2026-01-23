@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   MoreVertical,
@@ -12,10 +13,7 @@ import {
 } from "lucide-react";
 import { Card, Button, Badge, Progress } from "../../components/ui";
 import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
-import { ProjectDetailsSidebar } from "../../components/dashboard/ProjectDetailsSidebar";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
-
-const stages = ["Requirements", "Design", "Material", "Execution", "Handover"];
 
 interface ProjectFormData {
   name: string;
@@ -124,12 +122,10 @@ const statusColors = {
 };
 
 export const ProjectsPage: React.FC = () => {
-  const [view, setView] = useState<"grid" | "kanban">("grid");
+  const navigate = useNavigate();
+  const [view, setView] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [selectedProjectDetails, setSelectedProjectDetails] =
-    useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>(mockProjects);
   const { selectedProject } = useProjectFilter();
 
@@ -178,8 +174,7 @@ export const ProjectsPage: React.FC = () => {
   };
 
   const handleViewDetails = (project: Project) => {
-    setSelectedProjectDetails(project);
-    setIsSidebarOpen(true);
+    navigate(`/dashboard/projects/${project.id}`);
   };
 
   return (
@@ -228,9 +223,9 @@ export const ProjectsPage: React.FC = () => {
               <Grid3X3 className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setView("kanban")}
+              onClick={() => setView("table")}
               className={`p-2 rounded-lg transition-colors ${
-                view === "kanban"
+                view === "table"
                   ? "bg-orange-500 text-white"
                   : "text-gray-600 hover:bg-gray-100"
               }`}
@@ -404,45 +399,205 @@ export const ProjectsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Kanban View */}
-      {view === "kanban" && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {stages.map((stage) => {
-            const stageProjects = filteredProjects.filter(
-              (p) => p.stage === stage,
-            );
-            return (
-              <div key={stage} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">{stage}</h3>
-                  <Badge className={`rounded-lg ${stageColors[stage]}`}>
-                    {stageProjects.length}
-                  </Badge>
-                </div>
-                <div className="space-y-3">
-                  {stageProjects.map((project) => (
-                    <Card
+      {/* Table View */}
+      {view === "table" && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Project
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Client
+                  </th>
+                  <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Stage
+                  </th>
+                  <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Progress
+                  </th>
+                  <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Due Date
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Budget
+                  </th>
+                  <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Team
+                  </th>
+                  <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredProjects.map((project, index) => {
+                  const statusColor = statusColors[project.status];
+                  return (
+                    <tr
                       key={project.id}
-                      className="p-4 rounded-xl hover:shadow-md transition-shadow"
+                      className={`hover:bg-gradient-to-r hover:from-orange-50/40 hover:to-transparent transition-all group cursor-pointer ${
+                        index % 2 === 0 ? "bg-white" : "bg-gray-50/40"
+                      }`}
+                      onClick={() => handleViewDetails(project)}
                     >
-                      <h4 className="font-medium text-gray-900">
-                        {project.name}
-                      </h4>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {project.client}
-                      </p>
-                      <div className="mt-3">
-                        <Progress value={project.progress} className="h-1.5" />
-                        <p className="text-xs text-gray-600 mt-1">
-                          {project.progress}%
+                      {/* Project Name */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0">
+                            {project.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .substring(0, 2)}
+                          </div>
+                          <p className="font-semibold text-sm text-gray-900 group-hover:text-orange-600 transition-colors">
+                            {project.name}
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* Client */}
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-700 font-medium">
+                          {project.client}
                         </p>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+                      </td>
+
+                      {/* Stage */}
+                      <td className="px-4 py-3">
+                        <div className="flex justify-center">
+                          <Badge
+                            className={`text-xs px-2.5 py-1 rounded-md font-semibold ${stageColors[project.stage]}`}
+                          >
+                            {project.stage}
+                          </Badge>
+                        </div>
+                      </td>
+
+                      {/* Progress */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 justify-center">
+                          <div className="w-20">
+                            <Progress
+                              value={project.progress}
+                              className="h-2"
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-gray-900 min-w-[35px]">
+                            {project.progress}%
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3">
+                        <div className="flex justify-center">
+                          <div
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${statusColor.bg} ${statusColor.text}`}
+                          >
+                            <div
+                              className={`w-1.5 h-1.5 rounded-full ${statusColor.dot}`}
+                            />
+                            <span className="capitalize">
+                              {project.status.replace("_", " ")}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Due Date */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                          <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <span className="font-medium whitespace-nowrap">
+                            {project.dueDate}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Budget */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <DollarSign className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                          <span className="text-sm font-bold text-emerald-600 whitespace-nowrap">
+                            {project.budget}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Team */}
+                      <td className="px-4 py-3">
+                        <div className="flex justify-center">
+                          <div className="flex -space-x-1.5">
+                            {project.team.slice(0, 3).map((member, idx) => (
+                              <div
+                                key={idx}
+                                className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-semibold border-2 border-white shadow-sm"
+                                title={member}
+                              >
+                                {member}
+                              </div>
+                            ))}
+                            {project.team.length > 3 && (
+                              <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 text-xs font-semibold border-2 border-white shadow-sm">
+                                +{project.team.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-lg hover:bg-orange-50 hover:text-orange-600 text-xs px-3 py-1.5 h-auto"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDetails(project);
+                            }}
+                          >
+                            View
+                          </Button>
+                          <button
+                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <MoreVertical className="w-4 h-4 text-gray-400" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Empty State */}
+          {filteredProjects.length === 0 && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className="w-8 h-8 text-gray-400" />
               </div>
-            );
-          })}
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                No projects found
+              </h3>
+              <p className="text-gray-600">
+                Try adjusting your search or filters
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -451,12 +606,6 @@ export const ProjectsPage: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateProject}
-      />
-
-      <ProjectDetailsSidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        project={selectedProjectDetails}
       />
     </div>
   );
