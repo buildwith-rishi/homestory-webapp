@@ -76,12 +76,19 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   onSubmit,
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
+
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  };
+
   const [formData, setFormData] = useState<ProjectFormData>({
     name: "",
     client: "",
     location: "",
     budget: "",
-    startDate: "",
+    startDate: getTodayDate(),
     dueDate: "",
     stage: "Requirements",
     description: "",
@@ -143,7 +150,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     if (!formData.client.trim()) newErrors.client = "Client name is required";
     if (!formData.location.trim()) newErrors.location = "Location is required";
     if (!formData.budget.trim()) newErrors.budget = "Budget is required";
-    if (!formData.startDate) newErrors.startDate = "Start date is required";
+    // Start date validation removed since it defaults to today
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     if (formData.team.length === 0)
       newErrors.team = "Select at least one team member";
@@ -171,7 +178,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         client: "",
         location: "",
         budget: "",
-        startDate: "",
+        startDate: getTodayDate(),
         dueDate: "",
         stage: "Requirements",
         description: "",
@@ -649,51 +656,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           {errors.startDate}
                         </p>
                       )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          Due Date *
-                        </div>
-                      </label>
-                      <Input
-                        type="date"
-                        value={formData.dueDate}
-                        onChange={(e) =>
-                          handleChange("dueDate", e.target.value)
-                        }
-                        className={errors.dueDate ? "border-red-500" : ""}
-                      />
-                      {errors.dueDate && (
-                        <p className="text-red-500 text-xs mt-1">
-                          {errors.dueDate}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Stage */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Project Stage
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {stages.map((stage) => (
-                        <button
-                          key={stage}
-                          type="button"
-                          onClick={() => handleChange("stage", stage)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            formData.stage === stage
-                              ? "bg-orange-500 text-white"
-                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                          }`}
-                        >
-                          {stage}
-                        </button>
-                      ))}
                     </div>
                   </div>
 

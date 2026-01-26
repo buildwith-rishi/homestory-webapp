@@ -86,6 +86,13 @@ const getProjectDetails = (project: Project) => {
     floors: "2",
     rooms: "3 BHK",
     priority: "High",
+    pointOfContact: {
+      name: "Rajesh Sharma",
+      role: "Primary Contact",
+      phone: "+91 98765 43210",
+      email: "rajesh.sharma@example.com",
+      availableHours: "9 AM - 6 PM",
+    },
 
     payments: [
       {
@@ -540,6 +547,78 @@ export const ProjectDetails: React.FC = () => {
                 </Card>
               )}
 
+              {/* Point of Contact */}
+              {details.pointOfContact && (
+                <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
+                  <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                      <Users className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    Point of Contact
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-base font-bold text-gray-900">
+                        {details.pointOfContact.name}
+                      </p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">
+                        {details.pointOfContact.role}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-gray-100">
+                      <a
+                        href={`tel:${details.pointOfContact.phone}`}
+                        className="flex items-center gap-3 p-2.5 rounded-lg bg-gradient-to-r from-gray-50 to-blue-50/30 hover:from-blue-50 hover:to-blue-100/50 border border-gray-100 hover:border-blue-200 transition-all group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                          <Phone className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 font-medium">
+                            Phone
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {details.pointOfContact.phone}
+                          </p>
+                        </div>
+                      </a>
+
+                      <a
+                        href={`mailto:${details.pointOfContact.email}`}
+                        className="flex items-center gap-3 p-2.5 rounded-lg bg-gradient-to-r from-gray-50 to-blue-50/30 hover:from-blue-50 hover:to-blue-100/50 border border-gray-100 hover:border-blue-200 transition-all group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                          <MessageSquare className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 font-medium">
+                            Email
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {details.pointOfContact.email}
+                          </p>
+                        </div>
+                      </a>
+
+                      <div className="flex items-center gap-3 p-2.5 rounded-lg bg-gradient-to-r from-gray-50 to-orange-50/30 border border-gray-100">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0">
+                          <Clock className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 font-medium">
+                            Available
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {details.pointOfContact.availableHours}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
               {/* Description */}
               {project.description && (
                 <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
@@ -696,7 +775,7 @@ export const ProjectDetails: React.FC = () => {
                           ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
                           : milestone.status === "in_progress"
                             ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white"
-                            : "bg-gradient-to-br from-gray-300 to-gray-400 text-white"
+                            : "bg-gradient-to-br from-yellow-400 to-yellow-500 text-white"
                       }`}
                     >
                       {milestone.status === "completed" ? (
@@ -704,38 +783,67 @@ export const ProjectDetails: React.FC = () => {
                       ) : milestone.status === "in_progress" ? (
                         <Clock className="w-5 h-5" />
                       ) : (
-                        <Clock className="w-5 h-5" />
+                        <Clock className="w-5 h-5 opacity-80" />
                       )}
                     </div>
                     {index < details.milestones.length - 1 && (
                       <div
                         className={`w-1 h-16 my-1 rounded-full ${
                           milestone.status === "completed"
-                            ? "bg-gradient-to-b from-green-400 to-gray-200"
-                            : "bg-gray-200"
+                            ? "bg-gradient-to-b from-green-400 to-green-200"
+                            : milestone.status === "in_progress"
+                              ? "bg-gradient-to-b from-orange-400 to-yellow-300"
+                              : "bg-gradient-to-b from-yellow-300 to-gray-200"
                         }`}
                       ></div>
                     )}
                   </div>
                   <div className="flex-1 pb-6">
-                    <div className="p-4 bg-gradient-to-br from-gray-50 via-white to-orange-50/20 rounded-xl border border-gray-100 hover:shadow-md transition-all">
-                      <p className="font-bold text-gray-900 text-base">
-                        {milestone.title}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1 mb-2">
-                        {milestone.date}
-                      </p>
-                      <Badge
-                        className={`${
-                          milestone.status === "completed"
-                            ? "bg-green-100 text-green-700 border-green-200"
+                    <div
+                      className={`p-4 rounded-xl border hover:shadow-md transition-all ${
+                        milestone.status === "completed"
+                          ? "bg-gradient-to-br from-green-50 via-white to-green-50/20 border-green-100"
+                          : milestone.status === "in_progress"
+                            ? "bg-gradient-to-br from-orange-50 via-white to-orange-50/20 border-orange-100"
+                            : "bg-gradient-to-br from-yellow-50 via-white to-yellow-50/20 border-yellow-100"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-bold text-gray-900 text-base">
+                            {milestone.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 mb-2">
+                            <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                            <p className="text-sm text-gray-600">
+                              Tentative Date:{" "}
+                              {new Date(milestone.date).toLocaleDateString(
+                                "en-US",
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                },
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge
+                          className={`${
+                            milestone.status === "completed"
+                              ? "bg-green-100 text-green-700 border-green-200"
+                              : milestone.status === "in_progress"
+                                ? "bg-orange-100 text-orange-700 border-orange-200"
+                                : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                          } text-xs font-semibold`}
+                        >
+                          {milestone.status === "completed"
+                            ? "completed"
                             : milestone.status === "in_progress"
-                              ? "bg-orange-100 text-orange-700 border-orange-200"
-                              : "bg-gray-100 text-gray-700 border-gray-200"
-                        } text-xs font-semibold`}
-                      >
-                        {milestone.status.replace("_", " ")}
-                      </Badge>
+                              ? "ongoing"
+                              : "pending"}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 </div>
