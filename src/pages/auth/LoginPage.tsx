@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+import { Link } from "react-router-dom";
 import { Logo } from "../../components/shared";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 
@@ -159,9 +160,12 @@ export function LoginPage() {
           <div className="mt-8 text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{" "}
-              <button className="text-orange-500 hover:text-orange-600 font-medium transition-colors">
+              <Link
+                to="/signup"
+                className="text-orange-500 hover:text-orange-600 font-medium transition-colors"
+              >
                 Sign up
-              </button>
+              </Link>
             </p>
           </div>
 

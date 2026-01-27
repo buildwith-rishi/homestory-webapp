@@ -6,6 +6,7 @@ import LandingPage from "./pages/LandingPage";
 import DesignSystemPage from "./pages/DesignSystemPage";
 import { SmoothScroll } from "./components/shared";
 import { LoginPage } from "./pages/auth/LoginPage";
+import { SignUpPage } from "./pages/auth/SignUpPage";
 import {
   DashboardLayout,
   DashboardOverview,
@@ -56,6 +57,7 @@ function App() {
             }
           />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignUpPage />} />
 
           <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
           <Route path="/Admin" element={<Navigate to="/dashboard" replace />} />
