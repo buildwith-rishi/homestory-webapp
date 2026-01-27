@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ReactDOM from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Users,
   TrendingUp,
@@ -1808,6 +1809,7 @@ const EditCustomerModal: React.FC<{
 };
 
 export const Customers: React.FC = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -1953,8 +1955,7 @@ export const Customers: React.FC = () => {
               key={customer.id}
               className="p-5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
               onClick={() => {
-                setSelectedCustomer(customer);
-                setShowViewModal(true);
+                navigate(`/dashboard/customers/${customer.id}`);
               }}
             >
               <div className="flex items-start justify-between mb-4">

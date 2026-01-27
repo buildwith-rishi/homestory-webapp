@@ -16,8 +16,12 @@ import {
   Edit3,
   Trash2,
   Upload,
+  Plus,
+  X,
+  Save,
 } from "lucide-react";
 import { Button, Progress, Badge, Card } from "../../components/ui";
+import toast from "react-hot-toast";
 
 interface Project {
   id: string;
@@ -224,10 +228,83 @@ export const ProjectDetails: React.FC = () => {
     "overview" | "payments" | "milestones" | "documents" | "activity"
   >("overview");
 
+  // Milestone management state
+  const [showMilestoneModal, setShowMilestoneModal] = useState(false);
+  const [editingMilestone, setEditingMilestone] = useState<number | null>(null);
+  const [milestoneForm, setMilestoneForm] = useState({
+    title: "",
+    date: "",
+    status: "pending" as "pending" | "in_progress" | "completed",
+  });
+  const [projectDetails, setProjectDetails] = useState<any>(null);
+
   // Find project by ID
   const project = mockProjects.find((p) => p.id === projectId);
 
-  if (!project) {
+  // Initialize project details
+  React.useEffect(() => {
+    if (project) {
+      setProjectDetails(getProjectDetails(project));
+    }
+  }, [project]);
+
+  // Milestone handlers
+  const handleAddMilestone = () => {
+    setMilestoneForm({ title: "", date: "", status: "pending" });
+    setEditingMilestone(null);
+    setShowMilestoneModal(true);
+  };
+
+  const handleEditMilestone = (milestone: any) => {
+    setMilestoneForm({
+      title: milestone.title,
+      date: milestone.date,
+      status: milestone.status,
+    });
+    setEditingMilestone(milestone.id);
+    setShowMilestoneModal(true);
+  };
+
+  const handleSaveMilestone = () => {
+    if (!milestoneForm.title || !milestoneForm.date || !projectDetails) return;
+
+    if (editingMilestone !== null) {
+      // Edit existing milestone
+      const updatedMilestones = projectDetails.milestones.map((m: any) =>
+        m.id === editingMilestone ? { ...m, ...milestoneForm } : m,
+      );
+      setProjectDetails({ ...projectDetails, milestones: updatedMilestones });
+      toast.success("Milestone updated successfully!");
+    } else {
+      // Add new milestone
+      const newMilestone = {
+        id: Math.max(...projectDetails.milestones.map((m: any) => m.id), 0) + 1,
+        ...milestoneForm,
+      };
+      setProjectDetails({
+        ...projectDetails,
+        milestones: [...projectDetails.milestones, newMilestone],
+      });
+      toast.success("Milestone added successfully!");
+    }
+
+    setShowMilestoneModal(false);
+    setMilestoneForm({ title: "", date: "", status: "pending" });
+    setEditingMilestone(null);
+  };
+
+  const handleDeleteMilestone = (milestoneId: number) => {
+    if (!projectDetails) return;
+    if (window.confirm("Are you sure you want to delete this milestone?")) {
+      const updatedMilestones = projectDetails.milestones.filter(
+        (m: any) => m.id !== milestoneId,
+      );
+      setProjectDetails({ ...projectDetails, milestones: updatedMilestones });
+      toast.success("Milestone deleted successfully!");
+    }
+  };
+
+  if (!project || !projectDetails) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -245,7 +322,7 @@ export const ProjectDetails: React.FC = () => {
     );
   }
 
-  const details = getProjectDetails(project);
+  const details = projectDetails; // Use state instead of direct call
 
   const statusColors = {
     on_track: "bg-green-100 text-green-700 border-green-200",
@@ -759,12 +836,21 @@ export const ProjectDetails: React.FC = () => {
         {/* Milestones Tab */}
         {activeTab === "milestones" && (
           <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                <CheckCircle2 className="w-4 h-4 text-white" />
-              </div>
-              Project Milestones
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4 text-white" />
+                </div>
+                Project Milestones
+              </h2>
+              <Button
+                className="bg-orange-500 hover:bg-orange-600"
+                onClick={handleAddMilestone}
+              >
+                <Plus className="w-4 h-4" />
+                Add Milestone
+              </Button>
+            </div>
             <div className="space-y-4">
               {details.milestones.map((milestone, index) => (
                 <div key={milestone.id} className="flex gap-4">
@@ -828,21 +914,37 @@ export const ProjectDetails: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <Badge
-                          className={`${
-                            milestone.status === "completed"
-                              ? "bg-green-100 text-green-700 border-green-200"
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={`${
+                              milestone.status === "completed"
+                                ? "bg-green-100 text-green-700 border-green-200"
+                                : milestone.status === "in_progress"
+                                  ? "bg-orange-100 text-orange-700 border-orange-200"
+                                  : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                            } text-xs font-semibold`}
+                          >
+                            {milestone.status === "completed"
+                              ? "completed"
                               : milestone.status === "in_progress"
-                                ? "bg-orange-100 text-orange-700 border-orange-200"
-                                : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                          } text-xs font-semibold`}
-                        >
-                          {milestone.status === "completed"
-                            ? "completed"
-                            : milestone.status === "in_progress"
-                              ? "ongoing"
-                              : "pending"}
-                        </Badge>
+                                ? "ongoing"
+                                : "pending"}
+                          </Badge>
+                          <button
+                            onClick={() => handleEditMilestone(milestone)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit milestone"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMilestone(milestone.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete milestone"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -929,6 +1031,121 @@ export const ProjectDetails: React.FC = () => {
           </Card>
         )}
       </div>
+
+      {/* Add/Edit Milestone Modal */}
+      {showMilestoneModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">
+                  {editingMilestone ? "Edit Milestone" : "Add New Milestone"}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowMilestoneModal(false);
+                    setMilestoneForm({
+                      title: "",
+                      date: "",
+                      status: "pending",
+                    });
+                    setEditingMilestone(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Milestone Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={milestoneForm.title}
+                    onChange={(e) =>
+                      setMilestoneForm({
+                        ...milestoneForm,
+                        title: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., Initial Consultation"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tentative Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={milestoneForm.date}
+                    onChange={(e) =>
+                      setMilestoneForm({
+                        ...milestoneForm,
+                        date: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Status *
+                  </label>
+                  <select
+                    value={milestoneForm.status}
+                    onChange={(e) =>
+                      setMilestoneForm({
+                        ...milestoneForm,
+                        status: e.target.value as
+                          | "pending"
+                          | "in_progress"
+                          | "completed",
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress / Ongoing</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowMilestoneModal(false);
+                    setMilestoneForm({
+                      title: "",
+                      date: "",
+                      status: "pending",
+                    });
+                    setEditingMilestone(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-orange-500 hover:bg-orange-600"
+                  onClick={handleSaveMilestone}
+                  disabled={!milestoneForm.title || !milestoneForm.date}
+                >
+                  <Save className="w-4 h-4" />
+                  {editingMilestone ? "Update" : "Add"} Milestone
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -227,7 +227,19 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
   const validateCurrentStep = (): boolean => {
     if (currentStep === 1) {
-      return validate();
+      // Step 1: Basic Info validation - only validate fields shown in step 1
+      const newErrors: Partial<Record<keyof ProjectFormData, string>> = {};
+
+      if (!formData.name.trim()) newErrors.name = "Project name is required";
+      if (!formData.client.trim()) newErrors.client = "Client name is required";
+      if (!formData.location.trim())
+        newErrors.location = "Location is required";
+      if (!formData.budget.trim()) newErrors.budget = "Budget is required";
+      if (formData.team.length === 0)
+        newErrors.team = "Select at least one team member";
+
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
     } else if (currentStep === 2) {
       if (!formData.pipelineType) {
         setErrors({ pipelineType: "Please select a pipeline type" });

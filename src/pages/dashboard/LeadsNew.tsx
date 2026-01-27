@@ -20,6 +20,8 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  ArrowRight,
+  Building2,
 } from "lucide-react";
 import { Card, Button, Badge, Progress } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -29,6 +31,7 @@ import LeadAPI, {
   LeadSource,
   LeadStatus,
 } from "../../services/leadApi";
+import AccountAPI from "../../services/accountApi";
 
 const stageColors: Record<string, string> = {
   New: "bg-gray-100 text-gray-700 border-gray-200",
@@ -45,18 +48,12 @@ const LeadModal: React.FC<{
   lead?: Lead | null;
   onSave: (lead: Omit<Lead, "id">) => Promise<void>;
   sources: LeadSource[];
-  statuses: LeadStatus[];
-}> = ({ isOpen, onClose, lead, onSave, sources, statuses }) => {
+}> = ({ isOpen, onClose, lead, onSave, sources }) => {
   const [formData, setFormData] = useState<Omit<Lead, "id">>({
     name: "",
     email: "",
     phone: "",
     source: "WEBSITE",
-    status: "NEW",
-    propertyType: "",
-    location: "",
-    budget: "",
-    notes: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,11 +66,6 @@ const LeadModal: React.FC<{
         email: lead.email || "",
         phone: lead.phone || "",
         source: lead.source || "WEBSITE",
-        status: lead.status || "NEW",
-        propertyType: lead.propertyType || "",
-        location: lead.location || "",
-        budget: lead.budget || "",
-        notes: lead.notes || "",
       });
     } else {
       setFormData({
@@ -81,11 +73,6 @@ const LeadModal: React.FC<{
         email: "",
         phone: "",
         source: "WEBSITE",
-        status: "NEW",
-        propertyType: "",
-        location: "",
-        budget: "",
-        notes: "",
       });
     }
     setErrors({});
@@ -110,6 +97,8 @@ const LeadModal: React.FC<{
     e.preventDefault();
 
     if (!validate()) return;
+
+    console.log("Submitting lead data:", formData);
 
     setIsSubmitting(true);
     try {
@@ -164,9 +153,9 @@ const LeadModal: React.FC<{
           onSubmit={handleSubmit}
           className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]"
         >
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {/* Name */}
-            <div className="col-span-2">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Full Name <span className="text-red-500">*</span>
               </label>
@@ -237,7 +226,7 @@ const LeadModal: React.FC<{
             {/* Source */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Source
+                Source <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.source}
@@ -252,90 +241,6 @@ const LeadModal: React.FC<{
                   </option>
                 ))}
               </select>
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Status
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value })
-                }
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
-              >
-                {statuses.map((status) => (
-                  <option key={status.id} value={status.name}>
-                    {status.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Property Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Property Type
-              </label>
-              <input
-                type="text"
-                value={formData.propertyType}
-                onChange={(e) =>
-                  setFormData({ ...formData, propertyType: e.target.value })
-                }
-                placeholder="e.g., 3BHK Apartment"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* Location */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Location
-              </label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) =>
-                  setFormData({ ...formData, location: e.target.value })
-                }
-                placeholder="e.g., HSR Layout"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* Budget */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Budget
-              </label>
-              <input
-                type="text"
-                value={formData.budget}
-                onChange={(e) =>
-                  setFormData({ ...formData, budget: e.target.value })
-                }
-                placeholder="e.g., ₹25-30L"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* Notes */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Notes
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-                placeholder="Add any additional notes..."
-                rows={3}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-              />
             </div>
           </div>
         </form>
@@ -367,6 +272,102 @@ const LeadModal: React.FC<{
               </>
             )}
           </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
+// Phone Input Modal for OTP
+const PhoneInputModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (phone: string) => void;
+}> = ({ isOpen, onClose, onSubmit }) => {
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
+
+  const handleSubmit = () => {
+    if (!phone.trim()) {
+      setError("Phone number is required");
+      return;
+    }
+    if (!/^\+?[\d\s-]{10,}$/.test(phone)) {
+      setError("Please enter a valid phone number");
+      return;
+    }
+    onSubmit(phone);
+    setPhone("");
+    setError("");
+  };
+
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+                <Phone className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Send OTP</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+
+          <p className="text-gray-600 mb-4">
+            Enter phone number to send OTP verification code
+          </p>
+
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              setError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSubmit();
+            }}
+            placeholder="+91 98765 43210"
+            className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 mb-2 ${
+              error ? "border-red-300 bg-red-50" : "border-gray-300"
+            }`}
+          />
+
+          {error && (
+            <p className="text-sm text-red-600 mb-4 flex items-center gap-1">
+              <AlertCircle className="w-4 h-4" /> {error}
+            </p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-500/25"
+            >
+              <Send className="w-4 h-4" />
+              Send OTP
+            </button>
+          </div>
         </div>
       </div>
     </div>,
@@ -469,7 +470,9 @@ export const LeadsPage: React.FC = () => {
   const [selectedStage, setSelectedStage] = useState<string>("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
+  const [showConvertModal, setShowConvertModal] = useState(false);
   const [otpPhone, setOtpPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [sources, setSources] = useState<LeadSource[]>([]);
@@ -547,9 +550,35 @@ export const LeadsPage: React.FC = () => {
 
   // Create Lead
   const handleCreateLead = async (leadData: Omit<Lead, "id">) => {
-    const newLead = await LeadAPI.createLead(leadData);
-    setLeads([newLead, ...leads]);
-    setShowAddModal(false);
+    try {
+      const newLead = await LeadAPI.createLead(leadData);
+
+      console.log("Lead created - API response:", newLead);
+      console.log("Original form data:", leadData);
+
+      // Ensure the lead has required fields from form data
+      const leadWithData = {
+        ...leadData,
+        ...newLead,
+        name: newLead.name || leadData.name,
+        email: newLead.email || leadData.email,
+        phone: newLead.phone || leadData.phone,
+        source: newLead.source || leadData.source,
+        status: newLead.status || leadData.status || "NEW",
+      };
+
+      console.log("Lead with merged data:", leadWithData);
+
+      setLeads([leadWithData, ...leads]);
+      setShowAddModal(false);
+      toast.success("Lead created successfully!");
+
+      // Optionally refresh the entire list to get latest data from server
+      fetchData();
+    } catch (error) {
+      console.error("Error creating lead:", error);
+      throw error; // Re-throw to be handled by the modal
+    }
   };
 
   // Update Lead
@@ -580,6 +609,38 @@ export const LeadsPage: React.FC = () => {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to delete lead";
+      toast.error(errorMessage);
+    }
+  };
+
+  // Convert Lead to Account
+  const handleConvertToAccount = async () => {
+    if (!selectedLead?.id) return;
+
+    const accountName = selectedLead.name || "Unknown Account";
+
+    try {
+      const result = await AccountAPI.convertLeadToAccount(
+        selectedLead.id,
+        accountName,
+      );
+
+      // Remove lead from list
+      setLeads(leads.filter((l) => l.id !== selectedLead.id));
+      setSelectedLead(null);
+      setShowConvertModal(false);
+
+      toast.success(`Lead converted to account "${result.name}" successfully!`);
+
+      // Navigate to accounts page to see the new account
+      setTimeout(() => {
+        window.location.href = "/dashboard/accounts";
+      }, 1500);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to convert lead to account";
       toast.error(errorMessage);
     }
   };
@@ -645,10 +706,7 @@ export const LeadsPage: React.FC = () => {
           <Button
             variant="secondary"
             className="rounded-xl"
-            onClick={() => {
-              const phone = prompt("Enter phone number to send OTP:");
-              if (phone) handleSendOTP(phone);
-            }}
+            onClick={() => setShowPhoneModal(true)}
           >
             <Send className="w-4 h-4" />
             Send OTP
@@ -833,6 +891,16 @@ export const LeadsPage: React.FC = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      setShowConvertModal(true);
+                    }}
+                    className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Convert to Account"
+                  >
+                    <Building2 className="w-5 h-5 text-blue-600" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setLeadToEdit(selectedLead);
                       setShowEditModal(true);
                     }}
@@ -1014,7 +1082,6 @@ export const LeadsPage: React.FC = () => {
         onClose={() => setShowAddModal(false)}
         onSave={handleCreateLead}
         sources={sources}
-        statuses={statuses}
       />
 
       <LeadModal
@@ -1026,7 +1093,12 @@ export const LeadsPage: React.FC = () => {
         lead={leadToEdit}
         onSave={handleUpdateLead}
         sources={sources}
-        statuses={statuses}
+      />
+
+      <PhoneInputModal
+        isOpen={showPhoneModal}
+        onClose={() => setShowPhoneModal(false)}
+        onSubmit={handleSendOTP}
       />
 
       <OTPModal
@@ -1035,6 +1107,70 @@ export const LeadsPage: React.FC = () => {
         phone={otpPhone}
         onVerify={handleVerifyOTP}
       />
+
+      {/* Convert to Account Modal */}
+      {showConvertModal && selectedLead && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3 pb-4 border-b">
+              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                <ArrowRight className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Convert Lead to Account</h2>
+                <p className="text-sm text-gray-600">
+                  This action cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600 mb-2">Lead Information:</p>
+                <p className="font-semibold text-gray-900">
+                  {selectedLead.name || "Unknown"}
+                </p>
+                <p className="text-sm text-gray-600">{selectedLead.email}</p>
+                <p className="text-sm text-gray-600">{selectedLead.phone}</p>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="flex items-start gap-2">
+                  <Building2 className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-blue-900">
+                      New Account will be created
+                    </p>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Account Name: {selectedLead.name || "Unknown Account"}
+                    </p>
+                    <p className="text-sm text-blue-600 mt-1">
+                      The lead will be permanently removed from the leads list
+                      and converted into an account.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={() => setShowConvertModal(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConvertToAccount}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <ArrowRight className="w-4 h-4 mr-2" />
+                Convert to Account
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

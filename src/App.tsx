@@ -19,6 +19,8 @@ import {
   EngineersPage,
   SettingsPage,
   Customers,
+  CustomerDetails,
+  AccountsPage,
   Marketing,
   Analytics,
   UserManagement,
@@ -81,9 +83,11 @@ function App() {
             <Route path="engineers" element={<EngineersPage />} />
             <Route path="updates" element={<UpdatesPage />} />
             <Route path="leads" element={<LeadsPage />} />
+            <Route path="accounts" element={<AccountsPage />} />
             <Route path="voice-agent" element={<VoiceAgentPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="customers" element={<Customers />} />
+            <Route path="customers/:customerId" element={<CustomerDetails />} />
             <Route path="marketing" element={<Marketing />} />
             <Route path="analytics" element={<Analytics />} />
             <Route
