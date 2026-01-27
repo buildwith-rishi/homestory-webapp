@@ -94,11 +94,13 @@ const AccountModal: React.FC<{
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) newErrors.name = "Account name is required";
+    if (!formData.name?.trim()) newErrors.name = "Account name is required";
+    if (!formData.phone?.trim()) newErrors.phone = "Phone number is required";
+    else if (formData.phone && !/^\+?[\d\s-]{10,}$/.test(formData.phone))
+      newErrors.phone = "Invalid phone format";
+    if (!formData.type?.trim()) newErrors.type = "Account type is required";
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Invalid email format";
-    if (formData.phone && !/^\+?[\d\s-]{10,}$/.test(formData.phone))
-      newErrors.phone = "Invalid phone format";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -166,262 +168,285 @@ const AccountModal: React.FC<{
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]"
+          className="p-6 space-y-5 overflow-y-auto max-h-[calc(90vh-140px)]"
         >
-          <div className="grid grid-cols-2 gap-4">
-            {/* Account Name */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Account Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                placeholder="e.g., Sharma Family"
-                className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
-                  errors.name ? "border-red-300 bg-red-50" : "border-gray-300"
-                }`}
-              />
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.name}
-                </p>
-              )}
-            </div>
+          {/* Basic Information Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-orange-600" />
+              Basic Information
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Account Name */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Account Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder="e.g., Sharma Family Estate"
+                  className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
+                    errors.name ? "border-red-300 bg-red-50" : "border-gray-300"
+                  }`}
+                />
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" /> {errors.name}
+                  </p>
+                )}
+              </div>
 
-            {/* Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Account Type
-              </label>
-              <select
-                value={formData.type}
-                onChange={(e) =>
-                  setFormData({ ...formData, type: e.target.value })
-                }
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
-              >
-                <option value="">Select Type</option>
-                {accountTypes.map((type) => (
-                  <option key={type.id} value={type.name}>
-                    {type.name}
+              {/* Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Account Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.type}
+                  onChange={(e) =>
+                    setFormData({ ...formData, type: e.target.value })
+                  }
+                  className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white transition-colors ${
+                    errors.type ? "border-red-300 bg-red-50" : "border-gray-300"
+                  }`}
+                >
+                  <option value="">Select Type</option>
+                  <option value="Residential Client">Residential Client</option>
+                  <option value="Commercial Client">Commercial Client</option>
+                  <option value="Corporate Client">Corporate Client</option>
+                  <option value="Builder/Developer">Builder/Developer</option>
+                  <option value="Individual">Individual</option>
+                  <option value="Partner">Partner</option>
+                  <option value="Contractor">Contractor</option>
+                  <option value="Vendor">Vendor</option>
+                  {accountTypes.map((type) => (
+                    <option key={type.id} value={type.name}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.type && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" /> {errors.type}
+                  </p>
+                )}
+              </div>
+
+              {/* Industry */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Business Category
+                </label>
+                <select
+                  value={formData.industry}
+                  onChange={(e) =>
+                    setFormData({ ...formData, industry: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                >
+                  <option value="">Select Category</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Construction">Construction</option>
+                  <option value="Interior Design">Interior Design</option>
+                  <option value="Architecture">Architecture</option>
+                  <option value="Property Development">
+                    Property Development
                   </option>
-                ))}
-              </select>
+                  <option value="Hospitality">Hospitality</option>
+                  <option value="Retail">Retail</option>
+                  <option value="Corporate">Corporate</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
             </div>
+          </div>
 
-            {/* Industry */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Industry
-              </label>
-              <input
-                type="text"
-                value={formData.industry}
-                onChange={(e) =>
-                  setFormData({ ...formData, industry: e.target.value })
-                }
-                placeholder="e.g., Real Estate"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
+          {/* Contact Information Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Phone className="w-4 h-4 text-orange-600" />
+              Contact Information
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Primary Contact Name */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Primary Contact Person
+                </label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  placeholder="e.g., Mr. Rajesh Sharma"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
+                  placeholder="+91 98765 43210"
+                  className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
+                    errors.phone
+                      ? "border-red-300 bg-red-50"
+                      : "border-gray-300"
+                  }`}
+                />
+                {errors.phone && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" /> {errors.phone}
+                  </p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                  placeholder="contact@example.com"
+                  className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
+                    errors.email
+                      ? "border-red-300 bg-red-50"
+                      : "border-gray-300"
+                  }`}
+                />
+                {errors.email && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" /> {errors.email}
+                  </p>
+                )}
+              </div>
             </div>
+          </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                placeholder="contact@example.com"
-                className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
-                  errors.email ? "border-red-300 bg-red-50" : "border-gray-300"
-                }`}
-              />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.email}
-                </p>
-              )}
+          {/* Location Details Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-orange-600" />
+              Location Details
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Address */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={(e) =>
+                    setFormData({ ...formData, address: e.target.value })
+                  }
+                  placeholder="Complete address with city and pincode"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
             </div>
+          </div>
 
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Phone
-              </label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-                placeholder="+91 98765 43210"
-                className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
-                  errors.phone ? "border-red-300 bg-red-50" : "border-gray-300"
-                }`}
-              />
-              {errors.phone && (
-                <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.phone}
-                </p>
-              )}
-            </div>
+          {/* Business Details Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-orange-600" />
+              Business Details
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Budget Range */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Estimated Budget Range
+                </label>
+                <select
+                  value={formData.revenue}
+                  onChange={(e) =>
+                    setFormData({ ...formData, revenue: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                >
+                  <option value="">Select Range</option>
+                  <option value="Under ₹10L">Under ₹10 Lakhs</option>
+                  <option value="₹10L - ₹25L">₹10L - ₹25 Lakhs</option>
+                  <option value="₹25L - ₹50L">₹25L - ₹50 Lakhs</option>
+                  <option value="₹50L - ₹1Cr">₹50L - ₹1 Crore</option>
+                  <option value="₹1Cr - ₹5Cr">₹1Cr - ₹5 Crores</option>
+                  <option value="Above ₹5Cr">Above ₹5 Crores</option>
+                </select>
+              </div>
 
-            {/* Website */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Website
-              </label>
-              <input
-                type="url"
-                value={formData.website}
-                onChange={(e) =>
-                  setFormData({ ...formData, website: e.target.value })
-                }
-                placeholder="https://example.com"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
+              {/* Project Timeline */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Expected Timeline
+                </label>
+                <select
+                  value={
+                    formData.employees !== undefined
+                      ? formData.employees.toString()
+                      : ""
+                  }
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      employees: e.target.value
+                        ? parseInt(e.target.value)
+                        : undefined,
+                    })
+                  }
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                >
+                  <option value="">Select Timeline</option>
+                  <option value="1">Immediate (Within 1 month)</option>
+                  <option value="2">1-3 Months</option>
+                  <option value="3">3-6 Months</option>
+                  <option value="4">6-12 Months</option>
+                  <option value="5">Planning Phase (12+ Months)</option>
+                </select>
+              </div>
 
-            {/* Address */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Address
-              </label>
-              <input
-                type="text"
-                value={formData.address}
-                onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
-                }
-                placeholder="Street address"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* City */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                City
-              </label>
-              <input
-                type="text"
-                value={formData.city}
-                onChange={(e) =>
-                  setFormData({ ...formData, city: e.target.value })
-                }
-                placeholder="e.g., Bangalore"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* State */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                State
-              </label>
-              <input
-                type="text"
-                value={formData.state}
-                onChange={(e) =>
-                  setFormData({ ...formData, state: e.target.value })
-                }
-                placeholder="e.g., Karnataka"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* Country */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Country
-              </label>
-              <input
-                type="text"
-                value={formData.country}
-                onChange={(e) =>
-                  setFormData({ ...formData, country: e.target.value })
-                }
-                placeholder="e.g., India"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* Postal Code */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Postal Code
-              </label>
-              <input
-                type="text"
-                value={formData.postalCode}
-                onChange={(e) =>
-                  setFormData({ ...formData, postalCode: e.target.value })
-                }
-                placeholder="e.g., 560001"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* Revenue */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Annual Revenue
-              </label>
-              <input
-                type="text"
-                value={formData.revenue}
-                onChange={(e) =>
-                  setFormData({ ...formData, revenue: e.target.value })
-                }
-                placeholder="e.g., ₹50L"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* Employees */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Number of Employees
-              </label>
-              <input
-                type="number"
-                value={formData.employees || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    employees: e.target.value
-                      ? parseInt(e.target.value)
-                      : undefined,
-                  })
-                }
-                placeholder="e.g., 50"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            {/* Description */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Description
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Add any additional notes about this account..."
-                rows={3}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-              />
+              {/* Referral Source */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  How did they hear about us?
+                </label>
+                <select
+                  value={formData.website}
+                  onChange={(e) =>
+                    setFormData({ ...formData, website: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                >
+                  <option value="">Select Source</option>
+                  <option value="Website">Website</option>
+                  <option value="Social Media">Social Media</option>
+                  <option value="Referral">Referral from Client</option>
+                  <option value="Advertisement">Advertisement</option>
+                  <option value="Walk-in">Walk-in</option>
+                  <option value="Event/Exhibition">Event/Exhibition</option>
+                  <option value="Partner">Partner/Contractor</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
             </div>
           </div>
         </form>
