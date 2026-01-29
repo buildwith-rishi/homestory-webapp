@@ -10,16 +10,49 @@ export interface Lead {
   phone: string;
   source: string;
   status?: string;
+  stage?: string;
   propertyType?: string;
   location?: string;
+  city?: string;
+  locality?: string;
   budget?: string;
+  budgetRange?: string;
   score?: number;
   lastContact?: string;
   priority?: "high" | "medium" | "low";
   notes?: string;
   followUp?: string;
+  followUpDate?: string;
+  lastContactedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  
+  // Property Details
+  bhkConfig?: string;
+  carpetArea?: number;
+  
+  // Timeline
+  timeline?: string;
+  expectedStartDate?: string;
+  moveinDate?: string;
+  
+  // Design Preferences
+  designStyle?: string[];
+  colorPreferences?: string[];
+  inspirationImages?: string[];
+  
+  // Scope of Work
+  scopeOfWork?: string[];
+  servicesInterested?: string[];
+  
+  // Lead Quality
+  qualification?: string;
+  competitorInfo?: string;
+  
+  // Follow-up Tracking
+  meetingScheduled?: boolean;
+  siteVisitDone?: boolean;
+  quotationSent?: boolean;
 }
 
 export interface LeadActivity {

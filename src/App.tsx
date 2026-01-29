@@ -1,4 +1,3 @@
-import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
@@ -25,6 +24,9 @@ import {
   Analytics,
   UserManagement,
 } from "./pages/dashboard";
+import LeadsKanban from "./pages/dashboard/LeadsKanban";
+import ProjectsKanban from "./pages/dashboard/ProjectsKanban";
+import LeadDetails from "./pages/dashboard/LeadDetails";
 import { MeetingRoom } from "./pages/dashboard/MeetingRoom";
 import { MeetingsCalendarPage } from "./pages/dashboard/MeetingsCalendar";
 import { InstagramPage } from "./pages/instagram";
@@ -79,10 +81,13 @@ function App() {
               element={<MeetingsCalendarPage />}
             />
             <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/kanban" element={<ProjectsKanban />} />
             <Route path="projects/:projectId" element={<ProjectDetails />} />
             <Route path="engineers" element={<EngineersPage />} />
             <Route path="updates" element={<UpdatesPage />} />
             <Route path="leads" element={<LeadsPage />} />
+            <Route path="leads/kanban" element={<LeadsKanban />} />
+            <Route path="leads/:id" element={<LeadDetails />} />
             <Route path="accounts" element={<AccountsPage />} />
             <Route path="voice-agent" element={<VoiceAgentPage />} />
             <Route path="settings" element={<SettingsPage />} />

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ReactDOM from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   Phone,
@@ -15,6 +16,8 @@ import {
   User,
   TrendingUp,
   X,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { Card, Button, Badge, Progress } from "../../components/ui";
 
@@ -90,6 +93,7 @@ const priorityColors: Record<
 };
 
 export const LeadsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStage, setSelectedStage] = useState<string>("all");
@@ -121,6 +125,14 @@ export const LeadsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            className="rounded-xl"
+            onClick={() => navigate("/dashboard/leads/kanban")}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            Kanban View
+          </Button>
           <Button variant="secondary" className="rounded-xl">
             <Filter className="w-4 h-4" />
             Export

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,300 +11,318 @@ import {
   FileText,
   CreditCard,
   Package,
-  MessageSquare,
-  Download,
   Edit3,
   Trash2,
   Upload,
-  Plus,
   X,
   Save,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  Home,
+  DollarSign,
+  Mail,
 } from "lucide-react";
 import { Button, Progress, Badge, Card } from "../../components/ui";
 import toast from "react-hot-toast";
+import { useProjectStore } from "../../stores/projectStore";
+import {
+  Project,
+  ProjectStageData,
+  ProjectPayment,
+  ProjectStageCode,
+  StageStatus,
+  PaymentStatus,
+  ProjectTaskStatus,
+} from "../../types";
 
-interface Project {
-  id: string;
-  name: string;
-  client: string;
-  stage: string;
-  status: "on_track" | "at_risk" | "delayed";
-  progress: number;
-  dueDate: string;
-  budget: string;
-  team: string[];
-  location?: string;
-  description?: string;
-}
+// Helper function to format currency
+const formatCurrency = (value: number): string => {
+  if (value >= 10000000) {
+    return `₹${(value / 10000000).toFixed(2)}Cr`;
+  }
+  if (value >= 100000) {
+    return `₹${(value / 100000).toFixed(2)}L`;
+  }
+  if (value >= 1000) {
+    return `₹${(value / 1000).toFixed(1)}K`;
+  }
+  return `₹${value}`;
+};
 
-// Mock data - in production, this would come from API or state management
-const mockProjects: Project[] = [
-  {
-    id: "1",
-    name: "Modern 3BHK",
-    client: "Sharma Family",
-    stage: "Design",
-    status: "on_track",
-    progress: 65,
-    dueDate: "Feb 15, 2026",
-    budget: "₹28L",
-    team: ["AR", "PK"],
-    location: "HSR Layout, Bangalore",
-    description: "Modern interior design for a 3BHK apartment",
-  },
-  {
-    id: "2",
-    name: "Luxury Villa",
-    client: "Kumar Residence",
-    stage: "Execution",
-    status: "at_risk",
-    progress: 40,
-    dueDate: "Mar 1, 2026",
-    budget: "₹55L",
-    team: ["RS", "MG"],
-    location: "Whitefield, Bangalore",
-  },
-  {
-    id: "3",
-    name: "Contemporary 2BHK",
-    client: "Patel Home",
-    stage: "Material",
-    status: "on_track",
-    progress: 75,
-    dueDate: "Jan 30, 2026",
-    budget: "₹18L",
-    team: ["AR"],
-    location: "Indiranagar, Bangalore",
-  },
-];
+// Helper function to format date
+const formatDate = (dateString: string | undefined | null): string => {
+  if (!dateString) return "N/A";
+  return new Date(dateString).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
 
-// Mock detailed data
-const getProjectDetails = (project: Project) => {
+// Stage name mapping
+const getStageDisplayName = (stageCode: ProjectStageCode): string => {
+  const stageMap: Record<ProjectStageCode, string> = {
+    [ProjectStageCode.LEAD]: "Lead",
+    [ProjectStageCode.SITE_VISIT]: "Site Visit",
+    [ProjectStageCode.PROPOSAL]: "Proposal",
+    [ProjectStageCode.DESIGN]: "Design",
+    [ProjectStageCode.EXECUTION]: "Execution",
+    [ProjectStageCode.HANDOVER]: "Handover",
+    [ProjectStageCode.WARRANTY]: "Warranty",
+  };
+  return stageMap[stageCode] || stageCode;
+};
+
+// Calculate progress based on current stage
+const calculateProgress = (project: Project): number => {
+  const stageProgress: Record<ProjectStageCode, number> = {
+    [ProjectStageCode.LEAD]: 10,
+    [ProjectStageCode.SITE_VISIT]: 20,
+    [ProjectStageCode.PROPOSAL]: 35,
+    [ProjectStageCode.DESIGN]: 50,
+    [ProjectStageCode.EXECUTION]: 75,
+    [ProjectStageCode.HANDOVER]: 95,
+    [ProjectStageCode.WARRANTY]: 100,
+  };
+  if (project.currentStage) {
+    return stageProgress[project.currentStage] || 0;
+  }
+  return 0;
+};
+
+// Get status display
+const getStatusDisplay = (
+  project: Project,
+): { label: string; className: string } => {
+  if (project.status === "completed") {
+    return {
+      label: "COMPLETED",
+      className: "bg-green-100 text-green-700 border-green-200",
+    };
+  }
+  if (project.status === "on_hold") {
+    return {
+      label: "ON HOLD",
+      className: "bg-yellow-100 text-yellow-700 border-yellow-200",
+    };
+  }
   return {
-    ...project,
-    clientPhone: "+91 98765 43210",
-    clientEmail: "sharma.family@example.com",
-    startDate: "2025-12-01",
-    projectType: "Residential",
-    squareFeet: "1200",
-    floors: "2",
-    rooms: "3 BHK",
-    priority: "High",
-    pointOfContact: {
-      name: "Rajesh Sharma",
-      role: "Primary Contact",
-      phone: "+91 98765 43210",
-      email: "rajesh.sharma@example.com",
-      availableHours: "9 AM - 6 PM",
-    },
-
-    payments: [
-      {
-        id: 1,
-        milestone: "Initial Deposit",
-        amount: "₹8L",
-        status: "paid",
-        date: "2025-12-01",
-      },
-      {
-        id: 2,
-        milestone: "Design Phase",
-        amount: "₹7L",
-        status: "paid",
-        date: "2025-12-15",
-      },
-      {
-        id: 3,
-        milestone: "Material Purchase",
-        amount: "₹8L",
-        status: "pending",
-        date: "2026-02-01",
-      },
-      {
-        id: 4,
-        milestone: "Execution Phase",
-        amount: "₹5L",
-        status: "upcoming",
-        date: "2026-03-01",
-      },
-    ],
-    totalPaid: "₹15L",
-    totalPending: "₹13L",
-
-    milestones: [
-      {
-        id: 1,
-        title: "Initial Consultation",
-        status: "completed",
-        date: "2025-12-01",
-      },
-      {
-        id: 2,
-        title: "Site Measurement",
-        status: "completed",
-        date: "2025-12-05",
-      },
-      {
-        id: 3,
-        title: "Concept Development",
-        status: "completed",
-        date: "2025-12-15",
-      },
-      {
-        id: 4,
-        title: "3D Visualization",
-        status: "in_progress",
-        date: "2026-01-20",
-      },
-      {
-        id: 5,
-        title: "Final Design Approval",
-        status: "pending",
-        date: "2026-02-01",
-      },
-    ],
-
-    documents: [
-      {
-        id: 1,
-        name: "Floor Plan.pdf",
-        type: "PDF",
-        size: "2.4 MB",
-        uploadedBy: "AR",
-      },
-      {
-        id: 2,
-        name: "3D Renders.zip",
-        type: "ZIP",
-        size: "45 MB",
-        uploadedBy: "PK",
-      },
-      {
-        id: 3,
-        name: "Contract.pdf",
-        type: "PDF",
-        size: "1.2 MB",
-        uploadedBy: "RS",
-      },
-    ],
-
-    activities: [
-      {
-        id: 1,
-        user: "AR",
-        action: "Updated project progress to 65%",
-        time: "2 hours ago",
-      },
-      { id: 2, user: "PK", action: "Uploaded 3D renders", time: "1 day ago" },
-      {
-        id: 3,
-        user: "RS",
-        action: "Added payment milestone",
-        time: "2 days ago",
-      },
-    ],
-
-    teamDetails: [
-      {
-        id: "AR",
-        name: "Arjun Reddy",
-        role: "Lead Designer",
-        phone: "+91 98765 11111",
-      },
-      {
-        id: "PK",
-        name: "Priya Kumar",
-        role: "3D Visualizer",
-        phone: "+91 98765 22222",
-      },
-    ],
+    label: "ACTIVE",
+    className: "bg-blue-100 text-blue-700 border-blue-200",
   };
 };
 
 export const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+
+  // Store
+  const {
+    currentProject,
+    projectStages,
+    projectPayments,
+    projectTasks,
+    isLoading,
+    error,
+    fetchProjectById,
+    fetchProjectStages,
+    fetchProjectPayments,
+    fetchProjectTasks,
+    updateProjectStage,
+    updateProjectPayment,
+    deleteProject,
+    clearError,
+  } = useProjectStore();
+
+  // Local state
   const [activeTab, setActiveTab] = useState<
-    "overview" | "payments" | "milestones" | "documents" | "activity"
+    "overview" | "stages" | "payments" | "tasks"
   >("overview");
 
-  // Milestone management state
-  const [showMilestoneModal, setShowMilestoneModal] = useState(false);
-  const [editingMilestone, setEditingMilestone] = useState<number | null>(null);
-  const [milestoneForm, setMilestoneForm] = useState({
-    title: "",
-    date: "",
-    status: "pending" as "pending" | "in_progress" | "completed",
+  // Stage update modal
+  const [showStageModal, setShowStageModal] = useState(false);
+  const [editingStage, setEditingStage] = useState<ProjectStageData | null>(
+    null,
+  );
+  const [stageForm, setStageForm] = useState({
+    status: "" as StageStatus,
+    endDate: "",
+    remarks: "",
   });
-  const [projectDetails, setProjectDetails] = useState<any>(null);
 
-  // Find project by ID
-  const project = mockProjects.find((p) => p.id === projectId);
+  // Payment update modal
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<ProjectPayment | null>(
+    null,
+  );
+  const [paymentForm, setPaymentForm] = useState({
+    status: "" as PaymentStatus,
+    actualAmount: "",
+    invoiceNumber: "",
+  });
 
-  // Initialize project details
-  React.useEffect(() => {
-    if (project) {
-      setProjectDetails(getProjectDetails(project));
+  // Delete confirmation
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Fetch project data on mount
+  useEffect(() => {
+    if (projectId) {
+      fetchProjectById(projectId);
+      fetchProjectStages(projectId);
+      fetchProjectPayments(projectId);
+      fetchProjectTasks(projectId);
     }
-  }, [project]);
+  }, [
+    projectId,
+    fetchProjectById,
+    fetchProjectStages,
+    fetchProjectPayments,
+    fetchProjectTasks,
+  ]);
 
-  // Milestone handlers
-  const handleAddMilestone = () => {
-    setMilestoneForm({ title: "", date: "", status: "pending" });
-    setEditingMilestone(null);
-    setShowMilestoneModal(true);
-  };
-
-  const handleEditMilestone = (milestone: any) => {
-    setMilestoneForm({
-      title: milestone.title,
-      date: milestone.date,
-      status: milestone.status,
+  // Handle stage update
+  const handleEditStage = (stage: ProjectStageData) => {
+    setEditingStage(stage);
+    setStageForm({
+      status: stage.status,
+      endDate: stage.endDate || "",
+      remarks: stage.remarks || "",
     });
-    setEditingMilestone(milestone.id);
-    setShowMilestoneModal(true);
+    setShowStageModal(true);
   };
 
-  const handleSaveMilestone = () => {
-    if (!milestoneForm.title || !milestoneForm.date || !projectDetails) return;
+  const handleSaveStage = async () => {
+    if (!projectId || !editingStage) return;
 
-    if (editingMilestone !== null) {
-      // Edit existing milestone
-      const updatedMilestones = projectDetails.milestones.map((m: any) =>
-        m.id === editingMilestone ? { ...m, ...milestoneForm } : m,
-      );
-      setProjectDetails({ ...projectDetails, milestones: updatedMilestones });
-      toast.success("Milestone updated successfully!");
-    } else {
-      // Add new milestone
-      const newMilestone = {
-        id: Math.max(...projectDetails.milestones.map((m: any) => m.id), 0) + 1,
-        ...milestoneForm,
-      };
-      setProjectDetails({
-        ...projectDetails,
-        milestones: [...projectDetails.milestones, newMilestone],
+    try {
+      await updateProjectStage(projectId, editingStage.stageCode, {
+        status: stageForm.status,
+        endDate: stageForm.endDate || undefined,
+        remarks: stageForm.remarks || undefined,
       });
-      toast.success("Milestone added successfully!");
-    }
-
-    setShowMilestoneModal(false);
-    setMilestoneForm({ title: "", date: "", status: "pending" });
-    setEditingMilestone(null);
-  };
-
-  const handleDeleteMilestone = (milestoneId: number) => {
-    if (!projectDetails) return;
-    if (window.confirm("Are you sure you want to delete this milestone?")) {
-      const updatedMilestones = projectDetails.milestones.filter(
-        (m: any) => m.id !== milestoneId,
-      );
-      setProjectDetails({ ...projectDetails, milestones: updatedMilestones });
-      toast.success("Milestone deleted successfully!");
+      toast.success("Stage updated successfully!");
+      setShowStageModal(false);
+      setEditingStage(null);
+      // Refresh stages
+      fetchProjectStages(projectId);
+    } catch {
+      toast.error("Failed to update stage");
     }
   };
 
-  if (!project || !projectDetails) {
+  // Handle payment update
+  const handleEditPayment = (payment: ProjectPayment) => {
+    setEditingPayment(payment);
+    setPaymentForm({
+      status: payment.status,
+      actualAmount: payment.actualAmount?.toString() || "",
+      invoiceNumber: payment.invoiceNumber || "",
+    });
+    setShowPaymentModal(true);
+  };
+
+  const handleSavePayment = async () => {
+    if (!projectId || !editingPayment) return;
+
+    try {
+      await updateProjectPayment(projectId, editingPayment.id, {
+        status: paymentForm.status,
+        actualAmount: paymentForm.actualAmount
+          ? parseFloat(paymentForm.actualAmount)
+          : undefined,
+        invoiceNumber: paymentForm.invoiceNumber || undefined,
+      });
+      toast.success("Payment updated successfully!");
+      setShowPaymentModal(false);
+      setEditingPayment(null);
+      // Refresh payments
+      fetchProjectPayments(projectId);
+    } catch {
+      toast.error("Failed to update payment");
+    }
+  };
+
+  // Handle delete project
+  const handleDeleteProject = async () => {
+    if (!projectId) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteProject(projectId);
+      toast.success("Project deleted successfully!");
+      navigate("/dashboard/projects");
+    } catch {
+      toast.error("Failed to delete project");
+      setIsDeleting(false);
+    }
+  };
+
+  // Calculate payment totals
+  const calculatePaymentTotals = () => {
+    let totalPaid = 0;
+    let totalPending = 0;
+    let totalAmount = 0;
+
+    projectPayments.forEach((payment) => {
+      totalAmount += payment.amount;
+      if (payment.status === PaymentStatus.COLLECTED) {
+        totalPaid += payment.actualAmount || payment.amount;
+      } else {
+        totalPending += payment.amount;
+      }
+    });
+
+    return { totalPaid, totalPending, totalAmount };
+  };
+
+  // Loading state
+  if (isLoading && !currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-orange-500 mx-auto mb-4" />
+          <p className="text-gray-600">Loading project details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && !currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Error Loading Project
+          </h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <div className="flex gap-2 justify-center">
+            <Button
+              onClick={() => {
+                clearError();
+                if (projectId) fetchProjectById(projectId);
+              }}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => navigate("/dashboard/projects")}
+            >
+              Back to Projects
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Not found state
+  if (!currentProject) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -312,7 +330,7 @@ export const ProjectDetails: React.FC = () => {
             Project Not Found
           </h2>
           <p className="text-gray-600 mb-4">
-            The project you're looking for doesn't exist.
+            The project you are looking for does not exist.
           </p>
           <Button onClick={() => navigate("/dashboard/projects")}>
             Back to Projects
@@ -322,13 +340,11 @@ export const ProjectDetails: React.FC = () => {
     );
   }
 
-  const details = projectDetails; // Use state instead of direct call
-
-  const statusColors = {
-    on_track: "bg-green-100 text-green-700 border-green-200",
-    at_risk: "bg-yellow-100 text-yellow-700 border-yellow-200",
-    delayed: "bg-red-100 text-red-700 border-red-200",
-  };
+  const project = currentProject;
+  const projectName = project.projectName || project.name || "Untitled Project";
+  const statusDisplay = getStatusDisplay(project);
+  const progress = calculateProgress(project);
+  const paymentTotals = calculatePaymentTotals();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50/40 via-white to-orange-50/20">
@@ -347,30 +363,41 @@ export const ProjectDetails: React.FC = () => {
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-orange-600 bg-clip-text text-transparent">
-                  {project.name}
+                  {projectName}
                 </h1>
                 <Badge
-                  className={`${statusColors[project.status]} border text-sm px-3 py-1 font-semibold backdrop-blur-sm`}
+                  className={`${statusDisplay.className} border text-sm px-3 py-1 font-semibold`}
                 >
-                  {project.status.replace("_", " ").toUpperCase()}
+                  {statusDisplay.label}
                 </Badge>
               </div>
-              <p className="text-gray-600 text-lg font-medium">
-                {project.client}
-              </p>
+              <div className="flex items-center gap-4 text-gray-600">
+                {project.lead?.name && (
+                  <span className="text-lg font-medium">
+                    {project.lead.name}
+                  </span>
+                )}
+                {project.propertyCity && (
+                  <span className="flex items-center gap-1 text-sm">
+                    <MapPin className="w-4 h-4" />
+                    {project.propertyCity}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2">
               <Button
                 variant="secondary"
-                className="bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-md hover:shadow-lg transition-all"
+                className="bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-md"
               >
                 <Edit3 className="w-4 h-4 mr-2" />
                 Edit
               </Button>
               <Button
                 variant="secondary"
-                className="bg-white hover:bg-red-50 border-2 border-red-400 hover:border-red-500 text-red-600 hover:text-red-700 shadow-md hover:shadow-lg transition-all"
+                className="bg-white hover:bg-red-50 border-2 border-red-400 hover:border-red-500 text-red-600 hover:text-red-700 shadow-md"
+                onClick={() => setShowDeleteConfirm(true)}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
@@ -379,54 +406,53 @@ export const ProjectDetails: React.FC = () => {
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative group overflow-hidden bg-gradient-to-br from-white via-orange-50/30 to-white backdrop-blur-xl rounded-2xl p-5 border border-orange-100/50 shadow-sm hover:shadow-lg transition-all">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative z-10">
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
-                  PROGRESS
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <Progress
-                      value={project.progress}
-                      className="h-2.5 bg-gradient-to-r from-gray-100 to-orange-50"
-                    />
-                  </div>
-                  <p className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
-                    {project.progress}%
-                  </p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-5 border border-orange-100/50 shadow-sm">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
+                PROGRESS
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <Progress value={progress} className="h-2.5" />
                 </div>
-              </div>
-            </div>
-
-            <div className="relative group overflow-hidden bg-gradient-to-br from-white via-orange-50/30 to-white backdrop-blur-xl rounded-2xl p-5 border border-orange-100/50 shadow-sm hover:shadow-lg transition-all">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative z-10">
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
-                  BUDGET
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {project.budget}
+                <p className="text-2xl font-bold text-orange-600">
+                  {progress}%
                 </p>
               </div>
             </div>
 
-            <div className="relative group overflow-hidden bg-gradient-to-br from-white via-orange-50/30 to-white backdrop-blur-xl rounded-2xl p-5 border border-orange-100/50 shadow-sm hover:shadow-lg transition-all">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative z-10">
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
-                  DUE DATE
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {project.dueDate}
-                </p>
-              </div>
+            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-5 border border-orange-100/50 shadow-sm">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
+                CURRENT STAGE
+              </p>
+              <p className="text-xl font-bold text-gray-900">
+                {project.currentStage
+                  ? getStageDisplayName(project.currentStage)
+                  : "N/A"}
+              </p>
+            </div>
+
+            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-5 border border-orange-100/50 shadow-sm">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
+                TOTAL VALUE
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {formatCurrency(project.totalValue || 0)}
+              </p>
+            </div>
+
+            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-5 border border-orange-100/50 shadow-sm">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
+                CATEGORY
+              </p>
+              <p className="text-xl font-bold text-gray-900">
+                {project.projectCategory || "N/A"}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Visible background pattern */}
+        {/* Background pattern */}
         <div className="absolute inset-0 opacity-40 pointer-events-none">
           <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-orange-300/40 to-amber-200/20 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-orange-200/40 to-amber-100/20 rounded-full blur-3xl"></div>
@@ -439,23 +465,13 @@ export const ProjectDetails: React.FC = () => {
           <div className="flex gap-8">
             {[
               { id: "overview", label: "Overview", icon: FileText },
+              { id: "stages", label: "Stages", icon: CheckCircle2 },
               { id: "payments", label: "Payments", icon: CreditCard },
-              { id: "milestones", label: "Milestones", icon: CheckCircle2 },
-              { id: "documents", label: "Documents", icon: Package },
-              { id: "activity", label: "Activity", icon: MessageSquare },
+              { id: "tasks", label: "Tasks", icon: Package },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() =>
-                  setActiveTab(
-                    tab.id as
-                      | "overview"
-                      | "payments"
-                      | "milestones"
-                      | "documents"
-                      | "activity",
-                  )
-                }
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={`relative flex items-center gap-2 py-4 transition-all group ${
                   activeTab === tab.id
                     ? "text-orange-600"
@@ -478,104 +494,101 @@ export const ProjectDetails: React.FC = () => {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Main Info */}
+            {/* Left Column */}
             <div className="lg:col-span-2 space-y-6">
               {/* Project Information */}
-              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
+              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
                     <FileText className="w-4 h-4 text-white" />
                   </div>
                   Project Information
                 </h2>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1.5 tracking-wide">
-                      Stage
-                    </p>
-                    <p className="text-base font-bold text-gray-900">
-                      {project.stage}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1.5 tracking-wide">
-                      Priority
-                    </p>
-                    <p className="text-base font-bold text-gray-900">
-                      {details.priority}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1.5 tracking-wide">
-                      Start Date
-                    </p>
-                    <p className="text-base font-bold text-gray-900">
-                      {new Date(details.startDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1.5 tracking-wide">
-                      Square Feet
-                    </p>
-                    <p className="text-base font-bold text-gray-900">
-                      {details.squareFeet} sq.ft
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1.5 tracking-wide">
-                      Floors
-                    </p>
-                    <p className="text-base font-bold text-gray-900">
-                      {details.floors}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
-                    <p className="text-xs font-bold text-gray-500 uppercase mb-1.5 tracking-wide">
-                      Rooms
-                    </p>
-                    <p className="text-base font-bold text-gray-900">
-                      {details.rooms}
-                    </p>
-                  </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoItem
+                    label="Pipeline Type"
+                    value={project.pipelineType || "N/A"}
+                  />
+                  <InfoItem
+                    label="Category"
+                    value={project.projectCategory || "N/A"}
+                  />
+                  <InfoItem
+                    label="Scope Type"
+                    value={project.scopeType || "N/A"}
+                  />
+                  <InfoItem
+                    label="Budget Tier"
+                    value={project.budgetTier || "N/A"}
+                  />
+                  <InfoItem
+                    label="Property Type"
+                    value={project.propertySubtype || "N/A"}
+                  />
+                  <InfoItem
+                    label="Property Size"
+                    value={
+                      project.propertySizeSqft
+                        ? `${project.propertySizeSqft} sq.ft`
+                        : "N/A"
+                    }
+                  />
+                  <InfoItem label="BHK" value={project.propertyBHK || "N/A"} />
+                  <InfoItem
+                    label="Moodboard Shared"
+                    value={project.moodBoardShared ? "Yes" : "No"}
+                  />
                 </div>
               </Card>
 
-              {/* Client Information */}
-              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                    <Users className="w-4 h-4 text-white" />
-                  </div>
-                  Client
-                </h2>
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg">
-                    <span className="text-xl font-bold text-white">
-                      {project.client
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-lg font-bold text-gray-900">
-                      {project.client}
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {details.clientEmail}
-                    </p>
-                    <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-gradient-to-r from-gray-50 to-orange-50/30 rounded-lg w-fit border border-gray-100">
-                      <Phone className="w-4 h-4 text-orange-600" />
-                      <span className="text-sm font-semibold text-gray-700">
-                        {details.clientPhone}
+              {/* Client/Lead Information */}
+              {project.lead && (
+                <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-white" />
+                    </div>
+                    Client Information
+                  </h2>
+                  <div className="flex items-start gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+                      <span className="text-xl font-bold text-white">
+                        {project.lead.name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .substring(0, 2) || "?"}
                       </span>
                     </div>
+                    <div className="flex-1 space-y-2">
+                      <p className="text-lg font-bold text-gray-900">
+                        {project.lead.name}
+                      </p>
+                      {project.lead.email && (
+                        <a
+                          href={`mailto:${project.lead.email}`}
+                          className="flex items-center gap-2 text-sm text-gray-600 hover:text-orange-600"
+                        >
+                          <Mail className="w-4 h-4" />
+                          {project.lead.email}
+                        </a>
+                      )}
+                      {project.lead.phone && (
+                        <a
+                          href={`tel:${project.lead.phone}`}
+                          className="flex items-center gap-2 text-sm text-gray-600 hover:text-orange-600"
+                        >
+                          <Phone className="w-4 h-4" />
+                          {project.lead.phone}
+                        </a>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              )}
 
               {/* Team */}
-              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
+              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
                     <Users className="w-4 h-4 text-white" />
@@ -583,140 +596,90 @@ export const ProjectDetails: React.FC = () => {
                   Team
                 </h2>
                 <div className="space-y-3">
-                  {details.teamDetails.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center gap-3 p-4 bg-gradient-to-br from-gray-50 via-white to-orange-50/20 rounded-xl border border-gray-100 hover:shadow-md transition-all group"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold shadow-md">
-                        {member.id}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-gray-900">{member.name}</p>
-                        <p className="text-sm text-gray-600">{member.role}</p>
-                      </div>
-                      <a
-                        href={`tel:${member.phone}`}
-                        className="w-10 h-10 rounded-lg bg-white border border-orange-200 flex items-center justify-center text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all"
-                      >
-                        <Phone className="w-4 h-4" />
-                      </a>
-                    </div>
-                  ))}
+                  {project.assignedDesigner && (
+                    <TeamMember
+                      name={project.assignedDesigner.name || "Unknown"}
+                      role="Lead Designer"
+                      email={project.assignedDesigner.email}
+                    />
+                  )}
+                  {project.assignedPM && (
+                    <TeamMember
+                      name={project.assignedPM.name || "Unknown"}
+                      role="Project Manager"
+                      email={project.assignedPM.email}
+                    />
+                  )}
+                  {!project.assignedDesigner && !project.assignedPM && (
+                    <p className="text-gray-500 text-sm">
+                      No team members assigned yet.
+                    </p>
+                  )}
                 </div>
               </Card>
             </div>
 
-            {/* Right Column - Quick Info */}
+            {/* Right Column */}
             <div className="space-y-6">
-              {/* Location */}
-              {project.location && (
-                <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
+              {/* Property Address */}
+              {project.propertyAddress && (
+                <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                   <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
-                      <MapPin className="w-3.5 h-3.5 text-white" />
+                      <Home className="w-3.5 h-3.5 text-white" />
                     </div>
-                    Location
+                    Property Address
                   </h3>
-                  <p className="text-sm text-gray-700 font-medium pl-9">
-                    {project.location}
+                  <p className="text-sm text-gray-700 pl-9">
+                    {project.propertyAddress}
                   </p>
+                  {project.propertyCity && (
+                    <p className="text-sm text-gray-500 pl-9">
+                      {project.propertyCity}
+                    </p>
+                  )}
                 </Card>
               )}
 
-              {/* Point of Contact */}
-              {details.pointOfContact && (
-                <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
-                  <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                      <Users className="w-3.5 h-3.5 text-white" />
-                    </div>
-                    Point of Contact
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-base font-bold text-gray-900">
-                        {details.pointOfContact.name}
-                      </p>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">
-                        {details.pointOfContact.role}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-gray-100">
-                      <a
-                        href={`tel:${details.pointOfContact.phone}`}
-                        className="flex items-center gap-3 p-2.5 rounded-lg bg-gradient-to-r from-gray-50 to-blue-50/30 hover:from-blue-50 hover:to-blue-100/50 border border-gray-100 hover:border-blue-200 transition-all group"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                          <Phone className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500 font-medium">
-                            Phone
-                          </p>
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {details.pointOfContact.phone}
-                          </p>
-                        </div>
-                      </a>
-
-                      <a
-                        href={`mailto:${details.pointOfContact.email}`}
-                        className="flex items-center gap-3 p-2.5 rounded-lg bg-gradient-to-r from-gray-50 to-blue-50/30 hover:from-blue-50 hover:to-blue-100/50 border border-gray-100 hover:border-blue-200 transition-all group"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                          <MessageSquare className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500 font-medium">
-                            Email
-                          </p>
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {details.pointOfContact.email}
-                          </p>
-                        </div>
-                      </a>
-
-                      <div className="flex items-center gap-3 p-2.5 rounded-lg bg-gradient-to-r from-gray-50 to-orange-50/30 border border-gray-100">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0">
-                          <Clock className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500 font-medium">
-                            Available
-                          </p>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {details.pointOfContact.availableHours}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+              {/* Payment Summary */}
+              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+                    <DollarSign className="w-3.5 h-3.5 text-white" />
                   </div>
-                </Card>
-              )}
-
-              {/* Description */}
-              {project.description && (
-                <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">
-                    Description
-                  </h3>
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    {project.description}
-                  </p>
-                </Card>
-              )}
+                  Payment Summary
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
+                    <span className="text-sm text-gray-600">Total Value</span>
+                    <span className="font-bold text-gray-900">
+                      {formatCurrency(project.totalValue || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-green-50">
+                    <span className="text-sm text-green-700">Collected</span>
+                    <span className="font-bold text-green-600">
+                      {formatCurrency(paymentTotals.totalPaid)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-orange-50">
+                    <span className="text-sm text-orange-700">Pending</span>
+                    <span className="font-bold text-orange-600">
+                      {formatCurrency(paymentTotals.totalPending)}
+                    </span>
+                  </div>
+                </div>
+              </Card>
 
               {/* Quick Actions */}
-              <Card className="p-6 bg-gradient-to-br from-white via-orange-50/20 to-white backdrop-blur-sm border-orange-100/50 shadow-sm hover:shadow-md transition-all">
+              <Card className="p-6 bg-gradient-to-br from-white via-orange-50/20 to-white border-orange-100/50 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-900 mb-4">
                   Quick Actions
                 </h3>
                 <div className="space-y-2">
                   <Button
                     variant="secondary"
-                    className="w-full justify-start bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 transition-all shadow-sm"
+                    className="w-full justify-start bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-sm"
                     size="sm"
                   >
                     <Upload className="w-4 h-4 mr-2" />
@@ -724,15 +687,7 @@ export const ProjectDetails: React.FC = () => {
                   </Button>
                   <Button
                     variant="secondary"
-                    className="w-full justify-start bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 transition-all shadow-sm"
-                    size="sm"
-                  >
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Add Comment
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 transition-all shadow-sm"
+                    className="w-full justify-start bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-sm"
                     size="sm"
                   >
                     <Calendar className="w-4 h-4 mr-2" />
@@ -744,36 +699,146 @@ export const ProjectDetails: React.FC = () => {
           </div>
         )}
 
+        {/* Stages Tab */}
+        {activeTab === "stages" && (
+          <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4 text-white" />
+              </div>
+              Project Stages
+            </h2>
+
+            {projectStages.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">
+                  No stages found for this project.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {projectStages.map((stage, index) => (
+                  <div key={stage.id} className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-md ${
+                          stage.status === StageStatus.COMPLETED
+                            ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
+                            : stage.status === StageStatus.IN_PROGRESS
+                              ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white"
+                              : "bg-gradient-to-br from-gray-300 to-gray-400 text-white"
+                        }`}
+                      >
+                        {stage.status === StageStatus.COMPLETED ? (
+                          <CheckCircle2 className="w-5 h-5" />
+                        ) : (
+                          <Clock className="w-5 h-5" />
+                        )}
+                      </div>
+                      {index < projectStages.length - 1 && (
+                        <div
+                          className={`w-1 h-16 my-1 rounded-full ${
+                            stage.status === StageStatus.COMPLETED
+                              ? "bg-gradient-to-b from-green-400 to-green-200"
+                              : "bg-gradient-to-b from-gray-300 to-gray-200"
+                          }`}
+                        ></div>
+                      )}
+                    </div>
+                    <div className="flex-1 pb-6">
+                      <div
+                        className={`p-4 rounded-xl border ${
+                          stage.status === StageStatus.COMPLETED
+                            ? "bg-green-50/50 border-green-100"
+                            : stage.status === StageStatus.IN_PROGRESS
+                              ? "bg-orange-50/50 border-orange-100"
+                              : "bg-gray-50/50 border-gray-100"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="font-bold text-gray-900 text-base">
+                              {getStageDisplayName(stage.stageCode)}
+                            </p>
+                            <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                              {stage.startDate && (
+                                <span>
+                                  Start: {formatDate(stage.startDate)}
+                                </span>
+                              )}
+                              {stage.endDate && (
+                                <span>End: {formatDate(stage.endDate)}</span>
+                              )}
+                            </div>
+                            {stage.remarks && (
+                              <p className="text-sm text-gray-500 mt-2">
+                                {stage.remarks}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              className={`text-xs font-semibold ${
+                                stage.status === StageStatus.COMPLETED
+                                  ? "bg-green-100 text-green-700"
+                                  : stage.status === StageStatus.IN_PROGRESS
+                                    ? "bg-orange-100 text-orange-700"
+                                    : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {stage.status.replace("_", " ")}
+                            </Badge>
+                            <button
+                              onClick={() => handleEditStage(stage)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Update stage"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+
         {/* Payments Tab */}
         {activeTab === "payments" && (
           <div className="space-y-6">
+            {/* Payment Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm hover:shadow-md transition-all">
+              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                 <p className="text-sm text-gray-600 mb-2 font-semibold">
-                  Total Budget
+                  Total Value
                 </p>
                 <p className="text-3xl font-bold text-gray-900">
-                  {project.budget}
+                  {formatCurrency(project.totalValue || 0)}
                 </p>
               </Card>
-              <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50/50 backdrop-blur-sm border-green-200/50 shadow-sm hover:shadow-md transition-all">
+              <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50/50 border-green-200/50 shadow-sm">
                 <p className="text-sm text-green-700 mb-2 font-semibold">
-                  Total Paid
+                  Collected
                 </p>
                 <p className="text-3xl font-bold text-green-600">
-                  {details.totalPaid}
+                  {formatCurrency(paymentTotals.totalPaid)}
                 </p>
               </Card>
-              <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50/50 backdrop-blur-sm border-orange-200/50 shadow-sm hover:shadow-md transition-all">
+              <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50/50 border-orange-200/50 shadow-sm">
                 <p className="text-sm text-orange-700 mb-2 font-semibold">
                   Pending
                 </p>
                 <p className="text-3xl font-bold text-orange-600">
-                  {details.totalPending}
+                  {formatCurrency(paymentTotals.totalPending)}
                 </p>
               </Card>
             </div>
 
+            {/* Payment List */}
             <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
               <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
@@ -781,276 +846,173 @@ export const ProjectDetails: React.FC = () => {
                 </div>
                 Payment Milestones
               </h2>
+
+              {projectPayments.length === 0 ? (
+                <div className="text-center py-8">
+                  <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">
+                    No payments found for this project.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {projectPayments.map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${
+                            payment.status === PaymentStatus.COLLECTED
+                              ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
+                              : payment.status === PaymentStatus.PENDING
+                                ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white"
+                                : "bg-gradient-to-br from-gray-400 to-gray-500 text-white"
+                          }`}
+                        >
+                          {payment.status === PaymentStatus.COLLECTED ? (
+                            <CheckCircle2 className="w-5 h-5" />
+                          ) : (
+                            <Clock className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900">
+                            {payment.milestone}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Due: {formatDate(payment.dueDate)}
+                            {payment.collectedDate &&
+                              ` • Collected: ${formatDate(payment.collectedDate)}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-xl font-bold text-gray-900">
+                            {formatCurrency(payment.amount)}
+                          </p>
+                          <Badge
+                            className={`text-xs font-semibold ${
+                              payment.status === PaymentStatus.COLLECTED
+                                ? "bg-green-100 text-green-700"
+                                : payment.status === PaymentStatus.PENDING
+                                  ? "bg-orange-100 text-orange-700"
+                                  : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {payment.status}
+                          </Badge>
+                        </div>
+                        <button
+                          onClick={() => handleEditPayment(payment)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Update payment"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* Tasks Tab */}
+        {activeTab === "tasks" && (
+          <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <Package className="w-4 h-4 text-white" />
+              </div>
+              Project Tasks
+            </h2>
+
+            {projectTasks.length === 0 ? (
+              <div className="text-center py-8">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">
+                  No tasks found for this project.
+                </p>
+              </div>
+            ) : (
               <div className="space-y-3">
-                {details.payments.map((payment) => (
+                {projectTasks.map((task) => (
                   <div
-                    key={payment.id}
-                    className="flex items-center justify-between p-4 bg-gradient-to-br from-gray-50 via-white to-gray-50 rounded-xl border border-gray-100 hover:shadow-md transition-all"
+                    key={task.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-md transition-all"
                   >
                     <div className="flex items-center gap-4">
                       <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${
-                          payment.status === "paid"
-                            ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
-                            : payment.status === "pending"
-                              ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white"
-                              : "bg-gradient-to-br from-gray-400 to-gray-500 text-white"
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          task.status === ProjectTaskStatus.DONE
+                            ? "bg-green-100 text-green-600"
+                            : task.status === ProjectTaskStatus.IN_PROGRESS
+                              ? "bg-orange-100 text-orange-600"
+                              : "bg-gray-100 text-gray-600"
                         }`}
                       >
-                        {payment.status === "paid" ? (
+                        {task.status === ProjectTaskStatus.DONE ? (
                           <CheckCircle2 className="w-5 h-5" />
                         ) : (
                           <Clock className="w-5 h-5" />
                         )}
                       </div>
                       <div>
-                        <p className="font-bold text-gray-900">
-                          {payment.milestone}
-                        </p>
-                        <p className="text-sm text-gray-600">{payment.date}</p>
+                        <p className="font-bold text-gray-900">{task.title}</p>
+                        {task.description && (
+                          <p className="text-sm text-gray-600">
+                            {task.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                          {task.dueDate && (
+                            <span>Due: {formatDate(task.dueDate)}</span>
+                          )}
+                          {task.assignedTo && (
+                            <span>
+                              Assigned:{" "}
+                              {typeof task.assignedTo === "string"
+                                ? task.assignedTo
+                                : task.assignedTo.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xl font-bold text-gray-900">
-                        {payment.amount}
-                      </p>
-                      <Badge
-                        className={`${
-                          payment.status === "paid"
-                            ? "bg-green-100 text-green-700 border-green-200"
-                            : payment.status === "pending"
-                              ? "bg-orange-100 text-orange-700 border-orange-200"
-                              : "bg-gray-100 text-gray-700 border-gray-200"
-                        } text-xs font-semibold`}
-                      >
-                        {payment.status}
-                      </Badge>
-                    </div>
+                    <Badge
+                      className={`text-xs font-semibold ${
+                        task.status === ProjectTaskStatus.DONE
+                          ? "bg-green-100 text-green-700"
+                          : task.status === ProjectTaskStatus.IN_PROGRESS
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {task.status.replace("_", " ")}
+                    </Badge>
                   </div>
                 ))}
               </div>
-            </Card>
-          </div>
-        )}
-
-        {/* Milestones Tab */}
-        {activeTab === "milestones" && (
-          <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                  <CheckCircle2 className="w-4 h-4 text-white" />
-                </div>
-                Project Milestones
-              </h2>
-              <Button
-                className="bg-orange-500 hover:bg-orange-600"
-                onClick={handleAddMilestone}
-              >
-                <Plus className="w-4 h-4" />
-                Add Milestone
-              </Button>
-            </div>
-            <div className="space-y-4">
-              {details.milestones.map((milestone, index) => (
-                <div key={milestone.id} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-md ${
-                        milestone.status === "completed"
-                          ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
-                          : milestone.status === "in_progress"
-                            ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white"
-                            : "bg-gradient-to-br from-yellow-400 to-yellow-500 text-white"
-                      }`}
-                    >
-                      {milestone.status === "completed" ? (
-                        <CheckCircle2 className="w-5 h-5" />
-                      ) : milestone.status === "in_progress" ? (
-                        <Clock className="w-5 h-5" />
-                      ) : (
-                        <Clock className="w-5 h-5 opacity-80" />
-                      )}
-                    </div>
-                    {index < details.milestones.length - 1 && (
-                      <div
-                        className={`w-1 h-16 my-1 rounded-full ${
-                          milestone.status === "completed"
-                            ? "bg-gradient-to-b from-green-400 to-green-200"
-                            : milestone.status === "in_progress"
-                              ? "bg-gradient-to-b from-orange-400 to-yellow-300"
-                              : "bg-gradient-to-b from-yellow-300 to-gray-200"
-                        }`}
-                      ></div>
-                    )}
-                  </div>
-                  <div className="flex-1 pb-6">
-                    <div
-                      className={`p-4 rounded-xl border hover:shadow-md transition-all ${
-                        milestone.status === "completed"
-                          ? "bg-gradient-to-br from-green-50 via-white to-green-50/20 border-green-100"
-                          : milestone.status === "in_progress"
-                            ? "bg-gradient-to-br from-orange-50 via-white to-orange-50/20 border-orange-100"
-                            : "bg-gradient-to-br from-yellow-50 via-white to-yellow-50/20 border-yellow-100"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-bold text-gray-900 text-base">
-                            {milestone.title}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1 mb-2">
-                            <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                            <p className="text-sm text-gray-600">
-                              Tentative Date:{" "}
-                              {new Date(milestone.date).toLocaleDateString(
-                                "en-US",
-                                {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                },
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            className={`${
-                              milestone.status === "completed"
-                                ? "bg-green-100 text-green-700 border-green-200"
-                                : milestone.status === "in_progress"
-                                  ? "bg-orange-100 text-orange-700 border-orange-200"
-                                  : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                            } text-xs font-semibold`}
-                          >
-                            {milestone.status === "completed"
-                              ? "completed"
-                              : milestone.status === "in_progress"
-                                ? "ongoing"
-                                : "pending"}
-                          </Badge>
-                          <button
-                            onClick={() => handleEditMilestone(milestone)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Edit milestone"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMilestone(milestone.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete milestone"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* Documents Tab */}
-        {activeTab === "documents" && (
-          <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                  <Package className="w-4 h-4 text-white" />
-                </div>
-                Documents
-              </h2>
-              <Button className="bg-white hover:bg-orange-50 border-2 border-orange-500 hover:border-orange-600 text-orange-600 hover:text-orange-700 shadow-md hover:shadow-lg transition-all">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {details.documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between p-4 bg-gradient-to-br from-gray-50 via-white to-blue-50/20 rounded-xl border border-gray-100 hover:shadow-md transition-all group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center shadow-sm group-hover:shadow-md transition-all">
-                      <FileText className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-gray-900">{doc.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {doc.size} • Uploaded by {doc.uploadedBy}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="hover:bg-orange-50 hover:text-orange-600 transition-all"
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* Activity Tab */}
-        {activeTab === "activity" && (
-          <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                <Clock className="w-4 h-4 text-white" />
-              </div>
-              Activity Log
-            </h2>
-            <div className="space-y-4">
-              {details.activities.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="flex gap-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0 group hover:bg-gradient-to-r hover:from-orange-50/30 hover:to-transparent -mx-4 px-4 py-2 rounded-xl transition-all"
-                >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center text-orange-700 font-bold flex-shrink-0 shadow-sm group-hover:shadow-md group-hover:from-orange-200 group-hover:to-orange-300 transition-all">
-                    {activity.user}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-900 font-medium">
-                      {activity.action}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {activity.time}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            )}
           </Card>
         )}
       </div>
 
-      {/* Add/Edit Milestone Modal */}
-      {showMilestoneModal && (
+      {/* Stage Update Modal */}
+      {showStageModal && editingStage && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-gray-900">
-                  {editingMilestone ? "Edit Milestone" : "Add New Milestone"}
+                  Update Stage: {getStageDisplayName(editingStage.stageCode)}
                 </h3>
                 <button
-                  onClick={() => {
-                    setShowMilestoneModal(false);
-                    setMilestoneForm({
-                      title: "",
-                      date: "",
-                      status: "pending",
-                    });
-                    setEditingMilestone(null);
-                  }}
+                  onClick={() => setShowStageModal(false)}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
@@ -1060,60 +1022,52 @@ export const ProjectDetails: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Milestone Title *
-                  </label>
-                  <input
-                    type="text"
-                    value={milestoneForm.title}
-                    onChange={(e) =>
-                      setMilestoneForm({
-                        ...milestoneForm,
-                        title: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., Initial Consultation"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tentative Date *
-                  </label>
-                  <input
-                    type="date"
-                    value={milestoneForm.date}
-                    onChange={(e) =>
-                      setMilestoneForm({
-                        ...milestoneForm,
-                        date: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Status *
                   </label>
                   <select
-                    value={milestoneForm.status}
+                    value={stageForm.status}
                     onChange={(e) =>
-                      setMilestoneForm({
-                        ...milestoneForm,
-                        status: e.target.value as
-                          | "pending"
-                          | "in_progress"
-                          | "completed",
+                      setStageForm({
+                        ...stageForm,
+                        status: e.target.value as StageStatus,
                       })
                     }
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   >
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress / Ongoing</option>
-                    <option value="completed">Completed</option>
+                    <option value={StageStatus.NOT_STARTED}>Not Started</option>
+                    <option value={StageStatus.IN_PROGRESS}>In Progress</option>
+                    <option value={StageStatus.COMPLETED}>Completed</option>
+                    <option value={StageStatus.SKIPPED}>Skipped</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={stageForm.endDate}
+                    onChange={(e) =>
+                      setStageForm({ ...stageForm, endDate: e.target.value })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Remarks
+                  </label>
+                  <textarea
+                    value={stageForm.remarks}
+                    onChange={(e) =>
+                      setStageForm({ ...stageForm, remarks: e.target.value })
+                    }
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="Add remarks..."
+                  />
                 </div>
               </div>
 
@@ -1121,25 +1075,157 @@ export const ProjectDetails: React.FC = () => {
                 <Button
                   variant="secondary"
                   className="flex-1"
-                  onClick={() => {
-                    setShowMilestoneModal(false);
-                    setMilestoneForm({
-                      title: "",
-                      date: "",
-                      status: "pending",
-                    });
-                    setEditingMilestone(null);
-                  }}
+                  onClick={() => setShowStageModal(false)}
                 >
                   Cancel
                 </Button>
                 <Button
                   className="flex-1 bg-orange-500 hover:bg-orange-600"
-                  onClick={handleSaveMilestone}
-                  disabled={!milestoneForm.title || !milestoneForm.date}
+                  onClick={handleSaveStage}
                 >
-                  <Save className="w-4 h-4" />
-                  {editingMilestone ? "Update" : "Add"} Milestone
+                  <Save className="w-4 h-4 mr-2" />
+                  Update Stage
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Update Modal */}
+      {showPaymentModal && editingPayment && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">
+                  Update Payment: {editingPayment.milestone}
+                </h3>
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Status *
+                  </label>
+                  <select
+                    value={paymentForm.status}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        status: e.target.value as PaymentStatus,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value={PaymentStatus.PENDING}>Pending</option>
+                    <option value={PaymentStatus.INVOICED}>Invoiced</option>
+                    <option value={PaymentStatus.COLLECTED}>Collected</option>
+                    <option value={PaymentStatus.OVERDUE}>Overdue</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Actual Amount
+                  </label>
+                  <input
+                    type="number"
+                    value={paymentForm.actualAmount}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        actualAmount: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="Enter actual amount collected"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invoice Number
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentForm.invoiceNumber}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        invoiceNumber: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="Enter invoice number"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowPaymentModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-orange-500 hover:bg-orange-600"
+                  onClick={handleSavePayment}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Update Payment
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+                  <Trash2 className="w-8 h-8 text-red-600" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                Delete Project?
+              </h3>
+              <p className="text-gray-600 text-center mb-6">
+                Are you sure you want to delete &quot;{projectName}&quot;? This
+                action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-500 hover:bg-red-600"
+                  onClick={handleDeleteProject}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Trash2 className="w-4 h-4 mr-2" />
+                  )}
+                  Delete
                 </Button>
               </div>
             </div>
@@ -1149,3 +1235,45 @@ export const ProjectDetails: React.FC = () => {
     </div>
   );
 };
+
+// Helper component for info items
+const InfoItem: React.FC<{ label: string; value: string }> = ({
+  label,
+  value,
+}) => (
+  <div className="p-3 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
+    <p className="text-xs font-bold text-gray-500 uppercase mb-1.5 tracking-wide">
+      {label}
+    </p>
+    <p className="text-base font-bold text-gray-900">{value}</p>
+  </div>
+);
+
+// Helper component for team members
+const TeamMember: React.FC<{ name: string; role: string; email?: string }> = ({
+  name,
+  role,
+  email,
+}) => (
+  <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-gray-50 via-white to-orange-50/20 rounded-xl border border-gray-100">
+    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold shadow-md">
+      {name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .substring(0, 2)}
+    </div>
+    <div className="flex-1">
+      <p className="font-bold text-gray-900">{name}</p>
+      <p className="text-sm text-gray-600">{role}</p>
+    </div>
+    {email && (
+      <a
+        href={`mailto:${email}`}
+        className="w-10 h-10 rounded-lg bg-white border border-orange-200 flex items-center justify-center text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all"
+      >
+        <Mail className="w-4 h-4" />
+      </a>
+    )}
+  </div>
+);

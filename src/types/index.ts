@@ -36,21 +36,145 @@ export interface Task {
   completedAt?: string;
 }
 
+// Project API Enums
+export enum PipelineType {
+  DESIGN_ONLY = "DESIGN_ONLY",
+  DESIGN_AND_EXECUTION = "DESIGN_AND_EXECUTION",
+}
+
+export enum ProjectCategory {
+  RESIDENTIAL = "RESIDENTIAL",
+  COMMERCIAL = "COMMERCIAL",
+  HOSPITALITY = "HOSPITALITY",
+}
+
+export enum ScopeType {
+  FULL_HOME = "FULL_HOME",
+  INTERIORS = "INTERIORS",
+  MODULAR = "MODULAR",
+  CIVIL = "CIVIL",
+  TURNKEY = "TURNKEY",
+}
+
+export enum BudgetTier {
+  BUDGET = "BUDGET",
+  MID_RANGE = "MID_RANGE",
+  PREMIUM = "PREMIUM",
+  LUXURY = "LUXURY",
+}
+
+export enum PropertySubtype {
+  APARTMENT = "APARTMENT",
+  VILLA = "VILLA",
+  INDEPENDENT_HOUSE = "INDEPENDENT_HOUSE",
+  PENTHOUSE = "PENTHOUSE",
+  ROW_HOUSE = "ROW_HOUSE",
+  STUDIO = "STUDIO",
+}
+
+// Main Project Interface (from API)
 export interface Project {
   id: string;
   name: string;
-  location: string;
-  customerId: string;
-  stage: ProjectStage;
-  progress: number;
-  startDate: string;
-  estimatedEndDate: string;
-  actualEndDate?: string;
-  siteEngineerId?: string;
-  budget?: number;
+  projectName?: string; // API uses projectName
+  leadId: string;
+  pipelineType: PipelineType;
+  projectCategory: ProjectCategory;
+  scopeType: ScopeType;
+  budgetTier: BudgetTier;
+  propertySubtype: PropertySubtype;
+  propertySizeSqft: number;
+  propertyBHK: string;
+  propertyAddress: string;
+  propertyCity: string;
+  totalValue: number;
+  assignedDesignerId?: string;
+  assignedPMId?: string;
+  moodBoardShared?: boolean;
+  currentStage?: ProjectStageCode;
+
+  // Related data
+  lead?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+  };
+  assignedDesigner?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  assignedPM?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+
   status: "active" | "on_hold" | "completed";
   createdAt: string;
   updatedAt: string;
+
+  // Legacy fields for backwards compatibility
+  location?: string;
+  customerId?: string;
+  stage?: ProjectStage;
+  progress?: number;
+  startDate?: string;
+  estimatedEndDate?: string;
+  actualEndDate?: string;
+  siteEngineerId?: string;
+  budget?: number;
+}
+
+// Create Project Request Interface
+export interface CreateProjectRequest {
+  leadId: string;
+  projectName: string;
+  pipelineType: PipelineType;
+  projectCategory: ProjectCategory;
+  scopeType: ScopeType;
+  budgetTier: BudgetTier;
+  propertySubtype: PropertySubtype;
+  propertySizeSqft: number;
+  propertyBHK: string;
+  propertyAddress: string;
+  propertyCity: string;
+  totalValue: number;
+}
+
+// Update Project Request Interface
+export interface UpdateProjectRequest {
+  assignedDesignerId?: string;
+  assignedPMId?: string;
+  moodBoardShared?: boolean;
+  projectName?: string;
+  propertyAddress?: string;
+  propertyCity?: string;
+  totalValue?: number;
+}
+
+// Update Stage Request Interface
+export interface UpdateStageRequest {
+  status: string;
+  endDate?: string;
+  remarks?: string;
+}
+
+// Update Payment Request Interface
+export interface UpdatePaymentRequest {
+  status: string;
+  actualAmount?: number;
+  invoiceNumber?: string;
+}
+
+// Project Filters Interface
+export interface ProjectFilters {
+  status?: string;
+  pipelineType?: string;
+  projectCategory?: string;
+  assignedDesignerId?: string;
+  assignedPMId?: string;
 }
 
 export enum LeadStage {
@@ -87,14 +211,92 @@ export interface Lead {
   phone: string;
   source: LeadSource;
   stage: LeadStage;
+
+  // Project Requirements
   projectType?: string;
+  propertyType?:
+    | "Apartment"
+    | "Villa"
+    | "Independent House"
+    | "Penthouse"
+    | "Commercial"
+    | "Office"
+    | "Restaurant"
+    | "Showroom";
+  bhkConfig?: "1 BHK" | "2 BHK" | "3 BHK" | "4 BHK" | "5+ BHK" | "Studio";
+  carpetArea?: number; // in sq.ft
   location?: string;
+  city?: string;
+  locality?: string;
+
+  // Budget & Timeline
   budget?: number;
+  budgetRange?: "Below 10L" | "10-20L" | "20-50L" | "50L-1Cr" | "1Cr+";
+  timeline?: string;
+  expectedStartDate?: string;
+  moveinDate?: string;
+
+  // Design Preferences
+  designStyle?:
+    | "Modern"
+    | "Contemporary"
+    | "Traditional"
+    | "Scandinavian"
+    | "Industrial"
+    | "Minimalist"
+    | "Luxury"
+    | "Eclectic";
+  colorPreferences?: string[];
+  inspirationImages?: string[];
+
+  // Scope of Work
+  scopeOfWork?: (
+    | "Modular Kitchen"
+    | "Wardrobes"
+    | "Living Room"
+    | "Master Bedroom"
+    | "Kids Room"
+    | "Bathroom"
+    | "Pooja Room"
+    | "Full Home"
+    | "Furniture"
+    | "False Ceiling"
+    | "Lighting"
+    | "Flooring"
+    | "Painting"
+  )[];
+  servicesInterested?: (
+    | "Design Only"
+    | "Design + Execution"
+    | "Turnkey"
+    | "Consultation"
+  )[];
+
+  // Lead Quality & Status
+  score?: number; // Lead score 0-100
+  priority?: "Hot" | "Warm" | "Cold";
+  qualification?: "Qualified" | "Unqualified" | "In Review";
+  competitorInfo?: string;
+
+  // Follow-up & Communication
   notes?: string;
+  followUpDate?: string;
+  lastContactedAt?: string;
+  meetingScheduled?: boolean;
+  siteVisitDone?: boolean;
+  quotationSent?: boolean;
+
+  // Assignment & Activities
   assignedTo?: string;
+  assignedDesigner?: string;
   activities?: LeadActivity[];
+
+  // Metadata
   createdAt: string;
   updatedAt: string;
+  convertedToProject?: boolean;
+  conversionDate?: string;
+  lostReason?: string;
 }
 
 export interface TranscriptionSegment {
@@ -311,12 +513,6 @@ export interface NotificationType {
   createdAt: string;
 }
 
-export interface ProjectFilters {
-  stage?: ProjectStage;
-  status?: "active" | "on_hold" | "completed";
-  search?: string;
-}
-
 export interface LeadFilters {
   stage?: LeadStage;
   source?: LeadSource;
@@ -406,4 +602,82 @@ export interface CreateUserRequest {
 
 export interface BanUserRequest {
   reason: string;
+}
+
+// Project-related enums and types
+export enum ProjectStageCode {
+  LEAD = "LEAD",
+  SITE_VISIT = "SITE_VISIT",
+  PROPOSAL = "PROPOSAL",
+  DESIGN = "DESIGN",
+  EXECUTION = "EXECUTION",
+  HANDOVER = "HANDOVER",
+  WARRANTY = "WARRANTY",
+}
+
+export enum StageStatus {
+  NOT_STARTED = "NOT_STARTED",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  ON_HOLD = "ON_HOLD",
+  SKIPPED = "SKIPPED",
+}
+
+export enum PaymentStatus {
+  PENDING = "PENDING",
+  PAID = "PAID",
+  COLLECTED = "COLLECTED",
+  INVOICED = "INVOICED",
+  OVERDUE = "OVERDUE",
+  PARTIAL = "PARTIAL",
+}
+
+export enum ProjectTaskStatus {
+  TODO = "TODO",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  DONE = "DONE",
+  BLOCKED = "BLOCKED",
+}
+
+export interface ProjectStageData {
+  id: string;
+  projectId: string;
+  stageCode: ProjectStageCode;
+  stageName: string;
+  status: StageStatus;
+  startDate?: string;
+  endDate?: string;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectPayment {
+  id: string;
+  projectId: string;
+  milestoneName: string;
+  milestone?: string; // Alias for milestoneName
+  amount: number;
+  dueDate: string;
+  status: PaymentStatus;
+  paidDate?: string;
+  collectedDate?: string; // Add this field
+  actualAmount?: number;
+  invoiceNumber?: string;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectTask {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string;
+  status: ProjectTaskStatus;
+  dueDate?: string;
+  assignedTo?: string | { name: string }; // Update to support both string and object
+  createdAt: string;
+  updatedAt: string;
 }

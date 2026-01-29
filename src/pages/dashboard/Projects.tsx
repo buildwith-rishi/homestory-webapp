@@ -10,6 +10,7 @@ import {
   Search,
   Grid3X3,
   List,
+  LayoutGrid,
 } from "lucide-react";
 import { Card, Button, Badge, Progress } from "../../components/ui";
 import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
@@ -211,6 +212,14 @@ export const ProjectsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            className="rounded-xl"
+            onClick={() => navigate("/dashboard/projects/kanban")}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            Kanban View
+          </Button>
           <div className="flex gap-1 bg-white border border-gray-300 rounded-xl p-1">
             <button
               onClick={() => setView("grid")}

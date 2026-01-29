@@ -16,7 +16,6 @@ import {
   ChevronRight,
   LogOut,
   Shield,
-  Building2,
 } from "lucide-react";
 import Logo from "../shared/Logo";
 import BrandPattern from "../shared/BrandPattern";
@@ -49,7 +48,6 @@ const navigationSections: NavSection[] = [
       { icon: FileText, label: "Follow-Ups", path: "/dashboard/updates" },
       { icon: Handshake, label: "Meetings", path: "/dashboard/meetings" },
       { icon: Users, label: "Customers", path: "/dashboard/customers" },
-      { icon: Building2, label: "Accounts", path: "/dashboard/accounts" },
       { icon: FolderKanban, label: "Projects", path: "/dashboard/projects" },
     ],
   },
