@@ -68,9 +68,25 @@
 }
 
 @font-face {
-  font-family: "NeueHaas Grotesk Display Pro";
-  src: local("Helvetica Neue"), local("Arial");
+  font-family: "Neue Haas Grotesk Display Pro";
+  src: local("Neue Haas Grotesk Display Pro"), local("NeueHaasDisplayPro"), local("Helvetica Neue"), local("Arial");
   font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Neue Haas Grotesk Display Pro";
+  src: local("Neue Haas Grotesk Display Pro Bold"), local("NeueHaasDisplayPro-Bold"), local("Helvetica Neue Bold"), local("Arial Bold");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Neue Haas Grotesk Display Pro";
+  src: local("Neue Haas Grotesk Display Pro Medium"), local("NeueHaasDisplayPro-Medium"), local("Helvetica Neue Medium"), local("Arial");
+  font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
@@ -263,6 +279,36 @@ body {
   background: #6b7280 !important;
 }
 
+/* Modal Backdrop - Glassmorphic Effect */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Ensure backdrop-blur works */
+.backdrop-blur-sm {
+  --tw-backdrop-blur: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.backdrop-blur-md {
+  --tw-backdrop-blur: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.backdrop-blur-lg {
+  --tw-backdrop-blur: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
 /* Dashboard Animations */
 @keyframes fade-in {
   from {
@@ -335,6 +381,23 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes progress-fill {
+  from {
+    width: 0%;
+  }
+}
+
+@keyframes milestone-appear {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 

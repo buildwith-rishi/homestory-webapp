@@ -18,14 +18,21 @@ import {
   Edit,
   Trash2,
   Building2,
-  Target,
   Activity,
   Star,
   Send,
   Plus,
   Loader2,
+  Copy,
+  Sparkles,
+  IndianRupee,
+  Ruler,
+  Target,
+  MoreHorizontal,
+  Share2,
+  Bookmark,
 } from 'lucide-react';
-import { Card, Button, Badge, Progress } from '../../components/ui';
+import { Button } from '../../components/ui';
 import LeadAPI, { Lead as APILead, LeadActivity as APILeadActivity } from '../../services/leadApi';
 import toast from 'react-hot-toast';
 
@@ -49,17 +56,14 @@ const LeadDetails: React.FC = () => {
     
     setLoading(true);
     try {
-      // Get lead details by ID
       const leadData = await LeadAPI.getLeadById(id);
       setLead(leadData);
       
-      // Fetch activities
       try {
         const activitiesData = await LeadAPI.getLeadActivities(id);
         setActivities(activitiesData || []);
       } catch (activityError) {
         console.error('Error fetching activities:', activityError);
-        // Continue even if activities fail
       }
     } catch (error) {
       console.error('Error fetching lead:', error);
@@ -67,22 +71,6 @@ const LeadDetails: React.FC = () => {
       navigate('/dashboard/leads');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAddNote = async () => {
-    if (!newNote.trim() || !id) return;
-    
-    setAddingNote(true);
-    try {
-      // Add note logic here
-      toast.success('Note added successfully');
-      setNewNote('');
-      fetchLeadDetails();
-    } catch (error) {
-      toast.error('Failed to add note');
-    } finally {
-      setAddingNote(false);
     }
   };
 
@@ -99,47 +87,68 @@ const LeadDetails: React.FC = () => {
     }
   };
 
-  const getPriorityColor = (priority?: string) => {
-    switch (priority) {
-      case 'Hot':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'Warm':
-        return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'Cold':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+  const handleAddNote = async () => {
+    if (!id || !newNote.trim()) return;
+
+    setAddingNote(true);
+    try {
+      // Update the lead with the new note
+      await LeadAPI.updateLead(id, {
+        notes: lead?.notes 
+          ? `${lead.notes}\n\n[${new Date().toLocaleString()}]\n${newNote.trim()}`
+          : `[${new Date().toLocaleString()}]\n${newNote.trim()}`
+      });
+      
+      toast.success('Note added successfully');
+      setNewNote('');
+      await fetchLeadDetails(); // Refresh lead data
+    } catch (error) {
+      console.error('Error adding note:', error);
+      toast.error('Failed to add note');
+    } finally {
+      setAddingNote(false);
     }
   };
 
-  const getStageColor = (stage: string) => {
-    const colors: Record<string, string> = {
-      New: 'bg-gray-100 text-gray-700 border-gray-200',
-      Contacted: 'bg-blue-100 text-blue-700 border-blue-200',
-      Qualified: 'bg-purple-100 text-purple-700 border-purple-200',
-      'Meeting Scheduled': 'bg-orange-100 text-orange-700 border-orange-200',
-      'Proposal Sent': 'bg-indigo-100 text-indigo-700 border-indigo-200',
-      Won: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      Lost: 'bg-red-100 text-red-700 border-red-200',
-    };
-    return colors[stage] || 'bg-gray-100 text-gray-700 border-gray-200';
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied!`);
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return 'text-emerald-600';
+    if (score >= 40) return 'text-amber-600';
+    return 'text-red-500';
+  };
+
+  const getScoreBg = (score: number) => {
+    if (score >= 70) return 'from-emerald-500 to-green-500';
+    if (score >= 40) return 'from-amber-500 to-yellow-500';
+    return 'from-red-500 to-orange-500';
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
+            <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+          </div>
+          <p className="text-gray-600 font-medium">Loading lead details...</p>
+        </div>
       </div>
     );
   }
 
   if (!lead) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <AlertCircle className="w-16 h-16 text-gray-300 mb-4" />
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+        <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <AlertCircle className="w-10 h-10 text-gray-400" />
+        </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Lead Not Found</h2>
-        <p className="text-gray-600 mb-6">The lead you're looking for doesn't exist.</p>
-        <Button onClick={() => navigate('/dashboard/leads')}>
+        <p className="text-gray-600 mb-6">The lead you're looking for doesn't exist or has been deleted.</p>
+        <Button onClick={() => navigate('/dashboard/leads')} className="rounded-xl">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Leads
         </Button>
@@ -147,233 +156,371 @@ const LeadDetails: React.FC = () => {
     );
   }
 
+  const score = lead.score || 0;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/dashboard/leads')}
-                className="rounded-lg"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge className={`text-xs rounded-lg ${getStageColor(lead.stage || 'New')}`}>
-                    {lead.stage || 'New'}
-                  </Badge>
-                  {lead.priority && (
-                    <Badge className={`text-xs rounded-lg ${getPriorityColor(lead.priority)}`}>
-                      {lead.priority} Lead
-                    </Badge>
-                  )}
-                  {lead.score && (
-                    <div className="flex items-center gap-1 text-xs text-gray-600">
-                      <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                      <span className="font-semibold">{lead.score}/100</span>
-                    </div>
-                  )}
+    <div className="min-h-screen bg-gray-50/50">
+      {/* Hero Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6">
+          {/* Top Navigation */}
+          <div className="flex items-center justify-between py-4 border-b border-gray-100">
+            <button
+              onClick={() => navigate('/dashboard/leads')}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">Back to Leads</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <Bookmark className="w-4 h-4 text-gray-500" />
+              </button>
+              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <Share2 className="w-4 h-4 text-gray-500" />
+              </button>
+              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <MoreHorizontal className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+          </div>
+
+          {/* Lead Header */}
+          <div className="py-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-5">
+                {/* Avatar */}
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-2xl shadow-xl shadow-orange-200/50">
+                    {(lead.name || "U")
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2)}
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-3 border-white flex items-center justify-center">
+                    <CheckCircle className="w-3.5 h-3.5 text-white" />
+                  </div>
+                </div>
+                {/* Info */}
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-2xl font-bold text-gray-900">{lead.name || "Unknown Lead"}</h1>
+                    {lead.priority === 'high' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold">
+                        <Sparkles className="w-3 h-3" />
+                        Hot Lead
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    {lead.phone && (
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-4 h-4 text-gray-400" />
+                        <span>{lead.phone}</span>
+                      </div>
+                    )}
+                    {lead.email && (
+                      <div className="flex items-center gap-1.5">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <span>{lead.email}</span>
+                      </div>
+                    )}
+                    {lead.source && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 rounded-full">
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                        <span className="text-xs font-medium text-blue-700">{lead.source}</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Status Badges */}
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                      lead.status === 'Qualified' ? 'bg-green-100 text-green-700 ring-1 ring-green-600/20' :
+                      lead.status === 'Contacted' ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-600/20' :
+                      lead.status === 'Proposal' ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-600/20' :
+                      lead.status === 'Won' ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-600/20' :
+                      'bg-gray-100 text-gray-700 ring-1 ring-gray-600/20'
+                    }`}>
+                      {lead.status || lead.stage || "New"}
+                    </span>
+                    {score > 0 && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-full">
+                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <span className="text-xs font-bold text-amber-700">{score}% Score</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={() => navigate(`/dashboard/leads/${id}/edit`)}>
-                <Edit className="w-4 h-4" />
-                Edit
-              </Button>
-              <Button variant="secondary" onClick={handleDeleteLead} className="text-red-600 hover:bg-red-50">
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </Button>
-              <Button className="bg-orange-600 hover:bg-orange-700">
-                <Building2 className="w-4 h-4" />
-                Convert to Project
-              </Button>
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => navigate(`/dashboard/leads/${id}/edit`)}
+                  className="rounded-xl"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleDeleteLead}
+                  className="rounded-xl text-red-600 hover:bg-red-50 hover:border-red-200"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </Button>
+                <Button className="rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg shadow-orange-200/50">
+                  <Building2 className="w-4 h-4" />
+                  Convert to Project
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Main Details */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Lead Score & Progress */}
-            {lead.score && (
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Target className="w-5 h-5 text-orange-500" />
-                    Lead Score
-                  </h3>
-                  <span className="text-2xl font-bold text-orange-600">{lead.score}/100</span>
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-4 py-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Left Column */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Lead Score Card */}
+            {score > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${getScoreBg(score)} flex items-center justify-center`}>
+                        <Target className="w-4.5 h-4.5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-sm">Lead Score</h3>
+                        <p className="text-xs text-gray-500">Engagement & profile</p>
+                      </div>
+                    </div>
+                    <div className={`text-2xl font-bold ${getScoreColor(score)}`}>{score}%</div>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
+                    <div
+                      className={`h-full rounded-full bg-gradient-to-r ${getScoreBg(score)} transition-all duration-700`}
+                      style={{ width: `${score}%` }}
+                    ></div>
+                  </div>
+                  {/* Milestones */}
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="text-center py-2 px-1 bg-emerald-50 rounded-lg">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 mx-auto mb-1" />
+                      <p className="text-[10px] font-medium text-gray-600">Qualified</p>
+                    </div>
+                    <div className={`text-center py-2 px-1 rounded-lg ${lead.meetingScheduled ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                      <Calendar className={`w-4 h-4 mx-auto mb-1 ${lead.meetingScheduled ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <p className="text-[10px] font-medium text-gray-600">Meeting</p>
+                    </div>
+                    <div className={`text-center py-2 px-1 rounded-lg ${lead.siteVisitDone ? 'bg-purple-50' : 'bg-gray-50'}`}>
+                      <Home className={`w-4 h-4 mx-auto mb-1 ${lead.siteVisitDone ? 'text-purple-600' : 'text-gray-400'}`} />
+                      <p className="text-[10px] font-medium text-gray-600">Site Visit</p>
+                    </div>
+                    <div className={`text-center py-2 px-1 rounded-lg ${lead.quotationSent ? 'bg-orange-50' : 'bg-gray-50'}`}>
+                      <FileText className={`w-4 h-4 mx-auto mb-1 ${lead.quotationSent ? 'text-orange-600' : 'text-gray-400'}`} />
+                      <p className="text-[10px] font-medium text-gray-600">Quotation</p>
+                    </div>
+                  </div>
                 </div>
-                <Progress value={lead.score} className="mb-3" />
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div className="p-3 bg-green-50 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-green-600 mx-auto mb-1" />
-                    <p className="text-xs text-gray-600">Qualified</p>
-                  </div>
-                  <div className={`p-3 rounded-lg ${lead.meetingScheduled ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                    <Calendar className={`w-5 h-5 mx-auto mb-1 ${lead.meetingScheduled ? 'text-blue-600' : 'text-gray-400'}`} />
-                    <p className="text-xs text-gray-600">Meeting Set</p>
-                  </div>
-                  <div className={`p-3 rounded-lg ${lead.quotationSent ? 'bg-purple-50' : 'bg-gray-50'}`}>
-                    <FileText className={`w-5 h-5 mx-auto mb-1 ${lead.quotationSent ? 'text-purple-600' : 'text-gray-400'}`} />
-                    <p className="text-xs text-gray-600">Quote Sent</p>
-                  </div>
-                </div>
-              </Card>
+              </div>
             )}
 
             {/* Contact Information */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-orange-500" />
-                Contact Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
-                  <Phone className="w-5 h-5 text-gray-500 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Phone Number</p>
-                    <p className="font-semibold text-gray-900">{lead.phone}</p>
-                    <button className="text-xs text-orange-600 hover:text-orange-700 mt-1">
-                      Call Now
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
-                  <Mail className="w-5 h-5 text-gray-500 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Email Address</p>
-                    <p className="font-semibold text-gray-900 break-all">{lead.email}</p>
-                    <button className="text-xs text-orange-600 hover:text-orange-700 mt-1">
-                      Send Email
-                    </button>
-                  </div>
-                </div>
-                {lead.location && (
-                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
-                    <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Location</p>
-                      <p className="font-semibold text-gray-900">{lead.location}</p>
-                      {lead.city && <p className="text-sm text-gray-600">{lead.city}</p>}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <User className="w-4 h-4 text-orange-500" />
+                <h3 className="font-semibold text-gray-900 text-sm">Contact Information</h3>
+              </div>
+              <div className="p-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Phone */}
+                  <div className="group p-3 bg-gray-50 rounded-lg hover:bg-orange-50 transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center">
+                        <Phone className="w-4 h-4 text-orange-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Phone</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">{lead.phone || "Not provided"}</p>
+                      </div>
+                      {lead.phone && (
+                        <button
+                          onClick={() => copyToClipboard(lead.phone!, 'Phone')}
+                          className="p-1 hover:bg-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Copy className="w-3 h-3 text-gray-400" />
+                        </button>
+                      )}
                     </div>
                   </div>
-                )}
-                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
-                  <TrendingUp className="w-5 h-5 text-gray-500 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Lead Source</p>
-                    <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                      {lead.source}
-                    </Badge>
+
+                  {/* Email */}
+                  <div className="group p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center">
+                        <Mail className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Email</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">{lead.email || "Not provided"}</p>
+                      </div>
+                      {lead.email && (
+                        <button
+                          onClick={() => copyToClipboard(lead.email!, 'Email')}
+                          className="p-1 hover:bg-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Copy className="w-3 h-3 text-gray-400" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Location */}
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center">
+                        <MapPin className="w-4 h-4 text-green-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Location</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {lead.location || lead.city || "Not specified"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Source */}
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center">
+                        <TrendingUp className="w-4 h-4 text-purple-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Source</p>
+                        <p className="text-sm font-medium text-gray-900">{lead.source || "Unknown"}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </Card>
+            </div>
 
             {/* Project Requirements */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Home className="w-5 h-5 text-orange-500" />
-                Project Requirements
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {lead.propertyType && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Property Type</p>
-                    <p className="font-semibold text-gray-900">{lead.propertyType}</p>
-                  </div>
-                )}
-                {lead.bhkConfig && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Configuration</p>
-                    <p className="font-semibold text-gray-900">{lead.bhkConfig}</p>
-                  </div>
-                )}
-                {lead.carpetArea && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Carpet Area</p>
-                    <p className="font-semibold text-gray-900">{lead.carpetArea} sq.ft</p>
-                  </div>
-                )}
-                {lead.budget && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Budget</p>
-                    <p className="font-semibold text-green-600">₹{lead.budget.toLocaleString()}</p>
-                  </div>
-                )}
-                {lead.budgetRange && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Budget Range</p>
-                    <p className="font-semibold text-gray-900">{lead.budgetRange}</p>
-                  </div>
-                )}
-                {lead.timeline && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Timeline</p>
-                    <p className="font-semibold text-gray-900">{lead.timeline}</p>
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <Home className="w-4 h-4 text-amber-500" />
+                <h3 className="font-semibold text-gray-900 text-sm">Project Requirements</h3>
+              </div>
+              <div className="p-3">
+                {/* Property Details Grid */}
+                {(lead.propertyType || lead.bhkConfig || lead.carpetArea || lead.budget || lead.budgetRange) ? (
+                  <>
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      <div className="p-2.5 bg-orange-50 rounded-lg text-center">
+                        <Building2 className="w-4 h-4 text-orange-600 mx-auto mb-1" />
+                        <p className="text-[10px] text-gray-500 mb-0.5">Type</p>
+                        <p className="text-xs font-bold text-gray-900">{lead.propertyType || "-"}</p>
+                      </div>
+                      <div className="p-2.5 bg-blue-50 rounded-lg text-center">
+                        <Home className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+                        <p className="text-[10px] text-gray-500 mb-0.5">Config</p>
+                        <p className="text-xs font-bold text-gray-900">{lead.bhkConfig || "-"}</p>
+                      </div>
+                      <div className="p-2.5 bg-purple-50 rounded-lg text-center">
+                        <Ruler className="w-4 h-4 text-purple-600 mx-auto mb-1" />
+                        <p className="text-[10px] text-gray-500 mb-0.5">Area</p>
+                        <p className="text-xs font-bold text-gray-900">{lead.carpetArea ? `${lead.carpetArea} sqft` : "-"}</p>
+                      </div>
+                      <div className="p-2.5 bg-green-50 rounded-lg text-center">
+                        <IndianRupee className="w-4 h-4 text-green-600 mx-auto mb-1" />
+                        <p className="text-[10px] text-gray-500 mb-0.5">Budget</p>
+                        <p className="text-xs font-bold text-green-700">{lead.budgetRange || lead.budget || "-"}</p>
+                      </div>
+                    </div>
+
+                    {/* Timeline */}
+                    {lead.timeline && (
+                      <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg mb-3">
+                        <Clock className="w-4 h-4 text-gray-500" />
+                        <span className="text-xs text-gray-500">Timeline:</span>
+                        <span className="text-xs font-semibold text-gray-900">{lead.timeline}</span>
+                      </div>
+                    )}
+
+                    {/* Scope of Work */}
+                    {lead.scopeOfWork && lead.scopeOfWork.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-semibold text-gray-600 mb-2">Scope of Work</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {lead.scopeOfWork.map((scope, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">
+                              {scope}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Services */}
+                    {lead.servicesInterested && lead.servicesInterested.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-600 mb-2">Services Interested</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {lead.servicesInterested.map((service, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-orange-50 text-orange-700 rounded text-xs font-medium">
+                              {service}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-6">
+                    <Home className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500 mb-2">No project requirements specified</p>
+                    <button className="text-xs font-medium text-orange-600 hover:text-orange-700">
+                      + Add Requirements
+                    </button>
                   </div>
                 )}
               </div>
-
-              {lead.scopeOfWork && lead.scopeOfWork.length > 0 && (
-                <div className="mt-6">
-                  <p className="text-sm font-semibold text-gray-700 mb-3">Scope of Work</p>
-                  <div className="flex flex-wrap gap-2">
-                    {lead.scopeOfWork.map((scope, idx) => (
-                      <Badge key={idx} className="bg-purple-50 text-purple-700 border-purple-200">
-                        {scope}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {lead.servicesInterested && lead.servicesInterested.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-semibold text-gray-700 mb-3">Services Interested</p>
-                  <div className="flex flex-wrap gap-2">
-                    {lead.servicesInterested.map((service, idx) => (
-                      <Badge key={idx} className="bg-orange-50 text-orange-700 border-orange-200">
-                        {service}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </Card>
+            </div>
 
             {/* Design Preferences */}
             {(lead.designStyle || lead.colorPreferences) && (
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Palette className="w-5 h-5 text-orange-500" />
-                  Design Preferences
-                </h3>
-                <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-pink-500" />
+                  <h3 className="font-semibold text-gray-900 text-sm">Design Preferences</h3>
+                </div>
+                <div className="p-3">
                   {lead.designStyle && (
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700 mb-2">Preferred Style</p>
-                      <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-sm px-4 py-2">
-                        {lead.designStyle}
-                      </Badge>
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-gray-600 mb-2">Preferred Style</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(Array.isArray(lead.designStyle) ? lead.designStyle : [lead.designStyle]).map((style, idx) => (
+                          <span key={idx} className="px-2.5 py-1 bg-pink-50 text-pink-700 rounded text-xs font-medium">
+                            {style}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {lead.colorPreferences && lead.colorPreferences.length > 0 && (
                     <div>
-                      <p className="text-sm font-semibold text-gray-700 mb-2">Color Preferences</p>
-                      <div className="flex flex-wrap gap-2">
+                      <p className="text-xs font-semibold text-gray-600 mb-2">Colors</p>
+                      <div className="flex flex-wrap gap-1.5">
                         {lead.colorPreferences.map((color, idx) => (
-                          <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                          <span key={idx} className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
                             {color}
                           </span>
                         ))}
@@ -381,178 +528,151 @@ const LeadDetails: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
             )}
 
-            {/* Notes & Communication */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-orange-500" />
-                Notes & Communication
-              </h3>
-              
-              {/* Add Note */}
-              <div className="mb-6">
+            {/* Notes */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-blue-500" />
+                <h3 className="font-semibold text-gray-900 text-sm">Notes & Communication</h3>
+              </div>
+              <div className="p-3">
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   placeholder="Add a note about this lead..."
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 resize-none text-sm"
+                  rows={2}
                 />
                 <div className="flex justify-end mt-2">
                   <Button
                     onClick={handleAddNote}
                     disabled={!newNote.trim() || addingNote}
                     size="sm"
-                    className="bg-orange-600 hover:bg-orange-700"
+                    className="rounded-lg bg-orange-500 hover:bg-orange-600 text-xs px-3 py-1.5"
                   >
                     {addingNote ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Adding...
-                      </>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                     ) : (
-                      <>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Note
-                      </>
+                      <Plus className="w-3 h-3 mr-1" />
                     )}
+                    Add Note
                   </Button>
                 </div>
+                {lead.notes && (
+                  <div className="mt-3 p-2.5 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-700 whitespace-pre-wrap">{lead.notes}</p>
+                  </div>
+                )}
               </div>
-
-              {/* Existing Notes */}
-              {lead.notes && (
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.notes}</p>
-                </div>
-              )}
-            </Card>
+            </div>
           </div>
 
-          {/* Right Column - Timeline & Actions */}
-          <div className="space-y-6">
+          {/* Right Column - Sidebar */}
+          <div className="space-y-4">
             {/* Quick Actions */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-              <div className="space-y-2">
-                <Button variant="secondary" className="w-full justify-start">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Schedule Meeting
-                </Button>
-                <Button variant="secondary" className="w-full justify-start">
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Quotation
-                </Button>
-                <Button variant="secondary" className="w-full justify-start">
-                  <Home className="w-4 h-4 mr-2" />
-                  Schedule Site Visit
-                </Button>
-                <Button variant="secondary" className="w-full justify-start">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Share Portfolio
-                </Button>
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-900 text-sm">Quick Actions</h3>
               </div>
-            </Card>
+              <div className="p-2">
+                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-orange-50 text-left transition-colors group">
+                  <div className="w-7 h-7 rounded-md bg-orange-100 flex items-center justify-center">
+                    <Calendar className="w-3.5 h-3.5 text-orange-600" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700">Schedule Meeting</span>
+                </button>
+                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-blue-50 text-left transition-colors group">
+                  <div className="w-7 h-7 rounded-md bg-blue-100 flex items-center justify-center">
+                    <Send className="w-3.5 h-3.5 text-blue-600" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700">Send Quotation</span>
+                </button>
+                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-purple-50 text-left transition-colors group">
+                  <div className="w-7 h-7 rounded-md bg-purple-100 flex items-center justify-center">
+                    <Home className="w-3.5 h-3.5 text-purple-600" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700">Schedule Site Visit</span>
+                </button>
+                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-green-50 text-left transition-colors group">
+                  <div className="w-7 h-7 rounded-md bg-green-100 flex items-center justify-center">
+                    <FileText className="w-3.5 h-3.5 text-green-600" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700">Share Portfolio</span>
+                </button>
+              </div>
+            </div>
 
-            {/* Timeline & Important Dates */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-orange-500" />
-                Timeline
-              </h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Created</span>
-                  <span className="font-semibold">
-                    {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A'}
+            {/* Timeline */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-orange-500" />
+                <h3 className="font-semibold text-gray-900 text-sm">Timeline</h3>
+              </div>
+              <div className="p-3 space-y-2">
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-xs text-gray-500">Created</span>
+                  <span className="text-xs font-semibold text-gray-900">
+                    {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
                   </span>
                 </div>
                 {lead.lastContactedAt && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Last Contacted</span>
-                    <span className="font-semibold">
-                      {new Date(lead.lastContactedAt).toLocaleDateString()}
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs text-gray-500">Last Contact</span>
+                    <span className="text-xs font-semibold text-gray-900">
+                      {new Date(lead.lastContactedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                 )}
                 {lead.followUpDate && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Follow-up</span>
-                    <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-                      {new Date(lead.followUpDate).toLocaleDateString()}
-                    </Badge>
-                  </div>
-                )}
-                {lead.expectedStartDate && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Expected Start</span>
-                    <span className="font-semibold">
-                      {new Date(lead.expectedStartDate).toLocaleDateString()}
+                  <div className="flex items-center justify-between px-2 py-1.5 bg-orange-50 rounded-md -mx-1">
+                    <span className="text-xs text-orange-700 font-medium">Follow-up</span>
+                    <span className="text-xs font-bold text-orange-700">
+                      {new Date(lead.followUpDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                 )}
-                {lead.moveinDate && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Move-in Date</span>
-                    <span className="font-semibold">
-                      {new Date(lead.moveinDate).toLocaleDateString()}
+                {lead.expectedStartDate && (
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs text-gray-500">Expected Start</span>
+                    <span className="text-xs font-semibold text-gray-900">
+                      {new Date(lead.expectedStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                 )}
               </div>
-            </Card>
+            </div>
 
-            {/* Assignment - Commented out as fields not in API type yet */}
-            {/* {(lead.assignedTo || lead.assignedDesigner) && (
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-orange-500" />
-                  Assignment
-                </h3>
-                <div className="space-y-3">
-                  {lead.assignedTo && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Sales Representative</p>
-                      <p className="font-semibold text-gray-900">{lead.assignedTo}</p>
-                    </div>
-                  )}
-                  {lead.assignedDesigner && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Assigned Designer</p>
-                      <p className="font-semibold text-gray-900">{lead.assignedDesigner}</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )} */}
-
-            {/* Recent Activities */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-orange-500" />
-                Recent Activities
-              </h3>
-              {activities.length > 0 ? (
-                <div className="space-y-3">
-                  {activities.slice(0, 5).map((activity) => (
-                    <div key={activity.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Clock className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{activity.type}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">{activity.description}</p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(activity.createdAt).toLocaleString()}
-                        </p>
+            {/* Activities */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-orange-500" />
+                <h3 className="font-semibold text-gray-900 text-sm">Recent Activities</h3>
+              </div>
+              <div className="p-2">
+                {activities.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {activities.slice(0, 4).map((activity) => (
+                      <div key={activity.id} className="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                        <div className="w-6 h-6 rounded bg-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Clock className="w-3 h-3 text-gray-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-900">{activity.type}</p>
+                          <p className="text-[10px] text-gray-500 truncate">{activity.description}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-4">No activities yet</p>
-              )}
-            </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <Activity className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500">No activities yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

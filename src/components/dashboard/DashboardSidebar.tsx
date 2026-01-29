@@ -7,7 +7,6 @@ import {
   Handshake,
   Users,
   FolderKanban,
-  MessageSquare,
   TrendingUp,
   BarChart3,
   Users as TeamIcon,
@@ -54,11 +53,6 @@ const navigationSections: NavSection[] = [
   {
     title: "Business Tools",
     items: [
-      {
-        icon: MessageSquare,
-        label: "Communication",
-        path: "/dashboard/voice-agent",
-      },
       { icon: TrendingUp, label: "Marketing", path: "/dashboard/marketing" },
       { icon: BarChart3, label: "Analytics", path: "/dashboard/analytics" },
     ],
@@ -92,20 +86,22 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   return (
     <aside
-      className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-200 transition-all duration-300 ${
+      className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${
         collapsed ? "w-20" : "w-72"
       } z-50 flex flex-col shadow-sm`}
     >
       {/* Logo Section */}
-      <div className="flex items-center justify-center px-4 py-5 border-b border-gray-200">
+      <div className={`flex items-center justify-center border-b border-gray-200 transition-all duration-300 ${
+        collapsed ? "px-2 py-4" : "px-4 py-4"
+      }`}>
         {!collapsed && (
-          <div className="flex items-center w-full">
-            <Logo colorScheme="default" size={200} />
+          <div className="flex items-center w-full justify-start">
+            <Logo colorScheme="default" size={160} />
           </div>
         )}
         {collapsed && (
           <div className="flex items-center justify-center w-full">
-            <Logo variant="mark" colorScheme="default" size={48} />
+            <Logo variant="mark" colorScheme="default" size={40} />
           </div>
         )}
       </div>
@@ -113,7 +109,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       {/* Collapse Toggle Button */}
       <button
         onClick={onToggle}
-        className="absolute -right-3 top-8 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors shadow-sm"
+        className="absolute -right-3 top-6 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50 transition-all duration-200 shadow-sm z-10"
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         {collapsed ? (
@@ -137,9 +133,6 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 {section.title}
               </h3>
             )}
-            {collapsed && sectionIndex > 0 && (
-              <div className="h-px bg-gray-200 mx-3 mb-3" />
-            )}
             <div className="space-y-1">
               {section.items
                 .filter(
@@ -151,7 +144,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                     to={item.path}
                     end={item.path === "/dashboard"}
                     className={({ isActive }) =>
-                      `flex items-center h-11 px-3 rounded-lg transition-all group relative ${
+                      `flex items-center h-11 px-3 rounded-lg transition-all duration-200 group relative ${
                         collapsed ? "justify-center" : ""
                       } ${
                         isActive
@@ -165,15 +158,15 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                         <item.icon
                           size={20}
                           strokeWidth={2}
-                          className={
+                          className={`transition-colors duration-200 ${
                             isActive ? "text-primary" : "text-gray-600"
-                          }
+                          }`}
                         />
                         {!collapsed && (
-                          <span className="ml-3 text-sm">{item.label}</span>
+                          <span className="ml-3 text-sm transition-opacity duration-200">{item.label}</span>
                         )}
                         {collapsed && (
-                          <div className="absolute left-full ml-2 bg-gray-900 text-white px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap text-sm z-50 shadow-lg">
+                          <div className="absolute left-full ml-2 bg-gray-900 text-white px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap text-sm z-50 shadow-lg">
                             {item.label}
                           </div>
                         )}
@@ -188,7 +181,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
       {/* User Profile Section - Compact & Professional */}
       {!collapsed && user && (
-        <div className="relative border-t border-gray-200 bg-white z-10">
+        <div className="relative border-t border-gray-200 bg-white z-10 transition-all duration-300">
           <div className="p-3">
             <div className="flex items-center gap-2.5 mb-2">
               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
@@ -208,7 +201,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             </div>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-1.5 h-8 px-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 h-8 px-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors duration-200"
             >
               <LogOut size={13} />
               <span>Logout</span>

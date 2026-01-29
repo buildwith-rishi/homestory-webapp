@@ -9,7 +9,6 @@ import {
   Search,
   MoreVertical,
   MapPin,
-  DollarSign,
   Clock,
   User,
   TrendingUp,
@@ -24,9 +23,6 @@ import {
   ArrowRight,
   Building2,
   LayoutGrid,
-  Home,
-  Palette,
-  Target,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -849,255 +845,204 @@ export const LeadsPage: React.FC = () => {
       {/* Leads Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
         {filteredLeads.map((lead) => (
-          <Card
+          <div
             key={lead.id}
-            className="p-0 rounded-2xl hover:shadow-2xl transition-all duration-300 cursor-pointer group overflow-hidden border-2 border-transparent hover:border-orange-200"
+            className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-orange-100 transition-all duration-300 cursor-pointer overflow-hidden"
             onClick={() => navigate(`/dashboard/leads/${lead.id}`)}
           >
-            {/* Header with Gradient */}
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-4 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
-              <div className="flex items-start justify-between relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-lg border-2 border-white/30">
-                    {(lead.name || "Unknown")
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2)}
+            {/* Accent Line */}
+            <div className={`h-1 w-full ${
+              lead.priority === 'high' ? 'bg-gradient-to-r from-red-500 to-orange-500' :
+              lead.priority === 'medium' ? 'bg-gradient-to-r from-amber-400 to-yellow-400' :
+              'bg-gradient-to-r from-orange-400 to-orange-500'
+            }`}></div>
+
+            {/* Card Content */}
+            <div className="p-5">
+              {/* Header Row */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3.5">
+                  {/* Avatar */}
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-base shadow-lg shadow-orange-200/50">
+                      {(lead.name || "U")
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2)}
+                    </div>
+                    {/* Online Indicator */}
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
                   </div>
-                  <div className="text-white">
-                    <h3 className="font-bold text-lg mb-1">
-                      {lead.name || "Unknown"}
+                  {/* Name & Status */}
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-base group-hover:text-orange-600 transition-colors">
+                      {lead.name || "Unknown Lead"}
                     </h3>
-                    <Badge className="bg-white/25 text-white border-white/30 text-xs rounded-lg backdrop-blur-sm">
-                      {lead.status || "New"}
-                    </Badge>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        lead.status === 'Qualified' ? 'bg-green-50 text-green-700 ring-1 ring-green-600/20' :
+                        lead.status === 'Contacted' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20' :
+                        lead.status === 'Proposal' ? 'bg-purple-50 text-purple-700 ring-1 ring-purple-600/20' :
+                        lead.status === 'Negotiation' ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20' :
+                        lead.status === 'Won' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20' :
+                        lead.status === 'Lost' ? 'bg-red-50 text-red-700 ring-1 ring-red-600/20' :
+                        'bg-gray-50 text-gray-700 ring-1 ring-gray-600/20'
+                      }`}>
+                        {lead.status || "New"}
+                      </span>
+                      {lead.priority === 'high' && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600">
+                          <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
+                          Hot Lead
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
+                {/* Actions Button */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setLeadToEdit(lead);
                     setShowEditModal(true);
                   }}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors opacity-0 group-hover:opacity-100"
                 >
-                  <MoreVertical className="w-4 h-4 text-white" />
+                  <MoreVertical className="w-4 h-4 text-gray-400" />
                 </button>
               </div>
 
-              {/* Lead Score Indicator */}
-              {lead.score && (
-                <div className="mt-4 relative z-10">
-                  <div className="flex items-center justify-between text-xs mb-2">
-                    <span className="text-white/90 font-medium flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5" />
-                      Lead Quality
-                    </span>
-                    <span className="font-bold text-white bg-white/20 px-2 py-0.5 rounded-full">
-                      {lead.score}/100
-                    </span>
+              {/* Contact Info Cards */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {/* Phone */}
+                <div className="bg-gray-50 rounded-xl p-3 group/item hover:bg-orange-50 transition-colors">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                      <Phone className="w-3.5 h-3.5 text-orange-500" />
+                    </div>
+                    <span className="text-xs text-gray-500">Phone</span>
                   </div>
-                  <div className="h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {lead.phone || "Not provided"}
+                  </p>
+                </div>
+                {/* Email */}
+                <div className="bg-gray-50 rounded-xl p-3 group/item hover:bg-blue-50 transition-colors">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                      <Mail className="w-3.5 h-3.5 text-blue-500" />
+                    </div>
+                    <span className="text-xs text-gray-500">Email</span>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {lead.email || "Not provided"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Property & Budget Info */}
+              {(lead.propertyType || lead.budget || lead.budgetRange || lead.location) && (
+                <div className="bg-gradient-to-br from-orange-50/80 to-amber-50/50 rounded-xl p-3.5 mb-4 border border-orange-100/50">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <Building2 className="w-4 h-4 text-orange-600" />
+                    <span className="text-xs font-semibold text-orange-900/80 uppercase tracking-wide">Project Interest</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {lead.propertyType && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-0.5">Property</p>
+                        <p className="text-sm font-semibold text-gray-900">{lead.propertyType}{lead.bhkConfig && ` • ${lead.bhkConfig}`}</p>
+                      </div>
+                    )}
+                    {(lead.budget || lead.budgetRange) && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-0.5">Budget</p>
+                        <p className="text-sm font-semibold text-gray-900">{lead.budgetRange || lead.budget}</p>
+                      </div>
+                    )}
+                    {lead.location && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500 mb-0.5">Location</p>
+                        <p className="text-sm font-medium text-gray-700">{lead.location}{lead.city && `, ${lead.city}`}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Lead Score */}
+              {lead.score !== undefined && lead.score > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="text-xs font-medium text-gray-600">Lead Score</span>
+                    </div>
+                    <span className={`text-sm font-bold ${
+                      lead.score >= 70 ? 'text-green-600' : 
+                      lead.score >= 40 ? 'text-amber-600' : 'text-red-500'
+                    }`}>{lead.score}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-white rounded-full transition-all duration-500"
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        lead.score >= 70 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 
+                        lead.score >= 40 ? 'bg-gradient-to-r from-amber-400 to-yellow-500' : 
+                        'bg-gradient-to-r from-red-400 to-orange-400'
+                      }`}
                       style={{ width: `${lead.score}%` }}
                     ></div>
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Body Content */}
-            <div className="p-5 space-y-4">
-              {/* Contact Information */}
-              <div className="space-y-2.5">
-                {lead.phone && (
-                  <div className="flex items-center gap-3 text-sm group/item hover:text-orange-600 transition-colors">
-                    <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600 group-hover/item:bg-orange-100 transition-colors">
-                      <Phone className="w-4 h-4" />
-                    </div>
-                    <span className="font-medium text-gray-700">
-                      {lead.phone}
-                    </span>
-                  </div>
-                )}
-                {lead.email && (
-                  <div className="flex items-center gap-3 text-sm group/item hover:text-orange-600 transition-colors">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 group-hover/item:bg-blue-100 transition-colors">
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <span className="font-medium text-gray-700 truncate">
-                      {lead.email}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Property Details */}
-              {(lead.propertyType || lead.bhkConfig || lead.carpetArea) && (
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3.5 border border-gray-200">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <Home className="w-4 h-4 text-orange-600" />
-                    <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                      Property Details
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {lead.propertyType && (
-                      <div className="flex flex-col">
-                        <span className="text-xs text-gray-500">Type</span>
-                        <span className="font-semibold text-gray-900">
-                          {lead.propertyType}
-                        </span>
-                      </div>
-                    )}
-                    {lead.bhkConfig && (
-                      <div className="flex flex-col">
-                        <span className="text-xs text-gray-500">Config</span>
-                        <span className="font-semibold text-gray-900">
-                          {lead.bhkConfig}
-                        </span>
-                      </div>
-                    )}
-                    {lead.carpetArea && (
-                      <div className="flex flex-col col-span-2">
-                        <span className="text-xs text-gray-500">Area</span>
-                        <span className="font-semibold text-gray-900">
-                          {lead.carpetArea} sq.ft
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Location */}
-              {(lead.location || lead.city) && (
-                <div className="flex items-start gap-3 text-sm">
-                  <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600 flex-shrink-0">
-                    <MapPin className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
-                      {lead.location}
-                    </p>
-                    {lead.city && (
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {lead.city}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Budget & Timeline Row */}
-              <div className="grid grid-cols-2 gap-3">
-                {(lead.budget || lead.budgetRange) && (
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-100">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <DollarSign className="w-3.5 h-3.5 text-green-600" />
-                      <span className="text-xs text-gray-600">Budget</span>
-                    </div>
-                    <p className="font-bold text-gray-900 text-sm">
-                      {lead.budgetRange || lead.budget}
-                    </p>
-                  </div>
-                )}
-                {lead.timeline && (
-                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-100">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Clock className="w-3.5 h-3.5 text-purple-600" />
-                      <span className="text-xs text-gray-600">Timeline</span>
-                    </div>
-                    <p className="font-bold text-gray-900 text-sm">
-                      {lead.timeline}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Design Style Tags */}
-              {lead.designStyle && lead.designStyle.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Palette className="w-3.5 h-3.5 text-pink-600" />
-                    <span className="text-xs font-semibold text-gray-700">
-                      Design Style
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {lead.designStyle.slice(0, 3).map((style, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2.5 py-1 bg-gradient-to-r from-pink-50 to-purple-50 text-pink-700 text-xs font-medium rounded-full border border-pink-200"
-                      >
-                        {style}
-                      </span>
-                    ))}
-                    {lead.designStyle.length > 3 && (
-                      <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                        +{lead.designStyle.length - 3}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Priority & Source Footer */}
-              <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {lead.priority && (
-                    <Badge
-                      className={`text-xs rounded-lg ${
-                        lead.priority === "high"
-                          ? "bg-red-100 text-red-700 border-red-200"
-                          : lead.priority === "medium"
-                            ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                            : "bg-blue-100 text-blue-700 border-blue-200"
-                      }`}
-                    >
-                      {lead.priority === "high"
-                        ? "🔥 Hot"
-                        : lead.priority === "medium"
-                          ? "⚡ Warm"
-                          : "❄️ Cold"}
-                    </Badge>
-                  )}
+              {/* Footer */}
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-3">
+                  {/* Source Badge */}
                   {lead.source && (
-                    <span className="text-xs text-gray-500 flex items-center gap-1">
-                      <Target className="w-3 h-3" />
-                      {lead.source}
-                    </span>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-lg">
+                      <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
+                      <span className="text-xs font-medium text-gray-600">{lead.source}</span>
+                    </div>
                   )}
                 </div>
-                {lead.lastContact && (
-                  <span className="text-xs text-gray-400">
-                    {new Date(lead.lastContact).toLocaleDateString()}
-                  </span>
-                )}
+                {/* Date & Arrow */}
+                <div className="flex items-center gap-2">
+                  {lead.createdAt && (
+                    <span className="text-xs text-gray-400">
+                      {new Date(lead.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
+                  <div className="w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center group-hover:bg-orange-500 transition-colors">
+                    <ArrowRight className="w-3.5 h-3.5 text-orange-500 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
               </div>
             </div>
-
-            {/* Hover Effect Indicator */}
-            <div className="h-1 bg-gradient-to-r from-orange-500 to-orange-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
-          </Card>
+          </div>
         ))}
       </div>
 
       {filteredLeads.length === 0 && (
-        <div className="text-center py-12">
-          <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+        <div className="text-center py-16">
+          <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <User className="w-10 h-10 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
             No leads found
           </h3>
-          <p className="text-gray-600">
+          <p className="text-gray-500 mb-4">
             {searchQuery
-              ? "Try adjusting your search"
-              : "Start by adding your first lead"}
+              ? "Try adjusting your search criteria"
+              : "Get started by adding your first lead"}
           </p>
+          <Button onClick={() => setShowAddModal(true)} className="rounded-xl">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Your First Lead
+          </Button>
         </div>
       )}
 

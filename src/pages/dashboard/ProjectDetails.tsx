@@ -22,6 +22,9 @@ import {
   Home,
   DollarSign,
   Mail,
+  TrendingUp,
+  Target,
+  Flag,
 } from "lucide-react";
 import { Button, Progress, Badge, Card } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -137,7 +140,7 @@ export const ProjectDetails: React.FC = () => {
 
   // Local state
   const [activeTab, setActiveTab] = useState<
-    "overview" | "stages" | "payments" | "tasks"
+    "overview" | "stages" | "payments" | "tasks" | "milestones"
   >("overview");
 
   // Stage update modal
@@ -467,6 +470,7 @@ export const ProjectDetails: React.FC = () => {
               { id: "overview", label: "Overview", icon: FileText },
               { id: "stages", label: "Stages", icon: CheckCircle2 },
               { id: "payments", label: "Payments", icon: CreditCard },
+              { id: "milestones", label: "Milestones", icon: Flag },
               { id: "tasks", label: "Tasks", icon: Package },
             ].map((tab) => (
               <button
@@ -999,6 +1003,258 @@ export const ProjectDetails: React.FC = () => {
               </div>
             )}
           </Card>
+        )}
+
+        {/* Milestones Tab */}
+        {activeTab === "milestones" && (
+          <div className="space-y-6">
+            <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                    <Flag className="w-4 h-4 text-white" />
+                  </div>
+                  Project Milestones
+                </h2>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-600">Overall Progress:</span>
+                  <span className="font-bold text-orange-600 text-lg">{progress}%</span>
+                </div>
+              </div>
+
+              {/* Progress Timeline */}
+              <div className="relative">
+                {/* Vertical Progress Line */}
+                <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-gray-200 to-gray-100"></div>
+                <div 
+                  className="absolute left-6 top-0 w-0.5 bg-gradient-to-b from-orange-500 to-orange-600 transition-all duration-1000 ease-out"
+                  style={{ height: `${progress}%` }}
+                ></div>
+
+                {/* Milestone Items */}
+                <div className="space-y-6">
+                  {[
+                    {
+                      id: 1,
+                      title: "Project Initiation",
+                      description: "Initial requirements gathering and site visit",
+                      stage: ProjectStageCode.SITE_VISIT,
+                      progress: 20,
+                      status: progress >= 20 ? 'completed' : progress >= 10 ? 'in-progress' : 'pending',
+                      icon: Home,
+                      color: 'blue',
+                      tasks: ['Site visit completed', 'Client requirements documented', 'Budget discussion'],
+                    },
+                    {
+                      id: 2,
+                      title: "Design & Planning",
+                      description: "Creating design proposals and floor plans",
+                      stage: ProjectStageCode.DESIGN,
+                      progress: 50,
+                      status: progress >= 50 ? 'completed' : progress >= 35 ? 'in-progress' : 'pending',
+                      icon: FileText,
+                      color: 'purple',
+                      tasks: ['3D designs created', 'Material selection', 'Client approval pending'],
+                    },
+                    {
+                      id: 3,
+                      title: "Execution Phase",
+                      description: "On-site construction and implementation",
+                      stage: ProjectStageCode.EXECUTION,
+                      progress: 75,
+                      status: progress >= 75 ? 'completed' : progress >= 50 ? 'in-progress' : 'pending',
+                      icon: Target,
+                      color: 'orange',
+                      tasks: ['Foundation work', 'Electrical & Plumbing', 'Interior finishing'],
+                    },
+                    {
+                      id: 4,
+                      title: "Final Handover",
+                      description: "Quality check and project completion",
+                      stage: ProjectStageCode.HANDOVER,
+                      progress: 100,
+                      status: progress >= 100 ? 'completed' : progress >= 95 ? 'in-progress' : 'pending',
+                      icon: CheckCircle2,
+                      color: 'green',
+                      tasks: ['Final inspection', 'Documentation', 'Key handover'],
+                    },
+                  ].map((milestone, index) => {
+                    const isCompleted = milestone.status === 'completed';
+                    const isInProgress = milestone.status === 'in-progress';
+                    const isPending = milestone.status === 'pending';
+
+                    const colorClasses = {
+                      blue: {
+                        bg: 'bg-blue-100',
+                        text: 'text-blue-600',
+                        border: 'border-blue-200',
+                        gradient: 'from-blue-500 to-blue-600',
+                      },
+                      purple: {
+                        bg: 'bg-purple-100',
+                        text: 'text-purple-600',
+                        border: 'border-purple-200',
+                        gradient: 'from-purple-500 to-purple-600',
+                      },
+                      orange: {
+                        bg: 'bg-orange-100',
+                        text: 'text-orange-600',
+                        border: 'border-orange-200',
+                        gradient: 'from-orange-500 to-orange-600',
+                      },
+                      green: {
+                        bg: 'bg-green-100',
+                        text: 'text-green-600',
+                        border: 'border-green-200',
+                        gradient: 'from-green-500 to-green-600',
+                      },
+                    };
+
+                    const colors = colorClasses[milestone.color as keyof typeof colorClasses];
+
+                    return (
+                      <div key={milestone.id} className="relative flex gap-4 pl-2">
+                        {/* Milestone Dot */}
+                        <div className="relative z-10 flex-shrink-0">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
+                            isCompleted 
+                              ? `bg-gradient-to-br ${colors.gradient} shadow-lg shadow-${milestone.color}-500/30`
+                              : isInProgress
+                                ? `${colors.bg} border-2 ${colors.border} animate-pulse`
+                                : 'bg-gray-100 border-2 border-gray-200'
+                          }`}>
+                            <milestone.icon className={`w-6 h-6 ${
+                              isCompleted ? 'text-white' : isInProgress ? colors.text : 'text-gray-400'
+                            }`} />
+                          </div>
+                          {isCompleted && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                              <CheckCircle2 className="w-3 h-3 text-white" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Milestone Content */}
+                        <div className={`flex-1 pb-6 ${index === 3 ? 'pb-0' : ''}`}>
+                          <div className={`p-5 rounded-xl border-2 transition-all duration-300 ${
+                            isCompleted
+                              ? 'bg-white border-gray-200 shadow-sm'
+                              : isInProgress
+                                ? `bg-gradient-to-br from-${milestone.color}-50 to-white border-${milestone.color}-200 shadow-md`
+                                : 'bg-gray-50/50 border-gray-200 opacity-60'
+                          }`}>
+                            {/* Header */}
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h3 className={`text-lg font-bold mb-1 ${
+                                  isCompleted ? 'text-gray-900' : isInProgress ? colors.text : 'text-gray-500'
+                                }`}>
+                                  {milestone.title}
+                                </h3>
+                                <p className="text-sm text-gray-600">{milestone.description}</p>
+                              </div>
+                              <Badge className={`text-xs font-semibold ${
+                                isCompleted 
+                                  ? 'bg-green-100 text-green-700'
+                                  : isInProgress
+                                    ? `${colors.bg} ${colors.text}`
+                                    : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {isCompleted ? 'Completed' : isInProgress ? 'In Progress' : 'Pending'}
+                              </Badge>
+                            </div>
+
+                            {/* Progress Bar */}
+                            {(isCompleted || isInProgress) && (
+                              <div className="mb-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-semibold text-gray-600">Progress</span>
+                                  <span className="text-xs font-bold text-orange-600">{milestone.progress}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                  <div 
+                                    className={`h-full bg-gradient-to-r ${colors.gradient} transition-all duration-1000 ease-out rounded-full`}
+                                    style={{ width: `${isCompleted ? 100 : milestone.status === 'in-progress' ? 60 : 0}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tasks Checklist */}
+                            {(isCompleted || isInProgress) && (
+                              <div className="space-y-2">
+                                {milestone.tasks.map((task, taskIndex) => (
+                                  <div key={taskIndex} className="flex items-center gap-2 text-sm">
+                                    <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                                      isCompleted || (isInProgress && taskIndex < 2)
+                                        ? 'bg-green-500'
+                                        : 'bg-gray-300'
+                                    }`}>
+                                      {(isCompleted || (isInProgress && taskIndex < 2)) && (
+                                        <CheckCircle2 className="w-3 h-3 text-white" />
+                                      )}
+                                    </div>
+                                    <span className={
+                                      isCompleted || (isInProgress && taskIndex < 2)
+                                        ? 'text-gray-900 font-medium'
+                                        : 'text-gray-500'
+                                    }>
+                                      {task}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Stage Info */}
+                            {isInProgress && (
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                <div className="flex items-center gap-2 text-xs text-gray-600">
+                                  <Clock className="w-3 h-3" />
+                                  <span>Expected completion in 2-3 weeks</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Milestone Stats */}
+              <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mx-auto mb-2">
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {[1, 2, 3, 4].filter((_, i) => progress >= [20, 50, 75, 100][i]).length}
+                  </p>
+                  <p className="text-xs text-gray-600 font-medium">Completed</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-2">
+                    <TrendingUp className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {progress >= 50 && progress < 100 ? 1 : 0}
+                  </p>
+                  <p className="text-xs text-gray-600 font-medium">In Progress</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-2">
+                    <Target className="w-6 h-6 text-gray-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {4 - [1, 2, 3, 4].filter((_, i) => progress >= [20, 50, 75, 100][i]).length}
+                  </p>
+                  <p className="text-xs text-gray-600 font-medium">Pending</p>
+                </div>
+              </div>
+            </Card>
+          </div>
         )}
       </div>
 

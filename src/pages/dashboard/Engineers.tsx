@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Users, Calendar, CheckCircle2, Clock, Search, Plus, Phone, Mail, MapPin, Wrench, AlertCircle } from 'lucide-react';
+import { Users, CheckCircle2, Search, Plus, Phone, Mail, MapPin, Wrench } from 'lucide-react';
 import { Card, Button, Badge } from '../../components/ui';
+import { AddEngineerModal, NewEngineer } from '../../components/dashboard/AddEngineerModal';
+import toast from 'react-hot-toast';
 
 interface Engineer {
   id: number;
@@ -15,6 +17,7 @@ interface Engineer {
   completedTasks: number;
   rating: number;
   location?: string;
+  experience?: number;
 }
 
 const mockEngineers: Engineer[] = [
@@ -83,18 +86,48 @@ const statusColors = {
 export const EngineersPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [engineers, setEngineers] = useState<Engineer[]>(mockEngineers);
 
-  const filteredEngineers = mockEngineers.filter(engineer => {
+  const filteredEngineers = engineers.filter(engineer => {
     const matchesSearch = engineer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          engineer.role.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = filterStatus === 'all' || engineer.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
-  const totalEngineers = mockEngineers.length;
-  const availableCount = mockEngineers.filter(e => e.status === 'available').length;
-  const onSiteCount = mockEngineers.filter(e => e.status === 'on_site').length;
-  const totalTasks = mockEngineers.reduce((sum, e) => sum + e.completedTasks, 0);
+  const totalEngineers = engineers.length;
+  const availableCount = engineers.filter(e => e.status === 'available').length;
+  const onSiteCount = engineers.filter(e => e.status === 'on_site').length;
+  const totalTasks = engineers.reduce((sum, e) => sum + e.completedTasks, 0);
+
+  const handleAddEngineer = (newEngineer: NewEngineer) => {
+    const initials = newEngineer.name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+
+    const engineer: Engineer = {
+      id: engineers.length + 1,
+      name: newEngineer.name,
+      role: newEngineer.role,
+      initials: initials,
+      phone: newEngineer.phone,
+      email: newEngineer.email,
+      status: newEngineer.status,
+      skills: newEngineer.skills,
+      currentProjects: 0,
+      completedTasks: 0,
+      rating: 4.0,
+      location: newEngineer.location,
+      experience: newEngineer.experience,
+    };
+
+    setEngineers(prev => [engineer, ...prev]);
+    toast.success(`${newEngineer.name} has been added to the team!`);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -104,7 +137,7 @@ export const EngineersPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Engineers & Team</h1>
           <p className="text-gray-600 mt-1">Manage your field team and assignments</p>
         </div>
-        <Button className="rounded-xl">
+        <Button onClick={() => setIsModalOpen(true)} className="rounded-xl">
           <Plus className="w-4 h-4" />
           Add Engineer
         </Button>
@@ -282,6 +315,13 @@ export const EngineersPage: React.FC = () => {
           <p className="text-gray-600 mb-4">Try adjusting your filters</p>
         </Card>
       )}
+
+      {/* Add Engineer Modal */}
+      <AddEngineerModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onAdd={handleAddEngineer}
+      />
     </div>
   );
 };
