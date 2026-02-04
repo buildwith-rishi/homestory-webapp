@@ -54,6 +54,14 @@ const LeadDetails: React.FC = () => {
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
 
+  // Helper function to safely display field values and prevent "undefined" text
+  const safeDisplay = (value: string | undefined | null, fallback: string = "Not provided"): string => {
+    if (!value || value === "undefined" || value === "null") {
+      return fallback;
+    }
+    return value;
+  };
+
   useEffect(() => {
     console.log('LeadDetails useEffect - ID:', id);
     
@@ -135,7 +143,21 @@ const LeadDetails: React.FC = () => {
       // Fetch the specific lead by ID
       const leadData = await LeadAPI.getLeadById(id);
       console.log('Lead data received for ID', id, ':', leadData);
-      
+
+      // Debug log to identify if API returns undefined values or string "undefined"
+      console.log('Lead contact details debug:', {
+        id: leadData.id,
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        nameType: typeof leadData.name,
+        emailType: typeof leadData.email,
+        phoneType: typeof leadData.phone,
+        nameIsUndefinedString: leadData.name === "undefined",
+        emailIsUndefinedString: leadData.email === "undefined",
+        phoneIsUndefinedString: leadData.phone === "undefined"
+      });
+
       // Ensure we have the ID in the lead data
       if (leadData && (!leadData.id || leadData.id !== id)) {
         console.warn('Lead data ID mismatch. Expected:', id, 'Received:', leadData.id);
@@ -318,7 +340,7 @@ const LeadDetails: React.FC = () => {
                 {/* Info */}
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-2xl font-bold text-gray-900">{lead.name || "Unknown Lead"}</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">{safeDisplay(lead.name, "Unknown Lead")}</h1>
                     {lead.priority === 'high' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold">
                         <Sparkles className="w-3 h-3" />
@@ -327,13 +349,13 @@ const LeadDetails: React.FC = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-gray-600">
-                    {lead.phone && (
+                    {lead.phone && lead.phone !== "undefined" && lead.phone !== "null" && (
                       <div className="flex items-center gap-1.5">
                         <Phone className="w-4 h-4 text-gray-400" />
                         <span>{lead.phone}</span>
                       </div>
                     )}
-                    {lead.email && (
+                    {lead.email && lead.email !== "undefined" && lead.email !== "null" && (
                       <div className="flex items-center gap-1.5">
                         <Mail className="w-4 h-4 text-gray-400" />
                         <span>{lead.email}</span>
@@ -472,7 +494,7 @@ const LeadDetails: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {lead.phone && (
+                    {lead.phone && lead.phone !== "undefined" && lead.phone !== "null" && (
                       <div className="group flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-orange-50 transition-colors">
                         <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
                           <Phone className="w-5 h-5 text-orange-500" />
@@ -490,7 +512,7 @@ const LeadDetails: React.FC = () => {
                       </div>
                     )}
 
-                    {lead.email && (
+                    {lead.email && lead.email !== "undefined" && lead.email !== "null" && (
                       <div className="group flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors">
                         <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
                           <Mail className="w-5 h-5 text-blue-500" />
@@ -835,15 +857,15 @@ const LeadDetails: React.FC = () => {
                 <p className="text-xs font-semibold text-gray-600 uppercase mb-2">Current Lead Information</p>
                 <div className="space-y-1">
                   <p className="font-semibold text-gray-900">
-                    {lead.name || "Unknown"}
+                    {safeDisplay(lead.name, "Unknown")}
                   </p>
-                  {lead.email && (
+                  {lead.email && lead.email !== "undefined" && lead.email !== "null" && (
                     <p className="text-sm text-gray-600 flex items-center gap-2">
                       <Mail className="w-4 h-4" />
                       {lead.email}
                     </p>
                   )}
-                  {lead.phone && (
+                  {lead.phone && lead.phone !== "undefined" && lead.phone !== "null" && (
                     <p className="text-sm text-gray-600 flex items-center gap-2">
                       <Phone className="w-4 h-4" />
                       {lead.phone}
@@ -869,7 +891,7 @@ const LeadDetails: React.FC = () => {
                     </p>
                     <div className="space-y-1 text-sm">
                       <p className="text-blue-800">
-                        <span className="font-medium">Account Name:</span> {lead.name || "Unknown Account"}
+                        <span className="font-medium">Account Name:</span> {safeDisplay(lead.name, "Unknown Account")}
                       </p>
                     </div>
                     <div className="mt-3 pt-3 border-t border-blue-200">

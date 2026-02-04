@@ -6,9 +6,9 @@ console.log('Lead API Base URL:', API_BASE_URL);
 
 export interface Lead {
   id?: string;
-  name: string;
-  email: string;
-  phone: string;
+  name?: string;
+  email?: string;
+  phone?: string;
   source: string;
   status?: string;
   stage?: string;
@@ -227,7 +227,26 @@ export async function getLeadById(id: string): Promise<Lead> {
     headers: getAuthHeaders(),
   });
 
-  return handleResponse<Lead>(response);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = await handleResponse<any>(response);
+
+  // Handle different API response structures:
+  // - { lead: { name: "...", ... } }
+  // - { data: { name: "...", ... } }
+  // - { name: "...", ... } (flat)
+  const lead: Lead = data.lead || data.data || data;
+
+  console.log('getLeadById raw API response:', data);
+  console.log('Extracted lead object:', lead);
+
+  // Sanitize undefined string values that may come from the API
+  // Convert string "undefined" or "null" to actual undefined
+  return {
+    ...lead,
+    name: (!lead.name || lead.name === "undefined" || lead.name === "null") ? undefined : lead.name,
+    email: (!lead.email || lead.email === "undefined" || lead.email === "null") ? undefined : lead.email,
+    phone: (!lead.phone || lead.phone === "undefined" || lead.phone === "null") ? undefined : lead.phone,
+  };
 }
 
 /**
