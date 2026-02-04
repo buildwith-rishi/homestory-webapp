@@ -81,7 +81,7 @@ export const DashboardLayout: React.FC = () => {
             sidebarCollapsed ? "ml-20" : "ml-72"
           }`}
         >
-          <main className="pt-20 px-6 pb-8 min-h-screen overflow-x-hidden">
+          <main className="pt-20 px-4 pb-6 min-h-screen overflow-x-hidden">
             <div className="max-w-[1600px] mx-auto">
               <Outlet />
             </div>

@@ -11,6 +11,7 @@ export { SettingsPage } from "./Settings";
 export { Customers } from "./Customers";
 export { CustomerDetails } from "./CustomerDetails";
 export { AccountsPage } from "./Accounts";
+export { default as AccountDetails } from "./AccountDetails";
 export { Marketing } from "./Marketing";
 export { Analytics } from "./Analytics";
 export { UserManagement } from "./UserManagement";

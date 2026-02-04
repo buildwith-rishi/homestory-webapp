@@ -246,7 +246,7 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
         }}
       >
         {/* Header - Full Coverage */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-orange-500 to-orange-600 px-6 pt-4 pb-5">
+        <div className="flex-shrink-0 bg-gradient-to-r from-orange-500 to-orange-600 px-4 pt-3 pb-4">
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -322,12 +322,12 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 bg-gray-50">
+        <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50">
           {/* Overview Tab */}
           {activeTab === "overview" && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Project Information */}
-              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+              <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-500" />
                   Project Information
@@ -385,7 +385,7 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
               </div>
 
               {/* Client Info */}
-              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+              <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <Users className="w-4 h-4 text-blue-500" />
                   Client
@@ -410,7 +410,7 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
               </div>
 
               {/* Team */}
-              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+              <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <Users className="w-4 h-4 text-purple-500" />
                   Team
@@ -440,7 +440,7 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
               </div>
 
               {/* Progress */}
-              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+              <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-green-500" />
                   Progress
@@ -472,7 +472,7 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
 
           {/* Payments Tab */}
           {activeTab === "payments" && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Summary */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-green-50 border border-green-100 rounded-xl p-3">
@@ -500,7 +500,7 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
               </div>
 
               {/* Payment List */}
-              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+              <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <CreditCard className="w-4 h-4 text-orange-500" />
                   Payment Timeline
@@ -555,8 +555,8 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
 
           {/* Milestones Tab */}
           {activeTab === "milestones" && (
-            <div className="space-y-4">
-              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <div className="space-y-3">
+              <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <ClipboardCheck className="w-4 h-4 text-orange-500" />
                   Project Milestones
@@ -618,8 +618,8 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
 
           {/* Documents Tab */}
           {activeTab === "documents" && (
-            <div className="space-y-4">
-              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <div className="space-y-3">
+              <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                     <Package className="w-4 h-4 text-orange-500" />
@@ -665,8 +665,8 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
 
           {/* Activity Tab */}
           {activeTab === "activity" && (
-            <div className="space-y-4">
-              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <div className="space-y-3">
+              <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-orange-500" />
                   Activity Log
@@ -698,7 +698,7 @@ export const ProjectDetailsSidebar: React.FC<ProjectDetailsSidebarProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 border-t border-gray-200 px-5 py-4 flex items-center justify-between bg-white">
+        <div className="flex-shrink-0 border-t border-gray-200 px-4 py-3 flex items-center justify-between bg-white">
           <div className="flex gap-2">
             <Button
               variant="secondary"

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   Search,
@@ -23,6 +24,7 @@ import {
 import { Card, Button, Badge } from "../../components/ui";
 import toast from "react-hot-toast";
 import AccountAPI, { Account, AccountType } from "../../services/accountApi";
+import { getAccountTypeLabel, getAllAccountTypes } from "../../utils/accountHelpers";
 
 // Add/Edit Account Modal Component
 const AccountModal: React.FC<{
@@ -98,7 +100,11 @@ const AccountModal: React.FC<{
     if (!formData.phone?.trim()) newErrors.phone = "Phone number is required";
     else if (formData.phone && !/^\+?[\d\s-]{10,}$/.test(formData.phone))
       newErrors.phone = "Invalid phone format";
-    if (!formData.type?.trim()) newErrors.type = "Account type is required";
+    if (!formData.type?.trim()) {
+      newErrors.type = "Account type is required";
+    } else if (!['HOUSEHOLD', 'COMPANY'].includes(formData.type)) {
+      newErrors.type = "Invalid account type. Must be HOUSEHOLD or COMPANY";
+    }
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Invalid email format";
 
@@ -215,23 +221,20 @@ const AccountModal: React.FC<{
                   }`}
                 >
                   <option value="">Select Type</option>
-                  <option value="Residential Client">Residential Client</option>
-                  <option value="Commercial Client">Commercial Client</option>
-                  <option value="Corporate Client">Corporate Client</option>
-                  <option value="Builder/Developer">Builder/Developer</option>
-                  <option value="Individual">Individual</option>
-                  <option value="Partner">Partner</option>
-                  <option value="Contractor">Contractor</option>
-                  <option value="Vendor">Vendor</option>
                   {accountTypes.map((type) => (
-                    <option key={type.id} value={type.name}>
-                      {type.name}
+                    <option key={type.value} value={type.value}>
+                      {type.label}
                     </option>
                   ))}
                 </select>
                 {errors.type && (
                   <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
                     <AlertCircle className="w-4 h-4" /> {errors.type}
+                  </p>
+                )}
+                {accountTypes.length > 0 && accountTypes[0].description && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formData.type ? accountTypes.find(t => t.value === formData.type)?.description : 'Choose the account classification'}
                   </p>
                 )}
               </div>
@@ -487,6 +490,7 @@ const AccountModal: React.FC<{
 
 // Main Accounts Page Component
 export function AccountsPage() {
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountTypes, setAccountTypes] = useState<AccountType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -651,8 +655,8 @@ export function AccountsPage() {
             >
               <option value="all">All Types</option>
               {accountTypes.map((type) => (
-                <option key={type.id} value={type.name}>
-                  {type.name}
+                <option key={type.value} value={type.value}>
+                  {type.label}
                 </option>
               ))}
             </select>
@@ -672,21 +676,20 @@ export function AccountsPage() {
           </div>
         </Card>
 
-        {accountTypes.slice(0, 3).map((type, index) => {
-          const count = accounts.filter((a) => a.type === type.name).length;
+        {accountTypes.slice(0, 2).map((type, index) => {
+          const count = accounts.filter((a) => a.type === type.value).length;
           const colors = [
             "from-blue-500 to-blue-600",
             "from-purple-500 to-purple-600",
-            "from-green-500 to-green-600",
           ];
           return (
             <Card
-              key={type.id}
+              key={type.value}
               className={`p-5 bg-gradient-to-br ${colors[index]} text-white rounded-xl shadow-lg`}
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-white/80 text-sm">{type.name}</p>
+                  <p className="text-white/80 text-sm">{type.label}</p>
                   <p className="text-3xl font-bold mt-1">{count}</p>
                 </div>
                 <Building2 className="w-10 h-10 opacity-80" />
@@ -712,7 +715,8 @@ export function AccountsPage() {
           filteredAccounts.map((account) => (
             <Card
               key={account.id}
-              className="p-5 rounded-xl hover:shadow-lg transition-all group"
+              onClick={() => navigate(`/dashboard/accounts/${account.id}`)}
+              className="p-5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -730,7 +734,7 @@ export function AccountsPage() {
                     </h3>
                     {account.type && (
                       <Badge className="text-xs rounded-lg mt-1 bg-orange-100 text-orange-700 border-orange-200">
-                        {account.type}
+                        {getAccountTypeLabel(account.type)}
                       </Badge>
                     )}
                   </div>

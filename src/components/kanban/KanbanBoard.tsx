@@ -523,7 +523,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             >
               {(provided) => (
                 <div
-                  className="flex gap-2.5 h-full px-3 py-3 overflow-x-auto overflow-y-hidden"
+                  className="flex gap-2 h-full px-2 py-2 overflow-x-auto overflow-y-hidden"
                   {...provided.droppableProps}
                   ref={provided.innerRef}
                   style={{
@@ -779,8 +779,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                     {...provided.droppableProps}
                                     className={`flex-1 overflow-y-auto ${
                                       compactMode
-                                        ? "p-1.5 space-y-1.5"
-                                        : "p-2 space-y-2"
+                                        ? "p-1 space-y-1"
+                                        : "p-1.5 space-y-1.5"
                                     } min-h-[60px] transition-colors duration-200 ${
                                       snapshot.isDraggingOver
                                         ? isLight
@@ -1037,7 +1037,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                   isLight
                                     ? "border-gray-100"
                                     : "border-gray-700/30"
-                                } ${compactMode ? "p-1.5" : "p-2"}`}
+                                } ${compactMode ? "p-1" : "p-1.5"}`}
                               >
                                 {addingCardToColumn === column.id ? (
                                   <div
@@ -1048,7 +1048,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                     }`}
                                   >
                                     <div
-                                      className={`flex flex-col gap-2 ${compactMode ? "p-2" : "p-2.5"}`}
+                                      className={`flex flex-col gap-1.5 ${compactMode ? "p-1.5" : "p-2"}`}
                                     >
                                       {/* Primary Selection Dropdown (Lead/Project) */}
                                       {addCardPrimarySelect && (

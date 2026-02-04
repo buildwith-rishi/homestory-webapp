@@ -355,7 +355,7 @@ export const ProjectDetails: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50/40 via-white to-orange-50/20">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-orange-100/60 via-orange-50/80 to-amber-50/60 border-b border-orange-200/60 px-6 py-6 backdrop-blur-sm">
+      <div className="relative bg-gradient-to-br from-orange-100/60 via-orange-50/80 to-amber-50/60 border-b border-orange-200/60 px-4 py-4 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto relative z-10">
           <button
             onClick={() => navigate("/dashboard/projects")}
@@ -365,7 +365,7 @@ export const ProjectDetails: React.FC = () => {
             <span className="text-sm font-semibold">Back to Projects</span>
           </button>
 
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-orange-600 bg-clip-text text-transparent">
@@ -413,7 +413,7 @@ export const ProjectDetails: React.FC = () => {
 
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-5 border border-orange-100/50 shadow-sm">
+            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
               <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
                 PROGRESS
               </p>
@@ -427,7 +427,7 @@ export const ProjectDetails: React.FC = () => {
               </div>
             </div>
 
-            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-5 border border-orange-100/50 shadow-sm">
+            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
               <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
                 CURRENT STAGE
               </p>
@@ -438,7 +438,7 @@ export const ProjectDetails: React.FC = () => {
               </p>
             </div>
 
-            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-5 border border-orange-100/50 shadow-sm">
+            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
               <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
                 TOTAL VALUE
               </p>
@@ -447,7 +447,7 @@ export const ProjectDetails: React.FC = () => {
               </p>
             </div>
 
-            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-5 border border-orange-100/50 shadow-sm">
+            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
               <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
                 CATEGORY
               </p>
@@ -467,7 +467,7 @@ export const ProjectDetails: React.FC = () => {
 
       {/* Tabs */}
       <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-4">
           <div className="flex gap-8">
             {[
               { id: "overview", label: "Overview", icon: FileText },
@@ -498,14 +498,14 @@ export const ProjectDetails: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-5">
         {/* Overview Tab */}
         {activeTab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Left Column */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4">
               {/* Project Information */}
-              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
                     <FileText className="w-4 h-4 text-white" />
@@ -551,7 +551,7 @@ export const ProjectDetails: React.FC = () => {
 
               {/* Client/Lead Information */}
               {project.lead && (
-                <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                   <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                       <Users className="w-4 h-4 text-white" />
@@ -596,7 +596,7 @@ export const ProjectDetails: React.FC = () => {
               )}
 
               {/* Team */}
-              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
                     <Users className="w-4 h-4 text-white" />
@@ -628,10 +628,10 @@ export const ProjectDetails: React.FC = () => {
             </div>
 
             {/* Right Column */}
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Property Address */}
               {project.propertyAddress && (
-                <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                   <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
                       <Home className="w-3.5 h-3.5 text-white" />
@@ -650,7 +650,7 @@ export const ProjectDetails: React.FC = () => {
               )}
 
               {/* Payment Summary */}
-              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
                     <DollarSign className="w-3.5 h-3.5 text-white" />
@@ -680,7 +680,7 @@ export const ProjectDetails: React.FC = () => {
               </Card>
 
               {/* Quick Actions */}
-              <Card className="p-6 bg-gradient-to-br from-white via-orange-50/20 to-white border-orange-100/50 shadow-sm">
+              <Card className="p-4 bg-gradient-to-br from-white via-orange-50/20 to-white border-orange-100/50 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-900 mb-4">
                   Quick Actions
                 </h3>
@@ -714,10 +714,10 @@ export const ProjectDetails: React.FC = () => {
 
         {/* Payments Tab */}
         {activeTab === "payments" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Payment Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                 <p className="text-sm text-gray-600 mb-2 font-semibold">
                   Total Value
                 </p>
@@ -725,7 +725,7 @@ export const ProjectDetails: React.FC = () => {
                   {formatCurrency(project.totalValue || 0)}
                 </p>
               </Card>
-              <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50/50 border-green-200/50 shadow-sm">
+              <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50/50 border-green-200/50 shadow-sm">
                 <p className="text-sm text-green-700 mb-2 font-semibold">
                   Collected
                 </p>
@@ -733,7 +733,7 @@ export const ProjectDetails: React.FC = () => {
                   {formatCurrency(paymentTotals.totalPaid)}
                 </p>
               </Card>
-              <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50/50 border-orange-200/50 shadow-sm">
+              <Card className="p-4 bg-gradient-to-br from-orange-50 to-amber-50/50 border-orange-200/50 shadow-sm">
                 <p className="text-sm text-orange-700 mb-2 font-semibold">
                   Pending
                 </p>
@@ -744,8 +744,8 @@ export const ProjectDetails: React.FC = () => {
             </div>
 
             {/* Payment List */}
-            <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+            <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
                   <CreditCard className="w-4 h-4 text-white" />
                 </div>
@@ -828,8 +828,8 @@ export const ProjectDetails: React.FC = () => {
 
         {/* Tasks Tab */}
         {activeTab === "tasks" && (
-          <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+          <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                 <Package className="w-4 h-4 text-white" />
               </div>
@@ -908,9 +908,9 @@ export const ProjectDetails: React.FC = () => {
 
         {/* Milestones Tab */}
         {activeTab === "milestones" && (
-          <div className="space-y-6">
-            <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
+          <div className="space-y-4">
+            <Card className="p-5 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
                     <Flag className="w-4 h-4 text-white" />
@@ -933,7 +933,7 @@ export const ProjectDetails: React.FC = () => {
                 ></div>
 
                 {/* Milestone Items */}
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {[
                     {
                       id: 1,
@@ -1125,7 +1125,7 @@ export const ProjectDetails: React.FC = () => {
               </div>
 
               {/* Milestone Stats */}
-              <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200">
+              <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-200">
                 <div className="text-center">
                   <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mx-auto mb-2">
                     <CheckCircle2 className="w-6 h-6 text-green-600" />

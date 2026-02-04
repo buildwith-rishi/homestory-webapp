@@ -1,7 +1,8 @@
 // Lead API Service
 // Base URL should match your API documentation
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://api.goodhomestory.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
+
+console.log('Lead API Base URL:', API_BASE_URL);
 
 export interface Lead {
   id?: string;
@@ -65,9 +66,9 @@ export interface LeadActivity {
 }
 
 export interface LeadSource {
-  id: string;
-  name: string;
-  count: number;
+  value: string;
+  label: string;
+  count?: number;
 }
 
 export interface LeadStatus {
@@ -154,7 +155,8 @@ export async function getLeadSources(): Promise<LeadSource[]> {
     headers: getAuthHeaders(),
   });
 
-  return handleResponse<LeadSource[]>(response);
+  const data = await handleResponse<{ sources: LeadSource[] }>(response);
+  return data.sources;
 }
 
 /**

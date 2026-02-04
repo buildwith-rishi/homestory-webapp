@@ -37,7 +37,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         sidebarCollapsed ? "left-20" : "left-72"
       }`}
     >
-      <div className="h-full px-6 flex items-center justify-between gap-6">
+      <div className="h-full px-4 flex items-center justify-between gap-6">
         {/* Left: Breadcrumb */}
         <div className="flex items-center gap-2 text-sm flex-shrink-0">
           <span className="text-gray-500 font-medium">Main Menu</span>

@@ -114,7 +114,7 @@ export const ProjectStagesTableView: React.FC<ProjectStagesTableViewProps> = ({
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Simplified Filter Tabs */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -177,7 +177,7 @@ export const ProjectStagesTableView: React.FC<ProjectStagesTableViewProps> = ({
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {/* Table Header */}
         <div className="bg-gray-50 border-b border-gray-200">
-          <div className="grid grid-cols-12 gap-4 px-6 py-3">
+          <div className="grid grid-cols-12 gap-4 px-4 py-2.5">
             <div className="col-span-4">
               <span className="text-xs font-medium text-gray-500 uppercase">Stage</span>
             </div>
@@ -284,7 +284,7 @@ const StageRow: React.FC<StageRowProps> = ({
     <>
       {/* Simplified Main Row */}
       <div className={`hover:bg-gray-50 transition-colors ${isInProgress ? "bg-orange-50/30" : ""}`}>
-        <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center border-b border-gray-100 last:border-b-0">
+        <div className="grid grid-cols-12 gap-4 px-4 py-3 items-center border-b border-gray-100 last:border-b-0">
           {/* Stage Info - Clean & Simple */}
           <div className="col-span-4">
             <div className="flex items-center gap-3">
@@ -462,8 +462,8 @@ const StageRow: React.FC<StageRowProps> = ({
       {/* Simplified Day Plan Expansion */}
       {isExpanded && (
         <div className="bg-gray-50 border-t border-gray-100">
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between mb-4">
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <CalendarDays className="w-4 h-4 text-orange-500" />
                 <h5 className="text-sm font-semibold text-gray-900">Day-by-Day Plan</h5>

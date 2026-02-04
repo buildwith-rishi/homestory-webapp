@@ -28,8 +28,8 @@ const Card: React.FC<CardProps> = ({
 
   const paddingStyles = {
     sm: 'p-4',
-    md: 'p-6',
-    lg: 'p-8',
+    md: 'p-5',
+    lg: 'p-6',
   };
 
   const radiusStyles = {

@@ -32,6 +32,7 @@ import LeadAPI, {
   LeadStatus,
 } from "../../services/leadApi";
 import AccountAPI from "../../services/accountApi";
+import { getSourceLabel } from "../../utils/leadHelpers";
 
 const stageColors: Record<string, string> = {
   New: "bg-gray-100 text-gray-700 border-gray-200",
@@ -51,18 +52,18 @@ const LeadModal: React.FC<{
 }> = ({ isOpen, onClose, lead, onSave, sources }) => {
   // Default sources if API doesn't return any
   const defaultSources = [
-    { id: "1", name: "Website" },
-    { id: "2", name: "Referral" },
-    { id: "3", name: "Instagram" },
-    { id: "4", name: "Facebook" },
-    { id: "5", name: "LinkedIn" },
-    { id: "6", name: "Google Ads" },
-    { id: "7", name: "Walk-in" },
-    { id: "8", name: "Phone Call" },
-    { id: "9", name: "Email Campaign" },
-    { id: "10", name: "Trade Show" },
-    { id: "11", name: "Partner" },
-    { id: "12", name: "Other" },
+    { value: "WEBSITE", label: "Website" },
+    { value: "REFERRAL", label: "Referral" },
+    { value: "INSTAGRAM", label: "Instagram" },
+    { value: "FACEBOOK", label: "Facebook" },
+    { value: "LINKEDIN", label: "LinkedIn" },
+    { value: "GOOGLE_ADS", label: "Google Ads" },
+    { value: "WALK_IN", label: "Walk-in" },
+    { value: "PHONE", label: "Phone Call" },
+    { value: "EMAIL_CAMPAIGN", label: "Email Campaign" },
+    { value: "TRADE_SHOW", label: "Trade Show" },
+    { value: "PARTNER", label: "Partner" },
+    { value: "OTHER", label: "Other" },
   ];
 
   const availableSources = sources.length > 0 ? sources : defaultSources;
@@ -71,7 +72,7 @@ const LeadModal: React.FC<{
     name: "",
     email: "",
     phone: "",
-    source: availableSources[0]?.name || "Website",
+    source: availableSources[0]?.value || "WEBSITE",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,14 +84,14 @@ const LeadModal: React.FC<{
         name: lead.name || "",
         email: lead.email || "",
         phone: lead.phone || "",
-        source: lead.source || availableSources[0]?.name || "Website",
+        source: lead.source || availableSources[0]?.value || "WEBSITE",
       });
     } else {
       setFormData({
         name: "",
         email: "",
         phone: "",
-        source: availableSources[0]?.name || "Website",
+        source: availableSources[0]?.value || "WEBSITE",
       });
     }
     setErrors({});
@@ -300,8 +301,8 @@ const LeadModal: React.FC<{
                   className="w-full pl-10 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer hover:border-gray-300 transition-all"
                 >
                   {availableSources.map((source) => (
-                    <option key={source.id} value={source.name}>
-                      {source.name}
+                    <option key={source.value} value={source.value}>
+                      {source.label}
                     </option>
                   ))}
                 </select>
@@ -557,6 +558,8 @@ export const LeadsPage: React.FC = () => {
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertAccountType, setConvertAccountType] = useState<string>("HOUSEHOLD");
+  const [accountTypes, setAccountTypes] = useState<{ value: string; label: string; description?: string }[]>([]);
   const [otpPhone, setOtpPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [sources, setSources] = useState<LeadSource[]>([]);
@@ -567,7 +570,26 @@ export const LeadsPage: React.FC = () => {
   // Fetch initial data
   useEffect(() => {
     fetchData();
+    fetchAccountTypes();
   }, []);
+
+  const fetchAccountTypes = async () => {
+    try {
+      const types = await AccountAPI.getAccountTypes();
+      setAccountTypes(types);
+      if (types.length > 0) {
+        setConvertAccountType(types[0].value);
+      }
+    } catch (error) {
+      console.error("Error fetching account types:", error);
+      // Fallback to default types
+      setAccountTypes([
+        { value: "HOUSEHOLD", label: "Household", description: "Individual or family residential account" },
+        { value: "COMPANY", label: "Company", description: "Business or commercial account" }
+      ]);
+      setConvertAccountType("HOUSEHOLD");
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -703,10 +725,21 @@ export const LeadsPage: React.FC = () => {
 
     const accountName = selectedLead.name || "Unknown Account";
 
+    // Validate account type
+    if (!convertAccountType || !['HOUSEHOLD', 'COMPANY'].includes(convertAccountType)) {
+      toast.error("Please select a valid account type");
+      return;
+    }
+
     try {
       const result = await AccountAPI.convertLeadToAccount(
         selectedLead.id,
-        accountName,
+        {
+          name: accountName,
+          type: convertAccountType,
+          phone: selectedLead.phone,
+          email: selectedLead.email,
+        },
       );
 
       // Remove lead from list
@@ -996,7 +1029,7 @@ export const LeadsPage: React.FC = () => {
                   {lead.source && (
                     <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-lg">
                       <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                      <span className="text-xs font-medium text-gray-600">{lead.source}</span>
+                      <span className="text-xs font-medium text-gray-600">{getSourceLabel(lead.source)}</span>
                     </div>
                   )}
                 </div>
@@ -1203,7 +1236,7 @@ export const LeadsPage: React.FC = () => {
                     Lead Source
                   </h4>
                   <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                    {selectedLead.source}
+                    {getSourceLabel(selectedLead.source)}
                   </Badge>
                 </div>
 
@@ -1295,60 +1328,114 @@ export const LeadsPage: React.FC = () => {
       {/* Convert to Account Modal */}
       {showConvertModal && selectedLead && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-5">
             <div className="flex items-center gap-3 pb-4 border-b">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                <ArrowRight className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <ArrowRight className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">Convert Lead to Account</h2>
+                <h2 className="text-xl font-bold text-gray-900">Convert Lead to Account</h2>
                 <p className="text-sm text-gray-600">
-                  This action cannot be undone
+                  Transform this lead into a full account
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600 mb-2">Lead Information:</p>
-                <p className="font-semibold text-gray-900">
-                  {selectedLead.name || "Unknown"}
-                </p>
-                <p className="text-sm text-gray-600">{selectedLead.email}</p>
-                <p className="text-sm text-gray-600">{selectedLead.phone}</p>
+            <div className="space-y-4">
+              {/* Lead Information */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-xs font-semibold text-gray-600 uppercase mb-2">Current Lead Information</p>
+                <div className="space-y-1">
+                  <p className="font-semibold text-gray-900">
+                    {selectedLead.name || "Unknown"}
+                  </p>
+                  {selectedLead.email && (
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      {selectedLead.email}
+                    </p>
+                  )}
+                  {selectedLead.phone && (
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      {selectedLead.phone}
+                    </p>
+                  )}
+                  {selectedLead.source && (
+                    <p className="text-sm text-gray-600">
+                      Source: {getSourceLabel(selectedLead.source)}
+                    </p>
+                  )}
+                </div>
               </div>
 
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <div className="flex items-start gap-2">
-                  <Building2 className="w-5 h-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-blue-900">
-                      New Account will be created
+              {/* Account Type Selection */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-900">
+                  Account Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={convertAccountType}
+                  onChange={(e) => setConvertAccountType(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  {accountTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+                {accountTypes.find(t => t.value === convertAccountType)?.description && (
+                  <p className="text-xs text-gray-500 mt-1 ml-1">
+                    {accountTypes.find(t => t.value === convertAccountType)?.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Account Preview */}
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-blue-900 mb-1">
+                      New Account Preview
                     </p>
-                    <p className="text-sm text-blue-700 mt-1">
-                      Account Name: {selectedLead.name || "Unknown Account"}
-                    </p>
-                    <p className="text-sm text-blue-600 mt-1">
-                      The lead will be permanently removed from the leads list
-                      and converted into an account.
-                    </p>
+                    <div className="space-y-1 text-sm">
+                      <p className="text-blue-800">
+                        <span className="font-medium">Name:</span> {selectedLead.name || "Unknown Account"}
+                      </p>
+                      <p className="text-blue-800">
+                        <span className="font-medium">Type:</span> {accountTypes.find(t => t.value === convertAccountType)?.label || convertAccountType}
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <p className="text-xs text-blue-700 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span>The lead will be removed from the leads list and converted into an account with all contact information preserved.</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-2">
               <Button
-                onClick={() => setShowConvertModal(false)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700"
+                onClick={() => {
+                  setShowConvertModal(false);
+                  setConvertAccountType(accountTypes[0]?.value || "HOUSEHOLD");
+                }}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleConvertToAccount}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/25"
               >
-                <ArrowRight className="w-4 h-4 mr-2" />
+                <Check className="w-4 h-4 mr-2" />
                 Convert to Account
               </Button>
             </div>

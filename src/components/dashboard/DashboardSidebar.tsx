@@ -16,6 +16,7 @@ import {
   LogOut,
   Shield,
   Layers,
+  Building2,
 } from "lucide-react";
 import Logo from "../shared/Logo";
 import BrandPattern from "../shared/BrandPattern";
@@ -45,6 +46,7 @@ const navigationSections: NavSection[] = [
     items: [
       { icon: Home, label: "Dashboard", path: "/dashboard" },
       { icon: Users2, label: "Leads", path: "/dashboard/leads" },
+      { icon: Building2, label: "Accounts", path: "/dashboard/accounts" },
       { icon: FileText, label: "Follow-Ups", path: "/dashboard/updates" },
       { icon: Handshake, label: "Meetings", path: "/dashboard/meetings" },
       { icon: Users, label: "Customers", path: "/dashboard/customers" },

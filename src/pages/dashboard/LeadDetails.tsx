@@ -31,10 +31,15 @@ import {
   MoreHorizontal,
   Share2,
   Bookmark,
+  ArrowRight,
+  Check,
+  X,
 } from 'lucide-react';
 import { Button } from '../../components/ui';
 import LeadAPI, { Lead as APILead, LeadActivity as APILeadActivity } from '../../services/leadApi';
+import AccountAPI from '../../services/accountApi';
 import toast from 'react-hot-toast';
+import { getSourceLabel } from '../../utils/leadHelpers';
 
 const LeadDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -44,29 +49,113 @@ const LeadDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
+  
+  // Convert to Account state
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
 
   useEffect(() => {
+    console.log('LeadDetails useEffect - ID:', id);
+    
+    // Reset state when ID changes to prevent showing stale data
+    setLead(null);
+    setActivities([]);
+    setLoading(true);
+    
     if (id) {
       fetchLeadDetails();
+    } else {
+      setLoading(false);
     }
   }, [id]);
 
-  const fetchLeadDetails = async () => {
-    if (!id) return;
+  const handleConvertToAccount = async () => {
+    console.log('handleConvertToAccount called');
+    console.log('Lead object:', lead);
+    console.log('Lead ID from state:', lead?.id);
+    console.log('Lead ID from URL:', id);
     
-    setLoading(true);
+    // Use lead ID from state, fallback to URL param
+    const leadId = lead?.id || id;
+    
+    if (!leadId) {
+      console.log('No lead ID found, returning early');
+      toast.error('No lead ID found');
+      return;
+    }
+
+    const accountName = lead?.name || 'Unknown Account';
+    console.log('Account name:', accountName);
+
+    setIsConverting(true);
     try {
+      console.log('Making API call to convert lead...');
+      console.log('Request payload:', { 
+        leadId: leadId, 
+        name: accountName
+      });
+      
+      const result = await AccountAPI.convertLeadToAccount(
+        leadId,
+        accountName
+      );
+
+      console.log('Conversion successful:', result);
+      setShowConvertModal(false);
+      toast.success(`Lead "${accountName}" converted to account successfully!`);
+
+      // Navigate to accounts page to see the new account
+      setTimeout(() => {
+        navigate('/dashboard/accounts');
+      }, 1500);
+    } catch (error) {
+      console.error('Conversion error:', error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to convert lead to account';
+      toast.error(errorMessage);
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  const fetchLeadDetails = async () => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    
+    console.log('Fetching lead details for ID:', id);
+    setLoading(true);
+    setLead(null); // Clear previous lead data
+    setActivities([]); // Clear previous activities
+    
+    try {
+      // Fetch the specific lead by ID
       const leadData = await LeadAPI.getLeadById(id);
+      console.log('Lead data received for ID', id, ':', leadData);
+      
+      // Ensure we have the ID in the lead data
+      if (leadData && (!leadData.id || leadData.id !== id)) {
+        console.warn('Lead data ID mismatch. Expected:', id, 'Received:', leadData.id);
+        leadData.id = id; // Ensure ID is set
+      }
+      
       setLead(leadData);
       
+      // Fetch activities for this specific lead
       try {
         const activitiesData = await LeadAPI.getLeadActivities(id);
+        console.log('Activities received for ID', id, ':', activitiesData?.length || 0);
         setActivities(activitiesData || []);
       } catch (activityError) {
-        console.error('Error fetching activities:', activityError);
+        console.error('Error fetching activities for lead', id, ':', activityError);
+        // Don't prevent showing lead details if activities fail
+        setActivities([]);
       }
     } catch (error) {
-      console.error('Error fetching lead:', error);
+      console.error('Error fetching lead details for ID', id, ':', error);
       toast.error('Failed to load lead details');
       navigate('/dashboard/leads');
     } finally {
@@ -75,25 +164,47 @@ const LeadDetails: React.FC = () => {
   };
 
   const handleDeleteLead = async () => {
-    if (!id) return;
-    if (!confirm('Are you sure you want to delete this lead?')) return;
+    // Use lead ID from state, fallback to URL param
+    const leadId = lead?.id || id;
+    
+    if (!leadId) {
+      toast.error('No lead ID found');
+      return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete "${lead?.name || 'this lead'}"?`)) return;
 
     try {
-      await LeadAPI.deleteLead(id);
+      console.log('Deleting lead with ID:', leadId);
+      await LeadAPI.deleteLead(leadId);
       toast.success('Lead deleted successfully');
       navigate('/dashboard/leads');
     } catch (error) {
-      toast.error('Failed to delete lead');
+      console.error('Error deleting lead:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete lead';
+      toast.error(errorMessage);
     }
   };
 
   const handleAddNote = async () => {
-    if (!id || !newNote.trim()) return;
+    // Use lead ID from state, fallback to URL param
+    const leadId = lead?.id || id;
+    
+    if (!leadId) {
+      toast.error('No lead ID found');
+      return;
+    }
+    
+    if (!newNote.trim()) {
+      toast.error('Please enter a note');
+      return;
+    }
 
     setAddingNote(true);
     try {
+      console.log('Adding note to lead with ID:', leadId);
       // Update the lead with the new note
-      await LeadAPI.updateLead(id, {
+      await LeadAPI.updateLead(leadId, {
         notes: lead?.notes 
           ? `${lead.notes}\n\n[${new Date().toLocaleString()}]\n${newNote.trim()}`
           : `[${new Date().toLocaleString()}]\n${newNote.trim()}`
@@ -104,7 +215,8 @@ const LeadDetails: React.FC = () => {
       await fetchLeadDetails(); // Refresh lead data
     } catch (error) {
       console.error('Error adding note:', error);
-      toast.error('Failed to add note');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add note';
+      toast.error(errorMessage);
     } finally {
       setAddingNote(false);
     }
@@ -162,7 +274,7 @@ const LeadDetails: React.FC = () => {
     <div className="min-h-screen bg-gray-50/50">
       {/* Hero Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-4">
           {/* Top Navigation */}
           <div className="flex items-center justify-between py-4 border-b border-gray-100">
             <button
@@ -186,7 +298,7 @@ const LeadDetails: React.FC = () => {
           </div>
 
           {/* Lead Header */}
-          <div className="py-6">
+          <div className="py-4">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-5">
                 {/* Avatar */}
@@ -230,7 +342,7 @@ const LeadDetails: React.FC = () => {
                     {lead.source && (
                       <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 rounded-full">
                         <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                        <span className="text-xs font-medium text-blue-700">{lead.source}</span>
+                        <span className="text-xs font-medium text-blue-700">{getSourceLabel(lead.source)}</span>
                       </div>
                     )}
                   </div>
@@ -272,9 +384,17 @@ const LeadDetails: React.FC = () => {
                   <Trash2 className="w-4 h-4" />
                   Delete
                 </Button>
-                <Button className="rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg shadow-orange-200/50">
+                <Button 
+                  onClick={() => {
+                    console.log('Convert to Account button clicked!');
+                    console.log('Current lead state:', lead);
+                    console.log('Lead ID from state:', lead?.id);
+                    setShowConvertModal(true);
+                  }}
+                  className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-200/50"
+                >
                   <Building2 className="w-4 h-4" />
-                  Convert to Project
+                  Convert to Account
                 </Button>
               </div>
             </div>
@@ -338,165 +458,172 @@ const LeadDetails: React.FC = () => {
                 <User className="w-4 h-4 text-orange-500" />
                 <h3 className="font-semibold text-gray-900 text-sm">Contact Information</h3>
               </div>
-              <div className="p-3">
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Phone */}
-                  <div className="group p-3 bg-gray-50 rounded-lg hover:bg-orange-50 transition-colors">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center">
-                        <Phone className="w-4 h-4 text-orange-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Phone</p>
-                        <p className="text-sm font-medium text-gray-900 truncate">{lead.phone || "Not provided"}</p>
-                      </div>
-                      {lead.phone && (
+              <div className="p-4">
+                {(!lead.phone && !lead.email && !lead.location && !lead.city && !lead.source) ? (
+                  <div className="text-center py-8">
+                    <User className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500 mb-3">No contact information available</p>
+                    <button
+                      onClick={() => navigate(`/dashboard/leads/${id}/edit`)}
+                      className="px-4 py-2 text-sm text-orange-600 hover:text-orange-700 font-medium"
+                    >
+                      Add Contact Details →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {lead.phone && (
+                      <div className="group flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-orange-50 transition-colors">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Phone className="w-5 h-5 text-orange-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">Phone</p>
+                          <p className="text-sm font-semibold text-gray-900">{lead.phone}</p>
+                        </div>
                         <button
                           onClick={() => copyToClipboard(lead.phone!, 'Phone')}
-                          className="p-1 hover:bg-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-2 hover:bg-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Copy className="w-3 h-3 text-gray-400" />
+                          <Copy className="w-4 h-4 text-gray-400" />
                         </button>
-                      )}
-                    </div>
-                  </div>
+                      </div>
+                    )}
 
-                  {/* Email */}
-                  <div className="group p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center">
-                        <Mail className="w-4 h-4 text-blue-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Email</p>
-                        <p className="text-sm font-medium text-gray-900 truncate">{lead.email || "Not provided"}</p>
-                      </div>
-                      {lead.email && (
+                    {lead.email && (
+                      <div className="group flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Mail className="w-5 h-5 text-blue-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">Email</p>
+                          <p className="text-sm font-semibold text-gray-900 truncate">{lead.email}</p>
+                        </div>
                         <button
                           onClick={() => copyToClipboard(lead.email!, 'Email')}
-                          className="p-1 hover:bg-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-2 hover:bg-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Copy className="w-3 h-3 text-gray-400" />
+                          <Copy className="w-4 h-4 text-gray-400" />
                         </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Location */}
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center">
-                        <MapPin className="w-4 h-4 text-green-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Location</p>
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {lead.location || lead.city || "Not specified"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Source */}
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center">
-                        <TrendingUp className="w-4 h-4 text-purple-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Source</p>
-                        <p className="text-sm font-medium text-gray-900">{lead.source || "Unknown"}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Project Requirements */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                <Home className="w-4 h-4 text-amber-500" />
-                <h3 className="font-semibold text-gray-900 text-sm">Project Requirements</h3>
-              </div>
-              <div className="p-3">
-                {/* Property Details Grid */}
-                {(lead.propertyType || lead.bhkConfig || lead.carpetArea || lead.budget || lead.budgetRange) ? (
-                  <>
-                    <div className="grid grid-cols-4 gap-2 mb-3">
-                      <div className="p-2.5 bg-orange-50 rounded-lg text-center">
-                        <Building2 className="w-4 h-4 text-orange-600 mx-auto mb-1" />
-                        <p className="text-[10px] text-gray-500 mb-0.5">Type</p>
-                        <p className="text-xs font-bold text-gray-900">{lead.propertyType || "-"}</p>
-                      </div>
-                      <div className="p-2.5 bg-blue-50 rounded-lg text-center">
-                        <Home className="w-4 h-4 text-blue-600 mx-auto mb-1" />
-                        <p className="text-[10px] text-gray-500 mb-0.5">Config</p>
-                        <p className="text-xs font-bold text-gray-900">{lead.bhkConfig || "-"}</p>
-                      </div>
-                      <div className="p-2.5 bg-purple-50 rounded-lg text-center">
-                        <Ruler className="w-4 h-4 text-purple-600 mx-auto mb-1" />
-                        <p className="text-[10px] text-gray-500 mb-0.5">Area</p>
-                        <p className="text-xs font-bold text-gray-900">{lead.carpetArea ? `${lead.carpetArea} sqft` : "-"}</p>
-                      </div>
-                      <div className="p-2.5 bg-green-50 rounded-lg text-center">
-                        <IndianRupee className="w-4 h-4 text-green-600 mx-auto mb-1" />
-                        <p className="text-[10px] text-gray-500 mb-0.5">Budget</p>
-                        <p className="text-xs font-bold text-green-700">{lead.budgetRange || lead.budget || "-"}</p>
-                      </div>
-                    </div>
-
-                    {/* Timeline */}
-                    {lead.timeline && (
-                      <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg mb-3">
-                        <Clock className="w-4 h-4 text-gray-500" />
-                        <span className="text-xs text-gray-500">Timeline:</span>
-                        <span className="text-xs font-semibold text-gray-900">{lead.timeline}</span>
                       </div>
                     )}
 
-                    {/* Scope of Work */}
-                    {lead.scopeOfWork && lead.scopeOfWork.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-xs font-semibold text-gray-600 mb-2">Scope of Work</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {lead.scopeOfWork.map((scope, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">
-                              {scope}
-                            </span>
-                          ))}
+                    {(lead.location || lead.city) && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <MapPin className="w-5 h-5 text-green-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">Location</p>
+                          <p className="text-sm font-semibold text-gray-900">{lead.location || lead.city}</p>
                         </div>
                       </div>
                     )}
 
-                    {/* Services */}
-                    {lead.servicesInterested && lead.servicesInterested.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-600 mb-2">Services Interested</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {lead.servicesInterested.map((service, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-orange-50 text-orange-700 rounded text-xs font-medium">
-                              {service}
-                            </span>
-                          ))}
+                    {lead.source && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <TrendingUp className="w-5 h-5 text-purple-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">Source</p>
+                          <p className="text-sm font-semibold text-gray-900">{getSourceLabel(lead.source)}</p>
                         </div>
                       </div>
                     )}
-                  </>
-                ) : (
-                  <div className="text-center py-6">
-                    <Home className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500 mb-2">No project requirements specified</p>
-                    <button className="text-xs font-medium text-orange-600 hover:text-orange-700">
-                      + Add Requirements
-                    </button>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Design Preferences */}
-            {(lead.designStyle || lead.colorPreferences) && (
+            {/* Project Requirements - Only show if data exists */}
+            {(lead.propertyType || lead.bhkConfig || lead.carpetArea || lead.budget || lead.budgetRange || 
+              lead.timeline || (lead.scopeOfWork && lead.scopeOfWork.length > 0) || 
+              (lead.servicesInterested && lead.servicesInterested.length > 0)) && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <Home className="w-4 h-4 text-amber-500" />
+                  <h3 className="font-semibold text-gray-900 text-sm">Project Requirements</h3>
+                </div>
+                <div className="p-4">
+                  {/* Property Details Grid */}
+                  {(lead.propertyType || lead.bhkConfig || lead.carpetArea || lead.budget || lead.budgetRange) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                      {lead.propertyType && (
+                        <div className="p-3 bg-orange-50 rounded-lg text-center">
+                          <Building2 className="w-5 h-5 text-orange-600 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500 mb-1">Type</p>
+                          <p className="text-sm font-bold text-gray-900">{lead.propertyType}</p>
+                        </div>
+                      )}
+                      {lead.bhkConfig && (
+                        <div className="p-3 bg-blue-50 rounded-lg text-center">
+                          <Home className="w-5 h-5 text-blue-600 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500 mb-1">Configuration</p>
+                          <p className="text-sm font-bold text-gray-900">{lead.bhkConfig}</p>
+                        </div>
+                      )}
+                      {lead.carpetArea && (
+                        <div className="p-3 bg-purple-50 rounded-lg text-center">
+                          <Ruler className="w-5 h-5 text-purple-600 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500 mb-1">Carpet Area</p>
+                          <p className="text-sm font-bold text-gray-900">{lead.carpetArea} sqft</p>
+                        </div>
+                      )}
+                      {(lead.budgetRange || lead.budget) && (
+                        <div className="p-3 bg-green-50 rounded-lg text-center">
+                          <IndianRupee className="w-5 h-5 text-green-600 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500 mb-1">Budget</p>
+                          <p className="text-sm font-bold text-green-700">{lead.budgetRange || lead.budget}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Timeline */}
+                  {lead.timeline && (
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg mb-4">
+                      <Clock className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <p className="text-xs text-gray-600 mb-0.5">Project Timeline</p>
+                        <p className="text-sm font-semibold text-gray-900">{lead.timeline}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scope of Work */}
+                  {lead.scopeOfWork && lead.scopeOfWork.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Scope of Work</p>
+                      <div className="flex flex-wrap gap-2">
+                        {lead.scopeOfWork.map((scope, idx) => (
+                          <span key={idx} className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium">
+                            {scope}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Services */}
+                  {lead.servicesInterested && lead.servicesInterested.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Services Interested</p>
+                      <div className="flex flex-wrap gap-2">
+                        {lead.servicesInterested.map((service, idx) => (
+                          <span key={idx} className="px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-sm font-medium">
+                            {service}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Design Preferences - Only show if data exists */}
+            {((lead.designStyle && lead.designStyle.length > 0) || (lead.colorPreferences && lead.colorPreferences.length > 0)) && (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
                   <Palette className="w-4 h-4 text-pink-500" />
@@ -676,6 +803,126 @@ const LeadDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Convert to Account Modal */}
+      {showConvertModal && lead && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-5">
+            <div className="flex items-center gap-3 pb-4 border-b">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <ArrowRight className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Convert Lead to Account</h2>
+                <p className="text-sm text-gray-600">
+                  Transform this lead into a full account
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  console.log('Close modal button clicked');
+                  setShowConvertModal(false);
+                }}
+                className="ml-auto p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Lead Information */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-xs font-semibold text-gray-600 uppercase mb-2">Current Lead Information</p>
+                <div className="space-y-1">
+                  <p className="font-semibold text-gray-900">
+                    {lead.name || "Unknown"}
+                  </p>
+                  {lead.email && (
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      {lead.email}
+                    </p>
+                  )}
+                  {lead.phone && (
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      {lead.phone}
+                    </p>
+                  )}
+                  {lead.source && (
+                    <p className="text-sm text-gray-600">
+                      Source: {lead.source}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Account Preview */}
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-blue-900 mb-1">
+                      New Account Preview
+                    </p>
+                    <div className="space-y-1 text-sm">
+                      <p className="text-blue-800">
+                        <span className="font-medium">Account Name:</span> {lead.name || "Unknown Account"}
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <p className="text-xs text-blue-700 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span>This lead will be converted into an account and removed from the leads list. All contact information will be preserved.</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('Cancel button clicked');
+                  setShowConvertModal(false);
+                }}
+                disabled={isConverting}
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('Convert button clicked!');
+                  console.log('Lead:', lead);
+                  console.log('Lead ID:', lead?.id);
+                  console.log('Lead Name:', lead?.name);
+                  handleConvertToAccount();
+                }}
+                disabled={isConverting}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isConverting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Converting...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Convert to Account
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -550,7 +550,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
 
       <DragDropContext onDragEnd={onDragEnd}>
         <div
-          className="flex-1 overflow-x-auto overflow-y-auto px-4 py-4"
+          className="flex-1 overflow-x-auto overflow-y-auto px-3 py-3"
           style={{ scrollbarWidth: "thin", scrollbarColor: "#fb923c #f3f4f6" }}
         >
           <div className="relative h-full min-h-[420px]">
@@ -560,7 +560,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
               style={scaledViewportStyles}
             />
             <div className="absolute top-0 left-0" style={boardScaleStyles}>
-              <div className="flex gap-3 min-h-full">
+              <div className="flex gap-2 min-h-full">
                 {data.columnOrder.map((columnId) => {
                   const column = data.columns[columnId];
                   const allTasks = column.taskIds
@@ -640,7 +640,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                                       ref={dragProps.innerRef}
                                       {...dragProps.draggableProps}
                                       {...dragProps.dragHandleProps}
-                                      className={`group rounded-lg border bg-white p-3 text-sm shadow-sm transition-all ${
+                                      className={`group rounded-lg border bg-white p-2.5 text-sm shadow-sm transition-all ${
                                         dragSnapshot.isDragging
                                           ? "scale-[1.02] border-orange-300 shadow-lg"
                                           : "border-gray-200"
@@ -719,9 +719,9 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                       )}
 
                       {!isCollapsed && (
-                        <div className="border-t border-gray-100 px-2 pb-2 pt-2">
+                        <div className="border-t border-gray-100 px-1.5 pb-1.5 pt-1.5">
                           {addingCardToColumn === column.id ? (
-                            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
                               {addCardPrimarySelect ? (
                                 <div className="space-y-1.5">
                                   <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700">

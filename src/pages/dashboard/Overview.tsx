@@ -176,7 +176,7 @@ export const DashboardOverview: React.FC = () => {
   const isFiltered = selectedProject !== null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Widget Library Modal */}
       <WidgetLibraryModal />
 
@@ -230,7 +230,7 @@ export const DashboardOverview: React.FC = () => {
           )}
 
           {/* Stat Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               icon={FolderKanban}
               label="Active Projects"
@@ -268,7 +268,7 @@ export const DashboardOverview: React.FC = () => {
           </div>
 
           {/* Charts Grid */}
-          <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2">
               <RevenueChart />
             </div>
@@ -278,10 +278,10 @@ export const DashboardOverview: React.FC = () => {
           </div>
 
           {/* Projects and Activity Grid */}
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+          <div className="grid lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 space-y-4">
               <Card className="animate-scale-in">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
                       Recent Projects
@@ -294,7 +294,7 @@ export const DashboardOverview: React.FC = () => {
                     View All →
                   </Button>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="p-4 space-y-3">
                   {filteredProjects.map((project) => (
                     <div
                       key={project.id}
@@ -326,7 +326,7 @@ export const DashboardOverview: React.FC = () => {
               </Card>
 
               <Card className="animate-scale-in">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
                       Today's Meetings
@@ -339,7 +339,7 @@ export const DashboardOverview: React.FC = () => {
                     View Calendar →
                   </Button>
                 </div>
-                <div className="p-6 space-y-3">
+                <div className="p-4 space-y-3">
                   {filteredMeetings.map((meeting, i) => (
                     <div
                       key={i}
@@ -373,8 +373,8 @@ export const DashboardOverview: React.FC = () => {
 
               {/* Project Deadlines Section */}
               <Card className="animate-scale-in">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="p-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div>
                         <h2 className="text-lg font-semibold text-gray-900">
@@ -417,7 +417,7 @@ export const DashboardOverview: React.FC = () => {
                     />
                   </div>
                 </div>
-                <div className="p-6 space-y-3">
+                <div className="p-4 space-y-3">
                   {filteredDeadlines.map((project, i) => (
                     <div
                       key={i}
@@ -529,15 +529,15 @@ export const DashboardOverview: React.FC = () => {
               </Card>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               <ActivityFeed />
               <Card>
-                <div className="p-6 border-b border-ash/10">
+                <div className="p-4 border-b border-ash/10">
                   <h2 className="font-display text-display-sm text-secondary">
                     Lead Pipeline
                   </h2>
                 </div>
-                <div className="p-6 space-y-3">
+                <div className="p-4 space-y-3">
                   {[
                     { stage: "New", count: 32, color: "ash" },
                     { stage: "Qualified", count: 18, color: "teal" },
@@ -558,12 +558,12 @@ export const DashboardOverview: React.FC = () => {
               </Card>
 
               <Card>
-                <div className="p-6 border-b border-ash/10">
+                <div className="p-4 border-b border-ash/10">
                   <h2 className="font-display text-display-sm text-secondary">
                     Quick Actions
                   </h2>
                 </div>
-                <div className="p-6 grid grid-cols-2 gap-3">
+                <div className="p-4 grid grid-cols-2 gap-3">
                   <Button variant="ghost" className="h-20 flex flex-col gap-2">
                     <Calendar size={20} />
                     <span className="text-xs">Schedule Meeting</span>

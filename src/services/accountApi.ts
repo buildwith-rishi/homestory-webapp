@@ -1,6 +1,7 @@
 // Account API Service
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://api.goodhomestory.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
+
+console.log('Account API Base URL:', API_BASE_URL);
 
 export interface Account {
   id: string;
@@ -25,8 +26,8 @@ export interface Account {
 }
 
 export interface AccountType {
-  id: string;
-  name: string;
+  value: string;
+  label: string;
   description?: string;
 }
 
@@ -42,12 +43,22 @@ const getAuthHeaders = (): HeadersInit => {
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    let errorMessage = `HTTP error! status: ${response.status}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.message || error.error || errorMessage;
+    } catch (e) {
+      // If response is not JSON, use status text
+      errorMessage = response.statusText || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
-  return response.json();
+  
+  try {
+    return await response.json();
+  } catch (e) {
+    throw new Error("Invalid JSON response from server");
+  }
 }
 
 /**
@@ -55,29 +66,48 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * GET /api/accounts/types
  */
 export async function getAccountTypes(): Promise<AccountType[]> {
-  const response = await fetch(`${API_BASE_URL}/api/accounts/types`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/accounts/types`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
 
-  return handleResponse<AccountType[]>(response);
+    const data = await handleResponse<{ types: AccountType[] }>(response);
+    return data.types || [];
+  } catch (error) {
+    console.error("Error fetching account types:", error);
+    throw error;
+  }
 }
 
 /**
  * Convert Lead to Account
  * POST /api/accounts/convert-lead
+ * Payload: { leadId: string, name: string }
  */
 export async function convertLeadToAccount(
   leadId: string,
   name: string,
 ): Promise<Account> {
-  const response = await fetch(`${API_BASE_URL}/api/accounts/convert-lead`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ leadId, name }),
-  });
+  try {
+    const payload = { leadId, name };
+    console.log("Converting lead to account:");
+    console.log("API URL:", `${API_BASE_URL}/api/accounts/convert-lead`);
+    console.log("Payload:", payload);
+    
+    const response = await fetch(`${API_BASE_URL}/api/accounts/convert-lead`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
 
-  return handleResponse<Account>(response);
+    const account = await handleResponse<Account>(response);
+    console.log("Lead converted successfully:", account);
+    return account;
+  } catch (error) {
+    console.error("Error converting lead to account:", error);
+    throw error;
+  }
 }
 
 /**
@@ -96,24 +126,38 @@ export async function listAccounts(params?: {
   page: number;
   limit: number;
 }> {
-  const queryParams = new URLSearchParams();
+  try {
+    const queryParams = new URLSearchParams();
 
-  if (params) {
-    if (params.type) queryParams.append("type", params.type);
-    if (params.status) queryParams.append("status", params.status);
-    if (params.page) queryParams.append("page", params.page.toString());
-    if (params.limit) queryParams.append("limit", params.limit.toString());
-    if (params.search) queryParams.append("search", params.search);
+    if (params) {
+      if (params.type) queryParams.append("type", params.type);
+      if (params.status) queryParams.append("status", params.status);
+      if (params.page) queryParams.append("page", params.page.toString());
+      if (params.limit) queryParams.append("limit", params.limit.toString());
+      if (params.search) queryParams.append("search", params.search);
+    }
+
+    const url = `${API_BASE_URL}/api/accounts${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+    console.log("Fetching accounts:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+
+    const data = await handleResponse<{
+      accounts: Account[];
+      total: number;
+      page: number;
+      limit: number;
+    }>(response);
+    
+    console.log("Accounts fetched:", data);
+    return data;
+  } catch (error) {
+    console.error("Error fetching accounts:", error);
+    throw error;
   }
-
-  const url = `${API_BASE_URL}/api/accounts${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  return handleResponse(response);
 }
 
 /**
@@ -123,13 +167,21 @@ export async function listAccounts(params?: {
 export async function createAccount(
   account: Omit<Account, "id">,
 ): Promise<Account> {
-  const response = await fetch(`${API_BASE_URL}/api/accounts`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(account),
-  });
+  try {
+    console.log("Creating account:", account);
+    const response = await fetch(`${API_BASE_URL}/api/accounts`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(account),
+    });
 
-  return handleResponse<Account>(response);
+    const newAccount = await handleResponse<Account>(response);
+    console.log("Account created successfully:", newAccount);
+    return newAccount;
+  } catch (error) {
+    console.error("Error creating account:", error);
+    throw error;
+  }
 }
 
 /**
@@ -137,12 +189,20 @@ export async function createAccount(
  * GET /api/accounts/:id
  */
 export async function getAccountById(id: string): Promise<Account> {
-  const response = await fetch(`${API_BASE_URL}/api/accounts/${id}`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
+  try {
+    console.log("Fetching account by ID:", id);
+    const response = await fetch(`${API_BASE_URL}/api/accounts/${id}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
 
-  return handleResponse<Account>(response);
+    const account = await handleResponse<Account>(response);
+    console.log("Account fetched:", account);
+    return account;
+  } catch (error) {
+    console.error("Error fetching account:", error);
+    throw error;
+  }
 }
 
 /**
@@ -153,13 +213,21 @@ export async function updateAccount(
   id: string,
   updates: Partial<Account>,
 ): Promise<Account> {
-  const response = await fetch(`${API_BASE_URL}/api/accounts/${id}`, {
-    method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(updates),
-  });
+  try {
+    console.log("Updating account:", id, updates);
+    const response = await fetch(`${API_BASE_URL}/api/accounts/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(updates),
+    });
 
-  return handleResponse<Account>(response);
+    const updatedAccount = await handleResponse<Account>(response);
+    console.log("Account updated successfully:", updatedAccount);
+    return updatedAccount;
+  } catch (error) {
+    console.error("Error updating account:", error);
+    throw error;
+  }
 }
 
 /**
@@ -167,16 +235,28 @@ export async function updateAccount(
  * DELETE /api/accounts/:id
  */
 export async function deleteAccount(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/accounts/${id}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
+  try {
+    console.log("Deleting account:", id);
+    const response = await fetch(`${API_BASE_URL}/api/accounts/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
 
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ message: "Failed to delete account" }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      let errorMessage = `Failed to delete account. Status: ${response.status}`;
+      try {
+        const error = await response.json();
+        errorMessage = error.message || error.error || errorMessage;
+      } catch (e) {
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+    
+    console.log("Account deleted successfully");
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    throw error;
   }
 }
 
