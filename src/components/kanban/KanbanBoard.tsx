@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   DragDropContext,
   Droppable,
@@ -13,13 +13,26 @@ import {
   ChevronRight,
   ChevronDown,
   GripVertical,
+  User,
+  Calendar,
 } from "lucide-react";
 import Button from "../ui/Button";
+
+// Default assignee options
+const DEFAULT_ASSIGNEES = [
+  "Unassigned",
+  "Sales Lead",
+  "Project Manager",
+  "Design Team",
+  "Operations Team",
+];
 
 export interface KanbanTask {
   id: string;
   content: string;
   completed?: boolean;
+  assignedTo?: string;
+  dueDate?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -34,6 +47,21 @@ export interface KanbanData {
   columns: Record<string, KanbanColumn>;
   tasks: Record<string, KanbanTask>;
   columnOrder: string[];
+}
+
+// Configuration for primary dropdown (Lead/Project selection)
+export interface AddCardSelectOption {
+  value: string;
+  label: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AddCardPrimarySelectConfig {
+  label: string;
+  placeholder?: string;
+  options: AddCardSelectOption[];
+  required?: boolean;
+  emptyStateText?: string;
 }
 
 interface KanbanBoardProps {
@@ -53,6 +81,22 @@ interface KanbanBoardProps {
    * Enable compact mode for denser layout
    */
   compactMode?: boolean;
+  /**
+   * Primary dropdown config for add card (e.g., Lead or Project selection)
+   */
+  addCardPrimarySelect?: AddCardPrimarySelectConfig;
+  /**
+   * Custom assignee options for add card dropdown
+   */
+  addCardAssigneeOptions?: string[];
+  /**
+   * Label for assignee dropdown
+   */
+  addCardAssigneeLabel?: string;
+  /**
+   * Label for due date input
+   */
+  addCardDueDateLabel?: string;
 }
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
@@ -65,6 +109,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   theme = "dark",
   defaultZoom = 0.9,
   compactMode = true,
+  addCardPrimarySelect,
+  addCardAssigneeOptions,
+  addCardAssigneeLabel = "Assign to:",
+  addCardDueDateLabel = "Due date:",
 }) => {
   const [data, setData] = useState<KanbanData>(initialData);
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
@@ -77,6 +125,23 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     new Set(),
   );
   const [openMenuColumn, setOpenMenuColumn] = useState<string | null>(null);
+
+  // New state for add card dropdowns
+  const [selectedPrimaryOption, setSelectedPrimaryOption] = useState("");
+  const [selectedAssignee, setSelectedAssignee] = useState("Unassigned");
+  const [selectedDueDate, setSelectedDueDate] = useState("");
+
+  // Derive assignee options
+  const assigneeOptions = useMemo(() => {
+    return addCardAssigneeOptions && addCardAssigneeOptions.length > 0
+      ? addCardAssigneeOptions
+      : DEFAULT_ASSIGNEES;
+  }, [addCardAssigneeOptions]);
+
+  // Sync data when initialData changes
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
 
   const MIN_ZOOM = 0.7;
   const MAX_ZOOM = 1.15;
@@ -187,12 +252,23 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   };
 
   const handleAddCard = (columnId: string) => {
-    if (!newCardContent.trim()) return;
+    // For primary select mode, require a selection
+    if (addCardPrimarySelect && !selectedPrimaryOption) return;
+    // For text-only mode, require content
+    if (!addCardPrimarySelect && !newCardContent.trim()) return;
+
+    const selectedOption = addCardPrimarySelect?.options.find(
+      (opt) => opt.value === selectedPrimaryOption,
+    );
 
     const newTaskId = `task-${Date.now()}`;
     const newTask: KanbanTask = {
       id: newTaskId,
-      content: newCardContent.trim(),
+      content: selectedOption?.label || newCardContent.trim(),
+      assignedTo:
+        selectedAssignee !== "Unassigned" ? selectedAssignee : undefined,
+      dueDate: selectedDueDate || undefined,
+      metadata: selectedOption?.metadata,
     };
 
     const column = data.columns[columnId];
@@ -213,7 +289,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       },
     });
 
+    // Reset form
     setNewCardContent("");
+    setSelectedPrimaryOption("");
+    setSelectedAssignee("Unassigned");
+    setSelectedDueDate("");
     setAddingCardToColumn(null);
   };
 
@@ -455,9 +535,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 >
                   {data.columnOrder.map((columnId, index) => {
                     const column = data.columns[columnId];
-                    const tasks = column.taskIds.map(
-                      (taskId) => data.tasks[taskId],
-                    );
+                    const tasks = column.taskIds
+                      .map((taskId) => data.tasks[taskId])
+                      .filter((task): task is KanbanTask => task !== undefined);
                     const isCollapsed = collapsedColumns.has(columnId);
 
                     return (
@@ -968,18 +1048,59 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                     }`}
                                   >
                                     <div
-                                      className={`flex items-start gap-2 ${compactMode ? "p-2 pl-3" : "p-2.5 pl-3.5"}`}
+                                      className={`flex flex-col gap-2 ${compactMode ? "p-2" : "p-2.5"}`}
                                     >
-                                      {/* Placeholder checkbox for visual consistency */}
-                                      <div
-                                        className={`flex-shrink-0 mt-0.5 w-4 h-4 rounded border-2 ${
-                                          isLight
-                                            ? "border-gray-300"
-                                            : "border-gray-600"
-                                        }`}
-                                      />
+                                      {/* Primary Selection Dropdown (Lead/Project) */}
+                                      {addCardPrimarySelect && (
+                                        <div className="space-y-1">
+                                          <label className="flex items-center gap-1.5 text-[10px] font-medium text-gray-600">
+                                            <GripVertical
+                                              size={10}
+                                              className="text-gray-400"
+                                            />
+                                            {addCardPrimarySelect.label}
+                                          </label>
+                                          {addCardPrimarySelect.options
+                                            .length === 0 ? (
+                                            <p className="text-[11px] text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded px-2 py-1.5">
+                                              {addCardPrimarySelect.emptyStateText ||
+                                                "No options available"}
+                                            </p>
+                                          ) : (
+                                            <select
+                                              value={selectedPrimaryOption}
+                                              onChange={(e) =>
+                                                setSelectedPrimaryOption(
+                                                  e.target.value,
+                                                )
+                                              }
+                                              className={`w-full px-2 py-1.5 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent ${
+                                                isLight
+                                                  ? "border-gray-300 bg-white text-gray-900"
+                                                  : "border-gray-600 bg-gray-800 text-gray-200"
+                                              }`}
+                                            >
+                                              <option value="">
+                                                {addCardPrimarySelect.placeholder ||
+                                                  `Select ${addCardPrimarySelect.label.toLowerCase()}`}
+                                              </option>
+                                              {addCardPrimarySelect.options.map(
+                                                (option) => (
+                                                  <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                  >
+                                                    {option.label}
+                                                  </option>
+                                                ),
+                                              )}
+                                            </select>
+                                          )}
+                                        </div>
+                                      )}
 
-                                      <div className="flex-1 space-y-1.5">
+                                      {/* Text Input (shown when no primary select) */}
+                                      {!addCardPrimarySelect && (
                                         <textarea
                                           value={newCardContent}
                                           onChange={(e) =>
@@ -998,38 +1119,112 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                               setNewCardContent("");
                                             }
                                           }}
-                                          placeholder="Enter task description..."
-                                          className={`w-full px-0 py-0 text-xs leading-snug resize-none focus:outline-none bg-transparent ${
+                                          placeholder="Enter card details..."
+                                          className={`w-full px-2 py-1.5 border rounded text-xs leading-snug resize-none focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent ${
                                             isLight
-                                              ? "text-gray-900 placeholder:text-gray-400"
-                                              : "text-gray-200 placeholder:text-gray-500"
+                                              ? "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                                              : "border-gray-600 bg-gray-800 text-gray-200 placeholder:text-gray-500"
                                           }`}
                                           rows={2}
                                           autoFocus
                                         />
-                                        <div className="flex items-center gap-1.5 pt-1">
-                                          <Button
-                                            onClick={() =>
-                                              handleAddCard(column.id)
-                                            }
-                                            size="sm"
-                                            className="bg-orange-600 hover:bg-orange-700 text-white text-[10px] px-2 py-1 h-auto font-medium"
-                                          >
-                                            Add Card
-                                          </Button>
-                                          <Button
-                                            onClick={() => {
-                                              setAddingCardToColumn(null);
-                                              setNewCardContent("");
-                                            }}
-                                            variant="secondary"
-                                            size="sm"
-                                            className="text-[10px] px-2 py-1 h-auto"
-                                          >
-                                            Cancel
-                                          </Button>
-                                        </div>
+                                      )}
+
+                                      {/* Assignee Dropdown */}
+                                      <div className="space-y-1">
+                                        <label className="flex items-center gap-1.5 text-[10px] font-medium text-gray-600">
+                                          <User
+                                            size={10}
+                                            className="text-purple-500"
+                                          />
+                                          {addCardAssigneeLabel}
+                                        </label>
+                                        <select
+                                          value={selectedAssignee}
+                                          onChange={(e) =>
+                                            setSelectedAssignee(e.target.value)
+                                          }
+                                          className={`w-full px-2 py-1.5 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-transparent ${
+                                            isLight
+                                              ? "border-gray-300 bg-white text-gray-900"
+                                              : "border-gray-600 bg-gray-800 text-gray-200"
+                                          }`}
+                                        >
+                                          {assigneeOptions.map((option) => (
+                                            <option key={option} value={option}>
+                                              {option}
+                                            </option>
+                                          ))}
+                                        </select>
                                       </div>
+
+                                      {/* Due Date Input */}
+                                      <div className="space-y-1">
+                                        <label className="flex items-center gap-1.5 text-[10px] font-medium text-gray-600">
+                                          <Calendar
+                                            size={10}
+                                            className="text-orange-500"
+                                          />
+                                          {addCardDueDateLabel}
+                                        </label>
+                                        <input
+                                          type="date"
+                                          value={selectedDueDate}
+                                          onChange={(e) =>
+                                            setSelectedDueDate(e.target.value)
+                                          }
+                                          className={`w-full px-2 py-1.5 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-transparent ${
+                                            isLight
+                                              ? "border-gray-300 bg-white text-gray-900"
+                                              : "border-gray-600 bg-gray-800 text-gray-200"
+                                          }`}
+                                        />
+                                      </div>
+
+                                      {/* Action Buttons */}
+                                      <div className="flex items-center gap-1.5 pt-1">
+                                        <Button
+                                          onClick={() =>
+                                            handleAddCard(column.id)
+                                          }
+                                          size="sm"
+                                          disabled={
+                                            addCardPrimarySelect
+                                              ? !selectedPrimaryOption
+                                              : !newCardContent.trim()
+                                          }
+                                          className={`text-white text-[10px] px-2 py-1 h-auto font-medium ${
+                                            (
+                                              addCardPrimarySelect
+                                                ? !selectedPrimaryOption
+                                                : !newCardContent.trim()
+                                            )
+                                              ? "bg-orange-300 cursor-not-allowed"
+                                              : "bg-orange-600 hover:bg-orange-700"
+                                          }`}
+                                        >
+                                          Add Card
+                                        </Button>
+                                        <button
+                                          onClick={() => {
+                                            setAddingCardToColumn(null);
+                                            setNewCardContent("");
+                                            setSelectedPrimaryOption("");
+                                            setSelectedAssignee("Unassigned");
+                                            setSelectedDueDate("");
+                                          }}
+                                          className={`p-1 rounded transition-colors ${
+                                            isLight
+                                              ? "hover:bg-gray-100 text-gray-500"
+                                              : "hover:bg-gray-700 text-gray-400"
+                                          }`}
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                      <p className="text-[9px] text-gray-400">
+                                        Ctrl+Enter to add, Esc to cancel
+                                      </p>
                                     </div>
                                   </div>
                                 ) : (

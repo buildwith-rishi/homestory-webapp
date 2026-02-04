@@ -17,9 +17,20 @@ import {
   Radio,
   ArrowLeft,
   Waves,
+  CheckSquare,
+  Plus,
+  GripVertical,
 } from "lucide-react";
 import { useMeetingRoomStore } from "../../stores/meetingRoomStore";
 import Logo from "../../components/shared/Logo";
+
+// Checkpoint interface
+interface Checkpoint {
+  id: string;
+  text: string;
+  completed: boolean;
+  timestamp: Date;
+}
 
 // Speaker colors matching the website theme
 const speakerColors = [
@@ -160,6 +171,41 @@ export const MeetingRoom: React.FC = () => {
   const [activeSpeaker, setActiveSpeaker] = useState(1);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
+  // Checkpoints state
+  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([
+    {
+      id: "1",
+      text: "Review kitchen layout and design",
+      completed: false,
+      timestamp: new Date(),
+    },
+    {
+      id: "2",
+      text: "Discuss living room lighting fixtures",
+      completed: false,
+      timestamp: new Date(),
+    },
+    {
+      id: "3",
+      text: "Finalize bathroom tile selection",
+      completed: false,
+      timestamp: new Date(),
+    },
+    {
+      id: "4",
+      text: "Confirm bedroom wardrobe dimensions",
+      completed: false,
+      timestamp: new Date(),
+    },
+    {
+      id: "5",
+      text: "Review project timeline and milestones",
+      completed: false,
+      timestamp: new Date(),
+    },
+  ]);
+  const [newCheckpoint, setNewCheckpoint] = useState("");
+
   const {
     isInMeeting,
     meetingTitle,
@@ -179,6 +225,30 @@ export const MeetingRoom: React.FC = () => {
     deleteNote,
     updateNote,
   } = useMeetingRoomStore();
+
+  // Checkpoint handlers
+  const toggleCheckpoint = (id: string) => {
+    setCheckpoints((prev) =>
+      prev.map((cp) => (cp.id === id ? { ...cp, completed: !cp.completed } : cp))
+    );
+  };
+
+  const addCheckpoint = () => {
+    if (newCheckpoint.trim()) {
+      const checkpoint: Checkpoint = {
+        id: Date.now().toString(),
+        text: newCheckpoint.trim(),
+        completed: false,
+        timestamp: new Date(),
+      };
+      setCheckpoints((prev) => [...prev, checkpoint]);
+      setNewCheckpoint("");
+    }
+  };
+
+  const deleteCheckpoint = (id: string) => {
+    setCheckpoints((prev) => prev.filter((cp) => cp.id !== id));
+  };
 
   // Start meeting on mount
   useEffect(() => {
@@ -334,9 +404,160 @@ export const MeetingRoom: React.FC = () => {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Checkpoints */}
+        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+          {/* Checkpoints Header */}
+          <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-white">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-orange-600" />
+                Meeting Checkpoints
+              </h2>
+              <div className="text-xs text-gray-500">
+                {checkpoints.filter((cp) => cp.completed).length}/{checkpoints.length}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600">Track discussion topics</p>
+          </div>
+
+          {/* Checkpoints List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {checkpoints.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                  <CheckSquare className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 text-sm">No checkpoints yet</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  Add topics to discuss
+                </p>
+              </div>
+            ) : (
+              checkpoints.map((checkpoint, index) => (
+                <div
+                  key={checkpoint.id}
+                  className={`group relative bg-gray-50 rounded-lg border transition-all ${
+                    checkpoint.completed
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                  }`}
+                >
+                  <div className="flex items-start gap-3 p-3">
+                    {/* Drag Handle */}
+                    <div className="pt-1 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-move">
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+
+                    {/* Checkbox */}
+                    <button
+                      onClick={() => toggleCheckpoint(checkpoint.id)}
+                      className="pt-0.5 flex-shrink-0"
+                    >
+                      {checkpoint.completed ? (
+                        <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center">
+                          <Check className="w-3.5 h-3.5 text-white" />
+                        </div>
+                      ) : (
+                        <div className="w-5 h-5 rounded border-2 border-gray-300 hover:border-orange-500 transition-colors" />
+                      )}
+                    </button>
+
+                    {/* Checkpoint Text */}
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className={`text-sm leading-relaxed ${
+                          checkpoint.completed
+                            ? "text-gray-500 line-through"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {checkpoint.text}
+                      </p>
+                    </div>
+
+                    {/* Delete Button */}
+                    <button
+                      onClick={() => deleteCheckpoint(checkpoint.id)}
+                      className="flex-shrink-0 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Number Badge */}
+                  <div className="absolute -left-2 -top-2 w-5 h-5 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center">
+                    <span className="text-xs font-semibold text-gray-600">
+                      {index + 1}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Add Checkpoint Input */}
+          <div className="p-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newCheckpoint}
+                onChange={(e) => setNewCheckpoint(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    addCheckpoint();
+                  }
+                }}
+                placeholder="Add checkpoint..."
+                className="flex-1 bg-white text-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent placeholder-gray-400"
+              />
+              <button
+                onClick={addCheckpoint}
+                disabled={!newCheckpoint.trim()}
+                className="p-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Press Enter to add quickly
+            </p>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="px-4 pb-4 bg-gray-50">
+            <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+              <span>Progress</span>
+              <span className="font-semibold">
+                {checkpoints.length > 0
+                  ? Math.round(
+                      (checkpoints.filter((cp) => cp.completed).length /
+                        checkpoints.length) *
+                        100
+                    )
+                  : 0}
+                %
+              </span>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-orange-500 to-orange-600 transition-all duration-500"
+                style={{
+                  width: `${
+                    checkpoints.length > 0
+                      ? (checkpoints.filter((cp) => cp.completed).length /
+                          checkpoints.length) *
+                        100
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col">
-          {/* Voice Participants Grid */}
+        <div className="flex-1 flex flex-col">{/* Voice Participants Grid */}
           <div className="flex-1 p-6 overflow-auto">
             <div className="max-w-5xl mx-auto">
               {/* Active Speaker Card */}

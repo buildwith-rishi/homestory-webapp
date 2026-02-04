@@ -14,3 +14,4 @@ export { AccountsPage } from "./Accounts";
 export { Marketing } from "./Marketing";
 export { Analytics } from "./Analytics";
 export { UserManagement } from "./UserManagement";
+export { default as KanbanView } from "./KanbanView";

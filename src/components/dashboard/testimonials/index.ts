@@ -1,0 +1,1 @@
+export { TestimonialsTab } from "./TestimonialsTab";

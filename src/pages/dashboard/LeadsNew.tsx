@@ -22,7 +22,6 @@ import {
   Loader2,
   ArrowRight,
   Building2,
-  LayoutGrid,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -788,14 +787,6 @@ export const LeadsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            className="rounded-xl"
-            onClick={() => navigate("/dashboard/leads/kanban")}
-          >
-            <LayoutGrid className="w-4 h-4" />
-            Kanban View
-          </Button>
           <Button className="rounded-xl" onClick={() => setShowAddModal(true)}>
             <Plus className="w-4 h-4" />
             Add Lead

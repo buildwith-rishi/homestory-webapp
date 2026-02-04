@@ -195,6 +195,31 @@ export enum LeadSource {
   OTHER = "other",
 }
 
+export enum ReferenceType {
+  IMAGE = "IMAGE",
+  PDF = "PDF",
+  DOCUMENT = "DOCUMENT",
+  LINK = "LINK",
+  VIDEO = "VIDEO",
+}
+
+export interface LeadReference {
+  id: string;
+  leadId: string;
+  type: ReferenceType;
+  title: string;
+  description?: string;
+  url: string;
+  thumbnailUrl?: string;
+  fileSize?: number; // in bytes
+  fileName?: string;
+  mimeType?: string;
+  tags?: string[];
+  category?: "Inspiration" | "Requirement" | "Reference" | "Competitor" | "Other";
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
 export interface LeadActivity {
   id: string;
   leadId: string;
@@ -290,6 +315,7 @@ export interface Lead {
   assignedTo?: string;
   assignedDesigner?: string;
   activities?: LeadActivity[];
+  references?: LeadReference[];
 
   // Metadata
   createdAt: string;
@@ -680,4 +706,307 @@ export interface ProjectTask {
   assignedTo?: string | { name: string }; // Update to support both string and object
   createdAt: string;
   updatedAt: string;
+}
+
+// ==========================================
+// COMPREHENSIVE STAGES SYSTEM TYPES
+// ==========================================
+
+// Pipeline type determines which stages are available
+export enum StagePipelineType {
+  DESIGN_ONLY = "DESIGN_ONLY",
+  DESIGN_AND_EXECUTION = "DESIGN_AND_EXECUTION",
+}
+
+// Worker categories for task assignment
+export enum WorkerCategory {
+  PAINTER = "PAINTER",
+  CARPENTER = "CARPENTER",
+  PLUMBER = "PLUMBER",
+  ELECTRICIAN = "ELECTRICIAN",
+  MASON = "MASON",
+  TILER = "TILER",
+  FABRICATOR = "FABRICATOR",
+  HVAC_TECHNICIAN = "HVAC_TECHNICIAN",
+  FLOORING_SPECIALIST = "FLOORING_SPECIALIST",
+  GLASS_WORKER = "GLASS_WORKER",
+  CIVIL_WORKER = "CIVIL_WORKER",
+  SUPERVISOR = "SUPERVISOR",
+  HELPER = "HELPER",
+  OTHER = "OTHER",
+}
+
+// Task status in day plan
+export enum DayTaskStatus {
+  NOT_STARTED = "NOT_STARTED",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  PAUSED = "PAUSED",
+  BLOCKED = "BLOCKED",
+  CANCELLED = "CANCELLED",
+}
+
+// Overall day status
+export enum DayPlanStatus {
+  SCHEDULED = "SCHEDULED",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  PARTIALLY_COMPLETED = "PARTIALLY_COMPLETED",
+  CANCELLED = "CANCELLED",
+  HOLIDAY = "HOLIDAY",
+}
+
+// Stage phase for Design & Execution projects
+export enum StagePhase {
+  // Design Phase Stages
+  CONCEPT_DESIGN = "CONCEPT_DESIGN",
+  DESIGN_DEVELOPMENT = "DESIGN_DEVELOPMENT",
+  MATERIAL_SELECTION = "MATERIAL_SELECTION",
+  FINAL_DESIGN_APPROVAL = "FINAL_DESIGN_APPROVAL",
+  
+  // Execution Phase Stages
+  SITE_PREPARATION = "SITE_PREPARATION",
+  CIVIL_WORK = "CIVIL_WORK",
+  ELECTRICAL_PLUMBING = "ELECTRICAL_PLUMBING",
+  CARPENTRY_WORK = "CARPENTRY_WORK",
+  PAINTING = "PAINTING",
+  FLOORING = "FLOORING",
+  FINISHING = "FINISHING",
+  FINAL_INSPECTION = "FINAL_INSPECTION",
+  HANDOVER = "HANDOVER",
+}
+
+// Worker interface
+export interface Worker {
+  id: string;
+  name: string;
+  category: WorkerCategory;
+  phone: string;
+  email?: string;
+  dailyRate: number;
+  isAvailable: boolean;
+  skills: string[];
+  rating?: number;
+  avatar?: string;
+  createdAt: string;
+}
+
+// Task within a day plan
+export interface DayTask {
+  id: string;
+  dayPlanId: string;
+  title: string;
+  description?: string;
+  category: WorkerCategory;
+  status: DayTaskStatus;
+  assignedWorkers: Worker[];
+  estimatedHours: number;
+  actualHours?: number;
+  startTime?: string;
+  endTime?: string;
+  completionNotes?: string;
+  photos?: string[];
+  isPaused: boolean;
+  pausedAt?: string;
+  pauseReason?: string;
+  resumedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Day plan represents work for a single day
+export interface DayPlan {
+  id: string;
+  projectId: string;
+  stageId: string;
+  dayNumber: number;
+  date: string;
+  status: DayPlanStatus;
+  tasks: DayTask[];
+  totalWorkers: number;
+  totalCost: number;
+  supervisorId?: string;
+  supervisor?: Worker;
+  weatherCondition?: string;
+  siteNotes?: string;
+  startTime?: string;
+  endTime?: string;
+  completionSummary?: string;
+  completedTasks: string[];
+  pendingTasks: string[];
+  blockedTasks: string[];
+  photos?: string[];
+  isPaused: boolean;
+  pausedAt?: string;
+  pauseReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Project stage with day plans
+export interface ProjectStageWithDays {
+  id: string;
+  projectId: string;
+  phase: StagePhase;
+  phaseName: string;
+  phaseDescription: string;
+  phaseCategory: "DESIGN" | "EXECUTION";
+  status: StageStatus;
+  progress: number;
+  startDate?: string;
+  estimatedEndDate?: string;
+  actualEndDate?: string;
+  totalDays: number;
+  completedDays: number;
+  dayPlans: DayPlan[];
+  totalBudget: number;
+  spentBudget: number;
+  isPaused: boolean;
+  pausedAt?: string;
+  pauseReason?: string;
+  remarks?: string;
+  
+  // Payment related fields
+  paymentRequired: boolean;
+  paymentAmount?: number;
+  paymentStatus: PaymentStatus;
+  paymentDueDate?: string;
+  paymentCollectedDate?: string;
+  paymentNotes?: string;
+  invoiceNumber?: string;
+  invoiceUrl?: string;
+  
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Full project stages overview
+export interface ProjectStagesOverview {
+  projectId: string;
+  pipelineType: StagePipelineType;
+  designPhase: {
+    stages: ProjectStageWithDays[];
+    totalProgress: number;
+    status: StageStatus;
+    startDate?: string;
+    estimatedEndDate?: string;
+  };
+  executionPhase?: {
+    stages: ProjectStageWithDays[];
+    totalProgress: number;
+    status: StageStatus;
+    startDate?: string;
+    estimatedEndDate?: string;
+  };
+  overallProgress: number;
+  projectStartDate?: string;
+  projectEstimatedEndDate?: string;
+  totalBudget: number;
+  spentBudget: number;
+  totalDays: number;
+  completedDays: number;
+  isPaused: boolean;
+}
+
+// Task assignment request
+export interface AssignTaskRequest {
+  dayPlanId: string;
+  taskTitle: string;
+  taskDescription?: string;
+  category: WorkerCategory;
+  workerIds: string[];
+  estimatedHours: number;
+  startTime?: string;
+}
+
+// Update day task request
+export interface UpdateDayTaskRequest {
+  status?: DayTaskStatus;
+  actualHours?: number;
+  completionNotes?: string;
+  photos?: string[];
+  isPaused?: boolean;
+  pauseReason?: string;
+}
+
+// Complete day summary
+export interface CompleteDaySummary {
+  dayPlanId: string;
+  completionSummary: string;
+  completedTasks: string[];
+  pendingTasks: string[];
+  photos?: string[];
+  endTime: string;
+}
+
+// Testimonial Types
+export enum TestimonialType {
+  VIDEO = "VIDEO",
+  TEXT = "TEXT",
+  AUDIO = "AUDIO",
+}
+
+export enum TestimonialStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  DRAFT = "DRAFT",
+}
+
+export interface ProjectTestimonial {
+  id: string;
+  projectId: string;
+  projectName?: string;
+  projectStage?: ProjectStageCode; // Add project stage association
+  clientName: string;
+  clientAvatar?: string;
+  type: TestimonialType;
+  status: TestimonialStatus;
+  rating: number; // 1-5
+  title: string;
+  content?: string; // For text testimonials
+  videoUrl?: string; // For video testimonials
+  videoThumbnail?: string;
+  videoDuration?: number; // in seconds
+  audioUrl?: string; // For audio testimonials
+  audioDuration?: number; // in seconds
+  location?: string;
+  projectCategory?: string;
+  projectValue?: number;
+  tags?: string[];
+  isFeatured: boolean;
+  showOnWebsite: boolean;
+  recordedAt: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTestimonialRequest {
+  projectId: string;
+  clientName: string;
+  type: TestimonialType;
+  rating: number;
+  title: string;
+  projectStage?: ProjectStageCode; // Add project stage
+  content?: string;
+  videoUrl?: string;
+  videoThumbnail?: string;
+  videoDuration?: number;
+  audioUrl?: string;
+  audioDuration?: number;
+  location?: string;
+  tags?: string[];
+  recordedAt?: string;
+}
+
+export interface UpdateTestimonialRequest {
+  status?: TestimonialStatus;
+  rating?: number;
+  title?: string;
+  content?: string;
+  isFeatured?: boolean;
+  showOnWebsite?: boolean;
+  tags?: string[];
 }

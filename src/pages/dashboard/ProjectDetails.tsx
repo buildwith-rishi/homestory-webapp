@@ -25,8 +25,11 @@ import {
   TrendingUp,
   Target,
   Flag,
+  MessageSquare,
 } from "lucide-react";
 import { Button, Progress, Badge, Card } from "../../components/ui";
+import { ProjectStagesSection } from "../../components/dashboard/stages";
+import { TestimonialsTab } from "../../components/dashboard/testimonials";
 import toast from "react-hot-toast";
 import { useProjectStore } from "../../stores/projectStore";
 import {
@@ -140,7 +143,7 @@ export const ProjectDetails: React.FC = () => {
 
   // Local state
   const [activeTab, setActiveTab] = useState<
-    "overview" | "stages" | "payments" | "tasks" | "milestones"
+    "overview" | "stages" | "payments" | "tasks" | "milestones" | "testimonials"
   >("overview");
 
   // Stage update modal
@@ -472,6 +475,7 @@ export const ProjectDetails: React.FC = () => {
               { id: "payments", label: "Payments", icon: CreditCard },
               { id: "milestones", label: "Milestones", icon: Flag },
               { id: "tasks", label: "Tasks", icon: Package },
+              { id: "testimonials", label: "Testimonials", icon: MessageSquare },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -705,110 +709,7 @@ export const ProjectDetails: React.FC = () => {
 
         {/* Stages Tab */}
         {activeTab === "stages" && (
-          <Card className="p-6 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                <CheckCircle2 className="w-4 h-4 text-white" />
-              </div>
-              Project Stages
-            </h2>
-
-            {projectStages.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">
-                  No stages found for this project.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {projectStages.map((stage, index) => (
-                  <div key={stage.id} className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-md ${
-                          stage.status === StageStatus.COMPLETED
-                            ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
-                            : stage.status === StageStatus.IN_PROGRESS
-                              ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white"
-                              : "bg-gradient-to-br from-gray-300 to-gray-400 text-white"
-                        }`}
-                      >
-                        {stage.status === StageStatus.COMPLETED ? (
-                          <CheckCircle2 className="w-5 h-5" />
-                        ) : (
-                          <Clock className="w-5 h-5" />
-                        )}
-                      </div>
-                      {index < projectStages.length - 1 && (
-                        <div
-                          className={`w-1 h-16 my-1 rounded-full ${
-                            stage.status === StageStatus.COMPLETED
-                              ? "bg-gradient-to-b from-green-400 to-green-200"
-                              : "bg-gradient-to-b from-gray-300 to-gray-200"
-                          }`}
-                        ></div>
-                      )}
-                    </div>
-                    <div className="flex-1 pb-6">
-                      <div
-                        className={`p-4 rounded-xl border ${
-                          stage.status === StageStatus.COMPLETED
-                            ? "bg-green-50/50 border-green-100"
-                            : stage.status === StageStatus.IN_PROGRESS
-                              ? "bg-orange-50/50 border-orange-100"
-                              : "bg-gray-50/50 border-gray-100"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-bold text-gray-900 text-base">
-                              {getStageDisplayName(stage.stageCode)}
-                            </p>
-                            <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                              {stage.startDate && (
-                                <span>
-                                  Start: {formatDate(stage.startDate)}
-                                </span>
-                              )}
-                              {stage.endDate && (
-                                <span>End: {formatDate(stage.endDate)}</span>
-                              )}
-                            </div>
-                            {stage.remarks && (
-                              <p className="text-sm text-gray-500 mt-2">
-                                {stage.remarks}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              className={`text-xs font-semibold ${
-                                stage.status === StageStatus.COMPLETED
-                                  ? "bg-green-100 text-green-700"
-                                  : stage.status === StageStatus.IN_PROGRESS
-                                    ? "bg-orange-100 text-orange-700"
-                                    : "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              {stage.status.replace("_", " ")}
-                            </Badge>
-                            <button
-                              onClick={() => handleEditStage(stage)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Update stage"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+          <ProjectStagesSection project={project} />
         )}
 
         {/* Payments Tab */}
@@ -1255,6 +1156,15 @@ export const ProjectDetails: React.FC = () => {
               </div>
             </Card>
           </div>
+        )}
+
+        {/* Testimonials Tab */}
+        {activeTab === "testimonials" && project && (
+          <TestimonialsTab
+            projectId={project.id}
+            projectName={project.projectName || project.name}
+            clientName={project.lead?.name || "Client"}
+          />
         )}
       </div>
 

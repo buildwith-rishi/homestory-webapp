@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   KanbanBoard,
@@ -15,12 +15,31 @@ import {
   DollarSign,
   List,
   ArrowLeft,
+  User,
 } from "lucide-react";
 import Button from "../../components/ui/Button";
+
+const LEAD_ASSIGNEE_OPTIONS = [
+  "Unassigned",
+  "Sales Lead",
+  "Design Consultant",
+  "Project Manager",
+  "Operations Team",
+];
 
 const LeadsKanban: React.FC = () => {
   const navigate = useNavigate();
   const { leads, isLoading, fetchLeads } = useLeadStore();
+
+  // Generate lead selection options for the dropdown
+  const leadSelectOptions = useMemo(() => {
+    return leads.map((lead) => ({
+      value: `lead-${lead.id}`,
+      label: lead.name || lead.email || `Lead ${lead.id}`,
+      metadata: lead as unknown as Record<string, unknown>,
+    }));
+  }, [leads]);
+
   const [kanbanData, setKanbanData] = useState<KanbanData>({
     columns: {
       "col-inquiry": {
@@ -215,6 +234,24 @@ const LeadsKanban: React.FC = () => {
             </span>
           </div>
         )}
+
+        {/* Assignment and Due Date badges */}
+        {(task.assignedTo || task.dueDate) && (
+          <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
+            {task.assignedTo && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                <User size={10} />
+                {task.assignedTo}
+              </span>
+            )}
+            {task.dueDate && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+                <Calendar size={10} />
+                {new Date(task.dueDate).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -268,6 +305,15 @@ const LeadsKanban: React.FC = () => {
           onTaskClick={handleTaskClick}
           renderTaskCard={renderLeadCard}
           theme="light"
+          addCardPrimarySelect={{
+            label: "Select Lead",
+            placeholder: "Choose a lead...",
+            options: leadSelectOptions,
+            emptyStateText: "No leads available",
+          }}
+          addCardAssigneeOptions={LEAD_ASSIGNEE_OPTIONS}
+          addCardAssigneeLabel="Assign to:"
+          addCardDueDateLabel="Due date:"
         />
       </div>
     </div>

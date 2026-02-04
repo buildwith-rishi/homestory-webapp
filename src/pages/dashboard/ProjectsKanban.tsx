@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   KanbanBoard,
@@ -18,9 +18,27 @@ import {
 } from "lucide-react";
 import { Button } from "../../components/ui";
 
+const PROJECT_ASSIGNEE_OPTIONS = [
+  "Unassigned",
+  "Design Lead",
+  "Project Manager",
+  "Site Supervisor",
+  "Operations Team",
+];
+
 const ProjectsKanban: React.FC = () => {
   const navigate = useNavigate();
   const { projects, isLoading, fetchProjects } = useProjectStore();
+
+  // Generate project selection options for the dropdown
+  const projectSelectOptions = useMemo(() => {
+    return projects.map((project) => ({
+      value: `project-${project.id}`,
+      label: project.name || project.projectName || `Project ${project.id}`,
+      metadata: project as unknown as Record<string, unknown>,
+    }));
+  }, [projects]);
+
   const [kanbanData, setKanbanData] = useState<KanbanData>({
     columns: {
       "col-lead": {
@@ -239,6 +257,24 @@ const ProjectsKanban: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* Assignment and Due Date badges */}
+        {(task.assignedTo || task.dueDate) && (
+          <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
+            {task.assignedTo && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                <User size={10} />
+                {task.assignedTo}
+              </span>
+            )}
+            {task.dueDate && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+                <Calendar size={10} />
+                {new Date(task.dueDate).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -292,6 +328,15 @@ const ProjectsKanban: React.FC = () => {
           onTaskClick={handleTaskClick}
           renderTaskCard={renderProjectCard}
           theme="light"
+          addCardPrimarySelect={{
+            label: "Select Project",
+            placeholder: "Choose a project...",
+            options: projectSelectOptions,
+            emptyStateText: "No projects available",
+          }}
+          addCardAssigneeOptions={PROJECT_ASSIGNEE_OPTIONS}
+          addCardAssigneeLabel="Assign to:"
+          addCardDueDateLabel="Due date:"
         />
       </div>
     </div>

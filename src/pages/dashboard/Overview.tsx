@@ -9,6 +9,7 @@ import {
   CheckCircle,
   LayoutGrid,
   Plus,
+  Filter,
 } from "lucide-react";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
@@ -17,7 +18,7 @@ import { LeadSourceChart } from "../../components/dashboard/LeadSourceChart";
 import { ActivityFeed } from "../../components/dashboard/ActivityFeed";
 import { DashboardGrid } from "../../components/dashboard/DashboardGrid";
 import { WidgetLibraryModal } from "../../components/dashboard/WidgetLibraryModal";
-import { Card, Button, Badge, Progress } from "../../components/ui";
+import { Card, Button, Badge, Progress, Select } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 
@@ -25,6 +26,17 @@ export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const { openWidgetLibrary } = useUIStore();
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
+  const [deadlineStageFilter, setDeadlineStageFilter] = useState<string>("all");
+
+  // Stage filter options for deadline filtering
+  const stageFilterOptions = [
+    { value: "all", label: "All Stages" },
+    { value: "Design", label: "Design" },
+    { value: "Execution", label: "Execution" },
+    { value: "Material", label: "Material Selection" },
+    { value: "Requirements", label: "Requirements" },
+    { value: "Handover", label: "Handover" },
+  ];
 
   // Sparkline data for stat cards (last 7 days)
   const projectsSparkline = [18, 20, 19, 22, 21, 23, 24];
@@ -145,9 +157,20 @@ export const DashboardOverview: React.FC = () => {
       },
     ];
 
-    if (!selectedProject) return allDeadlines;
-    return allDeadlines.filter((d) => d.id === selectedProject.id);
-  }, [selectedProject]);
+    let filtered = allDeadlines;
+
+    // Filter by selected project if any
+    if (selectedProject) {
+      filtered = filtered.filter((d) => d.id === selectedProject.id);
+    }
+
+    // Filter by stage
+    if (deadlineStageFilter !== "all") {
+      filtered = filtered.filter((d) => d.stage === deadlineStageFilter);
+    }
+
+    return filtered;
+  }, [selectedProject, deadlineStageFilter]);
 
   // Show filtered message when a specific project is selected
   const isFiltered = selectedProject !== null;
@@ -350,18 +373,49 @@ export const DashboardOverview: React.FC = () => {
 
               {/* Project Deadlines Section */}
               <Card className="animate-scale-in">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Project Deadlines
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Upcoming project due dates
-                    </p>
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          Project Deadlines
+                        </h2>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Upcoming project due dates
+                        </p>
+                      </div>
+                      {/* Results Count Badge */}
+                      <Badge
+                        variant={
+                          filteredDeadlines.length === 0
+                            ? "neutral"
+                            : filteredDeadlines.some((d) => d.status === "critical" || d.status === "urgent")
+                              ? "error"
+                              : "info"
+                        }
+                      >
+                        {filteredDeadlines.length} {filteredDeadlines.length === 1 ? "Project" : "Projects"}
+                      </Badge>
+                    </div>
+                    <Button variant="ghost" size="sm">
+                      View All →
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    View All →
-                  </Button>
+
+                  {/* Stage Filter Dropdown */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Filter className="w-4 h-4" />
+                      <span className="font-medium">Filter by Stage:</span>
+                    </div>
+                    <Select
+                      value={deadlineStageFilter}
+                      onChange={(value) => setDeadlineStageFilter(value)}
+                      options={stageFilterOptions}
+                      placeholder="All Stages"
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
                 <div className="p-6 space-y-3">
                   {filteredDeadlines.map((project, i) => (
@@ -457,8 +511,18 @@ export const DashboardOverview: React.FC = () => {
                     </div>
                   ))}
                   {filteredDeadlines.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>No upcoming deadlines for the selected project.</p>
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Clock className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-900 font-medium mb-1">
+                        No Deadlines Found
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {deadlineStageFilter !== "all"
+                          ? `No projects in "${stageFilterOptions.find((o) => o.value === deadlineStageFilter)?.label}" stage with upcoming deadlines.`
+                          : "No upcoming deadlines for the selected filter."}
+                      </p>
                     </div>
                   )}
                 </div>

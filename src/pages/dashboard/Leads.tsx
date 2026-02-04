@@ -125,14 +125,6 @@ export const LeadsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            className="rounded-xl"
-            onClick={() => navigate("/dashboard/leads/kanban")}
-          >
-            <LayoutGrid className="w-4 h-4" />
-            Kanban View
-          </Button>
           <Button variant="secondary" className="rounded-xl">
             <Filter className="w-4 h-4" />
             Export
