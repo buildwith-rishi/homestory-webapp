@@ -68,7 +68,11 @@ export interface KanbanBoardProps {
   /** Custom assignee options for add card dropdown */
   assignees?: Array<{ id: string; name: string }>;
   /** Custom render function for the add card form in column footer */
-  renderAddCardForm?: (columnId: string, onAddCard: (columnId: string, data: any) => void, theme: "light" | "dark") => React.ReactNode;
+  renderAddCardForm?: (
+    columnId: string,
+    onAddCard: (columnId: string, data: any) => void,
+    theme: "light" | "dark",
+  ) => React.ReactNode;
 }
 
 // Zoom constants

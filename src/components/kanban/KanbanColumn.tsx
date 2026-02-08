@@ -8,7 +8,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { KanbanCard, type KanbanCardTask } from "./KanbanCard";
-import { AddCardFormWithButton, type AddCardFormSelectConfig, type NewCardData } from "./AddCardForm";
+import {
+  AddCardFormWithButton,
+  type AddCardFormSelectConfig,
+  type NewCardData,
+} from "./AddCardForm";
 
 // ============================================================================
 // TYPES
@@ -57,7 +61,11 @@ export interface KanbanColumnProps {
   /** Enable compact mode for denser layout */
   compactMode?: boolean;
   /** Custom render function for the add card form in the footer */
-  renderAddCardForm?: (columnId: string, onAddCard: (columnId: string, data: any) => void, theme: "light" | "dark") => React.ReactNode;
+  renderAddCardForm?: (
+    columnId: string,
+    onAddCard: (columnId: string, data: any) => void,
+    theme: "light" | "dark",
+  ) => React.ReactNode;
 }
 
 // ============================================================================
@@ -66,7 +74,7 @@ export interface KanbanColumnProps {
 
 /**
  * KanbanColumn - A refined, draggable column component for Kanban boards
- * 
+ *
  * Features:
  * - Draggable for column reordering
  * - Droppable area for cards
@@ -137,7 +145,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
 
     if (isMenuOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isMenuOpen]);
 
@@ -149,7 +158,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
       e.stopPropagation();
       onToggleCollapse?.(column.id);
     },
-    [column.id, onToggleCollapse]
+    [column.id, onToggleCollapse],
   );
 
   const handleStartEdit = useCallback(() => {
@@ -181,7 +190,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
         handleCancelEdit();
       }
     },
-    [handleSaveTitle, handleCancelEdit]
+    [handleSaveTitle, handleCancelEdit],
   );
 
   const handleDeleteColumn = useCallback(() => {
@@ -193,7 +202,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
     (data: NewCardData) => {
       onAddCard?.(column.id, data);
     },
-    [column.id, onAddCard]
+    [column.id, onAddCard],
   );
 
   // -------------------------------------------------------------------------
@@ -227,13 +236,9 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
     ? "bg-gray-100 text-gray-500"
     : "bg-gray-700/50 text-gray-400";
 
-  const titleClass = isLight
-    ? "text-gray-700"
-    : "text-gray-200";
+  const titleClass = isLight ? "text-gray-700" : "text-gray-200";
 
-  const emptyStateClass = isLight
-    ? "text-gray-400"
-    : "text-gray-600";
+  const emptyStateClass = isLight ? "text-gray-400" : "text-gray-600";
 
   const inputClass = isLight
     ? "bg-gray-100 text-gray-900"
@@ -309,7 +314,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 <div
                   className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{
-                    backgroundColor: column.color || (isLight ? "#6B7280" : "#9CA3AF"),
+                    backgroundColor:
+                      column.color || (isLight ? "#6B7280" : "#9CA3AF"),
                   }}
                 />
                 {/* Vertical Title */}
@@ -367,7 +373,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
                     <div
                       className="w-2 h-2 rounded-full flex-shrink-0"
                       style={{
-                        backgroundColor: column.color || (isLight ? "#6B7280" : "#9CA3AF"),
+                        backgroundColor:
+                          column.color || (isLight ? "#6B7280" : "#9CA3AF"),
                       }}
                     />
                     {/* Title Text */}
@@ -525,9 +532,13 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
               className={`${footerBorderClass} ${compactMode ? "p-1.5" : "p-2"}`}
             >
               {renderAddCardForm ? (
-                renderAddCardForm(column.id, (colId: string, data: any) => {
-                  onAddCard?.(colId, data);
-                }, theme)
+                renderAddCardForm(
+                  column.id,
+                  (colId: string, data: any) => {
+                    onAddCard?.(colId, data);
+                  },
+                  theme,
+                )
               ) : (
                 <AddCardFormWithButton
                   onSubmit={handleAddCard}

@@ -12,17 +12,9 @@ export type {
   SelectConfig,
   KanbanBoardProps,
 } from "./KanbanBoard";
-export type {
-  KanbanColumnData,
-  KanbanColumnProps,
-} from "./KanbanColumn";
-export type {
-  KanbanCardTask,
-  KanbanCardProps,
-} from "./KanbanCard";
-export type {
-  KanbanToolbarProps,
-} from "./KanbanToolbar";
+export type { KanbanColumnData, KanbanColumnProps } from "./KanbanColumn";
+export type { KanbanCardTask, KanbanCardProps } from "./KanbanCard";
+export type { KanbanToolbarProps } from "./KanbanToolbar";
 export type {
   AddCardFormProps,
   AddCardFormSelectConfig,
