@@ -1,6 +1,7 @@
 export { DashboardLayout } from "./DashboardLayout";
 export { DashboardOverview } from "./Overview";
 export { MeetingsPage } from "./Meetings";
+export { MeetingDetailsPage } from "./MeetingDetails";
 export { ProjectsPage } from "./Projects";
 export { ProjectDetails } from "./ProjectDetails";
 export { LeadsPage } from "./LeadsNew";
@@ -10,8 +11,6 @@ export { EngineersPage } from "./Engineers";
 export { SettingsPage } from "./Settings";
 export { Customers } from "./Customers";
 export { CustomerDetails } from "./CustomerDetails";
-export { AccountsPage } from "./Accounts";
-export { default as AccountDetails } from "./AccountDetails";
 export { Marketing } from "./Marketing";
 export { Analytics } from "./Analytics";
 export { UserManagement } from "./UserManagement";

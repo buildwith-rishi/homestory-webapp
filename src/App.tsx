@@ -10,6 +10,7 @@ import {
   DashboardLayout,
   DashboardOverview,
   MeetingsPage,
+  MeetingDetailsPage,
   ProjectsPage,
   ProjectDetails,
   LeadsPage,
@@ -19,8 +20,6 @@ import {
   SettingsPage,
   Customers,
   CustomerDetails,
-  AccountsPage,
-  AccountDetails,
   Marketing,
   Analytics,
   UserManagement,
@@ -76,6 +75,7 @@ function App() {
           >
             <Route index element={<DashboardOverview />} />
             <Route path="meetings" element={<MeetingsPage />} />
+            <Route path="meetings/:meetingId" element={<MeetingDetailsPage />} />
             <Route
               path="meetings/calendar"
               element={<MeetingsCalendarPage />}
@@ -87,8 +87,6 @@ function App() {
             <Route path="leads" element={<LeadsPage />} />
             <Route path="leads/:id" element={<LeadDetails />} />
             <Route path="kanban" element={<KanbanView />} />
-            <Route path="accounts" element={<AccountsPage />} />
-            <Route path="accounts/:id" element={<AccountDetails />} />
             <Route path="voice-agent" element={<VoiceAgentPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="customers" element={<Customers />} />

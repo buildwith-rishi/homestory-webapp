@@ -1,4 +1,12 @@
 import { create } from "zustand";
+import * as meetingAPI from "../services/meetingApi";
+import type { Meeting, DiscussionPoint } from "../types";
+
+/**
+ * =============================================================================
+ * MEETING ROOM STORE — Zustand (fully API-driven, no mock data)
+ * =============================================================================
+ */
 
 export interface TranscriptEntry {
   id: string;
@@ -6,6 +14,7 @@ export interface TranscriptEntry {
   speakerId: number;
   text: string;
   timestamp: Date;
+  isFinal?: boolean;
 }
 
 export interface MeetingNote {
@@ -22,130 +31,165 @@ export interface CompletedMeeting {
   participants: string[];
   notes: MeetingNote[];
   transcript: TranscriptEntry[];
+  meetingId?: string;
 }
 
 interface MeetingRoomState {
-  // Meeting status
   isInMeeting: boolean;
   meetingStartTime: Date | null;
   meetingTitle: string;
+  currentMeetingId: string | null;
+  currentMeeting: Meeting | null;
 
-  // Controls
   isMuted: boolean;
-  isVideoOn: boolean;
-  isScreenSharing: boolean;
   isRecording: boolean;
+  isTranscribing: boolean;
 
-  // Participants
-  participants: {
+  participants: Array<{
     id: string;
     name: string;
+    role?: string;
     isMuted: boolean;
-    isVideoOn: boolean;
-  }[];
+  }>;
 
-  // Transcription
-  isTranscribing: boolean;
   transcripts: TranscriptEntry[];
-
-  // Notes
   notes: MeetingNote[];
-
-  // Completed meetings history
+  discussionPoints: DiscussionPoint[];
   completedMeetings: CompletedMeeting[];
 
-  // Actions
-  startMeeting: (title: string) => void;
-  endMeeting: () => void;
+  isLoading: boolean;
+  error: string | null;
+
+  startMeeting: (title: string, meetingId?: string) => void;
+  loadMeetingData: (meetingId: string) => Promise<void>;
+  endMeeting: () => Promise<void>;
+
   toggleMute: () => void;
-  toggleVideo: () => void;
-  toggleScreenShare: () => void;
-  toggleRecording: () => void;
+  toggleRecording: () => Promise<void>;
   toggleTranscription: () => void;
-  addTranscript: (speaker: string, speakerId: number, text: string) => void;
-  addNote: (content: string) => void;
-  deleteNote: (id: string) => void;
-  updateNote: (id: string, content: string) => void;
+
+  addTranscript: (
+    speaker: string,
+    speakerId: number,
+    text: string,
+    isFinal?: boolean,
+  ) => void;
+  setTranscripts: (transcripts: TranscriptEntry[]) => void;
+  clearTranscripts: () => void;
+
+  addNote: (content: string) => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
+  updateNote: (id: string, content: string) => Promise<void>;
+
+  setDiscussionPoints: (points: DiscussionPoint[]) => void;
+  toggleDiscussionPoint: (key: string, notes?: string) => Promise<void>;
+  addDiscussionPoint: (label: string) => void;
+  removeDiscussionPoint: (key: string) => void;
+
+  setCurrentMeeting: (meeting: Meeting | null) => void;
+  clearError: () => void;
 }
 
 export const useMeetingRoomStore = create<MeetingRoomState>((set, get) => ({
-  // Initial state
   isInMeeting: false,
   meetingStartTime: null,
   meetingTitle: "",
+  currentMeetingId: null,
+  currentMeeting: null,
 
   isMuted: false,
-  isVideoOn: true,
-  isScreenSharing: false,
   isRecording: false,
-
-  participants: [{ id: "1", name: "You", isMuted: false, isVideoOn: true }],
-
   isTranscribing: true,
+
+  participants: [{ id: "host", name: "You", role: "HOST", isMuted: false }],
+
   transcripts: [],
-
   notes: [],
+  discussionPoints: [],
+  completedMeetings: [],
 
-  completedMeetings: [
-    {
-      id: "completed-1",
-      title: "Design Review - Kumar Residence",
-      date: new Date("2026-01-18T14:30:00"),
-      duration: "1 hr 15 mins",
-      participants: ["Priya Kumar", "Design Team"],
-      notes: [
-        {
-          id: "n1",
-          content: "Client wants more natural lighting in living room",
-          timestamp: new Date("2026-01-18T14:45:00"),
-        },
-        {
-          id: "n2",
-          content: "Budget increase approved for premium flooring",
-          timestamp: new Date("2026-01-18T15:00:00"),
-        },
-        {
-          id: "n3",
-          content: "Follow up on kitchen cabinet samples by Jan 25",
-          timestamp: new Date("2026-01-18T15:30:00"),
-        },
-      ],
-      transcript: [
-        {
-          id: "t1",
-          speaker: "Priya Kumar",
-          speakerId: 1,
-          text: "I really like the open floor plan concept",
-          timestamp: new Date("2026-01-18T14:35:00"),
-        },
-        {
-          id: "t2",
-          speaker: "You",
-          speakerId: 0,
-          text: "We can definitely incorporate that with the structural changes",
-          timestamp: new Date("2026-01-18T14:35:30"),
-        },
-      ],
-    },
-  ],
+  isLoading: false,
+  error: null,
 
-  // Actions
-  startMeeting: (title: string) =>
+  startMeeting: (title: string, meetingId?: string) =>
     set({
       isInMeeting: true,
       meetingStartTime: new Date(),
       meetingTitle: title || "New Meeting",
+      currentMeetingId: meetingId || null,
       transcripts: [],
       notes: [],
       isMuted: false,
-      isVideoOn: true,
-      isScreenSharing: false,
       isRecording: false,
       isTranscribing: true,
+      error: null,
     }),
 
-  endMeeting: () => {
+  loadMeetingData: async (meetingId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const meeting = await meetingAPI.getMeetingById(meetingId);
+
+      const participants = meeting.participants
+        ? meeting.participants.map((p) => ({
+            id: p.id,
+            name: p.name,
+            role: undefined,
+            isMuted: false,
+          }))
+        : [];
+
+      if (!participants.some((p) => p.name === "You")) {
+        participants.unshift({
+          id: "host",
+          name: "You",
+          role: "HOST",
+          isMuted: false,
+        });
+      }
+
+      set({
+        currentMeeting: meeting,
+        currentMeetingId: meetingId,
+        meetingTitle: meeting.title,
+        participants,
+        discussionPoints: meeting.discussionPoints || [],
+        isLoading: false,
+      });
+
+      try {
+        const notesData = await meetingAPI.getNotes(meetingId);
+        set({
+          notes: notesData.map((n) => ({
+            id: n.id,
+            content: n.content,
+            timestamp: new Date(n.createdAt),
+          })),
+        });
+      } catch {
+        console.warn("Could not load meeting notes");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load meeting";
+      set({ isLoading: false, error: message });
+    }
+  },
+
+  endMeeting: async () => {
     const state = get();
+    const meetingId = state.currentMeetingId;
+
+    if (meetingId) {
+      try {
+        // Just update the meeting status to completed.
+        // Audio upload is handled separately by useMeetingRecording hook.
+        await meetingAPI.updateMeeting(meetingId, { status: "completed" });
+      } catch (error) {
+        console.error("Error ending meeting via API:", error);
+      }
+    }
+
     const completedMeeting: CompletedMeeting = {
       id: `completed-${Date.now()}`,
       title: state.meetingTitle,
@@ -154,61 +198,160 @@ export const useMeetingRoomStore = create<MeetingRoomState>((set, get) => ({
       participants: state.participants.map((p) => p.name),
       notes: [...state.notes],
       transcript: [...state.transcripts],
+      meetingId: meetingId || undefined,
     };
 
-    set((state) => ({
+    set((s) => ({
       isInMeeting: false,
       meetingStartTime: null,
       meetingTitle: "",
-      completedMeetings: [completedMeeting, ...state.completedMeetings],
+      currentMeetingId: null,
+      currentMeeting: null,
+      isRecording: false,
+      isTranscribing: false,
+      completedMeetings: [completedMeeting, ...s.completedMeetings],
     }));
   },
 
-  toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
-  toggleVideo: () => set((state) => ({ isVideoOn: !state.isVideoOn })),
-  toggleScreenShare: () =>
-    set((state) => ({ isScreenSharing: !state.isScreenSharing })),
-  toggleRecording: () => set((state) => ({ isRecording: !state.isRecording })),
-  toggleTranscription: () =>
-    set((state) => ({ isTranscribing: !state.isTranscribing })),
+  toggleMute: () => set((s) => ({ isMuted: !s.isMuted })),
 
-  addTranscript: (speaker: string, speakerId: number, text: string) =>
-    set((state) => ({
+  toggleRecording: async () => {
+    const state = get();
+    const newRecording = !state.isRecording;
+    set({ isRecording: newRecording });
+
+    if (state.currentMeetingId) {
+      try {
+        if (newRecording) {
+          await meetingAPI.startRecording(state.currentMeetingId);
+        } else {
+          await meetingAPI.endRecording(state.currentMeetingId, {
+            audioBase64: "",
+            contentType: "audio/webm",
+          });
+        }
+      } catch (error) {
+        console.error("Error toggling recording via API:", error);
+        set({ isRecording: !newRecording });
+      }
+    }
+  },
+
+  toggleTranscription: () =>
+    set((s) => ({ isTranscribing: !s.isTranscribing })),
+
+  addTranscript: (speaker, speakerId, text, isFinal = true) =>
+    set((s) => ({
       transcripts: [
-        ...state.transcripts,
+        ...s.transcripts,
         {
-          id: `transcript-${Date.now()}`,
+          id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           speaker,
           speakerId,
           text,
           timestamp: new Date(),
+          isFinal,
         },
       ],
     })),
 
-  addNote: (content: string) =>
-    set((state) => ({
-      notes: [
-        ...state.notes,
-        {
-          id: `note-${Date.now()}`,
+  setTranscripts: (transcripts) => set({ transcripts }),
+  clearTranscripts: () => set({ transcripts: [] }),
+
+  addNote: async (content: string) => {
+    const state = get();
+    const newNote: MeetingNote = {
+      id: `note-${Date.now()}`,
+      content,
+      timestamp: new Date(),
+    };
+    set((s) => ({ notes: [...s.notes, newNote] }));
+
+    if (state.currentMeetingId) {
+      try {
+        await meetingAPI.addNote(state.currentMeetingId, {
           content,
-          timestamp: new Date(),
-        },
+          timestamp: Math.floor(newNote.timestamp.getTime() / 1000),
+        });
+      } catch (error) {
+        console.error("Error persisting note:", error);
+      }
+    }
+  },
+
+  deleteNote: async (id: string) => {
+    const state = get();
+    set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }));
+    if (state.currentMeetingId) {
+      try {
+        await meetingAPI.deleteNote(state.currentMeetingId, id);
+      } catch (error) {
+        console.error("Error deleting note:", error);
+      }
+    }
+  },
+
+  updateNote: async (id: string, content: string) => {
+    const state = get();
+    set((s) => ({
+      notes: s.notes.map((n) => (n.id === id ? { ...n, content } : n)),
+    }));
+    if (state.currentMeetingId) {
+      try {
+        await meetingAPI.updateNote(state.currentMeetingId, id, content);
+      } catch (error) {
+        console.error("Error updating note:", error);
+      }
+    }
+  },
+
+  setDiscussionPoints: (points) => set({ discussionPoints: points }),
+
+  toggleDiscussionPoint: async (key: string, notes?: string) => {
+    const state = get();
+    set((s) => ({
+      discussionPoints: s.discussionPoints.map((dp) =>
+        dp.key === key
+          ? { ...dp, checked: !dp.checked, notes: notes || dp.notes }
+          : dp,
+      ),
+    }));
+
+    if (state.currentMeetingId) {
+      const point = state.discussionPoints.find((dp) => dp.key === key);
+      if (point) {
+        try {
+          await meetingAPI.updateDiscussionPoint(state.currentMeetingId, key, {
+            checked: !point.checked,
+            notes,
+          });
+        } catch (error) {
+          console.error("Error updating discussion point:", error);
+          set((s) => ({
+            discussionPoints: s.discussionPoints.map((dp) =>
+              dp.key === key ? { ...dp, checked: point.checked } : dp,
+            ),
+          }));
+        }
+      }
+    }
+  },
+
+  addDiscussionPoint: (label: string) =>
+    set((s) => ({
+      discussionPoints: [
+        ...s.discussionPoints,
+        { key: `dp-${Date.now()}`, label, checked: false },
       ],
     })),
 
-  deleteNote: (id: string) =>
-    set((state) => ({
-      notes: state.notes.filter((note) => note.id !== id),
+  removeDiscussionPoint: (key: string) =>
+    set((s) => ({
+      discussionPoints: s.discussionPoints.filter((dp) => dp.key !== key),
     })),
 
-  updateNote: (id: string, content: string) =>
-    set((state) => ({
-      notes: state.notes.map((note) =>
-        note.id === id ? { ...note, content } : note,
-      ),
-    })),
+  setCurrentMeeting: (meeting) => set({ currentMeeting: meeting }),
+  clearError: () => set({ error: null }),
 }));
 
 function calculateDuration(startTime: Date | null): string {
@@ -217,7 +360,6 @@ function calculateDuration(startTime: Date | null): string {
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(minutes / 60);
   const remainingMins = minutes % 60;
-
   if (hours > 0) {
     return `${hours} hr${hours > 1 ? "s" : ""} ${remainingMins} min${remainingMins !== 1 ? "s" : ""}`;
   }

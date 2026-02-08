@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -10,125 +10,174 @@ import {
   Search,
   Grid3X3,
   List,
-  LayoutGrid,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  Settings2,
 } from "lucide-react";
 import { Card, Button, Badge, Progress } from "../../components/ui";
 import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
+import { StageTemplatesPanel } from "../../components/dashboard/stages/StageTemplatesPanel";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
+import { useProjectStore } from "../../stores/projectStore";
+import type { Project, CreateProjectRequest } from "../../types";
+import toast from "react-hot-toast";
 
-interface ProjectFormData {
-  name: string;
-  client: string;
-  location: string;
-  budget: string;
-  startDate: string;
-  dueDate: string;
-  stage: string;
-  description: string;
-  team: string[];
-}
+// --- Helper functions ---
 
-interface Project {
-  id: string;
-  name: string;
-  client: string;
-  stage: string;
-  status: "on_track" | "at_risk" | "delayed";
-  progress: number;
-  dueDate: string;
-  budget: string;
-  team: string[];
-  location?: string;
-  description?: string;
-}
-
-const mockProjects: Project[] = [
-  {
-    id: "1",
-    name: "Modern 3BHK",
-    client: "Sharma Family",
-    stage: "Design",
-    status: "on_track",
-    progress: 65,
-    dueDate: "Feb 15, 2026",
-    budget: "₹28L",
-    team: ["AR", "PK"],
-  },
-  {
-    id: "2",
-    name: "Luxury Villa",
-    client: "Kumar Residence",
-    stage: "Execution",
-    status: "at_risk",
-    progress: 40,
-    dueDate: "Mar 1, 2026",
-    budget: "₹55L",
-    team: ["RS", "MG"],
-  },
-  {
-    id: "3",
-    name: "Contemporary 2BHK",
-    client: "Patel Home",
-    stage: "Material",
-    status: "on_track",
-    progress: 75,
-    dueDate: "Jan 30, 2026",
-    budget: "₹18L",
-    team: ["AR"],
-  },
-  {
-    id: "4",
-    name: "Office Interior",
-    client: "TechStart Inc",
-    stage: "Requirements",
-    status: "on_track",
-    progress: 25,
-    dueDate: "Feb 5, 2026",
-    budget: "₹45L",
-    team: ["PK", "MG"],
-  },
-  {
-    id: "5",
-    name: "Penthouse Makeover",
-    client: "Gupta Family",
-    stage: "Handover",
-    status: "on_track",
-    progress: 92,
-    dueDate: "Jan 22, 2026",
-    budget: "₹38L",
-    team: ["AR", "RS"],
-  },
-];
+const getStageLabel = (code: string | null | undefined): string => {
+  if (!code) return "\u2014";
+  const map: Record<string, string> = {
+    ENQUIRY: "Enquiry",
+    DESIGN_SIGNUP: "Design Signup",
+    DESIGN: "Design",
+    FIRST_PRESENTATION: "First Presentation",
+    FINAL_DESIGN: "Final Design",
+    COSTING: "Costing",
+    EXECUTION: "Execution",
+    HANDOVER: "Handover",
+    TESTIMONIAL: "Testimonial",
+  };
+  return (
+    map[code] ||
+    code
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+};
 
 const stageColors: Record<string, string> = {
-  Requirements: "bg-gray-100 text-gray-700",
-  Design: "bg-blue-100 text-blue-700",
-  Material: "bg-purple-100 text-purple-700",
-  Execution: "bg-orange-100 text-orange-700",
-  Handover: "bg-emerald-100 text-emerald-700",
+  ENQUIRY: "bg-gray-100 text-gray-700",
+  DESIGN_SIGNUP: "bg-blue-100 text-blue-700",
+  DESIGN: "bg-blue-100 text-blue-700",
+  FIRST_PRESENTATION: "bg-indigo-100 text-indigo-700",
+  FINAL_DESIGN: "bg-violet-100 text-violet-700",
+  COSTING: "bg-amber-100 text-amber-700",
+  EXECUTION: "bg-orange-100 text-orange-700",
+  HANDOVER: "bg-emerald-100 text-emerald-700",
+  TESTIMONIAL: "bg-green-100 text-green-700",
 };
 
-const statusColors = {
-  on_track: {
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    dot: "bg-emerald-500",
-  },
-  at_risk: {
-    bg: "bg-yellow-50",
-    text: "text-yellow-700",
-    dot: "bg-yellow-500",
-  },
-  delayed: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
+const STAGE_ORDER = [
+  "ENQUIRY",
+  "DESIGN_SIGNUP",
+  "DESIGN",
+  "FIRST_PRESENTATION",
+  "FINAL_DESIGN",
+  "COSTING",
+  "EXECUTION",
+  "HANDOVER",
+  "TESTIMONIAL",
+];
+
+const getProgressFromStage = (code: string | null | undefined): number => {
+  if (!code) return 0;
+  const idx = STAGE_ORDER.indexOf(code);
+  if (idx === -1) return 0;
+  return Math.round(((idx + 1) / STAGE_ORDER.length) * 100);
 };
+
+const getStatusDisplay = (
+  status: string,
+): { key: "on_track" | "at_risk" | "delayed" | "completed"; label: string } => {
+  switch (status) {
+    case "ACTIVE":
+    case "active":
+      return { key: "on_track", label: "Active" };
+    case "YET_TO_START":
+      return { key: "on_track", label: "Yet to Start" };
+    case "PAUSED":
+    case "ON_HOLD":
+    case "on_hold":
+      return { key: "at_risk", label: "Paused" };
+    case "CANCELLED":
+      return { key: "delayed", label: "Cancelled" };
+    case "COMPLETED":
+    case "completed":
+      return { key: "completed", label: "Completed" };
+    default:
+      return { key: "on_track", label: status };
+  }
+};
+
+const statusColors: Record<string, { bg: string; text: string; dot: string }> =
+  {
+    on_track: {
+      bg: "bg-emerald-50",
+      text: "text-emerald-700",
+      dot: "bg-emerald-500",
+    },
+    at_risk: {
+      bg: "bg-yellow-50",
+      text: "text-yellow-700",
+      dot: "bg-yellow-500",
+    },
+    delayed: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
+    completed: {
+      bg: "bg-green-50",
+      text: "text-green-700",
+      dot: "bg-green-500",
+    },
+  };
+
+const formatCurrency = (value: number | string | undefined | null): string => {
+  if (value === undefined || value === null) return "\u20B90";
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (isNaN(num)) return "\u20B90";
+  if (num >= 10000000) return `\u20B9${(num / 10000000).toFixed(2)}Cr`;
+  if (num >= 100000) return `\u20B9${(num / 100000).toFixed(0)}L`;
+  if (num >= 1000) return `\u20B9${(num / 1000).toFixed(0)}K`;
+  return `\u20B9${num}`;
+};
+
+const getInitials = (name: string | undefined | null): string => {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase();
+};
+
+const getTeamMembers = (
+  project: Project,
+): { initials: string; name: string }[] => {
+  const members: { initials: string; name: string }[] = [];
+  if (project.assignedDesigner?.name) {
+    members.push({
+      initials: getInitials(project.assignedDesigner.name),
+      name: project.assignedDesigner.name,
+    });
+  }
+  if (project.assignedPM?.name) {
+    members.push({
+      initials: getInitials(project.assignedPM.name),
+      name: project.assignedPM.name,
+    });
+  }
+  return members;
+};
+
+// --- Component ---
 
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
   const [view, setView] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [showTemplatesPanel, setShowTemplatesPanel] = useState(false);
+
+  const { projects, isLoading, error, fetchProjects, addProject, clearError } =
+    useProjectStore();
+
   const { selectedProject } = useProjectFilter();
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
   // Apply both project filter and search filter
   const filteredProjects = useMemo(() => {
@@ -141,42 +190,99 @@ export const ProjectsPage: React.FC = () => {
 
     // Filter by search query
     if (searchQuery) {
+      const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (p) =>
-          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.client.toLowerCase().includes(searchQuery.toLowerCase()),
+          (p.projectName || p.name || "").toLowerCase().includes(q) ||
+          (p.lead?.name || "").toLowerCase().includes(q) ||
+          (p.propertyCity || "").toLowerCase().includes(q),
       );
     }
 
     return filtered;
   }, [projects, selectedProject, searchQuery]);
 
-  const handleCreateProject = (formData: ProjectFormData) => {
-    const newProject: Project = {
-      id: String(projects.length + 1),
-      name: formData.name,
-      client: formData.client,
-      stage: formData.stage,
-      status: "on_track",
-      progress: 0,
-      dueDate: new Date(formData.dueDate).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      }),
-      budget: formData.budget,
-      team: formData.team,
-      location: formData.location,
-      description: formData.description,
-    };
+  // Compute stats from real data
+  const stats = useMemo(() => {
+    const totalProjects = projects.length;
 
-    setProjects((prev) => [...prev, newProject]);
-    setIsModalOpen(false);
+    const inProgress = projects.filter(
+      (p) =>
+        p.status === "ACTIVE" ||
+        p.status === "active" ||
+        p.status === "YET_TO_START",
+    ).length;
+
+    const totalValue = projects.reduce((sum, p) => {
+      const v =
+        typeof p.totalValue === "string"
+          ? parseFloat(p.totalValue)
+          : p.totalValue || 0;
+      return sum + (isNaN(v) ? 0 : v);
+    }, 0);
+
+    const uniqueMembers = new Set<string>();
+    projects.forEach((p) => {
+      if (p.assignedDesigner?.id) uniqueMembers.add(p.assignedDesigner.id);
+      if (p.assignedPM?.id) uniqueMembers.add(p.assignedPM.id);
+    });
+
+    return {
+      totalProjects,
+      inProgress,
+      totalValue: formatCurrency(totalValue),
+      teamMembers: uniqueMembers.size,
+    };
+  }, [projects]);
+
+  const handleCreateProject = async (request: CreateProjectRequest) => {
+    try {
+      await addProject(request);
+      toast.success("Project created successfully!");
+      setIsModalOpen(false);
+    } catch {
+      toast.error("Failed to create project");
+    }
   };
 
   const handleViewDetails = (project: Project) => {
     navigate(`/dashboard/projects/${project.id}`);
   };
+
+  // --- Loading State ---
+  if (isLoading && projects.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 animate-fade-in">
+        <Loader2 className="w-10 h-10 text-orange-500 animate-spin mb-4" />
+        <p className="text-gray-600 font-medium">Loading projects...</p>
+      </div>
+    );
+  }
+
+  // --- Error State ---
+  if (error && projects.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 animate-fade-in">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+          <AlertCircle className="w-8 h-8 text-red-500" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          Failed to load projects
+        </h3>
+        <p className="text-gray-600 mb-4 text-center max-w-md">{error}</p>
+        <Button
+          className="rounded-xl"
+          onClick={() => {
+            clearError();
+            fetchProjects();
+          }}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -185,7 +291,7 @@ export const ProjectsPage: React.FC = () => {
         <div className="bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
-              {selectedProject.name
+              {(selectedProject.name || "")
                 .split(" ")
                 .map((n: string) => n[0])
                 .join("")
@@ -234,6 +340,14 @@ export const ProjectsPage: React.FC = () => {
               <List className="w-4 h-4" />
             </button>
           </div>
+          <Button
+            variant="outline"
+            className="rounded-xl text-gray-600 border-gray-300 hover:bg-gray-50"
+            onClick={() => setShowTemplatesPanel(true)}
+          >
+            <Settings2 className="w-4 h-4 mr-1" />
+            Templates
+          </Button>
           <Button className="rounded-xl" onClick={() => setIsModalOpen(true)}>
             <Plus className="w-4 h-4" />
             New Project
@@ -248,7 +362,7 @@ export const ProjectsPage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Total Projects</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {projects.length}
+                {stats.totalProjects}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
@@ -261,7 +375,7 @@ export const ProjectsPage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">In Progress</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {projects.filter((p) => p.stage !== "Handover").length}
+                {stats.inProgress}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
@@ -273,7 +387,9 @@ export const ProjectsPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total Value</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">₹1.01Cr</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {stats.totalValue}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
               <DollarSign className="w-5 h-5 text-emerald-600" />
@@ -285,7 +401,7 @@ export const ProjectsPage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Team Members</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {Array.from(new Set(projects.flatMap((p) => p.team))).length}
+                {stats.teamMembers}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
@@ -307,11 +423,27 @@ export const ProjectsPage: React.FC = () => {
         />
       </div>
 
+      {/* Inline loading indicator for refetches */}
+      {isLoading && projects.length > 0 && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Refreshing...
+        </div>
+      )}
+
       {/* Projects Grid */}
       {view === "grid" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredProjects.map((project) => {
-            const statusColor = statusColors[project.status];
+            const statusInfo = getStatusDisplay(project.status);
+            const statusColor = statusColors[statusInfo.key];
+            const stageCode = project.currentStageCode || "";
+            const progress = getProgressFromStage(stageCode);
+            const team = getTeamMembers(project);
+            const displayName =
+              project.projectName || project.name || "Untitled";
+            const clientName = project.lead?.name || "\u2014";
+
             return (
               <Card
                 key={project.id}
@@ -320,11 +452,9 @@ export const ProjectsPage: React.FC = () => {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
-                      {project.name}
+                      {displayName}
                     </h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {project.client}
-                    </p>
+                    <p className="text-sm text-gray-600 mt-1">{clientName}</p>
                   </div>
                   <button className="p-1.5 hover:bg-gray-100 rounded-lg">
                     <MoreVertical className="w-4 h-4 text-gray-400" />
@@ -333,9 +463,9 @@ export const ProjectsPage: React.FC = () => {
 
                 <div className="flex items-center gap-2 mb-4">
                   <Badge
-                    className={`text-xs rounded-lg ${stageColors[project.stage]}`}
+                    className={`text-xs rounded-lg ${stageColors[stageCode] || "bg-gray-100 text-gray-700"}`}
                   >
-                    {project.stage}
+                    {getStageLabel(stageCode)}
                   </Badge>
                   <div
                     className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs ${statusColor.bg} ${statusColor.text}`}
@@ -343,25 +473,36 @@ export const ProjectsPage: React.FC = () => {
                     <div
                       className={`w-1.5 h-1.5 rounded-full ${statusColor.dot}`}
                     />
-                    {project.status.replace("_", " ")}
+                    {statusInfo.label}
                   </div>
                 </div>
 
                 <div className="mb-4">
                   <div className="flex items-center justify-between text-xs mb-1.5">
                     <span className="text-gray-600">Progress</span>
-                    <span className="font-semibold">{project.progress}%</span>
+                    <span className="font-semibold">{progress}%</span>
                   </div>
-                  <Progress value={project.progress} />
+                  <Progress value={progress} />
                 </div>
 
                 <div className="space-y-2 mb-4 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      Due Date
+                      Created
                     </span>
-                    <span className="font-medium">{project.dueDate}</span>
+                    <span className="font-medium">
+                      {project.createdAt
+                        ? new Date(project.createdAt).toLocaleDateString(
+                            "en-IN",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )
+                        : "\u2014"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 flex items-center gap-2">
@@ -369,21 +510,28 @@ export const ProjectsPage: React.FC = () => {
                       Budget
                     </span>
                     <span className="font-medium text-emerald-600">
-                      {project.budget}
+                      {formatCurrency(project.totalValue)}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t">
                   <div className="flex -space-x-2">
-                    {project.team.map((member, idx) => (
-                      <div
-                        key={idx}
-                        className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-semibold border-2 border-white"
-                      >
-                        {member}
-                      </div>
-                    ))}
+                    {team.length > 0 ? (
+                      team.map((member, idx) => (
+                        <div
+                          key={idx}
+                          className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-semibold border-2 border-white"
+                          title={member.name}
+                        >
+                          {member.initials}
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">
+                        Unassigned
+                      </span>
+                    )}
                   </div>
                   <Button
                     variant="ghost"
@@ -423,7 +571,7 @@ export const ProjectsPage: React.FC = () => {
                     Status
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Due Date
+                    Created
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Budget
@@ -438,7 +586,15 @@ export const ProjectsPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredProjects.map((project, index) => {
-                  const statusColor = statusColors[project.status];
+                  const statusInfo = getStatusDisplay(project.status);
+                  const statusColor = statusColors[statusInfo.key];
+                  const stageCode = project.currentStageCode || "";
+                  const progress = getProgressFromStage(stageCode);
+                  const team = getTeamMembers(project);
+                  const displayName =
+                    project.projectName || project.name || "Untitled";
+                  const clientName = project.lead?.name || "\u2014";
+
                   return (
                     <tr
                       key={project.id}
@@ -451,14 +607,10 @@ export const ProjectsPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0">
-                            {project.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .substring(0, 2)}
+                            {getInitials(displayName)}
                           </div>
                           <p className="font-semibold text-sm text-gray-900 group-hover:text-orange-600 transition-colors">
-                            {project.name}
+                            {displayName}
                           </p>
                         </div>
                       </td>
@@ -466,7 +618,7 @@ export const ProjectsPage: React.FC = () => {
                       {/* Client */}
                       <td className="px-4 py-3">
                         <p className="text-sm text-gray-700 font-medium">
-                          {project.client}
+                          {clientName}
                         </p>
                       </td>
 
@@ -474,9 +626,9 @@ export const ProjectsPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex justify-center">
                           <Badge
-                            className={`text-xs px-2.5 py-1 rounded-md font-semibold ${stageColors[project.stage]}`}
+                            className={`text-xs px-2.5 py-1 rounded-md font-semibold ${stageColors[stageCode] || "bg-gray-100 text-gray-700"}`}
                           >
-                            {project.stage}
+                            {getStageLabel(stageCode)}
                           </Badge>
                         </div>
                       </td>
@@ -485,13 +637,10 @@ export const ProjectsPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 justify-center">
                           <div className="w-20">
-                            <Progress
-                              value={project.progress}
-                              className="h-2"
-                            />
+                            <Progress value={progress} className="h-2" />
                           </div>
                           <span className="text-xs font-bold text-gray-900 min-w-[35px]">
-                            {project.progress}%
+                            {progress}%
                           </span>
                         </div>
                       </td>
@@ -505,19 +654,26 @@ export const ProjectsPage: React.FC = () => {
                             <div
                               className={`w-1.5 h-1.5 rounded-full ${statusColor.dot}`}
                             />
-                            <span className="capitalize">
-                              {project.status.replace("_", " ")}
-                            </span>
+                            <span>{statusInfo.label}</span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Due Date */}
+                      {/* Created Date */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 text-sm text-gray-700">
                           <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                           <span className="font-medium whitespace-nowrap">
-                            {project.dueDate}
+                            {project.createdAt
+                              ? new Date(project.createdAt).toLocaleDateString(
+                                  "en-IN",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  },
+                                )
+                              : "\u2014"}
                           </span>
                         </div>
                       </td>
@@ -527,7 +683,7 @@ export const ProjectsPage: React.FC = () => {
                         <div className="flex items-center gap-1.5">
                           <DollarSign className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                           <span className="text-sm font-bold text-emerald-600 whitespace-nowrap">
-                            {project.budget}
+                            {formatCurrency(project.totalValue)}
                           </span>
                         </div>
                       </td>
@@ -535,22 +691,23 @@ export const ProjectsPage: React.FC = () => {
                       {/* Team */}
                       <td className="px-4 py-3">
                         <div className="flex justify-center">
-                          <div className="flex -space-x-1.5">
-                            {project.team.slice(0, 3).map((member, idx) => (
-                              <div
-                                key={idx}
-                                className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-semibold border-2 border-white shadow-sm"
-                                title={member}
-                              >
-                                {member}
-                              </div>
-                            ))}
-                            {project.team.length > 3 && (
-                              <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 text-xs font-semibold border-2 border-white shadow-sm">
-                                +{project.team.length - 3}
-                              </div>
-                            )}
-                          </div>
+                          {team.length > 0 ? (
+                            <div className="flex -space-x-1.5">
+                              {team.map((member, idx) => (
+                                <div
+                                  key={idx}
+                                  className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-semibold border-2 border-white shadow-sm"
+                                  title={member.name}
+                                >
+                                  {member.initials}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">
+                              \u2014
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -602,12 +759,34 @@ export const ProjectsPage: React.FC = () => {
         </div>
       )}
 
+      {/* Grid Empty State */}
+      {view === "grid" && filteredProjects.length === 0 && (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Search className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            No projects found
+          </h3>
+          <p className="text-gray-600">Try adjusting your search or filters</p>
+        </div>
+      )}
+
       {/* New Project Modal */}
       <NewProjectModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateProject}
       />
+
+      {/* Stage Templates Panel (Full-screen overlay) */}
+      {showTemplatesPanel && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-y-auto">
+            <StageTemplatesPanel onBack={() => setShowTemplatesPanel(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

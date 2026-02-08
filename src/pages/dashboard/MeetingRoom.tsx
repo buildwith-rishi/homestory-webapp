@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Mic,
   MicOff,
@@ -20,17 +20,13 @@ import {
   CheckSquare,
   Plus,
   GripVertical,
+  WifiOff,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { useMeetingRoomStore } from "../../stores/meetingRoomStore";
+import { useMeetingRecording } from "../../hooks/useMeetingRecording";
 import Logo from "../../components/shared/Logo";
-
-// Checkpoint interface
-interface Checkpoint {
-  id: string;
-  text: string;
-  completed: boolean;
-  timestamp: Date;
-}
 
 // Speaker colors matching the website theme
 const speakerColors = [
@@ -78,196 +74,91 @@ const speakerColors = [
   },
 ];
 
-// Mock participants for voice call
-const voiceParticipants = [
-  {
-    id: "1",
-    name: "You",
-    initials: "Y",
-    isMuted: false,
-    isSpeaking: false,
-    isHost: true,
-  },
-  {
-    id: "2",
-    name: "Rajesh Sharma",
-    initials: "RS",
-    isMuted: false,
-    isSpeaking: true,
-    isHost: false,
-  },
-  {
-    id: "3",
-    name: "Priya Kumar",
-    initials: "PK",
-    isMuted: true,
-    isSpeaking: false,
-    isHost: false,
-  },
-  {
-    id: "4",
-    name: "Amit Patel",
-    initials: "AP",
-    isMuted: false,
-    isSpeaking: false,
-    isHost: false,
-  },
-];
-
-// Mock transcript simulation
-const mockTranscripts = [
-  {
-    speaker: "You",
-    speakerId: 0,
-    text: "Good morning everyone. Thank you for joining this project discussion meeting.",
-  },
-  {
-    speaker: "Rajesh Sharma",
-    speakerId: 1,
-    text: "Good morning! I have reviewed the floor plans and have some feedback on the kitchen layout.",
-  },
-  {
-    speaker: "Priya Kumar",
-    speakerId: 2,
-    text: "That sounds great. I was also thinking we should discuss the lighting fixtures for the living area.",
-  },
-  {
-    speaker: "You",
-    speakerId: 0,
-    text: "Perfect. Let's start with Rajesh's feedback on the kitchen. Please go ahead.",
-  },
-  {
-    speaker: "Rajesh Sharma",
-    speakerId: 1,
-    text: "The current layout has the sink facing away from the window. I think we should consider repositioning it for natural light.",
-  },
-  {
-    speaker: "Amit Patel",
-    speakerId: 3,
-    text: "I agree with that. From an engineering perspective, the plumbing can be adjusted without major issues.",
-  },
-  {
-    speaker: "Priya Kumar",
-    speakerId: 2,
-    text: "That would also improve the overall aesthetics. Can we also add a small breakfast counter?",
-  },
-  {
-    speaker: "You",
-    speakerId: 0,
-    text: "Absolutely. I'll update the designs to include both changes. Let me note that down.",
-  },
-];
-
 export const MeetingRoom: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const meetingIdFromState = (location.state as { meetingId?: string })
+    ?.meetingId;
+
   const [activeTab, setActiveTab] = useState<"transcript" | "notes">(
     "transcript",
   );
   const [newNote, setNewNote] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState("");
-  const [elapsedTime, setElapsedTime] = useState("00:00");
-  const [transcriptIndex, setTranscriptIndex] = useState(0);
-  const [activeSpeaker, setActiveSpeaker] = useState(1);
+  const [newCheckpoint, setNewCheckpoint] = useState("");
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
-  // Checkpoints state
-  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([
-    {
-      id: "1",
-      text: "Review kitchen layout and design",
-      completed: false,
-      timestamp: new Date(),
-    },
-    {
-      id: "2",
-      text: "Discuss living room lighting fixtures",
-      completed: false,
-      timestamp: new Date(),
-    },
-    {
-      id: "3",
-      text: "Finalize bathroom tile selection",
-      completed: false,
-      timestamp: new Date(),
-    },
-    {
-      id: "4",
-      text: "Confirm bedroom wardrobe dimensions",
-      completed: false,
-      timestamp: new Date(),
-    },
-    {
-      id: "5",
-      text: "Review project timeline and milestones",
-      completed: false,
-      timestamp: new Date(),
-    },
-  ]);
-  const [newCheckpoint, setNewCheckpoint] = useState("");
-
+  // ─── Store (API-driven state) ────────────────────────────────────────
   const {
     isInMeeting,
     meetingTitle,
     meetingStartTime,
-    isMuted,
-    isRecording,
     isTranscribing,
-    transcripts,
+    participants,
     notes,
+    discussionPoints,
+    isLoading: storeLoading,
+    error: storeError,
     startMeeting,
+    loadMeetingData,
     endMeeting,
-    toggleMute,
-    toggleRecording,
     toggleTranscription,
-    addTranscript,
     addNote,
     deleteNote,
     updateNote,
+    toggleDiscussionPoint,
+    addDiscussionPoint,
+    removeDiscussionPoint,
+    setTranscripts: setStoreTranscripts,
+    clearError,
   } = useMeetingRoomStore();
 
-  // Checkpoint handlers
-  const toggleCheckpoint = (id: string) => {
-    setCheckpoints((prev) =>
-      prev.map((cp) => (cp.id === id ? { ...cp, completed: !cp.completed } : cp))
-    );
-  };
+  // ─── Recording hook (WebSocket + microphone) ─────────────────────────
+  const {
+    isRecording,
+    connectionState,
+    transcripts: liveTranscripts,
+    summary,
+    processingStage,
+    audioLevel,
+    error: recordingError,
+    isMuted,
+    formattedDuration,
+    startRecording,
+    stopRecording,
+    toggleMute,
+  } = useMeetingRecording(meetingIdFromState || null);
 
-  const addCheckpoint = () => {
-    if (newCheckpoint.trim()) {
-      const checkpoint: Checkpoint = {
-        id: Date.now().toString(),
-        text: newCheckpoint.trim(),
-        completed: false,
-        timestamp: new Date(),
-      };
-      setCheckpoints((prev) => [...prev, checkpoint]);
-      setNewCheckpoint("");
-    }
-  };
-
-  const deleteCheckpoint = (id: string) => {
-    setCheckpoints((prev) => prev.filter((cp) => cp.id !== id));
-  };
-
-  // Start meeting on mount
+  // Sync live transcripts to the store so they persist
   useEffect(() => {
-    if (!isInMeeting) {
-      startMeeting("Project Discussion - Sharma Residence");
+    if (liveTranscripts.length > 0) {
+      setStoreTranscripts(
+        liveTranscripts.map((t) => ({
+          id: t.id,
+          speaker: t.speaker,
+          speakerId: t.speakerId,
+          text: t.text,
+          timestamp: t.timestamp,
+          isFinal: t.isFinal,
+        })),
+      );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [liveTranscripts, setStoreTranscripts]);
 
-  // Update elapsed time
+  // Use live transcripts from the recording hook (they have interim + final)
+  const transcripts = liveTranscripts;
+
+  // ─── Elapsed time (from meetingStartTime) ────────────────────────────
+  const [elapsedTime, setElapsedTime] = useState("00:00");
+
   useEffect(() => {
     if (!meetingStartTime) return;
-
     const interval = setInterval(() => {
       const diff = Date.now() - meetingStartTime.getTime();
       const hours = Math.floor(diff / 3600000);
       const minutes = Math.floor((diff % 3600000) / 60000);
       const seconds = Math.floor((diff % 60000) / 1000);
-
       if (hours > 0) {
         setElapsedTime(
           `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`,
@@ -278,52 +169,57 @@ export const MeetingRoom: React.FC = () => {
         );
       }
     }, 1000);
-
     return () => clearInterval(interval);
   }, [meetingStartTime]);
 
-  // Simulate incoming transcripts
+  // ─── Initialize meeting on mount ─────────────────────────────────────
   useEffect(() => {
-    if (!isTranscribing || transcriptIndex >= mockTranscripts.length) return;
-
-    const timeout = setTimeout(
-      () => {
-        const transcript = mockTranscripts[transcriptIndex];
-        addTranscript(
-          transcript.speaker,
-          transcript.speakerId,
-          transcript.text,
-        );
-        setActiveSpeaker(transcript.speakerId);
-        setTranscriptIndex((prev) => prev + 1);
-      },
-      4000 + Math.random() * 2000,
-    );
-
-    return () => clearTimeout(timeout);
-  }, [isTranscribing, transcriptIndex, addTranscript]);
+    const initMeeting = async () => {
+      if (!isInMeeting && meetingIdFromState) {
+        // Load real meeting data from API
+        await loadMeetingData(meetingIdFromState);
+        startMeeting("", meetingIdFromState); // Title will be set by loadMeetingData
+      } else if (!isInMeeting && !meetingIdFromState) {
+        // No meeting ID — redirect back
+        navigate("/dashboard/meetings");
+      }
+    };
+    initMeeting();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-scroll transcripts
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcripts]);
 
-  // Rotate active speaker for demo
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveSpeaker((prev) => (prev + 1) % voiceParticipants.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  // ─── Handlers ────────────────────────────────────────────────────────
 
-  const handleEndMeeting = () => {
-    endMeeting();
-    navigate("/dashboard/meetings");
+  const handleToggleRecording = async () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      await startRecording();
+    }
   };
 
-  const handleAddNote = () => {
+  const handleEndMeeting = async () => {
+    const currentId = meetingIdFromState;
+    if (isRecording) {
+      stopRecording();
+    }
+    await endMeeting();
+    // Navigate to meeting details so user can see transcript once it's ready
+    if (currentId) {
+      navigate(`/dashboard/meetings/${currentId}`);
+    } else {
+      navigate("/dashboard/meetings");
+    }
+  };
+
+  const handleAddNote = async () => {
     if (newNote.trim()) {
-      addNote(newNote.trim());
+      await addNote(newNote.trim());
       setNewNote("");
     }
   };
@@ -335,11 +231,18 @@ export const MeetingRoom: React.FC = () => {
     }
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingNoteId && editingNoteContent.trim()) {
-      updateNote(editingNoteId, editingNoteContent.trim());
+      await updateNote(editingNoteId, editingNoteContent.trim());
       setEditingNoteId(null);
       setEditingNoteContent("");
+    }
+  };
+
+  const handleAddCheckpoint = () => {
+    if (newCheckpoint.trim()) {
+      addDiscussionPoint(newCheckpoint.trim());
+      setNewCheckpoint("");
     }
   };
 
@@ -350,9 +253,69 @@ export const MeetingRoom: React.FC = () => {
     });
   };
 
+  // Determine the active speaker from the latest transcript
+  const lastTranscript = transcripts[transcripts.length - 1];
+  const activeSpeakerId = lastTranscript?.speakerId ?? 0;
+
+  // Connection status indicator
+  const connectionBadge = () => {
+    switch (connectionState) {
+      case "connected":
+        return (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-emerald-600 text-xs font-medium">Live</span>
+          </div>
+        );
+      case "connecting":
+      case "reconnecting":
+        return (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-full">
+            <Loader2 className="w-3 h-3 text-yellow-600 animate-spin" />
+            <span className="text-yellow-600 text-xs font-medium">
+              {connectionState === "connecting"
+                ? "Connecting..."
+                : "Reconnecting..."}
+            </span>
+          </div>
+        );
+      case "error":
+        return (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-full">
+            <WifiOff className="w-3 h-3 text-red-500" />
+            <span className="text-red-600 text-xs font-medium">
+              Disconnected
+            </span>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full">
+            <div className="w-2 h-2 rounded-full bg-gray-400" />
+            <span className="text-gray-500 text-xs font-medium">Idle</span>
+          </div>
+        );
+    }
+  };
+
+  // Error display
+  const activeError = recordingError || storeError;
+
+  // ─── Loading State ───────────────────────────────────────────────────
+  if (storeLoading) {
+    return (
+      <div className="fixed inset-0 bg-gray-50 flex items-center justify-center z-[60]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Loading meeting...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 bg-gray-50 flex flex-col z-50">
-      {/* Header - Matching Dashboard Style */}
+    <div className="fixed inset-0 bg-gray-50 flex flex-col z-[60]">
+      {/* Header */}
       <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm">
         <div className="flex items-center gap-4">
           <button
@@ -361,13 +324,9 @@ export const MeetingRoom: React.FC = () => {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-
           <div className="h-8 w-px bg-gray-200" />
-
           <Logo className="h-8" />
-
           <div className="h-8 w-px bg-gray-200" />
-
           <div>
             <h1 className="text-gray-900 font-semibold text-sm">
               {meetingTitle || "Voice Meeting"}
@@ -375,12 +334,13 @@ export const MeetingRoom: React.FC = () => {
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <span className="flex items-center gap-1">
                 <Users className="w-3 h-3" />
-                {voiceParticipants.length} participants
+                {participants.length} participant
+                {participants.length !== 1 ? "s" : ""}
               </span>
               <span>•</span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                {elapsedTime}
+                {isRecording ? formattedDuration : elapsedTime}
               </span>
             </div>
           </div>
@@ -395,65 +355,82 @@ export const MeetingRoom: React.FC = () => {
               </span>
             </div>
           )}
-
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-emerald-600 text-xs font-medium">Live</span>
-          </div>
+          {processingStage && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full">
+              <Loader2 className="w-3 h-3 text-blue-600 animate-spin" />
+              <span className="text-blue-600 text-xs font-medium capitalize">
+                {processingStage}...
+              </span>
+            </div>
+          )}
+          {connectionBadge()}
         </div>
       </header>
 
+      {/* Error Banner */}
+      {activeError && (
+        <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <p className="text-red-700 text-sm flex-1">{activeError}</p>
+          <button
+            onClick={() => clearError()}
+            className="text-red-500 hover:text-red-700 p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Checkpoints */}
+        {/* Left Sidebar - Discussion Points (from API) */}
         <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-          {/* Checkpoints Header */}
           <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-white">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <CheckSquare className="w-4 h-4 text-orange-600" />
-                Meeting Checkpoints
+                Discussion Points
               </h2>
               <div className="text-xs text-gray-500">
-                {checkpoints.filter((cp) => cp.completed).length}/{checkpoints.length}
+                {discussionPoints.filter((dp) => dp.checked).length}/
+                {discussionPoints.length}
               </div>
             </div>
             <p className="text-xs text-gray-600">Track discussion topics</p>
           </div>
 
-          {/* Checkpoints List */}
+          {/* Discussion Points List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {checkpoints.length === 0 ? (
+            {discussionPoints.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
                   <CheckSquare className="w-8 h-8 text-gray-400" />
                 </div>
-                <p className="text-gray-500 text-sm">No checkpoints yet</p>
+                <p className="text-gray-500 text-sm">
+                  No discussion points yet
+                </p>
                 <p className="text-gray-400 text-xs mt-1">
                   Add topics to discuss
                 </p>
               </div>
             ) : (
-              checkpoints.map((checkpoint, index) => (
+              discussionPoints.map((point, index) => (
                 <div
-                  key={checkpoint.id}
+                  key={point.key}
                   className={`group relative bg-gray-50 rounded-lg border transition-all ${
-                    checkpoint.completed
+                    point.checked
                       ? "border-emerald-200 bg-emerald-50"
                       : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
                   }`}
                 >
                   <div className="flex items-start gap-3 p-3">
-                    {/* Drag Handle */}
                     <div className="pt-1 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-move">
                       <GripVertical className="w-4 h-4" />
                     </div>
-
-                    {/* Checkbox */}
                     <button
-                      onClick={() => toggleCheckpoint(checkpoint.id)}
+                      onClick={() => toggleDiscussionPoint(point.key)}
                       className="pt-0.5 flex-shrink-0"
                     >
-                      {checkpoint.completed ? (
+                      {point.checked ? (
                         <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center">
                           <Check className="w-3.5 h-3.5 text-white" />
                         </div>
@@ -461,30 +438,29 @@ export const MeetingRoom: React.FC = () => {
                         <div className="w-5 h-5 rounded border-2 border-gray-300 hover:border-orange-500 transition-colors" />
                       )}
                     </button>
-
-                    {/* Checkpoint Text */}
                     <div className="flex-1 min-w-0">
                       <p
                         className={`text-sm leading-relaxed ${
-                          checkpoint.completed
+                          point.checked
                             ? "text-gray-500 line-through"
                             : "text-gray-700"
                         }`}
                       >
-                        {checkpoint.text}
+                        {point.label}
                       </p>
+                      {point.notes && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          {point.notes}
+                        </p>
+                      )}
                     </div>
-
-                    {/* Delete Button */}
                     <button
-                      onClick={() => deleteCheckpoint(checkpoint.id)}
+                      onClick={() => removeDiscussionPoint(point.key)}
                       className="flex-shrink-0 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-
-                  {/* Number Badge */}
                   <div className="absolute -left-2 -top-2 w-5 h-5 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center">
                     <span className="text-xs font-semibold text-gray-600">
                       {index + 1}
@@ -495,24 +471,24 @@ export const MeetingRoom: React.FC = () => {
             )}
           </div>
 
-          {/* Add Checkpoint Input */}
+          {/* Add Discussion Point */}
           <div className="p-4 border-t border-gray-200 bg-gray-50">
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newCheckpoint}
                 onChange={(e) => setNewCheckpoint(e.target.value)}
-                onKeyPress={(e) => {
+                onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    addCheckpoint();
+                    handleAddCheckpoint();
                   }
                 }}
-                placeholder="Add checkpoint..."
+                placeholder="Add discussion point..."
                 className="flex-1 bg-white text-gray-700 rounded-lg px-3 py-2 text-sm border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent placeholder-gray-400"
               />
               <button
-                onClick={addCheckpoint}
+                onClick={handleAddCheckpoint}
                 disabled={!newCheckpoint.trim()}
                 className="p-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
               >
@@ -529,11 +505,11 @@ export const MeetingRoom: React.FC = () => {
             <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
               <span>Progress</span>
               <span className="font-semibold">
-                {checkpoints.length > 0
+                {discussionPoints.length > 0
                   ? Math.round(
-                      (checkpoints.filter((cp) => cp.completed).length /
-                        checkpoints.length) *
-                        100
+                      (discussionPoints.filter((dp) => dp.checked).length /
+                        discussionPoints.length) *
+                        100,
                     )
                   : 0}
                 %
@@ -544,9 +520,9 @@ export const MeetingRoom: React.FC = () => {
                 className="h-full bg-gradient-to-r from-orange-500 to-orange-600 transition-all duration-500"
                 style={{
                   width: `${
-                    checkpoints.length > 0
-                      ? (checkpoints.filter((cp) => cp.completed).length /
-                          checkpoints.length) *
+                    discussionPoints.length > 0
+                      ? (discussionPoints.filter((dp) => dp.checked).length /
+                          discussionPoints.length) *
                         100
                       : 0
                   }%`,
@@ -557,7 +533,8 @@ export const MeetingRoom: React.FC = () => {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col">{/* Voice Participants Grid */}
+        <div className="flex-1 flex flex-col">
+          {/* Voice Participants Grid */}
           <div className="flex-1 p-6 overflow-auto">
             <div className="max-w-5xl mx-auto">
               {/* Active Speaker Card */}
@@ -567,107 +544,164 @@ export const MeetingRoom: React.FC = () => {
                     <div className="text-center">
                       <div className="relative inline-block">
                         <div
-                          className={`w-32 h-32 rounded-full bg-gradient-to-br ${speakerColors[activeSpeaker % speakerColors.length].gradient} flex items-center justify-center text-white text-4xl font-bold shadow-lg`}
+                          className={`w-32 h-32 rounded-full bg-gradient-to-br ${
+                            speakerColors[
+                              activeSpeakerId % speakerColors.length
+                            ].gradient
+                          } flex items-center justify-center text-white text-4xl font-bold shadow-lg`}
                         >
-                          {voiceParticipants[activeSpeaker]?.initials || "U"}
+                          {(
+                            lastTranscript?.speaker ||
+                            participants[0]?.name ||
+                            "U"
+                          )
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .substring(0, 2)
+                            .toUpperCase()}
                         </div>
 
-                        {/* Speaking Animation Rings */}
-                        <div className="absolute inset-0 -m-2">
-                          <div className="w-36 h-36 rounded-full border-4 border-orange-200 animate-ping opacity-20" />
-                        </div>
-                        <div className="absolute inset-0 -m-4">
-                          <div
-                            className="w-40 h-40 rounded-full border-4 border-orange-100 animate-ping opacity-10"
-                            style={{ animationDelay: "0.2s" }}
-                          />
-                        </div>
+                        {/* Audio Level Rings */}
+                        {isRecording && audioLevel > 0.05 && (
+                          <>
+                            <div
+                              className="absolute inset-0 rounded-full border-4 border-orange-200 animate-ping opacity-20"
+                              style={{
+                                margin: `-${Math.max(8, audioLevel * 40)}px`,
+                                width: `calc(100% + ${Math.max(16, audioLevel * 80)}px)`,
+                                height: `calc(100% + ${Math.max(16, audioLevel * 80)}px)`,
+                              }}
+                            />
+                            <div
+                              className="absolute inset-0 rounded-full border-4 border-orange-100 animate-ping opacity-10"
+                              style={{
+                                animationDelay: "0.2s",
+                                margin: `-${Math.max(16, audioLevel * 60)}px`,
+                                width: `calc(100% + ${Math.max(32, audioLevel * 120)}px)`,
+                                height: `calc(100% + ${Math.max(32, audioLevel * 120)}px)`,
+                              }}
+                            />
+                          </>
+                        )}
 
-                        {/* Speaking Indicator */}
-                        <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center border-4 border-white shadow">
-                          <Waves className="w-4 h-4 text-white" />
+                        {/* Status Badge */}
+                        <div
+                          className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center border-4 border-white shadow ${
+                            isRecording
+                              ? "bg-emerald-500"
+                              : isMuted
+                                ? "bg-red-500"
+                                : "bg-gray-400"
+                          }`}
+                        >
+                          {isRecording ? (
+                            <Waves className="w-4 h-4 text-white" />
+                          ) : isMuted ? (
+                            <MicOff className="w-4 h-4 text-white" />
+                          ) : (
+                            <Mic className="w-4 h-4 text-white" />
+                          )}
                         </div>
                       </div>
 
                       <h3 className="mt-6 text-xl font-semibold text-gray-900">
-                        {voiceParticipants[activeSpeaker]?.name || "Unknown"}
+                        {lastTranscript?.speaker ||
+                          participants[0]?.name ||
+                          "You"}
                       </h3>
-                      <p className="text-sm text-emerald-600 font-medium mt-1 flex items-center justify-center gap-1">
-                        <Radio className="w-3 h-3" />
-                        Currently Speaking
+                      <p
+                        className={`text-sm font-medium mt-1 flex items-center justify-center gap-1 ${
+                          isRecording ? "text-emerald-600" : "text-gray-500"
+                        }`}
+                      >
+                        {isRecording ? (
+                          <>
+                            <Radio className="w-3 h-3" />
+                            {isMuted ? "Muted" : "Currently Speaking"}
+                          </>
+                        ) : (
+                          "Ready to record"
+                        )}
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Other Participants */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {voiceParticipants.map((participant, index) => {
-                  const colorSet = speakerColors[index % speakerColors.length];
-                  const isActive = index === activeSpeaker;
+              {/* Participants Grid (from API) */}
+              {participants.length > 1 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {participants.map((participant, index) => {
+                    const colorSet =
+                      speakerColors[index % speakerColors.length];
+                    const isActive =
+                      lastTranscript?.speaker === participant.name;
 
-                  return (
-                    <div
-                      key={participant.id}
-                      className={`bg-white rounded-xl border p-4 transition-all ${
-                        isActive
-                          ? "border-orange-300 shadow-md ring-2 ring-orange-100"
-                          : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
-                      }`}
-                    >
-                      <div className="flex flex-col items-center text-center">
-                        <div className="relative">
-                          <div
-                            className={`w-16 h-16 rounded-full bg-gradient-to-br ${colorSet.gradient} flex items-center justify-center text-white text-lg font-semibold shadow`}
-                          >
-                            {participant.initials}
+                    return (
+                      <div
+                        key={participant.id}
+                        className={`bg-white rounded-xl border p-4 transition-all ${
+                          isActive
+                            ? "border-orange-300 shadow-md ring-2 ring-orange-100"
+                            : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                        }`}
+                      >
+                        <div className="flex flex-col items-center text-center">
+                          <div className="relative">
+                            <div
+                              className={`w-16 h-16 rounded-full bg-gradient-to-br ${colorSet.gradient} flex items-center justify-center text-white text-lg font-semibold shadow`}
+                            >
+                              {participant.name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .substring(0, 2)
+                                .toUpperCase()}
+                            </div>
+                            <div
+                              className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow ${
+                                participant.isMuted
+                                  ? "bg-red-500"
+                                  : isActive
+                                    ? "bg-emerald-500"
+                                    : "bg-gray-400"
+                              }`}
+                            >
+                              {participant.isMuted ? (
+                                <MicOff className="w-3 h-3 text-white" />
+                              ) : isActive ? (
+                                <Waves className="w-3 h-3 text-white" />
+                              ) : (
+                                <Mic className="w-3 h-3 text-white" />
+                              )}
+                            </div>
                           </div>
-
-                          {/* Muted/Speaking indicator */}
-                          <div
-                            className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow ${
-                              participant.isMuted
-                                ? "bg-red-500"
-                                : isActive
-                                  ? "bg-emerald-500"
-                                  : "bg-gray-400"
+                          <h4 className="mt-3 font-medium text-gray-900 text-sm truncate w-full">
+                            {participant.name}
+                          </h4>
+                          <p
+                            className={`text-xs mt-0.5 ${
+                              isActive
+                                ? "text-emerald-600"
+                                : participant.isMuted
+                                  ? "text-red-500"
+                                  : "text-gray-500"
                             }`}
                           >
-                            {participant.isMuted ? (
-                              <MicOff className="w-3 h-3 text-white" />
-                            ) : isActive ? (
-                              <Waves className="w-3 h-3 text-white" />
-                            ) : (
-                              <Mic className="w-3 h-3 text-white" />
-                            )}
-                          </div>
-                        </div>
-
-                        <h4 className="mt-3 font-medium text-gray-900 text-sm truncate w-full">
-                          {participant.name}
-                        </h4>
-                        <p
-                          className={`text-xs mt-0.5 ${
-                            isActive
-                              ? "text-emerald-600"
+                            {participant.role === "HOST" && "(Host) "}
+                            {isActive
+                              ? "Speaking"
                               : participant.isMuted
-                                ? "text-red-500"
-                                : "text-gray-500"
-                          }`}
-                        >
-                          {participant.isHost && "(Host) "}
-                          {isActive
-                            ? "Speaking"
-                            : participant.isMuted
-                              ? "Muted"
-                              : "Connected"}
-                        </p>
+                                ? "Muted"
+                                : "Connected"}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Live Transcription Preview */}
               {isTranscribing && transcripts.length > 0 && (
@@ -675,22 +709,105 @@ export const MeetingRoom: React.FC = () => {
                   <div className="bg-white rounded-xl border border-gray-200 p-4">
                     <div className="flex items-start gap-3">
                       <div
-                        className={`w-2 h-2 rounded-full mt-2 ${speakerColors[transcripts[transcripts.length - 1]?.speakerId % speakerColors.length]?.dot || "bg-orange-500"} animate-pulse`}
+                        className={`w-2 h-2 rounded-full mt-2 ${
+                          speakerColors[
+                            (lastTranscript?.speakerId ?? 0) %
+                              speakerColors.length
+                          ]?.dot || "bg-orange-500"
+                        } animate-pulse`}
                       />
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`text-sm font-medium ${speakerColors[transcripts[transcripts.length - 1]?.speakerId % speakerColors.length]?.text || "text-orange-700"}`}
+                          className={`text-sm font-medium ${
+                            speakerColors[
+                              (lastTranscript?.speakerId ?? 0) %
+                                speakerColors.length
+                            ]?.text || "text-orange-700"
+                          }`}
                         >
-                          {transcripts[transcripts.length - 1]?.speaker}
+                          {lastTranscript?.speaker}
                         </p>
-                        <p className="text-gray-700 mt-1 text-sm leading-relaxed">
-                          {transcripts[transcripts.length - 1]?.text}
+                        <p
+                          className={`text-gray-700 mt-1 text-sm leading-relaxed ${
+                            !lastTranscript?.isFinal ? "italic opacity-70" : ""
+                          }`}
+                        >
+                          {lastTranscript?.text}
+                          {!lastTranscript?.isFinal && (
+                            <span className="inline-block w-1.5 h-4 bg-orange-500 ml-0.5 animate-pulse" />
+                          )}
                         </p>
                       </div>
                       <span className="text-xs text-gray-400 whitespace-nowrap">
-                        Just now
+                        {lastTranscript
+                          ? formatTime(lastTranscript.timestamp)
+                          : ""}
                       </span>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Summary Card (shown after meeting processing) */}
+              {summary && (
+                <div className="mt-6">
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      AI Meeting Summary
+                    </h3>
+                    <p className="text-blue-800 text-sm leading-relaxed mb-4">
+                      {summary.summary}
+                    </p>
+                    {summary.keyPoints.length > 0 && (
+                      <div className="mb-3">
+                        <h4 className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">
+                          Key Points
+                        </h4>
+                        <ul className="space-y-1">
+                          {summary.keyPoints.map((point: any, i: number) => (
+                            <li
+                              key={i}
+                              className="text-sm text-blue-800 flex items-start gap-2"
+                            >
+                              <span className="text-blue-400 mt-1">•</span>
+                              {typeof point === "string"
+                                ? point
+                                : point?.text ||
+                                  point?.point ||
+                                  JSON.stringify(point)}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {summary.actionItems.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">
+                          Action Items
+                        </h4>
+                        <ul className="space-y-1">
+                          {summary.actionItems.map((item: any, i: number) => {
+                            const text =
+                              typeof item === "string"
+                                ? item
+                                : item?.task ||
+                                  item?.text ||
+                                  item?.action ||
+                                  JSON.stringify(item);
+                            return (
+                              <li
+                                key={i}
+                                className="text-sm text-blue-800 flex items-start gap-2"
+                              >
+                                <CheckSquare className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
+                                {text}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -703,13 +820,16 @@ export const MeetingRoom: React.FC = () => {
               {/* Mute Button */}
               <button
                 onClick={toggleMute}
+                disabled={!isRecording}
                 className="relative group flex flex-col items-center gap-1"
               >
                 <div
                   className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
-                    isMuted
-                      ? "bg-red-500 hover:bg-red-600 text-white"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                    !isRecording
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : isMuted
+                        ? "bg-red-500 hover:bg-red-600 text-white"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                   }`}
                 >
                   {isMuted ? (
@@ -725,7 +845,7 @@ export const MeetingRoom: React.FC = () => {
 
               {/* Recording Button */}
               <button
-                onClick={toggleRecording}
+                onClick={handleToggleRecording}
                 className="relative group flex flex-col items-center gap-1"
               >
                 <div
@@ -735,16 +855,20 @@ export const MeetingRoom: React.FC = () => {
                       : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                   }`}
                 >
-                  <Circle
-                    className={`w-6 h-6 ${isRecording ? "fill-current" : ""}`}
-                  />
+                  {connectionState === "connecting" ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Circle
+                      className={`w-6 h-6 ${isRecording ? "fill-current" : ""}`}
+                    />
+                  )}
                 </div>
                 <span className="text-xs text-gray-500 font-medium">
                   {isRecording ? "Stop Rec" : "Record"}
                 </span>
               </button>
 
-              {/* Transcription Button */}
+              {/* Transcription Toggle */}
               <button
                 onClick={toggleTranscription}
                 className="relative group flex flex-col items-center gap-1"
@@ -766,7 +890,7 @@ export const MeetingRoom: React.FC = () => {
               {/* Divider */}
               <div className="w-px h-12 bg-gray-200 mx-2" />
 
-              {/* End Call Button */}
+              {/* End Call */}
               <button
                 onClick={handleEndMeeting}
                 className="relative group flex flex-col items-center gap-1"
@@ -799,7 +923,7 @@ export const MeetingRoom: React.FC = () => {
                 Transcript
                 {transcripts.length > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 text-xs">
-                    {transcripts.length}
+                    {transcripts.filter((t) => t.isFinal).length}
                   </span>
                 )}
               </div>
@@ -842,16 +966,18 @@ export const MeetingRoom: React.FC = () => {
                       <MessageSquare className="w-8 h-8 text-gray-400" />
                     </div>
                     <p className="text-gray-500 text-sm">
-                      {isTranscribing
+                      {isRecording
                         ? "Listening for speech..."
-                        : "Transcription is paused"}
+                        : isTranscribing
+                          ? "Start recording to see transcripts"
+                          : "Transcription is paused"}
                     </p>
-                    {!isTranscribing && (
+                    {!isRecording && (
                       <button
-                        onClick={toggleTranscription}
+                        onClick={handleToggleRecording}
                         className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors"
                       >
-                        Start Transcription
+                        Start Recording
                       </button>
                     )}
                   </div>
@@ -891,10 +1017,15 @@ export const MeetingRoom: React.FC = () => {
                           </div>
                         )}
                         <div
-                          className={`ml-8 p-3 rounded-lg ${colorSet.bg} border ${colorSet.border}`}
+                          className={`ml-8 p-3 rounded-lg ${colorSet.bg} border ${colorSet.border} ${
+                            !transcript.isFinal ? "opacity-70 italic" : ""
+                          }`}
                         >
                           <p className="text-gray-700 text-sm leading-relaxed">
                             {transcript.text}
+                            {!transcript.isFinal && (
+                              <span className="inline-block w-1 h-3.5 bg-gray-400 ml-0.5 animate-pulse" />
+                            )}
                           </p>
                         </div>
                       </div>
@@ -992,7 +1123,12 @@ export const MeetingRoom: React.FC = () => {
                     <textarea
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
-                      onKeyPress={handleKeyPress}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAddNote();
+                        }
+                      }}
                       placeholder="Add a note..."
                       className="flex-1 bg-white text-gray-700 rounded-xl px-4 py-3 text-sm resize-none border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent placeholder-gray-400"
                       rows={2}

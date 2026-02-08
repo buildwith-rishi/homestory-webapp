@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,82 +15,47 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
+  Loader2,
+  AlertCircle,
+  Plus,
+  ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useMeetingRoomStore } from "../../stores/meetingRoomStore";
+import { useMeetingStore } from "../../stores/meetingStore";
+import {
+  ScheduleMeetingModal,
+  MeetingFormData,
+} from "../../components/dashboard/ScheduleMeetingModal";
 
-interface Meeting {
-  id: number;
-  projectId?: string; // Link meetings to projects
+type MeetingDisplayStatus =
+  | "scheduled"
+  | "completed"
+  | "in_progress"
+  | "cancelled";
+type MeetingDisplayType =
+  | "site_visit"
+  | "consultation"
+  | "design_review"
+  | "virtual";
+
+interface MeetingDisplay {
+  id: number | string;
+  projectId?: string;
   title: string;
-  client: string;
+  client?: string;
   date: string;
   time: string;
   duration: string;
-  status: "scheduled" | "completed" | "in_progress" | "cancelled";
-  type: "site_visit" | "consultation" | "design_review" | "virtual";
+  status: MeetingDisplayStatus;
+  type: MeetingDisplayType;
   location?: string;
   transcribed?: boolean;
   actionItems?: number;
   attendees?: string[];
 }
-
-const mockMeetings: Meeting[] = [
-  {
-    id: 1,
-    projectId: "1", // Sharma Family project
-    title: "Initial Consultation",
-    client: "Rajesh Sharma",
-    date: "2026-01-20",
-    time: "10:00 AM",
-    duration: "45 mins",
-    status: "scheduled",
-    type: "consultation",
-    location: "HSR Layout Office",
-    attendees: ["AR", "RS"],
-  },
-  {
-    id: 2,
-    projectId: "2", // Kumar Residence project
-    title: "Design Review",
-    client: "Priya Kumar",
-    date: "2026-01-18",
-    time: "2:30 PM",
-    duration: "1 hr 15 mins",
-    status: "completed",
-    type: "design_review",
-    location: "Client Site",
-    transcribed: true,
-    actionItems: 8,
-    attendees: ["AR", "PK", "MG"],
-  },
-  {
-    id: 3,
-    projectId: "3", // Patel Home project
-    title: "Site Visit",
-    client: "Amit Patel",
-    date: "2026-01-18",
-    time: "4:00 PM",
-    duration: "30 mins",
-    status: "in_progress",
-    type: "site_visit",
-    location: "Whitefield Villa",
-    attendees: ["RS"],
-  },
-  {
-    id: 4,
-    projectId: "4", // TechStart Inc project
-    title: "Virtual Walkthrough",
-    client: "Sneha Reddy",
-    date: "2026-01-19",
-    time: "11:00 AM",
-    duration: "1 hr",
-    status: "scheduled",
-    type: "virtual",
-    attendees: ["AR", "PK"],
-  },
-];
 
 const statusColors = {
   scheduled: {
@@ -128,21 +93,168 @@ const typeIcons = {
 
 export const MeetingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
+  const [selectedMeeting, setSelectedMeeting] = useState<MeetingDisplay | null>(
+    null,
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [expandedMeetingHistory, setExpandedMeetingHistory] = useState<
     string | null
   >(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const { selectedProject } = useProjectFilter();
   const { completedMeetings } = useMeetingRoomStore();
+  const {
+    meetings: apiMeetings,
+    isLoading,
+    error,
+    fetchMeetings,
+    createMeeting,
+    deleteMeeting,
+  } = useMeetingStore();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMeetingTypeModal, setShowMeetingTypeModal] = useState(false);
+
+  // Fetch meetings on mount
+  useEffect(() => {
+    fetchMeetings();
+  }, [fetchMeetings]);
+
+  // Map API status to display status
+  const mapStatus = (apiStatus: string): MeetingDisplayStatus => {
+    switch (apiStatus) {
+      case "scheduled":
+        return "scheduled";
+      case "completed":
+      case "COMPLETED":
+      case "ANALYZED":
+        return "completed";
+      case "in_progress":
+      case "PROCESSING":
+        return "in_progress";
+      case "cancelled":
+        return "cancelled";
+      default:
+        return "scheduled";
+    }
+  };
+
+  // Map API meeting type to display type
+  const mapType = (apiType?: string): MeetingDisplayType => {
+    if (!apiType) return "consultation";
+    const lower = apiType.toLowerCase();
+    if (lower.includes("site") || lower === "site_visit") return "site_visit";
+    if (
+      lower.includes("design") ||
+      lower === "design_review" ||
+      lower === "design_presentation"
+    )
+      return "design_review";
+    if (lower.includes("virtual") || lower === "video") return "virtual";
+    return "consultation";
+  };
+
+  // Transform API meetings to display format
+  const meetings: MeetingDisplay[] = useMemo(() => {
+    return apiMeetings.map((meeting) => {
+      const scheduledDate =
+        meeting.scheduledAt || meeting.scheduledDate || meeting.createdAt;
+      let date: Date;
+      if (scheduledDate) {
+        date = new Date(scheduledDate);
+        if (isNaN(date.getTime())) date = new Date();
+      } else {
+        date = new Date();
+      }
+
+      return {
+        id: meeting.id,
+        projectId: meeting.projectId || meeting.entityId,
+        title: meeting.title,
+        client: meeting.description || "",
+        date: date.toISOString().split("T")[0],
+        time: date.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        duration: meeting.duration ? `${meeting.duration} mins` : "30 mins",
+        status: mapStatus(meeting.status),
+        type: mapType(
+          (meeting as Record<string, unknown>).type as string | undefined,
+        ),
+        location: meeting.location,
+        transcribed:
+          !!meeting.transcription && meeting.transcription.length > 0,
+        actionItems: (meeting as Record<string, unknown>).actionItems
+          ? ((meeting as Record<string, unknown>).actionItems as string[])
+              .length
+          : 0,
+        attendees: meeting.attendees || [],
+      };
+    });
+  }, [apiMeetings]);
 
   const handleStartMeeting = () => {
-    navigate("/dashboard/meeting-room");
+    setShowMeetingTypeModal(true);
+  };
+
+  const handleStartMeetingWithType = async (
+    meetingType: "residential" | "commercial",
+  ) => {
+    setShowMeetingTypeModal(false);
+    try {
+      // Create a new meeting via API so we have a real meetingId
+      const meetingData = {
+        title: `${meetingType === "residential" ? "Residential" : "Commercial"} Meeting`,
+        description: `${meetingType === "residential" ? "Residential" : "Commercial"} meeting`,
+        scheduledDate: new Date().toISOString(),
+        duration: 30,
+        status: "in_progress" as const,
+        attendees: [],
+      };
+      const created = await createMeeting(meetingData);
+      navigate("/dashboard/meeting-room", { state: { meetingId: created.id } });
+    } catch (err) {
+      console.error("Error creating meeting:", err);
+      // Fallback: navigate without meetingId
+      navigate("/dashboard/meeting-room");
+    }
   };
 
   const handleOpenCalendar = () => {
     navigate("/dashboard/meetings/calendar");
+  };
+
+  const handleScheduleMeeting = async (formData: MeetingFormData) => {
+    try {
+      // Combine date and time into ISO string
+      const scheduledDateTime = new Date(`${formData.date}T${formData.time}`);
+
+      // Map form data to Meeting type expected by store
+      const meetingData = {
+        title: formData.title,
+        description: formData.client,
+        scheduledDate: scheduledDateTime.toISOString(),
+        duration: parseInt(formData.duration),
+        location:
+          formData.type === "site_visit"
+            ? formData.location
+            : formData.meetingLink,
+        attendees: formData.attendees || [],
+        status: "scheduled" as const,
+        // Map meeting type appropriately
+        leadId: selectedProject?.id, // Link to selected project if available
+      };
+
+      await createMeeting(meetingData);
+      // Refresh meetings list after creation
+      await fetchMeetings();
+      setShowScheduleModal(false);
+    } catch (error) {
+      console.error("Error scheduling meeting:", error);
+      // Error is shown by store's error state
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -162,7 +274,7 @@ export const MeetingsPage: React.FC = () => {
 
   // Apply project filter, status filter, and search filter
   const filteredMeetings = useMemo(() => {
-    let filtered = mockMeetings;
+    let filtered = meetings;
 
     // Filter by selected project
     if (selectedProject) {
@@ -181,20 +293,21 @@ export const MeetingsPage: React.FC = () => {
       filtered = filtered.filter(
         (meeting) =>
           meeting.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          meeting.client.toLowerCase().includes(searchQuery.toLowerCase()),
+          (meeting.client &&
+            meeting.client.toLowerCase().includes(searchQuery.toLowerCase())),
       );
     }
 
     return filtered;
-  }, [selectedProject, filterStatus, searchQuery]);
+  }, [meetings, selectedProject, filterStatus, searchQuery]);
 
-  const upcomingCount = mockMeetings.filter(
-    (m) => m.status === "scheduled",
-  ).length;
-  const completedCount = mockMeetings.filter(
+  const upcomingCount = meetings.filter((m) => m.status === "scheduled").length;
+  const completedCount = meetings.filter(
     (m) => m.status === "completed",
   ).length;
-  const todayCount = mockMeetings.filter((m) => m.date === "2026-01-18").length;
+  const todayCount = meetings.filter(
+    (m) => m.date === new Date().toISOString().split("T")[0],
+  ).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -237,6 +350,14 @@ export const MeetingsPage: React.FC = () => {
           >
             <Calendar className="w-4 h-4" />
             View Calendar
+          </Button>
+          <Button
+            variant="secondary"
+            className="rounded-xl"
+            onClick={() => setShowScheduleModal(true)}
+          >
+            <Plus className="w-4 h-4" />
+            Schedule Meeting
           </Button>
           <Button className="rounded-xl" onClick={handleStartMeeting}>
             <Video className="w-4 h-4" />
@@ -291,7 +412,7 @@ export const MeetingsPage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">This Month</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {mockMeetings.length}
+                {meetings.length}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
@@ -330,99 +451,136 @@ export const MeetingsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <Card className="p-12 rounded-xl text-center">
+          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading meetings...</p>
+        </Card>
+      )}
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <Card className="p-6 rounded-xl border-red-200 bg-red-50">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-red-900">
+                Error loading meetings
+              </h3>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <Button
+                onClick={() => fetchMeetings()}
+                variant="secondary"
+                className="mt-3 rounded-lg"
+                size="sm"
+              >
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Meetings Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {filteredMeetings.map((meeting) => {
-          const statusColor = statusColors[meeting.status];
-          const TypeIcon = typeIcons[meeting.type];
+      {!isLoading && !error && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {filteredMeetings.map((meeting) => {
+            const statusColor = statusColors[meeting.status];
+            const TypeIcon = typeIcons[meeting.type];
 
-          return (
-            <Card
-              key={meeting.id}
-              className="p-5 rounded-xl hover:shadow-lg transition-all cursor-pointer group"
-              onClick={() => setSelectedMeeting(meeting)}
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-12 h-12 rounded-xl ${statusColor.bg} flex items-center justify-center`}
-                  >
-                    <TypeIcon className={`w-6 h-6 ${statusColor.text}`} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
-                      {meeting.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-0.5">
-                      {meeting.client}
-                    </p>
-                  </div>
-                </div>
-                <div
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${statusColor.bg} ${statusColor.text} border ${statusColor.border}`}
-                >
-                  <div className={`w-2 h-2 rounded-full ${statusColor.dot}`} />
-                  <span className="text-xs font-medium">
-                    {meeting.status.replace("_", " ")}
-                  </span>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="space-y-2.5 mb-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  <span>
-                    {new Date(meeting.date).toLocaleDateString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                  <span className="text-gray-400">•</span>
-                  <Clock className="w-4 h-4 text-gray-400" />
-                  <span>{meeting.time}</span>
-                  <span className="text-gray-400">({meeting.duration})</span>
-                </div>
-                {meeting.location && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                    <span>{meeting.location}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                <div className="flex -space-x-2">
-                  {meeting.attendees?.map((attendee, idx) => (
+            return (
+              <Card
+                key={meeting.id}
+                className="p-5 rounded-xl hover:shadow-lg transition-all cursor-pointer group"
+                onClick={() => setSelectedMeeting(meeting)}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
                     <div
-                      key={idx}
-                      className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-semibold border-2 border-white"
+                      className={`w-12 h-12 rounded-xl ${statusColor.bg} flex items-center justify-center`}
                     >
-                      {attendee}
+                      <TypeIcon className={`w-6 h-6 ${statusColor.text}`} />
                     </div>
-                  ))}
+                    <div>
+                      <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                        {meeting.title}
+                      </h3>
+                      {meeting.client && (
+                        <p className="text-sm text-gray-600 mt-0.5">
+                          {meeting.client}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${statusColor.bg} ${statusColor.text} border ${statusColor.border}`}
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full ${statusColor.dot}`}
+                    />
+                    <span className="text-xs font-medium">
+                      {meeting.status.replace("_", " ")}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {meeting.transcribed && (
-                    <Badge className="text-xs bg-purple-50 text-purple-700 rounded-lg">
-                      <FileText className="w-3 h-3 mr-1" />
-                      Transcribed
-                    </Badge>
-                  )}
-                  {meeting.actionItems && (
-                    <Badge className="text-xs bg-blue-50 text-blue-700 rounded-lg">
-                      {meeting.actionItems} tasks
-                    </Badge>
+
+                {/* Details */}
+                <div className="space-y-2.5 mb-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                    <span>
+                      {new Date(meeting.date).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                    <span className="text-gray-400">•</span>
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <span>{meeting.time}</span>
+                    <span className="text-gray-400">({meeting.duration})</span>
+                  </div>
+                  {meeting.location && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <MapPin className="w-4 h-4 text-gray-400" />
+                      <span>{meeting.location}</span>
+                    </div>
                   )}
                 </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                  <div className="flex -space-x-2">
+                    {meeting.attendees?.map((attendee, idx) => (
+                      <div
+                        key={idx}
+                        className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-semibold border-2 border-white"
+                      >
+                        {attendee}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {meeting.transcribed && (
+                      <Badge className="text-xs bg-purple-50 text-purple-700 rounded-lg">
+                        <FileText className="w-3 h-3 mr-1" />
+                        Transcribed
+                      </Badge>
+                    )}
+                    {meeting.actionItems && (
+                      <Badge className="text-xs bg-blue-50 text-blue-700 rounded-lg">
+                        {meeting.actionItems} tasks
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* Meeting Detail Modal */}
       {selectedMeeting &&
@@ -490,9 +648,11 @@ export const MeetingsPage: React.FC = () => {
                         <h3 className="text-xl font-bold text-gray-900">
                           {selectedMeeting.title}
                         </h3>
-                        <p className="text-gray-600">
-                          {selectedMeeting.client}
-                        </p>
+                        {selectedMeeting.client && (
+                          <p className="text-gray-600">
+                            {selectedMeeting.client}
+                          </p>
+                        )}
                       </div>
                       <Badge
                         className={`rounded-lg ${statusColors[selectedMeeting.status].bg} ${statusColors[selectedMeeting.status].text} border ${statusColors[selectedMeeting.status].border}`}
@@ -545,14 +705,86 @@ export const MeetingsPage: React.FC = () => {
 
                   {/* Actions */}
                   <div className="flex gap-3 pt-4 border-t">
-                    <Button className="flex-1 rounded-xl">
-                      <Phone className="w-4 h-4" />
-                      Start Call
-                    </Button>
-                    <Button variant="secondary" className="flex-1 rounded-xl">
-                      <FileText className="w-4 h-4" />
-                      View Notes
-                    </Button>
+                    {showDeleteConfirm ? (
+                      // Delete confirmation view
+                      <div className="flex-1 flex flex-col gap-3">
+                        <p className="text-sm text-gray-600 text-center">
+                          Are you sure you want to delete this meeting?
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="secondary"
+                            className="flex-1 rounded-xl"
+                            onClick={() => setShowDeleteConfirm(false)}
+                            disabled={isDeleting}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            className="flex-1 rounded-xl bg-red-500 hover:bg-red-600"
+                            onClick={async () => {
+                              setIsDeleting(true);
+                              try {
+                                await deleteMeeting(
+                                  selectedMeeting.id.toString(),
+                                );
+                                setShowDeleteConfirm(false);
+                                setSelectedMeeting(null);
+                                fetchMeetings();
+                              } catch (err) {
+                                console.error("Error deleting meeting:", err);
+                              } finally {
+                                setIsDeleting(false);
+                              }
+                            }}
+                            disabled={isDeleting}
+                          >
+                            {isDeleting ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Normal actions view
+                      <>
+                        <Button
+                          className="flex-1 rounded-xl"
+                          onClick={() => {
+                            setSelectedMeeting(null);
+                            navigate(
+                              `/dashboard/meetings/${selectedMeeting.id}`,
+                            );
+                          }}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          View Details
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="flex-1 rounded-xl"
+                          onClick={() => {
+                            setSelectedMeeting(null);
+                            navigate("/dashboard/meeting-room", {
+                              state: { meetingId: selectedMeeting.id },
+                            });
+                          }}
+                        >
+                          <Video className="w-4 h-4" />
+                          Start Meeting
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="rounded-xl px-3"
+                          onClick={() => setShowDeleteConfirm(true)}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -733,7 +965,7 @@ export const MeetingsPage: React.FC = () => {
       )}
 
       {/* Empty State */}
-      {filteredMeetings.length === 0 && (
+      {!isLoading && !error && filteredMeetings.length === 0 && (
         <Card className="p-12 rounded-xl text-center">
           <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <Calendar className="w-8 h-8 text-gray-400" />
@@ -744,14 +976,183 @@ export const MeetingsPage: React.FC = () => {
           <p className="text-gray-600 mb-4">
             {searchQuery || filterStatus !== "all"
               ? "Try adjusting your filters"
-              : "Start your first meeting"}
+              : "Schedule your first meeting"}
           </p>
-          <Button className="rounded-xl" onClick={handleStartMeeting}>
-            <Video className="w-4 h-4" />
-            Start Meeting
+          <Button
+            className="rounded-xl"
+            onClick={() => setShowScheduleModal(true)}
+          >
+            <Plus className="w-4 h-4" />
+            Schedule Meeting
           </Button>
         </Card>
       )}
+
+      {/* Meeting Type Selection Modal */}
+      {showMeetingTypeModal &&
+        ReactDOM.createPortal(
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={() => setShowMeetingTypeModal(false)}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                backgroundColor: "rgba(17, 24, 39, 0.5)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+                zIndex: 9998,
+              }}
+            />
+            {/* Modal */}
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: 9999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "1rem",
+                pointerEvents: "none",
+              }}
+            >
+              <Card
+                className="w-full max-w-2xl rounded-2xl"
+                style={{ pointerEvents: "auto" }}
+              >
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-orange-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+                        <Video className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900">
+                          Select Meeting Type
+                        </h2>
+                        <p className="text-sm text-gray-600 mt-0.5">
+                          Choose the type of meeting you want to start
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowMeetingTypeModal(false)}
+                      className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+                    >
+                      <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Meeting Type Options */}
+                <div className="p-6 space-y-4">
+                  {/* Residential Option */}
+                  <button
+                    onClick={() => handleStartMeetingWithType("residential")}
+                    className="w-full p-6 rounded-xl border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 transition-all group text-left"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                        <Users className="w-7 h-7 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-orange-600 transition-colors">
+                          Residential Meeting
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-3">
+                          For individual homeowners, families, and household
+                          projects
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
+                            Home Design
+                          </span>
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
+                            Renovation
+                          </span>
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
+                            Interior Consultation
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 group-hover:bg-orange-500 transition-colors flex-shrink-0">
+                        <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-white rotate-[-90deg]" />
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Commercial Option */}
+                  <button
+                    onClick={() => handleStartMeetingWithType("commercial")}
+                    className="w-full p-6 rounded-xl border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 transition-all group text-left"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                        <MapPin className="w-7 h-7 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-orange-600 transition-colors">
+                          Commercial Meeting
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-3">
+                          For businesses, offices, retail spaces, and commercial
+                          projects
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
+                            Office Space
+                          </span>
+                          <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
+                            Retail Design
+                          </span>
+                          <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
+                            Corporate Projects
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 group-hover:bg-orange-500 transition-colors flex-shrink-0">
+                        <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-white rotate-[-90deg]" />
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Info Banner */}
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm text-blue-900 font-medium mb-1">
+                          Why choose a meeting type?
+                        </p>
+                        <p className="text-xs text-blue-700">
+                          Selecting the meeting type helps us customize the
+                          experience with relevant tools, templates, and
+                          guidance specific to your project needs.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </>,
+          document.body,
+        )}
+
+      {/* Schedule Meeting Modal */}
+      <ScheduleMeetingModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onSubmit={handleScheduleMeeting}
+      />
     </div>
   );
 };

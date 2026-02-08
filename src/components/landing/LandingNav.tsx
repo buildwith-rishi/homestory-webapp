@@ -174,7 +174,7 @@ const LandingNav: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-white z-50 lg:hidden"
+            className="fixed inset-0 bg-white z-[60] lg:hidden"
           >
             <div className="container mx-auto px-6 py-6">
               <div className="flex justify-between items-center mb-12">

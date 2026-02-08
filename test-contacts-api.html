@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contacts API Integration Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    .auth-section {
+      padding: 20px 30px;
+      background: #fef3c7;
+      border-bottom: 2px solid #fbbf24;
+    }
+
+    .auth-section h3 {
+      color: #92400e;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    .token-input {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .token-input input {
+      flex: 1;
+      padding: 10px 15px;
+      border: 2px solid #fbbf24;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .token-input button {
+      padding: 10px 20px;
+      background: #f97316;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .token-input button:hover {
+      background: #ea580c;
+      transform: translateY(-2px);
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .test-section {
+      margin-bottom: 30px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+
+    .test-section:hover {
+      border-color: #f97316;
+      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.1);
+    }
+
+    .test-header {
+      background: #f9fafb;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .test-header h3 {
+      color: #1f2937;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .method-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+    }
+
+    .method-get {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .method-post {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .method-put {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .method-delete {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .test-button {
+      padding: 8px 20px;
+      background: #f97316;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .test-button:hover {
+      background: #ea580c;
+      transform: scale(1.05);
+    }
+
+    .test-button:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .test-body {
+      padding: 20px;
+      display: none;
+      background: white;
+    }
+
+    .test-body.active {
+      display: block;
+    }
+
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 13px;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .result.success {
+      background: #f0fdf4;
+      border: 2px solid #86efac;
+      color: #166534;
+    }
+
+    .result.error {
+      background: #fef2f2;
+      border: 2px solid #fca5a5;
+      color: #991b1b;
+    }
+
+    .result.loading {
+      background: #eff6ff;
+      border: 2px solid #93c5fd;
+      color: #1e40af;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+      color: #374151;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #f97316;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+      cursor: pointer;
+    }
+
+    .summary {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+    }
+
+    .summary h2 {
+      color: #166534;
+      margin-bottom: 15px;
+      font-size: 20px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .summary-item {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .summary-item .label {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+
+    .summary-item .value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .test-all-button {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 30px;
+      transition: all 0.3s;
+    }
+
+    .test-all-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(249, 115, 22, 0.3);
+    }
+
+    .test-all-button:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎯 Contacts API Integration Test</h1>
+      <p>Comprehensive testing for all contacts endpoints</p>
+    </div>
+
+    <div class="auth-section">
+      <h3>🔐 Authentication Token</h3>
+      <div class="token-input">
+        <input 
+          type="text" 
+          id="authToken" 
+          placeholder="Paste your auth token here (or it will be loaded from localStorage)"
+        >
+        <button onclick="setAuthToken()">Set Token</button>
+      </div>
+      <div id="authStatus"></div>
+    </div>
+
+    <div class="content">
+      <div class="summary" id="summary">
+        <h2>📊 Test Summary</h2>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="label">Total Tests</div>
+            <div class="value">9</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">Passed</div>
+            <div class="value" id="passedCount">0</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">Failed</div>
+            <div class="value" id="failedCount">0</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">Pending</div>
+            <div class="value" id="pendingCount">9</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="test-all-button" onclick="runAllTests()">
+        🚀 Run All Tests
+      </button>
+
+      <!-- Test 1: List Contacts -->
+      <div class="test-section" id="test-list">
+        <div class="test-header" onclick="toggleTest('test-list')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            List Contacts
+          </h3>
+          <button class="test-button" onclick="testListContacts(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/contacts</p>
+          <p><strong>Description:</strong> Fetch all contacts with optional filters</p>
+          <div id="result-list"></div>
+        </div>
+      </div>
+
+      <!-- Test 2: Create Contact -->
+      <div class="test-section" id="test-create">
+        <div class="test-header" onclick="toggleTest('test-create')">
+          <h3>
+            <span class="method-badge method-post">POST</span>
+            Create Contact
+          </h3>
+          <button class="test-button" onclick="testCreateContact(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> POST /api/contacts</p>
+          <p><strong>Description:</strong> Create a new contact</p>
+          
+          <div class="form-group">
+            <label>Lead ID</label>
+            <input type="text" id="createLeadId" value="test-lead-123" placeholder="Lead ID">
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label>First Name</label>
+              <input type="text" id="createFirstName" value="John" placeholder="First Name">
+            </div>
+            <div class="form-group">
+              <label>Last Name</label>
+              <input type="text" id="createLastName" value="Doe" placeholder="Last Name">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" id="createPhone" value="+919876543210" placeholder="Phone">
+          </div>
+          
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="createEmail" value="john@example.com" placeholder="Email">
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label>Role</label>
+              <select id="createRole">
+                <option value="HOMEOWNER">Homeowner</option>
+                <option value="SPOUSE">Spouse</option>
+                <option value="ARCHITECT">Architect</option>
+                <option value="CONTRACTOR">Contractor</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Preferred Channel</label>
+              <select id="createChannel">
+                <option value="WHATSAPP">WhatsApp</option>
+                <option value="PHONE">Phone</option>
+                <option value="EMAIL">Email</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="createIsPrimary">
+            <label for="createIsPrimary">Set as Primary Contact</label>
+          </div>
+          
+          <div id="result-create"></div>
+        </div>
+      </div>
+
+      <!-- Test 3: Get Contact by ID -->
+      <div class="test-section" id="test-get">
+        <div class="test-header" onclick="toggleTest('test-get')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            Get Contact by ID
+          </h3>
+          <button class="test-button" onclick="testGetContact(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/contacts/:id</p>
+          <p><strong>Description:</strong> Fetch a single contact by ID</p>
+          
+          <div class="form-group">
+            <label>Contact ID</label>
+            <input type="text" id="getContactId" placeholder="Enter contact ID from create test">
+          </div>
+          
+          <div id="result-get"></div>
+        </div>
+      </div>
+
+      <!-- Test 4: Update Contact -->
+      <div class="test-section" id="test-update">
+        <div class="test-header" onclick="toggleTest('test-update')">
+          <h3>
+            <span class="method-badge method-put">PUT</span>
+            Update Contact
+          </h3>
+          <button class="test-button" onclick="testUpdateContact(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> PUT /api/contacts/:id</p>
+          <p><strong>Description:</strong> Update an existing contact</p>
+          
+          <div class="form-group">
+            <label>Contact ID</label>
+            <input type="text" id="updateContactId" placeholder="Enter contact ID to update">
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label>First Name</label>
+              <input type="text" id="updateFirstName" value="Jane" placeholder="First Name">
+            </div>
+            <div class="form-group">
+              <label>Last Name</label>
+              <input type="text" id="updateLastName" value="Smith" placeholder="Last Name">
+            </div>
+          </div>
+          
+          <div id="result-update"></div>
+        </div>
+      </div>
+
+      <!-- Test 5: Delete Contact -->
+      <div class="test-section" id="test-delete">
+        <div class="test-header" onclick="toggleTest('test-delete')">
+          <h3>
+            <span class="method-badge method-delete">DELETE</span>
+            Delete Contact
+          </h3>
+          <button class="test-button" onclick="testDeleteContact(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> DELETE /api/contacts/:id</p>
+          <p><strong>Description:</strong> Delete a contact</p>
+          
+          <div class="form-group">
+            <label>Contact ID</label>
+            <input type="text" id="deleteContactId" placeholder="Enter contact ID to delete">
+          </div>
+          
+          <div id="result-delete"></div>
+        </div>
+      </div>
+
+      <!-- Test 6: Get Contact Roles -->
+      <div class="test-section" id="test-roles">
+        <div class="test-header" onclick="toggleTest('test-roles')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            Get Contact Roles
+          </h3>
+          <button class="test-button" onclick="testGetRoles(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/contacts/roles</p>
+          <p><strong>Description:</strong> Fetch available contact roles</p>
+          <div id="result-roles"></div>
+        </div>
+      </div>
+
+      <!-- Test 7: Get Preferred Channels -->
+      <div class="test-section" id="test-channels">
+        <div class="test-header" onclick="toggleTest('test-channels')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            Get Preferred Channels
+          </h3>
+          <button class="test-button" onclick="testGetChannels(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/contacts/channels</p>
+          <p><strong>Description:</strong> Fetch available communication channels</p>
+          <div id="result-channels"></div>
+        </div>
+      </div>
+
+      <!-- Test 8: Get Upcoming Birthdays -->
+      <div class="test-section" id="test-birthdays">
+        <div class="test-header" onclick="toggleTest('test-birthdays')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            Get Upcoming Birthdays
+          </h3>
+          <button class="test-button" onclick="testGetBirthdays(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/contacts/birthdays</p>
+          <p><strong>Description:</strong> Fetch upcoming birthdays</p>
+          
+          <div class="form-group">
+            <label>Days Ahead</label>
+            <input type="number" id="birthdayDays" value="30" placeholder="Number of days">
+          </div>
+          
+          <div id="result-birthdays"></div>
+        </div>
+      </div>
+
+      <!-- Test 9: Get Upcoming Anniversaries -->
+      <div class="test-section" id="test-anniversaries">
+        <div class="test-header" onclick="toggleTest('test-anniversaries')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            Get Upcoming Anniversaries
+          </h3>
+          <button class="test-button" onclick="testGetAnniversaries(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/contacts/anniversaries</p>
+          <p><strong>Description:</strong> Fetch upcoming anniversaries</p>
+          
+          <div class="form-group">
+            <label>Days Ahead</label>
+            <input type="number" id="anniversaryDays" value="30" placeholder="Number of days">
+          </div>
+          
+          <div id="result-anniversaries"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = "https://ghs.oneweekmvps.com";
+    let testResults = {
+      passed: 0,
+      failed: 0,
+      pending: 9
+    };
+    let createdContactId = null;
+
+    // Initialize
+    window.onload = function() {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        document.getElementById('authToken').value = token;
+        showAuthStatus('Token loaded from localStorage', 'success');
+      }
+    };
+
+    function setAuthToken() {
+      const token = document.getElementById('authToken').value;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+        showAuthStatus('Token saved successfully!', 'success');
+      } else {
+        showAuthStatus('Please enter a token', 'error');
+      }
+    }
+
+    function showAuthStatus(message, type) {
+      const statusDiv = document.getElementById('authStatus');
+      statusDiv.className = `status ${type}`;
+      statusDiv.textContent = message;
+    }
+
+    function getAuthHeaders() {
+      const token = localStorage.getItem('auth_token');
+      return {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+    }
+
+    function toggleTest(testId) {
+      const body = document.querySelector(`#${testId} .test-body`);
+      body.classList.toggle('active');
+    }
+
+    function showResult(resultId, message, type) {
+      const resultDiv = document.getElementById(resultId);
+      resultDiv.className = `result ${type}`;
+      resultDiv.textContent = message;
+    }
+
+    function updateSummary() {
+      document.getElementById('passedCount').textContent = testResults.passed;
+      document.getElementById('failedCount').textContent = testResults.failed;
+      document.getElementById('pendingCount').textContent = testResults.pending;
+    }
+
+    function markTestResult(success) {
+      if (success) {
+        testResults.passed++;
+      } else {
+        testResults.failed++;
+      }
+      testResults.pending--;
+      updateSummary();
+    }
+
+    // Test 1: List Contacts
+    async function testListContacts(event) {
+      if (event) event.stopPropagation();
+      showResult('result-list', '⏳ Loading...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/contacts`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-list', 
+            `✅ Success!\n\nStatus: ${response.status}\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-list', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 2: Create Contact
+    async function testCreateContact(event) {
+      if (event) event.stopPropagation();
+      showResult('result-create', '⏳ Creating contact...', 'loading');
+      
+      try {
+        const contactData = {
+          leadId: document.getElementById('createLeadId').value,
+          firstName: document.getElementById('createFirstName').value,
+          lastName: document.getElementById('createLastName').value,
+          phone: document.getElementById('createPhone').value,
+          email: document.getElementById('createEmail').value,
+          role: document.getElementById('createRole').value,
+          isPrimary: document.getElementById('createIsPrimary').checked,
+          preferredChannel: document.getElementById('createChannel').value
+        };
+
+        const response = await fetch(`${API_BASE_URL}/api/contacts`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(contactData)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          createdContactId = data.id;
+          document.getElementById('getContactId').value = data.id;
+          document.getElementById('updateContactId').value = data.id;
+          document.getElementById('deleteContactId').value = data.id;
+          
+          showResult('result-create', 
+            `✅ Contact Created!\n\nID: ${data.id}\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-create', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 3: Get Contact by ID
+    async function testGetContact(event) {
+      if (event) event.stopPropagation();
+      const contactId = document.getElementById('getContactId').value;
+      
+      if (!contactId) {
+        showResult('result-get', '❌ Please enter a contact ID', 'error');
+        return;
+      }
+      
+      showResult('result-get', '⏳ Loading...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/contacts/${contactId}`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-get', 
+            `✅ Contact Found!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-get', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 4: Update Contact
+    async function testUpdateContact(event) {
+      if (event) event.stopPropagation();
+      const contactId = document.getElementById('updateContactId').value;
+      
+      if (!contactId) {
+        showResult('result-update', '❌ Please enter a contact ID', 'error');
+        return;
+      }
+      
+      showResult('result-update', '⏳ Updating...', 'loading');
+      
+      try {
+        const updates = {
+          firstName: document.getElementById('updateFirstName').value,
+          lastName: document.getElementById('updateLastName').value
+        };
+
+        const response = await fetch(`${API_BASE_URL}/api/contacts/${contactId}`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(updates)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-update', 
+            `✅ Contact Updated!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-update', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 5: Delete Contact
+    async function testDeleteContact(event) {
+      if (event) event.stopPropagation();
+      const contactId = document.getElementById('deleteContactId').value;
+      
+      if (!contactId) {
+        showResult('result-delete', '❌ Please enter a contact ID', 'error');
+        return;
+      }
+      
+      if (!confirm('Are you sure you want to delete this contact?')) {
+        return;
+      }
+      
+      showResult('result-delete', '⏳ Deleting...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/contacts/${contactId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-delete', 
+            `✅ Contact Deleted!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-delete', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 6: Get Contact Roles
+    async function testGetRoles(event) {
+      if (event) event.stopPropagation();
+      showResult('result-roles', '⏳ Loading...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/contacts/roles`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-roles', 
+            `✅ Success!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-roles', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 7: Get Preferred Channels
+    async function testGetChannels(event) {
+      if (event) event.stopPropagation();
+      showResult('result-channels', '⏳ Loading...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/contacts/channels`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-channels', 
+            `✅ Success!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-channels', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 8: Get Upcoming Birthdays
+    async function testGetBirthdays(event) {
+      if (event) event.stopPropagation();
+      const days = document.getElementById('birthdayDays').value;
+      showResult('result-birthdays', '⏳ Loading...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/contacts/birthdays?days=${days}`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-birthdays', 
+            `✅ Success!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-birthdays', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 9: Get Upcoming Anniversaries
+    async function testGetAnniversaries(event) {
+      if (event) event.stopPropagation();
+      const days = document.getElementById('anniversaryDays').value;
+      showResult('result-anniversaries', '⏳ Loading...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/contacts/anniversaries?days=${days}`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-anniversaries', 
+            `✅ Success!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-anniversaries', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Run all tests sequentially
+    async function runAllTests() {
+      // Reset counters
+      testResults = { passed: 0, failed: 0, pending: 9 };
+      updateSummary();
+      
+      // Expand all sections
+      document.querySelectorAll('.test-body').forEach(body => {
+        body.classList.add('active');
+      });
+      
+      // Run tests in sequence
+      await testListContacts();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testCreateContact();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testGetContact();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testUpdateContact();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testGetRoles();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testGetChannels();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testGetBirthdays();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testGetAnniversaries();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Note: Delete test is not included in auto-run to prevent accidental deletion
+      alert(`✅ Testing Complete!\n\nPassed: ${testResults.passed}\nFailed: ${testResults.failed}\n\n(Delete test requires manual execution)`);
+    }
+  </script>
+</body>
+</html>

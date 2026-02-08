@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,9 +27,15 @@ import {
   Trash2,
   FileText,
   Clock,
+  Contact2,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { Card, Button } from "../../components/ui";
 import toast from "react-hot-toast";
+import ContactAPI, { type Contact } from "../../services/contactApi";
+import CustomerAPI, { Customer as APICustomer } from "../../services/customerApi";
+import { ContactRoleBadge, PrimaryBadge } from "../../components/customers";
 
 interface FamilyMember {
   name: string;
@@ -59,7 +65,7 @@ interface Note {
 }
 
 interface Customer {
-  id: number;
+  id: string | number;
   name: string;
   initials: string;
   email: string;
@@ -153,79 +159,245 @@ const statusColors = {
 const AddCustomerModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSave: (
-    customer: Omit<
-      Customer,
-      "id" | "initials" | "projects" | "totalValue" | "rating" | "lastContact"
-    >,
-  ) => void;
-}> = ({ isOpen, onClose, onSave }) => {
+  onSave: (customerData: any) => Promise<void>;
+  customerTypes: { value: string; label: string }[];
+  isCreating: boolean;
+}> = ({ isOpen, onClose, onSave, customerTypes, isCreating }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
+    type: "HOUSEHOLD" as string,
     email: "",
     phone: "",
-    location: "",
-    status: "active" as "active" | "completed" | "inactive",
+    taxId: "",
+    notes: "",
+    billingAddress: "",
+    billingCity: "",
+    billingState: "",
+    billingPincode: "",
+    shippingAddress: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingPincode: "",
   });
 
+  const [sameAsBilling, setSameAsBilling] = useState(false);
+  const [showBillingSection, setShowBillingSection] = useState(false);
+  const [showShippingSection, setShowShippingSection] = useState(false);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicateCheckResult, setDuplicateCheckResult] = useState<{
+    found: boolean;
+    lead?: any;
+    account?: any;
+  } | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [acknowledgeDuplicate, setAcknowledgeDuplicate] = useState(false);
+
+  // Debounce timer ref
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+    if (!formData.type) newErrors.type = "Customer type is required";
+    
+    // Email validation (optional but validate format if provided)
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Invalid email format";
     }
-    if (!formData.phone.trim()) {
-      newErrors.phone = "Phone is required";
-    } else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone)) {
-      newErrors.phone = "Invalid phone format";
+    
+    // Phone validation (optional but validate format if provided)
+    if (formData.phone && formData.phone.length < 10) {
+      newErrors.phone = "Phone must be at least 10 digits";
     }
-    if (!formData.location.trim()) newErrors.location = "Location is required";
+
+    // Pincode validation (optional but validate format if provided)
+    if (formData.billingPincode && !/^\d{6}$/.test(formData.billingPincode)) {
+      newErrors.billingPincode = "Pincode must be 6 digits";
+    }
+    if (formData.shippingPincode && !/^\d{6}$/.test(formData.shippingPincode)) {
+      newErrors.shippingPincode = "Pincode must be 6 digits";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  // Debounced duplicate check
+  const checkForDuplicates = React.useCallback(
+    async (email: string, phone: string) => {
+      // Clear any existing timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      // Only check if we have email or phone
+      if (!email && !phone) {
+        setDuplicateCheckResult(null);
+        setShowDuplicateWarning(false);
+        return;
+      }
+
+      // Debounce the API call
+      debounceTimerRef.current = setTimeout(async () => {
+        setIsCheckingDuplicate(true);
+        try {
+          const searchParams: { email?: string; phone?: string } = {};
+          if (email) searchParams.email = email;
+          if (phone) searchParams.phone = phone;
+
+          const result = await CustomerAPI.searchCustomerByContact(searchParams);
+          
+          setDuplicateCheckResult(result);
+          setShowDuplicateWarning(result.found);
+          setAcknowledgeDuplicate(false); // Reset acknowledge flag
+        } catch (error) {
+          console.error("Error checking for duplicates:", error);
+          setDuplicateCheckResult(null);
+          setShowDuplicateWarning(false);
+        } finally {
+          setIsCheckingDuplicate(false);
+        }
+      }, 600); // 600ms debounce
+    },
+    [],
+  );
+
+  // Effect to trigger duplicate check when email or phone changes
+  React.useEffect(() => {
+    if (isOpen) {
+      checkForDuplicates(formData.email, formData.phone);
+    }
+  }, [formData.email, formData.phone, isOpen, checkForDuplicates]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validate()) return;
 
-    setIsSubmitting(true);
+    // If duplicate found and not acknowledged, don't allow submission
+    if (showDuplicateWarning && !acknowledgeDuplicate) {
+      toast.error("Please acknowledge the duplicate customer warning");
+      return;
+    }
+
     try {
-      await onSave(formData);
-      toast.success("Customer added successfully!");
-      onClose();
-      // Reset form
+      // Copy shipping from billing if checkbox is selected
+      const customerData = {
+        ...formData,
+        shippingAddress: sameAsBilling ? formData.billingAddress : formData.shippingAddress,
+        shippingCity: sameAsBilling ? formData.billingCity : formData.shippingCity,
+        shippingState: sameAsBilling ? formData.billingState : formData.shippingState,
+        shippingPincode: sameAsBilling ? formData.billingPincode : formData.shippingPincode,
+      };
+
+      // Remove empty optional fields
+      Object.keys(customerData).forEach(key => {
+        if (customerData[key] === "" || customerData[key] === null) {
+          delete customerData[key];
+        }
+      });
+
+      await onSave(customerData);
+      
+      // Reset form on success
       setFormData({
         name: "",
+        type: "HOUSEHOLD",
         email: "",
         phone: "",
-        location: "",
-        status: "active",
+        taxId: "",
+        notes: "",
+        billingAddress: "",
+        billingCity: "",
+        billingState: "",
+        billingPincode: "",
+        shippingAddress: "",
+        shippingCity: "",
+        shippingState: "",
+        shippingPincode: "",
       });
+      setSameAsBilling(false);
+      setShowBillingSection(false);
+      setShowShippingSection(false);
       setErrors({});
-    } catch {
-      toast.error("Failed to add customer");
-    } finally {
-      setIsSubmitting(false);
+      setDuplicateCheckResult(null);
+      setShowDuplicateWarning(false);
+      setAcknowledgeDuplicate(false);
+    } catch (error) {
+      // Error is already handled in onSave
+      console.error("Form submission error:", error);
     }
   };
+
+  const handleViewExistingCustomer = () => {
+    if (duplicateCheckResult?.account) {
+      // Navigate to existing customer
+      navigate(`/dashboard/customers/${duplicateCheckResult.account.id}`);
+      onClose();
+    }
+  };
+
+  const handleCreateAnyway = () => {
+    setAcknowledgeDuplicate(true);
+    toast.success("You can now proceed to create the customer");
+  };
+
+  // Reset form when modal closes
+  React.useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        name: "",
+        type: "HOUSEHOLD",
+        email: "",
+        phone: "",
+        taxId: "",
+        notes: "",
+        billingAddress: "",
+        billingCity: "",
+        billingState: "",
+        billingPincode: "",
+        shippingAddress: "",
+        shippingCity: "",
+        shippingState: "",
+        shippingPincode: "",
+      });
+      setSameAsBilling(false);
+      setShowBillingSection(false);
+      setShowShippingSection(false);
+      setErrors({});
+      setDuplicateCheckResult(null);
+      setShowDuplicateWarning(false);
+      setAcknowledgeDuplicate(false);
+      
+      // Clear any pending debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    }
+  }, [isOpen]);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fade-in">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden animate-scale-in flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-orange-50 via-orange-50 to-amber-50">
           <div className="flex items-center gap-4">
@@ -252,7 +424,7 @@ const AddCustomerModal: React.FC<{
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="p-8 space-y-6 bg-gradient-to-b from-white to-gray-50"
+          className="p-8 space-y-6 bg-gradient-to-b from-white to-gray-50 overflow-y-auto flex-1"
         >
           {/* Name */}
           <div className="space-y-2">
@@ -266,8 +438,9 @@ const AddCustomerModal: React.FC<{
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                placeholder="e.g., Rajesh Sharma"
-                className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 ${
+                placeholder="e.g., Rajesh Sharma or ABC Company"
+                disabled={isCreating}
+                className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed ${
                   errors.name
                     ? "border-red-300 bg-red-50/50 focus:border-red-400"
                     : "border-gray-200 bg-white hover:border-gray-300"
@@ -282,28 +455,72 @@ const AddCustomerModal: React.FC<{
             </div>
           </div>
 
+          {/* Customer Type */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              Customer Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.type}
+              onChange={(e) =>
+                setFormData({ ...formData, type: e.target.value })
+              }
+              disabled={isCreating}
+              className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all duration-200 cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:20px] bg-[right_1rem_center] bg-no-repeat pr-12 disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.type
+                  ? "border-red-300 bg-red-50/50"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              {customerTypes.length > 0 ? (
+                customerTypes.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="HOUSEHOLD">🏠 Household</option>
+                  <option value="COMPANY">🏢 Company</option>
+                </>
+              )}
+            </select>
+            {errors.type && (
+              <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{errors.type}</span>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Select whether this is a household customer or a company
+            </p>
+          </div>
+
           {/* Email */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">
-              Email <span className="text-red-500">*</span>
+              Email <span className="text-xs text-gray-500">(Optional)</span>
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Mail className="w-5 h-5 text-gray-400" />
-              </div>
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
                 }
-                placeholder="rajesh@example.com"
-                className={`w-full pl-12 pr-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 ${
+                placeholder="customer@example.com"
+                disabled={isCreating}
+                className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed ${
                   errors.email
                     ? "border-red-300 bg-red-50/50 focus:border-red-400"
                     : "border-gray-200 bg-white hover:border-gray-300"
                 }`}
               />
+              {isCheckingDuplicate && formData.email && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                </div>
+              )}
               {errors.email && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -311,17 +528,17 @@ const AddCustomerModal: React.FC<{
                 </div>
               )}
             </div>
+            <p className="text-xs text-gray-500">
+              Used to check for duplicate customers
+            </p>
           </div>
 
           {/* Phone */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">
-              Phone <span className="text-red-500">*</span>
+              Phone <span className="text-xs text-gray-500">(Optional)</span>
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Phone className="w-5 h-5 text-gray-400" />
-              </div>
               <input
                 type="tel"
                 value={formData.phone}
@@ -329,12 +546,18 @@ const AddCustomerModal: React.FC<{
                   setFormData({ ...formData, phone: e.target.value })
                 }
                 placeholder="+91 98765 43210"
-                className={`w-full pl-12 pr-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 ${
+                disabled={isCreating}
+                className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed ${
                   errors.phone
                     ? "border-red-300 bg-red-50/50 focus:border-red-400"
                     : "border-gray-200 bg-white hover:border-gray-300"
                 }`}
               />
+              {isCheckingDuplicate && formData.phone && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                </div>
+              )}
               {errors.phone && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -342,56 +565,339 @@ const AddCustomerModal: React.FC<{
                 </div>
               )}
             </div>
+            <p className="text-xs text-gray-500">
+              Used to check for duplicate customers
+            </p>
           </div>
 
-          {/* Location */}
+          {/* Tax ID (Optional) */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">
-              Location <span className="text-red-500">*</span>
+              Tax ID (GSTIN) <span className="text-xs text-gray-500">(Optional)</span>
             </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) =>
-                  setFormData({ ...formData, location: e.target.value })
-                }
-                placeholder="e.g., HSR Layout, Bangalore"
-                className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 ${
-                  errors.location
-                    ? "border-red-300 bg-red-50/50 focus:border-red-400"
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
-              />
-              {errors.location && (
-                <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{errors.location}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">
-              Status
-            </label>
-            <select
-              value={formData.status}
+            <input
+              type="text"
+              value={formData.taxId}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  status: e.target.value as "active" | "completed" | "inactive",
-                })
+                setFormData({ ...formData, taxId: e.target.value })
               }
-              className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:20px] bg-[right_1rem_center] bg-no-repeat pr-12"
-            >
-              <option value="active">✅ Active</option>
-              <option value="completed">✔️ Completed</option>
-              <option value="inactive">⏸️ Inactive</option>
-            </select>
+              placeholder="e.g., 29ABCDE1234F1Z5"
+              disabled={isCreating}
+              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <p className="text-xs text-gray-500">
+              GST Identification Number for tax purposes
+            </p>
           </div>
+
+          {/* Billing Address Section (Collapsible) */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowBillingSection(!showBillingSection)}
+              className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-xl transition-all"
+              disabled={isCreating}
+            >
+              <span className="font-semibold text-gray-700 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-blue-600" />
+                Billing Address <span className="text-xs text-gray-500">(Optional)</span>
+              </span>
+              <div className={`transform transition-transform ${showBillingSection ? 'rotate-180' : ''}`}>
+                ▼
+              </div>
+            </button>
+            
+            {showBillingSection && (
+              <div className="space-y-3 p-4 bg-blue-50/50 rounded-xl border border-blue-100 animate-fade-in">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Street Address
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.billingAddress}
+                    onChange={(e) =>
+                      setFormData({ ...formData, billingAddress: e.target.value })
+                    }
+                    placeholder="Street address, building name"
+                    disabled={isCreating}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.billingCity}
+                      onChange={(e) =>
+                        setFormData({ ...formData, billingCity: e.target.value })
+                      }
+                      placeholder="City"
+                      disabled={isCreating}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      State
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.billingState}
+                      onChange={(e) =>
+                        setFormData({ ...formData, billingState: e.target.value })
+                      }
+                      placeholder="State"
+                      disabled={isCreating}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Pincode
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.billingPincode}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setFormData({ ...formData, billingPincode: value });
+                    }}
+                    placeholder="6-digit pincode"
+                    disabled={isCreating}
+                    className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
+                      errors.billingPincode ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.billingPincode && (
+                    <p className="text-xs text-red-600 mt-1">{errors.billingPincode}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Shipping Address Section (Collapsible) */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowShippingSection(!showShippingSection)}
+              className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 rounded-xl transition-all"
+              disabled={isCreating}
+            >
+              <span className="font-semibold text-gray-700 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-green-600" />
+                Shipping Address <span className="text-xs text-gray-500">(Optional)</span>
+              </span>
+              <div className={`transform transition-transform ${showShippingSection ? 'rotate-180' : ''}`}>
+                ▼
+              </div>
+            </button>
+            
+            {showShippingSection && (
+              <div className="space-y-3 p-4 bg-green-50/50 rounded-xl border border-green-100 animate-fade-in">
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="checkbox"
+                    id="sameAsBilling"
+                    checked={sameAsBilling}
+                    onChange={(e) => setSameAsBilling(e.target.checked)}
+                    disabled={isCreating}
+                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  />
+                  <label htmlFor="sameAsBilling" className="text-sm font-medium text-gray-700">
+                    Same as billing address
+                  </label>
+                </div>
+                
+                {!sameAsBilling && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Street Address
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.shippingAddress}
+                        onChange={(e) =>
+                          setFormData({ ...formData, shippingAddress: e.target.value })
+                        }
+                        placeholder="Street address, building name"
+                        disabled={isCreating}
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.shippingCity}
+                          onChange={(e) =>
+                            setFormData({ ...formData, shippingCity: e.target.value })
+                          }
+                          placeholder="City"
+                          disabled={isCreating}
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          State
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.shippingState}
+                          onChange={(e) =>
+                            setFormData({ ...formData, shippingState: e.target.value })
+                          }
+                          placeholder="State"
+                          disabled={isCreating}
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Pincode
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.shippingPincode}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setFormData({ ...formData, shippingPincode: value });
+                        }}
+                        placeholder="6-digit pincode"
+                        disabled={isCreating}
+                        className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 ${
+                          errors.shippingPincode ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
+                      />
+                      {errors.shippingPincode && (
+                        <p className="text-xs text-red-600 mt-1">{errors.shippingPincode}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              Notes <span className="text-xs text-gray-500">(Optional)</span>
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) =>
+                setFormData({ ...formData, notes: e.target.value })
+              }
+              rows={3}
+              placeholder="Any additional notes about this customer..."
+              disabled={isCreating}
+              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+            />
+          </div>
+
+          {/* Duplicate Warning */}
+          {showDuplicateWarning && duplicateCheckResult?.found && (
+            <div className="space-y-3 animate-fade-in">
+              <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-amber-900 mb-1">
+                      Duplicate Customer Found!
+                    </h4>
+                    <p className="text-sm text-amber-800 mb-3">
+                      A customer with this {formData.email ? "email" : "phone"} already exists in the system
+                    </p>
+                    
+                    {/* Existing Customer Details */}
+                    <div className="bg-white rounded-xl p-4 border border-amber-200 mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-semibold text-gray-900">
+                          {duplicateCheckResult.lead?.name || duplicateCheckResult.account?.name || "Unknown"}
+                        </p>
+                        <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+                          duplicateCheckResult.lead?.status === "CONVERTED"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {duplicateCheckResult.lead?.status || duplicateCheckResult.account?.status || "Unknown"}
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        {duplicateCheckResult.lead?.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-3.5 h-3.5 text-gray-400" />
+                            <span>{duplicateCheckResult.lead.email}</span>
+                          </div>
+                        )}
+                        {duplicateCheckResult.lead?.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-3.5 h-3.5 text-gray-400" />
+                            <span>{duplicateCheckResult.lead.phone}</span>
+                          </div>
+                        )}
+                        {duplicateCheckResult.account && (
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 text-gray-400" />
+                            <span>Customer Type: {duplicateCheckResult.account.type}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleViewExistingCustomer}
+                        disabled={!duplicateCheckResult.account}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-all font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+                      >
+                        <User className="w-4 h-4" />
+                        <span>View Existing Customer</span>
+                      </button>
+                      
+                      {!acknowledgeDuplicate && (
+                        <button
+                          type="button"
+                          onClick={handleCreateAnyway}
+                          className="flex items-center gap-2 px-4 py-2.5 border-2 border-amber-600 text-amber-700 hover:bg-amber-50 rounded-xl transition-all font-semibold text-sm hover:scale-105 active:scale-95"
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                          <span>Create Anyway</span>
+                        </button>
+                      )}
+
+                      {acknowledgeDuplicate && (
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 border border-emerald-300 rounded-xl">
+                          <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                            <span className="text-white text-xs">✓</span>
+                          </div>
+                          <span className="text-sm font-semibold text-emerald-700">
+                            Acknowledged
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </form>
 
         {/* Footer */}
@@ -399,20 +905,25 @@ const AddCustomerModal: React.FC<{
           <button
             type="button"
             onClick={onClose}
-            disabled={isSubmitting}
+            disabled={isCreating}
             className="px-6 py-3 text-gray-700 font-medium hover:bg-white rounded-2xl transition-all disabled:opacity-50 border-2 border-gray-200 hover:border-gray-300 hover:shadow-sm active:scale-95"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isCreating || (showDuplicateWarning && !acknowledgeDuplicate)}
             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700 text-white font-semibold rounded-2xl hover:from-orange-600 hover:via-orange-700 hover:to-orange-800 transition-all shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 disabled:hover:scale-100"
+            title={
+              showDuplicateWarning && !acknowledgeDuplicate
+                ? "Please acknowledge the duplicate warning first"
+                : ""
+            }
           >
-            {isSubmitting ? (
+            {isCreating ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Adding...</span>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Creating Customer...</span>
               </>
             ) : (
               <>
@@ -435,10 +946,37 @@ const ViewCustomerModal: React.FC<{
   onEdit: () => void;
   customer: Customer;
 }> = ({ isOpen, onClose, onEdit, customer }) => {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+
+  // Fetch contacts when modal opens
+  const fetchContacts = useCallback(async () => {
+    if (!customer?.id) return;
+
+    setLoadingContacts(true);
+    try {
+      const response = await ContactAPI.listContacts({
+        leadId: customer.id.toString(),
+      });
+      setContacts(response.contacts || []);
+    } catch (error) {
+      console.error("Failed to fetch contacts:", error);
+      setContacts([]);
+    } finally {
+      setLoadingContacts(false);
+    }
+  }, [customer?.id]);
+
+  useEffect(() => {
+    if (isOpen && customer?.id) {
+      fetchContacts();
+    }
+  }, [isOpen, customer?.id, fetchContacts]);
+
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fade-in">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -580,6 +1118,62 @@ const ViewCustomerModal: React.FC<{
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Contacts Section */}
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl p-6 border border-purple-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Contact2 className="w-5 h-5 text-purple-500" />
+              Contacts
+              {contacts.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-purple-200 text-purple-700 text-xs font-semibold rounded-full">
+                  {contacts.length}
+                </span>
+              )}
+            </h3>
+            {loadingContacts ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
+                <span className="ml-2 text-sm text-gray-500">Loading contacts...</span>
+              </div>
+            ) : contacts.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {contacts.map((contact) => (
+                  <div
+                    key={contact.id}
+                    className="bg-white rounded-xl p-4 border border-purple-100 hover:shadow-sm transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {contact.firstName} {contact.lastName}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <ContactRoleBadge role={contact.role} />
+                          {contact.isPrimary && <PrimaryBadge />}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-1 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-gray-400" />
+                        <span>{contact.phone}</span>
+                      </div>
+                      {contact.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="truncate">{contact.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">
+                No contacts added yet. View full details to add contacts.
+              </p>
+            )}
           </div>
 
           {/* Business Info */}
@@ -881,12 +1475,13 @@ const EditCustomerModal: React.FC<{
     }
     setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      onSave(formData);
-      toast.success("Customer updated successfully!");
+      // Call the parent's update handler (which calls the API)
+      await onSave(formData);
+      // Success - modal will be closed by parent component
       onClose();
-    } catch {
-      toast.error("Failed to update customer");
+    } catch (error: any) {
+      // Error is already handled by parent with toast, just keep modal open
+      console.error("Failed to update customer:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -1007,7 +1602,7 @@ const EditCustomerModal: React.FC<{
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fade-in">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -1817,45 +2412,245 @@ export const Customers: React.FC = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null,
   );
-  const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [isUpdatingCustomer, setIsUpdatingCustomer] = useState(false);
+  const [customerTypes, setCustomerTypes] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
+  const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
+  
+  // Ref for debounce timer
+  const searchDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const filteredCustomers = customers.filter((customer) =>
-    customer.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  // Fetch customers and customer types from API on mount
+  useEffect(() => {
+    fetchCustomers();
+    fetchCustomerTypes();
+  }, []);
 
-  const handleAddCustomer = async (
-    customerData: Omit<
-      Customer,
-      "id" | "initials" | "projects" | "totalValue" | "rating" | "lastContact"
-    >,
-  ) => {
-    // Generate initials from name
-    const initials = customerData.name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  const fetchCustomerTypes = async () => {
+    try {
+      const types = await CustomerAPI.getCustomerTypes();
+      setCustomerTypes(types);
+    } catch (error) {
+      console.error("Error fetching customer types:", error);
+      // Use default types if API fails
+      setCustomerTypes([
+        { value: "HOUSEHOLD", label: "Household" },
+        { value: "COMPANY", label: "Company" },
+      ]);
+    }
+  };
 
-    // Create new customer with default values
-    const newCustomer: Customer = {
-      id: customers.length + 1,
-      ...customerData,
-      initials,
-      projects: 0,
-      totalValue: 0,
-      rating: 0,
-      lastContact: "Just now",
+  const fetchCustomers = async (searchTerm?: string) => {
+    const isInitialLoad = searchTerm === undefined;
+    
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setIsSearching(true);
+    }
+    
+    try {
+      const params = searchTerm ? { search: searchTerm } : {};
+      const response = await CustomerAPI.listCustomers(params);
+      
+      // Map API customers to UI Customer format
+      const mappedCustomers: Customer[] = response.customers.map((apiCustomer, index) => {
+        const initials = apiCustomer.name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+        return {
+          id: apiCustomer.id, // Keep UUID as string
+          name: apiCustomer.name,
+          initials,
+          email: apiCustomer._count?.contacts > 0 ? "View details for contact info" : "No contacts",
+          phone: apiCustomer._count?.contacts > 0 ? "View details" : "N/A",
+          location: apiCustomer.billingCity || apiCustomer.shippingCity || apiCustomer.billingAddress || apiCustomer.shippingAddress || "N/A",
+          projects: apiCustomer._count?.projects || 0,
+          totalValue: 0,
+          status: (apiCustomer.status?.toLowerCase() as "active" | "completed" | "inactive") || "active",
+          rating: 0,
+          lastContact: apiCustomer.updatedAt ? new Date(apiCustomer.updatedAt).toLocaleDateString() : "N/A",
+          photoUrl: undefined,
+          alternatePhone: undefined,
+          address: apiCustomer.billingAddress || apiCustomer.shippingAddress || undefined,
+          familyMembers: [],
+          importantDates: [],
+          referrals: [],
+          clientRanking: undefined,
+          communicationPreference: undefined,
+          notes: [],
+          occupation: undefined,
+          companyName: undefined,
+        };
+      });
+
+      setCustomers(mappedCustomers);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      toast.error("Failed to load customers");
+      // Fall back to mock data if API fails
+      setCustomers(mockCustomers);
+    } finally {
+      if (isInitialLoad) {
+        setLoading(false);
+      } else {
+        setIsSearching(false);
+      }
+    }
+  };
+
+  // Debounced search function
+  const debouncedSearch = React.useCallback((searchTerm: string) => {
+    // Clear any existing timer
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current);
+    }
+
+    // Set new timer
+    searchDebounceTimerRef.current = setTimeout(() => {
+      fetchCustomers(searchTerm);
+    }, 500); // 500ms debounce
+  }, []);
+
+  // Effect to handle search query changes
+  React.useEffect(() => {
+    if (searchQuery.trim()) {
+      debouncedSearch(searchQuery.trim());
+    } else {
+      // If search is cleared, fetch all customers immediately
+      fetchCustomers();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (searchDebounceTimerRef.current) {
+        clearTimeout(searchDebounceTimerRef.current);
+      }
     };
+  }, [searchQuery]);
 
-    setCustomers([...customers, newCustomer]);
+  const handleAddCustomer = async (customerData: any) => {
+    setIsCreatingCustomer(true);
+    try {
+      // Call the backend API to create customer
+      const response = await CustomerAPI.createCustomer(customerData as any);
+
+      console.log("Customer created successfully:", response);
+      
+      // Show success toast
+      toast.success(`Customer "${customerData.name}" created successfully!`);
+      
+      // Close the modal
+      setShowAddModal(false);
+      
+      // Refresh the customer list to show the new customer
+      await fetchCustomers();
+    } catch (error: any) {
+      console.error("Error creating customer:", error);
+      
+      // Show error toast with specific error message
+      const errorMessage = error?.message || "Failed to create customer";
+      toast.error(errorMessage);
+      
+      // Don't close the modal on error so user can retry
+      throw error;
+    } finally {
+      setIsCreatingCustomer(false);
+    }
   };
 
   const handleUpdateCustomer = async (updatedCustomer: Customer) => {
+    if (isUpdatingCustomer) return; // Prevent concurrent updates
+
+    setIsUpdatingCustomer(true);
+    
+    // Store previous state for rollback
+    const previousCustomers = [...customers];
+    
+    // Optimistic update - update UI immediately
     setCustomers(
       customers.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c)),
     );
-    setSelectedCustomer(null);
+    
+    try {
+      // Call backend API to persist changes
+      const customerToUpdate: Partial<APICustomer> = {
+        name: updatedCustomer.name,
+        status: updatedCustomer.status.toUpperCase(),
+        notes: updatedCustomer.notes && updatedCustomer.notes.length > 0 
+          ? updatedCustomer.notes.map(n => n.content).join('\n') 
+          : undefined,
+      };
+
+      await CustomerAPI.updateCustomer(
+        String(updatedCustomer.id),
+        customerToUpdate as any
+      );
+      
+      // Success! Show success message
+      toast.success('Customer updated successfully!');
+      // Modal will be closed by the caller
+    } catch (error: any) {
+      console.error('Failed to update customer:', error);
+      
+      // Rollback optimistic update on error
+      setCustomers(previousCustomers);
+      
+      // Show error message
+      const errorMessage = error?.message || 'Failed to update customer';
+      toast.error(errorMessage);
+      
+      // Re-throw error so modal knows to stay open
+      throw error;
+    } finally {
+      setIsUpdatingCustomer(false);
+    }
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!deleteCustomerId || isDeletingCustomer) return;
+
+    const customerToDelete = customers.find((c) => c.id === deleteCustomerId);
+    if (!customerToDelete) return;
+
+    setIsDeletingCustomer(true);
+    
+    // Store previous state for rollback
+    const previousCustomers = [...customers];
+
+    try {
+      // Call API to delete customer
+      await CustomerAPI.deleteCustomer(String(deleteCustomerId));
+      
+      // Remove customer from local state on success
+      setCustomers(customers.filter((c) => c.id !== deleteCustomerId));
+      
+      // Show success toast
+      toast.success(`Customer "${customerToDelete.name}" deleted successfully!`);
+      
+      // Close confirmation dialog
+      setDeleteCustomerId(null);
+    } catch (error: any) {
+      console.error('Failed to delete customer:', error);
+      
+      // Show error toast with specific message
+      const errorMessage = error?.message || 'Failed to delete customer';
+      toast.error(errorMessage);
+      
+      // Don't close dialog on error so user can retry or cancel
+    } finally {
+      setIsDeletingCustomer(false);
+    }
   };
 
   const totalCustomers = customers.length;
@@ -1875,10 +2670,21 @@ export const Customers: React.FC = () => {
             Manage your customer relationships
           </p>
         </div>
-        <Button className="rounded-xl" onClick={() => setShowAddModal(true)}>
-          <Plus className="w-4 h-4" />
-          Add Customer
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            className="rounded-xl"
+            onClick={fetchCustomers}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button className="rounded-xl" onClick={() => setShowAddModal(true)}>
+            <Plus className="w-4 h-4" />
+            Add Customer
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1940,15 +2746,38 @@ export const Customers: React.FC = () => {
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
         <input
           type="text"
-          placeholder="Search customers..."
-          className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+          placeholder="Search customers by name..."
+          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
+        {isSearching && (
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+            <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredCustomers.map((customer) => {
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-orange-500 mx-auto mb-4" />
+            <p className="text-gray-600">Loading customers...</p>
+          </div>
+        </div>
+      ) : customers.length === 0 ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-600 font-medium mb-2">No customers found</p>
+            <p className="text-sm text-gray-500">
+              {searchQuery ? "Try adjusting your search" : "Get started by adding your first customer"}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {customers.map((customer) => {
           const statusColor = statusColors[customer.status];
           return (
             <Card
@@ -1970,6 +2799,16 @@ export const Customers: React.FC = () => {
                     <p className="text-sm text-gray-600">{customer.location}</p>
                   </div>
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteCustomerId(customer.id.toString());
+                  }}
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                  title="Delete customer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
 
               <div
@@ -1982,11 +2821,11 @@ export const Customers: React.FC = () => {
               <div className="space-y-2.5 mb-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Mail className="w-4 h-4 text-gray-400" />
-                  <span className="truncate">{customer.email}</span>
+                  <span className="truncate">{customer.email || "No email"}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Phone className="w-4 h-4 text-gray-400" />
-                  <span>{customer.phone}</span>
+                  <span>{customer.phone || "No phone"}</span>
                 </div>
               </div>
 
@@ -2026,14 +2865,104 @@ export const Customers: React.FC = () => {
             </Card>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Add Customer Modal */}
       <AddCustomerModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSave={handleAddCustomer}
+        customerTypes={customerTypes}
+        isCreating={isCreatingCustomer}
       />
+
+      {/* Delete Confirmation Modal */}
+      {deleteCustomerId && (() => {
+        const customerToDelete = customers.find((c) => c.id === deleteCustomerId);
+        if (!customerToDelete) return null;
+        
+        return ReactDOM.createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fade-in">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              onClick={() => !isDeletingCustomer && setDeleteCustomerId(null)}
+            />
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+              {/* Header */}
+              <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-red-50 via-red-50 to-orange-50">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 via-red-600 to-red-700 flex items-center justify-center shadow-lg shadow-red-500/30 ring-4 ring-red-100">
+                    <AlertCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      Delete Customer?
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      This action cannot be undone
+                    </p>
+                  </div>
+                </div>
+                {!isDeletingCustomer && (
+                  <button
+                    onClick={() => setDeleteCustomerId(null)}
+                    className="p-2.5 hover:bg-white/60 rounded-xl transition-all hover:scale-110 active:scale-95"
+                  >
+                    <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="p-8 bg-gradient-to-b from-white to-gray-50">
+                <p className="text-gray-700 leading-relaxed">
+                  Are you sure you want to delete{" "}
+                  <span className="font-semibold text-gray-900">
+                    {customerToDelete.name}
+                  </span>
+                  ? This will permanently remove the customer and all associated data.
+                </p>
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-2xl">
+                  <p className="text-sm text-red-700 font-medium">
+                    ⚠️ Warning: This action cannot be undone
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-3 px-8 py-6 border-t border-gray-100 bg-gray-50/50">
+                <button
+                  type="button"
+                  onClick={() => setDeleteCustomerId(null)}
+                  disabled={isDeletingCustomer}
+                  className="px-6 py-3 text-gray-700 font-medium hover:bg-white rounded-2xl transition-all disabled:opacity-50 border-2 border-gray-200 hover:border-gray-300 hover:shadow-sm active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteCustomer}
+                  disabled={isDeletingCustomer}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white font-semibold rounded-2xl hover:from-red-600 hover:via-red-700 hover:to-red-800 transition-all shadow-lg shadow-red-500/30 hover:shadow-xl hover:shadow-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 disabled:hover:scale-100"
+                >
+                  {isDeletingCustomer ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-5 h-5" />
+                      <span>Delete Customer</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        );
+      })()}
 
       {/* View Customer Modal */}
       {selectedCustomer && (

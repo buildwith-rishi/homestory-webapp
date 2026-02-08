@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar, dateFnsLocalizer, SlotInfo } from "react-big-calendar";
 import {
@@ -25,8 +25,11 @@ import {
   Check,
   AlertCircle,
   ArrowLeft,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { Button, Card } from "../../components/ui";
+import { useMeetingStore } from "../../stores/meetingStore";
 
 // Setup date-fns localizer
 const locales = {
@@ -77,7 +80,7 @@ const statusConfig = {
 };
 
 export interface CalendarMeeting {
-  id: number;
+  id: number | string;
   title: string;
   client: string;
   start: Date;
@@ -88,54 +91,6 @@ export interface CalendarMeeting {
   attendees?: string[];
   notes?: string;
 }
-
-// Mock meetings data
-const mockMeetings: CalendarMeeting[] = [
-  {
-    id: 1,
-    title: "Initial Consultation",
-    client: "Rajesh Sharma",
-    start: new Date(2026, 0, 20, 10, 0),
-    end: new Date(2026, 0, 20, 10, 45),
-    status: "scheduled",
-    type: "consultation",
-    location: "HSR Layout Office",
-    attendees: ["AR", "RS"],
-  },
-  {
-    id: 2,
-    title: "Design Review",
-    client: "Priya Kumar",
-    start: new Date(2026, 0, 18, 14, 30),
-    end: new Date(2026, 0, 18, 15, 45),
-    status: "completed",
-    type: "design_review",
-    location: "Client Site",
-    attendees: ["AR", "PK", "MG"],
-    notes: "Discussed floor plan changes and material selections.",
-  },
-  {
-    id: 3,
-    title: "Site Visit",
-    client: "Amit Patel",
-    start: new Date(2026, 0, 18, 16, 0),
-    end: new Date(2026, 0, 18, 16, 30),
-    status: "in_progress",
-    type: "site_visit",
-    location: "Whitefield Villa",
-    attendees: ["RS"],
-  },
-  {
-    id: 4,
-    title: "Virtual Walkthrough",
-    client: "Sneha Reddy",
-    start: new Date(2026, 0, 19, 11, 0),
-    end: new Date(2026, 0, 19, 12, 0),
-    status: "scheduled",
-    type: "virtual",
-    attendees: ["AR", "PK"],
-  },
-];
 
 // Custom toolbar component
 const CustomToolbar: React.FC<{
@@ -214,11 +169,13 @@ const EventComponent: React.FC<{ event: CalendarMeeting }> = ({ event }) => {
 const MeetingModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSave: (meeting: Omit<CalendarMeeting, "id"> | CalendarMeeting) => void;
-  onDelete?: () => void;
+  onSave: (meeting: Omit<CalendarMeeting, "id"> | CalendarMeeting) => Promise<void>;
+  onDelete?: () => Promise<void>;
   meeting?: CalendarMeeting | null;
   defaultStart?: Date;
   defaultEnd?: Date;
+  isLoading?: boolean;
+  error?: string | null;
 }> = ({
   isOpen,
   onClose,
@@ -227,6 +184,8 @@ const MeetingModal: React.FC<{
   meeting,
   defaultStart,
   defaultEnd,
+  isLoading = false,
+  error = null,
 }) => {
   const [formData, setFormData] = useState({
     title: meeting?.title || "",
@@ -252,7 +211,7 @@ const MeetingModal: React.FC<{
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -271,14 +230,19 @@ const MeetingModal: React.FC<{
       notes: formData.notes || undefined,
     };
 
-    onSave(meetingData as CalendarMeeting);
-    onClose();
+    try {
+      await onSave(meetingData as CalendarMeeting);
+      onClose();
+    } catch (error) {
+      // Error is handled by parent, just don't close modal
+      console.error("Error saving meeting:", error);
+    }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
@@ -314,6 +278,17 @@ const MeetingModal: React.FC<{
           onSubmit={handleSubmit}
           className="p-6 space-y-5 overflow-y-auto max-h-[calc(90vh-180px)]"
         >
+          {/* Error Message */}
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-900">Failed to save meeting</p>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+              </div>
+            </div>
+          )}
+
           {/* Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -504,13 +479,23 @@ const MeetingModal: React.FC<{
             {meeting && onDelete && (
               <button
                 type="button"
-                onClick={() => {
-                  onDelete();
-                  onClose();
+                onClick={async () => {
+                  try {
+                    await onDelete();
+                    onClose();
+                  } catch (error) {
+                    // Error is handled by parent
+                    console.error("Error deleting meeting:", error);
+                  }
                 }}
-                className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                disabled={isLoading}
+                className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Trash2 className="w-4 h-4" />
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
                 Delete
               </button>
             )}
@@ -519,16 +504,27 @@ const MeetingModal: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              disabled={isLoading}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-500/25"
+              disabled={isLoading}
+              className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Check className="w-4 h-4" />
-              {meeting ? "Update Meeting" : "Schedule Meeting"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  {meeting ? "Update Meeting" : "Schedule Meeting"}
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -542,14 +538,16 @@ const MeetingDetailPopup: React.FC<{
   meeting: CalendarMeeting;
   onClose: () => void;
   onEdit: () => void;
-  onDelete: () => void;
-}> = ({ meeting, onClose, onEdit, onDelete }) => {
-  const typeConfig = meetingTypes[meeting.type];
+  onDelete: () => Promise<void>;
+  onViewDetails: () => void;
+  isLoading?: boolean;
+}> = ({ meeting, onClose, onEdit, onDelete, onViewDetails, isLoading = false }) => {
+  const typeConfig = meetingTypes[meeting.type] || meetingTypes.consultation; // Fallback to consultation if type not found
   const TypeIcon = typeConfig.icon;
-  const status = statusConfig[meeting.status];
+  const status = statusConfig[meeting.status] || statusConfig.scheduled; // Fallback to scheduled if status not found
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-sm"
         onClick={onClose}
@@ -665,17 +663,38 @@ const MeetingDetailPopup: React.FC<{
         {/* Actions */}
         <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
           <button
-            onClick={onEdit}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-white transition-colors"
+            onClick={onViewDetails}
+            disabled={isLoading}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Edit3 className="w-4 h-4" />
-            Edit
+            <ExternalLink className="w-4 h-4" />
+            View Details
           </button>
           <button
-            onClick={onDelete}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 transition-colors"
+            onClick={onEdit}
+            disabled={isLoading}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Trash2 className="w-4 h-4" />
+            <Edit3 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await onDelete();
+                onClose();
+              } catch (error) {
+                // Error handled by parent
+                console.error("Error deleting meeting:", error);
+              }
+            }}
+            disabled={isLoading}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
           </button>
         </div>
       </div>
@@ -686,6 +705,16 @@ const MeetingDetailPopup: React.FC<{
 // Main Calendar Page Component
 export const MeetingsCalendarPage: React.FC = () => {
   const navigate = useNavigate();
+  const { 
+    meetings: apiMeetings, 
+    isLoading, 
+    error, 
+    fetchMeetings,
+    createMeeting,
+    updateMeeting,
+    deleteMeeting,
+  } = useMeetingStore();
+  
   const [view, setView] = useState<"month" | "week" | "day" | "agenda">(
     "month",
   );
@@ -699,7 +728,51 @@ export const MeetingsCalendarPage: React.FC = () => {
     start: Date;
     end: Date;
   } | null>(null);
-  const [meetings, setMeetings] = useState<CalendarMeeting[]>(mockMeetings);
+  const [mutationLoading, setMutationLoading] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
+  // Fetch meetings on mount
+  useEffect(() => {
+    fetchMeetings();
+  }, [fetchMeetings]);
+
+  // Transform API meetings to calendar format
+  const calendarMeetings: CalendarMeeting[] = useMemo(() => {
+    return apiMeetings.map((meeting) => {
+      // Get scheduled date with fallbacks
+      const scheduledDate = meeting.scheduledAt || meeting.scheduledDate || meeting.createdAt;
+      
+      // Create date object with validation
+      let start: Date;
+      if (scheduledDate) {
+        start = new Date(scheduledDate);
+        // Check if date is valid
+        if (isNaN(start.getTime())) {
+          console.warn('Invalid date for calendar meeting:', meeting.id, scheduledDate);
+          start = new Date(); // Fallback to current date
+        }
+      } else {
+        console.warn('No date found for calendar meeting:', meeting.id);
+        start = new Date(); // Fallback to current date
+      }
+      
+      const durationMinutes = meeting.duration || 30;
+      const end = new Date(start.getTime() + durationMinutes * 60000);
+      
+      return {
+        id: meeting.id,
+        title: meeting.title,
+        client: meeting.description || "Client",
+        start,
+        end,
+        status: meeting.status,
+        type: "consultation" as const,
+        location: meeting.location,
+        attendees: meeting.attendees || [],
+        notes: "",
+      };
+    });
+  }, [apiMeetings]);
 
   // Handle slot selection (clicking on empty space)
   const handleSelectSlot = useCallback((slotInfo: SlotInfo) => {
@@ -719,22 +792,82 @@ export const MeetingsCalendarPage: React.FC = () => {
   }, []);
 
   // Handle add meeting
-  const handleAddMeeting = (meeting: Omit<CalendarMeeting, "id">) => {
-    const newMeeting: CalendarMeeting = {
-      ...meeting,
-      id: Date.now(),
-    };
-    setMeetings((prev) => [...prev, newMeeting]);
+  const handleAddMeeting = async (meeting: Omit<CalendarMeeting, "id">) => {
+    setMutationLoading(true);
+    setMutationError(null);
+    
+    try {
+      // Map calendar meeting to store format (NOT directly to API format)
+      // The store's createMeeting will handle the mapping to API format
+      const meetingData = {
+        title: meeting.title,
+        description: meeting.client,
+        scheduledDate: meeting.start.toISOString(),
+        duration: Math.round((meeting.end.getTime() - meeting.start.getTime()) / 60000),
+        location: meeting.location,
+        attendees: meeting.attendees,
+        status: meeting.status,
+        // These fields help the store determine entityType
+        // If no specific entity, the store will use defaults
+      };
+      
+      await createMeeting(meetingData);
+      // Refresh meetings list
+      await fetchMeetings();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to create meeting";
+      setMutationError(errorMessage);
+      throw error; // Re-throw to prevent modal from closing
+    } finally {
+      setMutationLoading(false);
+    }
   };
 
   // Handle update meeting
-  const handleUpdateMeeting = (meeting: CalendarMeeting) => {
-    setMeetings((prev) => prev.map((m) => (m.id === meeting.id ? meeting : m)));
+  const handleUpdateMeeting = async (meeting: CalendarMeeting) => {
+    setMutationLoading(true);
+    setMutationError(null);
+    
+    try {
+      // Map calendar meeting to API update format
+      const updates = {
+        title: meeting.title,
+        description: meeting.client,
+        scheduledDate: meeting.start.toISOString(),
+        duration: Math.round((meeting.end.getTime() - meeting.start.getTime()) / 60000),
+        location: meeting.location,
+        attendees: meeting.attendees,
+        status: meeting.status,
+      };
+      
+      await updateMeeting(meeting.id.toString(), updates);
+      // Refresh meetings list
+      await fetchMeetings();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update meeting";
+      setMutationError(errorMessage);
+      throw error; // Re-throw to prevent modal from closing
+    } finally {
+      setMutationLoading(false);
+    }
   };
 
   // Handle delete meeting
-  const handleDeleteMeeting = (id: number) => {
-    setMeetings((prev) => prev.filter((m) => m.id !== id));
+  const handleDeleteMeeting = async (id: number | string) => {
+    setMutationLoading(true);
+    setMutationError(null);
+    
+    try {
+      await deleteMeeting(id.toString());
+      // Refresh meetings list
+      await fetchMeetings();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete meeting";
+      setMutationError(errorMessage);
+      throw error;
+    } finally {
+      setMutationLoading(false);
+    }
   };
 
   // Custom day cell styling
@@ -762,6 +895,27 @@ export const MeetingsCalendarPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Error State */}
+      {error && !isLoading && (
+        <Card className="p-6 rounded-xl border-red-200 bg-red-50">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-red-900">Error loading meetings</h3>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <Button
+                onClick={() => fetchMeetings()}
+                variant="secondary"
+                className="mt-3 rounded-lg"
+                size="sm"
+              >
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -818,6 +972,12 @@ export const MeetingsCalendarPage: React.FC = () => {
       </Card>
 
       {/* Calendar */}
+      {isLoading ? (
+        <Card className="p-12 rounded-xl text-center" style={{ minHeight: "600px" }}>
+          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading meetings...</p>
+        </Card>
+      ) : (
       <Card
         className="p-6"
         style={{ height: "calc(100vh - 280px)", minHeight: "600px" }}
@@ -967,7 +1127,7 @@ export const MeetingsCalendarPage: React.FC = () => {
         <div className="h-[calc(100%-60px)]">
           <Calendar
             localizer={localizer}
-            events={meetings}
+            events={calendarMeetings}
             startAccessor="start"
             endAccessor="end"
             view={view}
@@ -987,6 +1147,7 @@ export const MeetingsCalendarPage: React.FC = () => {
           />
         </div>
       </Card>
+      )}
 
       {/* Modals */}
       {showAddModal && (
@@ -995,10 +1156,13 @@ export const MeetingsCalendarPage: React.FC = () => {
           onClose={() => {
             setShowAddModal(false);
             setNewEventSlot(null);
+            setMutationError(null);
           }}
           onSave={handleAddMeeting}
           defaultStart={newEventSlot?.start}
           defaultEnd={newEventSlot?.end}
+          isLoading={mutationLoading}
+          error={mutationError}
         />
       )}
 
@@ -1008,14 +1172,13 @@ export const MeetingsCalendarPage: React.FC = () => {
           onClose={() => {
             setShowEditModal(false);
             setSelectedMeeting(null);
+            setMutationError(null);
           }}
           onSave={(meeting) => handleUpdateMeeting(meeting as CalendarMeeting)}
-          onDelete={() => {
-            handleDeleteMeeting(selectedMeeting.id);
-            setShowEditModal(false);
-            setSelectedMeeting(null);
-          }}
+          onDelete={() => handleDeleteMeeting(selectedMeeting.id)}
           meeting={selectedMeeting}
+          isLoading={mutationLoading}
+          error={mutationError}
         />
       )}
 
@@ -1025,16 +1188,18 @@ export const MeetingsCalendarPage: React.FC = () => {
           onClose={() => {
             setShowDetailPopup(false);
             setSelectedMeeting(null);
+            setMutationError(null);
           }}
           onEdit={() => {
             setShowDetailPopup(false);
             setShowEditModal(true);
           }}
-          onDelete={() => {
-            handleDeleteMeeting(selectedMeeting.id);
+          onDelete={() => handleDeleteMeeting(selectedMeeting.id)}
+          onViewDetails={() => {
             setShowDetailPopup(false);
-            setSelectedMeeting(null);
+            navigate(`/dashboard/meetings/${selectedMeeting.id}`);
           }}
+          isLoading={mutationLoading}
         />
       )}
     </div>

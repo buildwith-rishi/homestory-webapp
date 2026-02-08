@@ -16,7 +16,6 @@ import {
   LogOut,
   Shield,
   Layers,
-  Building2,
 } from "lucide-react";
 import Logo from "../shared/Logo";
 import BrandPattern from "../shared/BrandPattern";
@@ -46,7 +45,6 @@ const navigationSections: NavSection[] = [
     items: [
       { icon: Home, label: "Dashboard", path: "/dashboard" },
       { icon: Users2, label: "Leads", path: "/dashboard/leads" },
-      { icon: Building2, label: "Accounts", path: "/dashboard/accounts" },
       { icon: FileText, label: "Follow-Ups", path: "/dashboard/updates" },
       { icon: Handshake, label: "Meetings", path: "/dashboard/meetings" },
       { icon: Users, label: "Customers", path: "/dashboard/customers" },
@@ -90,14 +88,16 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   return (
     <aside
-      className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${
+      className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-200 transition-[width] duration-300 ease-in-out ${
         collapsed ? "w-20" : "w-72"
       } z-50 flex flex-col shadow-sm`}
     >
       {/* Logo Section */}
-      <div className={`flex items-center justify-center border-b border-gray-200 transition-all duration-300 ${
-        collapsed ? "px-2 py-4" : "px-4 py-4"
-      }`}>
+      <div
+        className={`flex items-center justify-center border-b border-gray-200 transition-all duration-300 ${
+          collapsed ? "px-2 py-4" : "px-4 py-4"
+        }`}
+      >
         {!collapsed && (
           <div className="flex items-center w-full justify-start">
             <Logo colorScheme="default" size={160} />
@@ -167,7 +167,9 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                           }`}
                         />
                         {!collapsed && (
-                          <span className="ml-3 text-sm transition-opacity duration-200">{item.label}</span>
+                          <span className="ml-3 text-sm transition-opacity duration-200">
+                            {item.label}
+                          </span>
                         )}
                         {collapsed && (
                           <div className="absolute left-full ml-2 bg-gray-900 text-white px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap text-sm z-50 shadow-lg">

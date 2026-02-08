@@ -7,12 +7,10 @@ import {
   CheckCircle2,
   Clock,
   DollarSign,
+  Ban,
 } from "lucide-react";
 import { Button, Badge } from "../../ui";
-import {
-  ProjectStageWithDays,
-  StageStatus,
-} from "../../../types";
+import { ProjectStageWithDays, StageStatus } from "../../../types";
 
 // Helper functions
 const formatCurrency = (value: number): string => {
@@ -26,12 +24,30 @@ const formatCurrency = (value: number): string => {
 };
 
 const getStatusColor = (status: StageStatus) => {
-  const colors: Record<StageStatus, { bg: string; text: string; border: string }> = {
-    [StageStatus.COMPLETED]: { bg: "bg-green-100", text: "text-green-700", border: "border-green-200" },
-    [StageStatus.IN_PROGRESS]: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-200" },
-    [StageStatus.NOT_STARTED]: { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200" },
-    [StageStatus.ON_HOLD]: { bg: "bg-yellow-100", text: "text-yellow-700", border: "border-yellow-200" },
-    [StageStatus.SKIPPED]: { bg: "bg-gray-100", text: "text-gray-500", border: "border-gray-200" },
+  const colors: Record<
+    StageStatus,
+    { bg: string; text: string; border: string }
+  > = {
+    [StageStatus.COMPLETED]: {
+      bg: "bg-green-100",
+      text: "text-green-700",
+      border: "border-green-200",
+    },
+    [StageStatus.ONGOING]: {
+      bg: "bg-orange-100",
+      text: "text-orange-700",
+      border: "border-orange-200",
+    },
+    [StageStatus.PENDING]: {
+      bg: "bg-gray-100",
+      text: "text-gray-700",
+      border: "border-gray-200",
+    },
+    [StageStatus.NOT_APPLICABLE]: {
+      bg: "bg-gray-50",
+      text: "text-gray-400",
+      border: "border-gray-200",
+    },
   };
   return colors[status];
 };
@@ -54,17 +70,27 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
   onSave,
 }) => {
   const [startDate, setStartDate] = useState(stage.startDate || "");
-  const [estimatedEndDate, setEstimatedEndDate] = useState(stage.estimatedEndDate || "");
+  const [estimatedEndDate, setEstimatedEndDate] = useState(
+    stage.estimatedEndDate || "",
+  );
   const [totalBudget, setTotalBudget] = useState(stage.totalBudget.toString());
   const [remarks, setRemarks] = useState(stage.remarks || "");
   const [status, setStatus] = useState(stage.status);
-  const [errors, setErrors] = useState<{ startDate?: string; endDate?: string; budget?: string }>({});
+  const [errors, setErrors] = useState<{
+    startDate?: string;
+    endDate?: string;
+    budget?: string;
+  }>({});
 
   const validateForm = () => {
     const newErrors: typeof errors = {};
 
     // Validate start date is before end date
-    if (startDate && estimatedEndDate && new Date(startDate) > new Date(estimatedEndDate)) {
+    if (
+      startDate &&
+      estimatedEndDate &&
+      new Date(startDate) > new Date(estimatedEndDate)
+    ) {
       newErrors.endDate = "End date must be after start date";
     }
 
@@ -95,7 +121,7 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
   const statusColors = getStatusColor(status);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-gray-200 bg-gradient-to-br from-purple-50 to-white">
@@ -106,11 +132,17 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
                   <Calendar className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Edit Stage</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">{stage.phaseName}</p>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Edit Stage
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {stage.phaseName}
+                  </p>
                 </div>
               </div>
-              <Badge className={`${statusColors.bg} ${statusColors.text} text-xs mt-2`}>
+              <Badge
+                className={`${statusColors.bg} ${statusColors.text} text-xs mt-2`}
+              >
                 {stage.phaseCategory} PHASE
               </Badge>
             </div>
@@ -151,15 +183,28 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
                   >
                     <div className="flex items-center gap-2">
                       {statusOption === StageStatus.COMPLETED && (
-                        <CheckCircle2 className={`w-5 h-5 ${isSelected ? colors.text : "text-gray-400"}`} />
+                        <CheckCircle2
+                          className={`w-5 h-5 ${isSelected ? colors.text : "text-gray-400"}`}
+                        />
                       )}
-                      {statusOption === StageStatus.IN_PROGRESS && (
-                        <Clock className={`w-5 h-5 ${isSelected ? colors.text : "text-gray-400"}`} />
+                      {statusOption === StageStatus.ONGOING && (
+                        <Clock
+                          className={`w-5 h-5 ${isSelected ? colors.text : "text-gray-400"}`}
+                        />
                       )}
-                      {statusOption === StageStatus.NOT_STARTED && (
-                        <AlertCircle className={`w-5 h-5 ${isSelected ? colors.text : "text-gray-400"}`} />
+                      {statusOption === StageStatus.PENDING && (
+                        <AlertCircle
+                          className={`w-5 h-5 ${isSelected ? colors.text : "text-gray-400"}`}
+                        />
                       )}
-                      <span className={`text-sm font-semibold ${isSelected ? colors.text : "text-gray-600"}`}>
+                      {statusOption === StageStatus.NOT_APPLICABLE && (
+                        <Ban
+                          className={`w-5 h-5 ${isSelected ? colors.text : "text-gray-400"}`}
+                        />
+                      )}
+                      <span
+                        className={`text-sm font-semibold ${isSelected ? colors.text : "text-gray-600"}`}
+                      >
                         {statusOption.replace("_", " ")}
                       </span>
                     </div>
@@ -185,7 +230,9 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
                   setErrors((prev) => ({ ...prev, startDate: undefined }));
                 }}
                 className={`w-full px-4 py-3 rounded-xl border ${
-                  errors.startDate ? "border-red-300 bg-red-50" : "border-gray-200"
+                  errors.startDate
+                    ? "border-red-300 bg-red-50"
+                    : "border-gray-200"
                 } focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors`}
               />
               {errors.startDate && (
@@ -211,7 +258,9 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
                 }}
                 min={startDate || undefined}
                 className={`w-full px-4 py-3 rounded-xl border ${
-                  errors.endDate ? "border-red-300 bg-red-50" : "border-gray-200"
+                  errors.endDate
+                    ? "border-red-300 bg-red-50"
+                    : "border-gray-200"
                 } focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors`}
               />
               {errors.endDate && (
@@ -250,7 +299,10 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
               </p>
             )}
             <p className="text-sm text-gray-500 mt-2">
-              Current spent: <span className="font-semibold">{formatCurrency(stage.spentBudget)}</span>
+              Current spent:{" "}
+              <span className="font-semibold">
+                {formatCurrency(stage.spentBudget)}
+              </span>
             </p>
           </div>
 
@@ -270,15 +322,21 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
 
           {/* Stage Info Summary */}
           <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
-            <h4 className="text-sm font-semibold text-blue-800 mb-3">Stage Summary</h4>
+            <h4 className="text-sm font-semibold text-blue-800 mb-3">
+              Stage Summary
+            </h4>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-blue-600 text-xs">Total Days</p>
-                <p className="font-semibold text-blue-900">{stage.totalDays} days</p>
+                <p className="font-semibold text-blue-900">
+                  {stage.totalDays} days
+                </p>
               </div>
               <div>
                 <p className="text-blue-600 text-xs">Completed Days</p>
-                <p className="font-semibold text-blue-900">{stage.completedDays} days</p>
+                <p className="font-semibold text-blue-900">
+                  {stage.completedDays} days
+                </p>
               </div>
               <div>
                 <p className="text-blue-600 text-xs">Progress</p>
@@ -286,7 +344,9 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
               </div>
               <div>
                 <p className="text-blue-600 text-xs">Day Plans</p>
-                <p className="font-semibold text-blue-900">{stage.dayPlans.length} created</p>
+                <p className="font-semibold text-blue-900">
+                  {stage.dayPlans.length} created
+                </p>
               </div>
             </div>
           </div>
@@ -295,10 +355,7 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
         {/* Footer */}
         <div className="p-6 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
-            <Button
-              variant="secondary"
-              onClick={onClose}
-            >
+            <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
             <Button

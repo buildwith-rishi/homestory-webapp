@@ -1,4 +1,10 @@
 export { ProjectStagesSection } from "./ProjectStagesSection";
-export { DayPlanModal } from "./DayPlanModal";
-export { AddTaskModal } from "./AddTaskModal";
-export { EditStageModal } from "./EditStageModal";
+export { AddStageModal } from "./AddStageModal";
+export { StageTemplatesPanel } from "./StageTemplatesPanel";
+export { StageTemplateModal } from "./StageTemplateModal";
+export { CreateMatrixModal } from "./CreateMatrixModal";
+export { EditMatrixModal } from "./EditMatrixModal";
+export { StageMatrixView } from "./StageMatrixView";
+export { TaskDetailModal } from "./TaskDetailModal";
+export { DayTasksPanel } from "./DayTasksPanel";
+export { CategoryTasksView } from "./CategoryTasksView";

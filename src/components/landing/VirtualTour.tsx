@@ -116,7 +116,7 @@ const TourViewer: React.FC<{ project: TourProject; onClose: () => void }> = ({ p
   };
 
   return (
-    <div className="fixed inset-0 bg-secondary z-50">
+    <div className="fixed inset-0 bg-secondary z-[60]">
       <div className="h-16 border-b border-white/20 flex items-center justify-between px-6">
         <button
           onClick={onClose}

@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice API Test - GHS</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #f97316;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #f97316;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        button {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.1s, box-shadow 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        button.secondary {
+            background: #64748b;
+        }
+        button.secondary:hover {
+            box-shadow: 0 4px 12px rgba(100, 116, 139, 0.3);
+        }
+        button.danger {
+            background: #ef4444;
+        }
+        button.success {
+            background: #22c55e;
+        }
+        .response-box {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status.success { background: #dcfce7; color: #166534; }
+        .status.error { background: #fee2e2; color: #991b1b; }
+        .status.pending { background: #fef3c7; color: #92400e; }
+        .status.info { background: #dbeafe; color: #1e40af; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+        .recording-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #fecaca;
+            border-radius: 20px;
+            color: #991b1b;
+            font-weight: 600;
+        }
+        .recording-indicator .dot {
+            width: 10px;
+            height: 10px;
+            background: #ef4444;
+            border-radius: 50%;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .audio-player {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .transcript-segment {
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 4px solid #f97316;
+        }
+        .transcript-segment .speaker {
+            font-weight: 600;
+            color: #f97316;
+            margin-bottom: 4px;
+        }
+        .transcript-segment .text {
+            color: #333;
+        }
+        .transcript-segment .meta {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        .auth-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 1000;
+        }
+        .auth-status.authenticated { background: #dcfce7; color: #166534; }
+        .auth-status.unauthenticated { background: #fee2e2; color: #991b1b; }
+        .level-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .level-bar .level {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #f97316);
+            border-radius: 4px;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div id="auth-status" class="auth-status unauthenticated">Not Authenticated</div>
+    
+    <h1>🎤 Voice API Test Suite</h1>
+    <p>Test the GHS Voice API endpoints for transcription, synthesis, and voice processing.</p>
+
+    <!-- Authentication Section -->
+    <div class="card">
+        <h2>🔐 Authentication</h2>
+        <div class="form-group">
+            <label for="auth-token">Bearer Token</label>
+            <input type="text" id="auth-token" placeholder="Paste your JWT token here...">
+        </div>
+        <button onclick="setToken()">Set Token</button>
+        <button class="secondary" onclick="clearToken()">Clear Token</button>
+        <button class="secondary" onclick="getStoredToken()">Load from localStorage</button>
+    </div>
+
+    <div class="grid">
+        <!-- Voice Processing Section -->
+        <div class="card">
+            <h2>🎙️ 1. Voice Processing</h2>
+            <p style="color: #64748b; font-size: 14px;">POST /api/voice - Process audio with AI</p>
+            
+            <div class="form-group">
+                <label for="voice-session">Session ID</label>
+                <input type="text" id="voice-session" placeholder="Enter or generate a session ID">
+                <button style="margin-top: 8px;" class="secondary" onclick="generateSessionId()">Generate Session ID</button>
+            </div>
+            
+            <div class="form-group">
+                <label>Record Audio</label>
+                <div id="recording-status" style="display: none;" class="recording-indicator">
+                    <span class="dot"></span>
+                    <span>Recording... <span id="recording-time">0:00</span></span>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button id="start-voice-record" onclick="startVoiceRecording()">🎤 Start Recording</button>
+                    <button id="stop-voice-record" class="danger" onclick="stopVoiceRecording()" disabled>⏹️ Stop Recording</button>
+                </div>
+                <div id="voice-level" class="level-bar" style="display: none;">
+                    <div class="level" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <button onclick="processVoice()" id="process-voice-btn" disabled>Process Voice</button>
+            
+            <h3>Response:</h3>
+            <div id="voice-response" class="response-box">Click "Process Voice" to see results...</div>
+        </div>
+
+        <!-- Text-to-Speech Section -->
+        <div class="card">
+            <h2>🔊 2. Text-to-Speech Synthesis</h2>
+            <p style="color: #64748b; font-size: 14px;">POST /api/voice/synthesize - Convert text to speech</p>
+            
+            <div class="form-group">
+                <label for="tts-text">Text to Synthesize</label>
+                <textarea id="tts-text" placeholder="Enter the text you want to convert to speech...">Hello, welcome to GoodHomeStory! We're excited to help you design your dream home.</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="tts-voice">Voice</label>
+                <select id="tts-voice">
+                    <optgroup label="Indian English">
+                        <option value="en-IN-Wavenet-A">Indian English - Female 1 (Wavenet)</option>
+                        <option value="en-IN-Wavenet-B">Indian English - Male 1 (Wavenet)</option>
+                        <option value="en-IN-Wavenet-C">Indian English - Male 2 (Wavenet)</option>
+                        <option value="en-IN-Wavenet-D">Indian English - Female 2 (Wavenet)</option>
+                        <option value="en-IN-Neural2-A">Indian English - Neural Female</option>
+                        <option value="en-IN-Neural2-B">Indian English - Neural Male</option>
+                    </optgroup>
+                    <optgroup label="US English">
+                        <option value="en-US-Wavenet-A">US English - Male 1</option>
+                        <option value="en-US-Wavenet-C">US English - Female 1</option>
+                        <option value="en-US-Neural2-A">US English - Neural Male</option>
+                        <option value="en-US-Neural2-C">US English - Neural Female</option>
+                    </optgroup>
+                    <optgroup label="Hindi">
+                        <option value="hi-IN-Wavenet-A">Hindi - Female</option>
+                        <option value="hi-IN-Wavenet-B">Hindi - Male</option>
+                        <option value="hi-IN-Neural2-A">Hindi - Neural Female</option>
+                        <option value="hi-IN-Neural2-B">Hindi - Neural Male</option>
+                    </optgroup>
+                </select>
+            </div>
+            
+            <button onclick="synthesizeSpeech()">🔊 Synthesize Speech</button>
+            
+            <div id="tts-audio-container" style="display: none; margin-top: 16px;">
+                <label>Generated Audio:</label>
+                <audio id="tts-audio" class="audio-player" controls></audio>
+            </div>
+            
+            <h3>Response:</h3>
+            <div id="tts-response" class="response-box">Click "Synthesize Speech" to see results...</div>
+        </div>
+    </div>
+
+    <!-- Transcription Section (Full Width) -->
+    <div class="card">
+        <h2>📝 3. Audio Transcription</h2>
+        <p style="color: #64748b; font-size: 14px;">POST /api/voice/transcribe - Convert speech to text with speaker diarization</p>
+        
+        <div class="grid">
+            <div>
+                <div class="form-group">
+                    <label>Record Audio for Transcription</label>
+                    <div id="transcribe-recording-status" style="display: none;" class="recording-indicator">
+                        <span class="dot"></span>
+                        <span>Recording... <span id="transcribe-recording-time">0:00</span></span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button id="start-transcribe-record" onclick="startTranscribeRecording()">🎤 Start Recording</button>
+                        <button id="stop-transcribe-record" class="danger" onclick="stopTranscribeRecording()" disabled>⏹️ Stop Recording</button>
+                    </div>
+                    <div id="transcribe-level" class="level-bar" style="display: none;">
+                        <div class="level" style="width: 0%"></div>
+                    </div>
+                    <audio id="recorded-audio" class="audio-player" controls style="display: none; margin-top: 10px;"></audio>
+                </div>
+                
+                <div class="form-group">
+                    <label for="transcription-language">Language</label>
+                    <select id="transcription-language">
+                        <option value="en-IN" selected>English (India)</option>
+                        <option value="en-US">English (United States)</option>
+                        <option value="en-GB">English (United Kingdom)</option>
+                        <option value="hi-IN">Hindi</option>
+                        <option value="ta-IN">Tamil</option>
+                        <option value="te-IN">Telugu</option>
+                        <option value="kn-IN">Kannada</option>
+                        <option value="ml-IN">Malayalam</option>
+                        <option value="mr-IN">Marathi</option>
+                        <option value="gu-IN">Gujarati</option>
+                        <option value="bn-IN">Bengali</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enable-diarization" checked>
+                        Enable Speaker Diarization
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="max-speakers">Max Speakers</label>
+                    <input type="number" id="max-speakers" min="1" max="10" value="4">
+                </div>
+                
+                <button onclick="transcribeAudio()" id="transcribe-btn" disabled>📝 Transcribe Audio</button>
+            </div>
+            
+            <div>
+                <h3>Transcription Results:</h3>
+                <div id="transcription-segments"></div>
+                
+                <h3 style="margin-top: 20px;">Raw Response:</h3>
+                <div id="transcribe-response" class="response-box">Click "Transcribe Audio" to see results...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Info -->
+    <div class="card">
+        <h2>📚 API Documentation</h2>
+        <div class="grid">
+            <div>
+                <h3>Endpoints</h3>
+                <ul>
+                    <li><code>POST /api/voice</code> - Process voice with AI</li>
+                    <li><code>POST /api/voice/synthesize</code> - Text-to-Speech</li>
+                    <li><code>POST /api/voice/transcribe</code> - Speech-to-Text</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Base URL</h3>
+                <div class="response-box" id="base-url">https://ghs.oneweekmvps.com</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://ghs.oneweekmvps.com';
+        let authToken = '';
+        
+        // Recording state
+        let voiceMediaRecorder = null;
+        let voiceAudioChunks = [];
+        let transcribeMediaRecorder = null;
+        let transcribeAudioChunks = [];
+        let voiceRecordingStartTime = null;
+        let transcribeRecordingStartTime = null;
+        let voiceRecordingInterval = null;
+        let transcribeRecordingInterval = null;
+        let voiceAudioContext = null;
+        let transcribeAudioContext = null;
+        let voiceAnalyser = null;
+        let transcribeAnalyser = null;
+        
+        // On page load
+        document.addEventListener('DOMContentLoaded', () => {
+            getStoredToken();
+        });
+
+        // =============================================================================
+        // Authentication Functions
+        // =============================================================================
+        
+        function setToken() {
+            authToken = document.getElementById('auth-token').value.trim();
+            if (authToken) {
+                localStorage.setItem('auth_token', authToken);
+                updateAuthStatus(true);
+            } else {
+                updateAuthStatus(false);
+            }
+        }
+        
+        function clearToken() {
+            authToken = '';
+            document.getElementById('auth-token').value = '';
+            localStorage.removeItem('auth_token');
+            updateAuthStatus(false);
+        }
+        
+        function getStoredToken() {
+            const stored = localStorage.getItem('auth_token');
+            if (stored) {
+                authToken = stored;
+                document.getElementById('auth-token').value = stored;
+                updateAuthStatus(true);
+            }
+        }
+        
+        function updateAuthStatus(authenticated) {
+            const statusEl = document.getElementById('auth-status');
+            if (authenticated) {
+                statusEl.className = 'auth-status authenticated';
+                statusEl.textContent = '✓ Authenticated';
+            } else {
+                statusEl.className = 'auth-status unauthenticated';
+                statusEl.textContent = '✗ Not Authenticated';
+            }
+        }
+
+        // =============================================================================
+        // Utility Functions
+        // =============================================================================
+        
+        function generateSessionId() {
+            const sessionId = crypto.randomUUID();
+            document.getElementById('voice-session').value = sessionId;
+        }
+        
+        function getAuthHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+            };
+        }
+        
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const dataUrl = reader.result;
+                    const base64 = dataUrl.split(',')[1] || '';
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+        
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // =============================================================================
+        // Voice Recording Functions
+        // =============================================================================
+
+        async function startVoiceRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { 
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000 
+                    } 
+                });
+                
+                voiceMediaRecorder = new MediaRecorder(stream, { 
+                    mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+                        ? 'audio/webm;codecs=opus' 
+                        : 'audio/webm' 
+                });
+                voiceAudioChunks = [];
+                
+                voiceMediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) voiceAudioChunks.push(e.data);
+                };
+                
+                voiceMediaRecorder.onstop = () => {
+                    document.getElementById('process-voice-btn').disabled = false;
+                };
+                
+                // Setup audio level visualization
+                voiceAudioContext = new AudioContext();
+                voiceAnalyser = voiceAudioContext.createAnalyser();
+                const source = voiceAudioContext.createMediaStreamSource(stream);
+                source.connect(voiceAnalyser);
+                voiceAnalyser.fftSize = 256;
+                
+                document.getElementById('voice-level').style.display = 'block';
+                updateVoiceLevel();
+                
+                voiceMediaRecorder.start(1000);
+                voiceRecordingStartTime = Date.now();
+                
+                document.getElementById('recording-status').style.display = 'flex';
+                document.getElementById('start-voice-record').disabled = true;
+                document.getElementById('stop-voice-record').disabled = false;
+                
+                voiceRecordingInterval = setInterval(() => {
+                    const elapsed = (Date.now() - voiceRecordingStartTime) / 1000;
+                    document.getElementById('recording-time').textContent = formatTime(elapsed);
+                }, 1000);
+                
+            } catch (err) {
+                alert('Microphone access denied or not available: ' + err.message);
+            }
+        }
+        
+        function updateVoiceLevel() {
+            if (!voiceAnalyser) return;
+            
+            const dataArray = new Uint8Array(voiceAnalyser.frequencyBinCount);
+            voiceAnalyser.getByteFrequencyData(dataArray);
+            
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i] * dataArray[i];
+            }
+            const rms = Math.sqrt(sum / dataArray.length) / 255 * 100;
+            
+            document.querySelector('#voice-level .level').style.width = rms + '%';
+            
+            if (voiceMediaRecorder && voiceMediaRecorder.state === 'recording') {
+                requestAnimationFrame(updateVoiceLevel);
+            }
+        }
+        
+        function stopVoiceRecording() {
+            if (voiceMediaRecorder && voiceMediaRecorder.state !== 'inactive') {
+                voiceMediaRecorder.stop();
+                voiceMediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            if (voiceAudioContext) {
+                voiceAudioContext.close();
+                voiceAudioContext = null;
+                voiceAnalyser = null;
+            }
+            
+            clearInterval(voiceRecordingInterval);
+            
+            document.getElementById('recording-status').style.display = 'none';
+            document.getElementById('voice-level').style.display = 'none';
+            document.getElementById('start-voice-record').disabled = false;
+            document.getElementById('stop-voice-record').disabled = true;
+        }
+
+        // =============================================================================
+        // Transcribe Recording Functions
+        // =============================================================================
+
+        async function startTranscribeRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { 
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000 
+                    } 
+                });
+                
+                transcribeMediaRecorder = new MediaRecorder(stream, { 
+                    mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+                        ? 'audio/webm;codecs=opus' 
+                        : 'audio/webm' 
+                });
+                transcribeAudioChunks = [];
+                
+                transcribeMediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) transcribeAudioChunks.push(e.data);
+                };
+                
+                transcribeMediaRecorder.onstop = () => {
+                    const blob = new Blob(transcribeAudioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(blob);
+                    const audioEl = document.getElementById('recorded-audio');
+                    audioEl.src = audioUrl;
+                    audioEl.style.display = 'block';
+                    document.getElementById('transcribe-btn').disabled = false;
+                };
+                
+                // Setup audio level visualization
+                transcribeAudioContext = new AudioContext();
+                transcribeAnalyser = transcribeAudioContext.createAnalyser();
+                const source = transcribeAudioContext.createMediaStreamSource(stream);
+                source.connect(transcribeAnalyser);
+                transcribeAnalyser.fftSize = 256;
+                
+                document.getElementById('transcribe-level').style.display = 'block';
+                updateTranscribeLevel();
+                
+                transcribeMediaRecorder.start(1000);
+                transcribeRecordingStartTime = Date.now();
+                
+                document.getElementById('transcribe-recording-status').style.display = 'flex';
+                document.getElementById('start-transcribe-record').disabled = true;
+                document.getElementById('stop-transcribe-record').disabled = false;
+                
+                transcribeRecordingInterval = setInterval(() => {
+                    const elapsed = (Date.now() - transcribeRecordingStartTime) / 1000;
+                    document.getElementById('transcribe-recording-time').textContent = formatTime(elapsed);
+                }, 1000);
+                
+            } catch (err) {
+                alert('Microphone access denied or not available: ' + err.message);
+            }
+        }
+        
+        function updateTranscribeLevel() {
+            if (!transcribeAnalyser) return;
+            
+            const dataArray = new Uint8Array(transcribeAnalyser.frequencyBinCount);
+            transcribeAnalyser.getByteFrequencyData(dataArray);
+            
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i] * dataArray[i];
+            }
+            const rms = Math.sqrt(sum / dataArray.length) / 255 * 100;
+            
+            document.querySelector('#transcribe-level .level').style.width = rms + '%';
+            
+            if (transcribeMediaRecorder && transcribeMediaRecorder.state === 'recording') {
+                requestAnimationFrame(updateTranscribeLevel);
+            }
+        }
+        
+        function stopTranscribeRecording() {
+            if (transcribeMediaRecorder && transcribeMediaRecorder.state !== 'inactive') {
+                transcribeMediaRecorder.stop();
+                transcribeMediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            if (transcribeAudioContext) {
+                transcribeAudioContext.close();
+                transcribeAudioContext = null;
+                transcribeAnalyser = null;
+            }
+            
+            clearInterval(transcribeRecordingInterval);
+            
+            document.getElementById('transcribe-recording-status').style.display = 'none';
+            document.getElementById('transcribe-level').style.display = 'none';
+            document.getElementById('start-transcribe-record').disabled = false;
+            document.getElementById('stop-transcribe-record').disabled = true;
+        }
+
+        // =============================================================================
+        // API Functions
+        // =============================================================================
+
+        async function processVoice() {
+            const responseBox = document.getElementById('voice-response');
+            responseBox.textContent = 'Processing...';
+            
+            try {
+                const sessionId = document.getElementById('voice-session').value || crypto.randomUUID();
+                
+                if (voiceAudioChunks.length === 0) {
+                    responseBox.textContent = 'Error: No audio recorded. Please record audio first.';
+                    return;
+                }
+                
+                const audioBlob = new Blob(voiceAudioChunks, { type: 'audio/webm' });
+                const audioBase64 = await blobToBase64(audioBlob);
+                
+                const response = await fetch(`${API_BASE_URL}/api/voice`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        audioBase64,
+                        sessionId
+                    })
+                });
+                
+                const data = await response.json();
+                responseBox.textContent = JSON.stringify(data, null, 2);
+                
+            } catch (error) {
+                responseBox.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function synthesizeSpeech() {
+            const responseBox = document.getElementById('tts-response');
+            responseBox.textContent = 'Synthesizing...';
+            
+            try {
+                const text = document.getElementById('tts-text').value;
+                const voice = document.getElementById('tts-voice').value;
+                
+                if (!text.trim()) {
+                    responseBox.textContent = 'Error: Please enter text to synthesize.';
+                    return;
+                }
+                
+                const response = await fetch(`${API_BASE_URL}/api/voice/synthesize`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        text,
+                        voice
+                    })
+                });
+                
+                const data = await response.json();
+                responseBox.textContent = JSON.stringify({
+                    success: data.success,
+                    contentType: data.contentType,
+                    durationSeconds: data.durationSeconds,
+                    audioBase64Length: data.audioBase64 ? data.audioBase64.length : 0,
+                    error: data.error
+                }, null, 2);
+                
+                if (data.success && data.audioBase64) {
+                    const audioContainer = document.getElementById('tts-audio-container');
+                    const audioEl = document.getElementById('tts-audio');
+                    
+                    const contentType = data.contentType || 'audio/mp3';
+                    audioEl.src = `data:${contentType};base64,${data.audioBase64}`;
+                    audioContainer.style.display = 'block';
+                }
+                
+            } catch (error) {
+                responseBox.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function transcribeAudio() {
+            const responseBox = document.getElementById('transcribe-response');
+            const segmentsContainer = document.getElementById('transcription-segments');
+            responseBox.textContent = 'Transcribing...';
+            segmentsContainer.innerHTML = '<span class="status pending">Processing transcription...</span>';
+            
+            try {
+                if (transcribeAudioChunks.length === 0) {
+                    responseBox.textContent = 'Error: No audio recorded. Please record audio first.';
+                    segmentsContainer.innerHTML = '';
+                    return;
+                }
+                
+                const audioBlob = new Blob(transcribeAudioChunks, { type: 'audio/webm' });
+                const audioBase64 = await blobToBase64(audioBlob);
+                
+                const languageCode = document.getElementById('transcription-language').value;
+                const enableDiarization = document.getElementById('enable-diarization').checked;
+                const maxSpeakers = parseInt(document.getElementById('max-speakers').value) || 4;
+                
+                const response = await fetch(`${API_BASE_URL}/api/voice/transcribe`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        audioBase64,
+                        languageCode,
+                        enableSpeakerDiarization: enableDiarization,
+                        maxSpeakerCount: maxSpeakers,
+                        enableAutomaticPunctuation: true
+                    })
+                });
+                
+                const data = await response.json();
+                responseBox.textContent = JSON.stringify(data, null, 2);
+                
+                // Display segments
+                if (data.success && data.segments && data.segments.length > 0) {
+                    let html = `<span class="status success">Found ${data.segments.length} segments, ${data.speakerCount || 'unknown'} speakers</span>`;
+                    
+                    data.segments.forEach((segment, index) => {
+                        html += `
+                            <div class="transcript-segment">
+                                <div class="speaker">${segment.speaker}</div>
+                                <div class="text">${segment.text}</div>
+                                <div class="meta">
+                                    Timestamp: ${segment.timestamp}s
+                                    ${segment.confidence ? ` | Confidence: ${(segment.confidence * 100).toFixed(1)}%` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    segmentsContainer.innerHTML = html;
+                } else if (data.success && data.transcription) {
+                    segmentsContainer.innerHTML = `
+                        <span class="status success">Transcription complete</span>
+                        <div class="transcript-segment">
+                            <div class="text">${data.transcription}</div>
+                        </div>
+                    `;
+                } else if (data.error) {
+                    segmentsContainer.innerHTML = `<span class="status error">Error: ${data.error}</span>`;
+                } else {
+                    segmentsContainer.innerHTML = `<span class="status info">No transcription available</span>`;
+                }
+                
+            } catch (error) {
+                responseBox.textContent = 'Error: ' + error.message;
+                segmentsContainer.innerHTML = `<span class="status error">Error: ${error.message}</span>`;
+            }
+        }
+    </script>
+</body>
+</html>

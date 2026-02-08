@@ -2,6 +2,7 @@ import React from "react";
 import { useLocation } from "react-router-dom";
 import { Search, Bell, ChevronRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useProjectStore } from "../../stores/projectStore";
 
 interface DashboardHeaderProps {
   sidebarCollapsed?: boolean;
@@ -12,11 +13,24 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const { user } = useAuth();
   const location = useLocation();
+  const { currentProject } = useProjectStore();
 
   // Get breadcrumb from current path
   const getBreadcrumb = () => {
     const path = location.pathname.split("/").filter(Boolean);
     const lastSegment = path[path.length - 1] || "dashboard";
+
+    // If we're on a project details page, show the project name instead of UUID
+    const isProjectDetailsPage =
+      path.length >= 3 &&
+      path[1] === "projects" &&
+      path[2] &&
+      path[2].includes("-");
+    if (isProjectDetailsPage && currentProject) {
+      return (
+        currentProject.projectName || currentProject.name || "Project Details"
+      );
+    }
 
     // Capitalize and format the path segment
     const formatSegment = (segment: string) => {
@@ -33,7 +47,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   return (
     <header
-      className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-200 z-40 transition-all duration-300 shadow-sm ${
+      className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-200 z-40 transition-[left] duration-300 shadow-sm ${
         sidebarCollapsed ? "left-20" : "left-72"
       }`}
     >

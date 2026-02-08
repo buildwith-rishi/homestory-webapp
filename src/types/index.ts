@@ -46,6 +46,7 @@ export enum ProjectCategory {
   RESIDENTIAL = "RESIDENTIAL",
   COMMERCIAL = "COMMERCIAL",
   HOSPITALITY = "HOSPITALITY",
+  HEALTHCARE = "HEALTHCARE",
 }
 
 export enum ScopeType {
@@ -54,6 +55,9 @@ export enum ScopeType {
   MODULAR = "MODULAR",
   CIVIL = "CIVIL",
   TURNKEY = "TURNKEY",
+  ARCHITECTURE = "ARCHITECTURE",
+  ARCHITECTURE_AND_INTERIORS = "ARCHITECTURE_AND_INTERIORS",
+  DRAWINGS_ONLY = "DRAWINGS_ONLY",
 }
 
 export enum BudgetTier {
@@ -61,6 +65,7 @@ export enum BudgetTier {
   MID_RANGE = "MID_RANGE",
   PREMIUM = "PREMIUM",
   LUXURY = "LUXURY",
+  STANDARD = "STANDARD",
 }
 
 export enum PropertySubtype {
@@ -70,50 +75,156 @@ export enum PropertySubtype {
   PENTHOUSE = "PENTHOUSE",
   ROW_HOUSE = "ROW_HOUSE",
   STUDIO = "STUDIO",
+  RETAIL_SHOP = "RETAIL_SHOP",
+  HEALTHCARE_FACILITY = "HEALTHCARE_FACILITY",
+  RESTAURANT = "RESTAURANT",
+  OFFICE_SPACE = "OFFICE_SPACE",
+}
+
+// Project Status from API
+export type ProjectStatus =
+  | "ACTIVE"
+  | "ON_HOLD"
+  | "PAUSED"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "YET_TO_START"
+  | "ONGOING"
+  | "active"
+  | "on_hold"
+  | "completed";
+
+// Project Options Types
+export interface OptionItem {
+  value: string;
+  label: string;
+}
+
+export interface OptionItemWithDescription extends OptionItem {
+  description?: string;
+}
+
+export interface StageOption extends OptionItem {
+  phase: string;
+}
+
+export interface PropertySubtypeOptions {
+  [category: string]: OptionItem[];
+}
+
+export interface ProjectOptions {
+  categories: OptionItem[];
+  budgetTiers: OptionItem[];
+  scopeTypes: OptionItem[];
+  pipelineTypes: OptionItem[];
+  propertySubtypes: PropertySubtypeOptions;
+  statuses: OptionItemWithDescription[];
+  stages: StageOption[];
+  stageStatuses: OptionItem[];
+  referenceCategories: string[];
+}
+
+// Pause Project Request
+export interface PauseProjectRequest {
+  reason: string;
+  expectedResumeDate: string; // ISO 8601 format
+}
+
+// Pause Status Response
+export interface PauseStatusResponse {
+  isPaused: boolean;
+  status: string;
+  pausedAt: string | null;
+  pausedUntil: string | null;
+  pauseReason: string | null;
+  pausedBy: string | null;
+  previousStatus: string | null;
+  isExpired: boolean;
+  daysRemaining: number | null;
+  daysOverdue: number | null;
 }
 
 // Main Project Interface (from API)
 export interface Project {
   id: string;
-  name: string;
-  projectName?: string; // API uses projectName
+  projectName: string;
+  name?: string; // Legacy alias — maps to projectName for backward compatibility
+  projectNumber?: string;
   leadId: string;
+  accountId?: string | null;
   pipelineType: PipelineType;
   projectCategory: ProjectCategory;
   scopeType: ScopeType;
-  budgetTier: BudgetTier;
   propertySubtype: PropertySubtype;
+  budgetTier: BudgetTier;
   propertySizeSqft: number;
   propertyBHK: string;
   propertyAddress: string;
   propertyCity: string;
-  totalValue: number;
-  assignedDesignerId?: string;
-  assignedPMId?: string;
+  propertyState?: string;
+  propertyPincode?: string;
+  propertyBuilding?: string;
+  propertyUnit?: string;
+  propertyLandmarks?: string;
+  siteContactName?: string;
+  siteContactPhone?: string;
+  constructionStatus?: string;
+  tentativeHandoverDate?: string | null;
+  specialRequirements?: string | null;
+  designTeam?: string[] | null;
+  executionTeam?: string[] | null;
+  assignedDesignerId?: string | null;
+  assignedPMId?: string | null;
+  designPackage?: string | null;
+  numberOfMeetings?: number;
   moodBoardShared?: boolean;
-  currentStage?: ProjectStageCode;
+  design3DStatus?: string | null;
+  currentStageCode?: string | null;
+  currentStage?: ProjectStageCode; // Legacy alias
+  currentPhase?: string | null;
+  status: ProjectStatus;
+  pausedAt?: string | null;
+  pausedUntil?: string | null;
+  pauseReason?: string | null;
+  pausedByUserId?: string | null;
+  previousStatus?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
+  cancelledByUserId?: string | null;
+  remarks?: string | null;
+  totalValue: number | string;
+  paidAmount?: number | string;
+  createdAt: string;
+  updatedAt: string;
 
-  // Related data
+  // Related data from API
   lead?: {
     id: string;
     name: string;
-    email: string;
     phone?: string;
+    email?: string;
   };
+  account?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+  } | null;
   assignedDesigner?: {
     id: string;
     name: string;
     email: string;
-  };
+  } | null;
   assignedPM?: {
     id: string;
     name: string;
     email: string;
+  } | null;
+  _count?: {
+    stages: number;
+    payments: number;
+    documents: number;
   };
-
-  status: "active" | "on_hold" | "completed";
-  createdAt: string;
-  updatedAt: string;
 
   // Legacy fields for backwards compatibility
   location?: string;
@@ -131,41 +242,85 @@ export interface Project {
 export interface CreateProjectRequest {
   leadId: string;
   projectName: string;
-  pipelineType: PipelineType;
-  projectCategory: ProjectCategory;
-  scopeType: ScopeType;
-  budgetTier: BudgetTier;
-  propertySubtype: PropertySubtype;
-  propertySizeSqft: number;
-  propertyBHK: string;
-  propertyAddress: string;
-  propertyCity: string;
-  totalValue: number;
+  pipelineType: PipelineType | string;
+  projectCategory: ProjectCategory | string;
+  scopeType: ScopeType | string;
+  budgetTier?: BudgetTier | string;
+  propertySubtype?: PropertySubtype | string;
+  propertySizeSqft?: number;
+  propertyBHK?: string;
+  propertyAddress?: string;
+  propertyCity?: string;
+  propertyState?: string;
+  propertyPincode?: string;
+  propertyBuilding?: string;
+  propertyUnit?: string;
+  propertyLandmarks?: string;
+  siteContactName?: string;
+  siteContactPhone?: string;
+  constructionStatus?: string;
+  tentativeHandoverDate?: string;
+  specialRequirements?: string;
+  totalValue?: number | string;
+  designPackage?: string;
 }
 
 // Update Project Request Interface
 export interface UpdateProjectRequest {
-  assignedDesignerId?: string;
-  assignedPMId?: string;
-  moodBoardShared?: boolean;
   projectName?: string;
+  pipelineType?: string;
+  projectCategory?: string;
+  scopeType?: string;
+  budgetTier?: string;
+  propertySubtype?: string;
+  currentStageCode?: string;
+  assignedDesignerId?: string | null;
+  assignedPMId?: string | null;
+  moodBoardShared?: boolean;
+  design3DStatus?: string;
+  designPackage?: string;
   propertyAddress?: string;
   propertyCity?: string;
-  totalValue?: number;
+  propertyState?: string;
+  propertyPincode?: string;
+  propertyBuilding?: string;
+  propertyUnit?: string;
+  propertyLandmarks?: string;
+  siteContactName?: string;
+  siteContactPhone?: string;
+  constructionStatus?: string;
+  tentativeHandoverDate?: string;
+  specialRequirements?: string;
+  totalValue?: number | string;
+  status?: ProjectStatus;
+  pauseReason?: string;
+  pausedUntil?: string;
+  cancellationReason?: string;
+  remarks?: string;
 }
 
 // Update Stage Request Interface
 export interface UpdateStageRequest {
-  status: string;
+  status?: string;
+  startDate?: string;
+  tentativeEndDate?: string;
   endDate?: string;
   remarks?: string;
+  checklistItems?: Record<string, unknown>[] | null;
+  completedById?: string;
 }
 
 // Update Payment Request Interface
 export interface UpdatePaymentRequest {
-  status: string;
-  actualAmount?: number;
+  status?: string;
+  actualAmount?: number | string;
   invoiceNumber?: string;
+  dueDate?: string;
+  collectedAt?: string;
+  collectedById?: string;
+  receiptUrl?: string;
+  receiptFileName?: string;
+  notes?: string;
 }
 
 // Project Filters Interface
@@ -197,10 +352,71 @@ export enum LeadSource {
 
 export enum ReferenceType {
   IMAGE = "IMAGE",
+  PHOTO = "PHOTO",
   PDF = "PDF",
   DOCUMENT = "DOCUMENT",
   LINK = "LINK",
   VIDEO = "VIDEO",
+}
+
+// Project Reference (Inspiration) from API
+export interface ProjectReference {
+  id: string;
+  projectId: string;
+  referenceType: "PHOTO" | "PDF" | "DOCUMENT" | "LINK";
+  fileName: string | null;
+  fileType: string | null;
+  fileSize: number | null;
+  storageUrl: string | null;
+  linkUrl: string | null;
+  linkTitle: string | null;
+  title: string | null;
+  description: string | null;
+  category: string | null;
+  tags: string[];
+  uploadedById: string;
+  createdAt: string;
+  updatedAt: string;
+  uploadedBy: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+  project?: {
+    id: string;
+    projectName: string;
+    projectNumber: string;
+  };
+}
+
+export interface ProjectReferencesResponse {
+  references: ProjectReference[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AddLinkReferenceRequest {
+  linkUrl: string;
+  linkTitle: string;
+  category: string;
+  tags?: string[];
+}
+
+export interface AddReferenceRequest {
+  referenceType: "PHOTO" | "PDF" | "DOCUMENT" | "LINK";
+  linkUrl?: string;
+  linkTitle?: string;
+  category: string;
+  notes?: string;
+  tags?: string[];
+}
+
+export interface UpdateReferenceRequest {
+  linkTitle?: string;
+  notes?: string;
+  category?: string;
+  tags?: string[];
 }
 
 export interface LeadReference {
@@ -215,7 +431,12 @@ export interface LeadReference {
   fileName?: string;
   mimeType?: string;
   tags?: string[];
-  category?: "Inspiration" | "Requirement" | "Reference" | "Competitor" | "Other";
+  category?:
+    | "Inspiration"
+    | "Requirement"
+    | "Reference"
+    | "Competitor"
+    | "Other";
   uploadedBy: string;
   uploadedAt: string;
 }
@@ -236,6 +457,32 @@ export interface Lead {
   phone: string;
   source: LeadSource;
   stage: LeadStage;
+  status?: string; // API status: NEW, WORKING, QUALIFIED, DISQUALIFIED, CONVERTED
+
+  // Stage History from API (for tracking moves in Kanban)
+  stageHistory?: Array<{
+    id: string;
+    leadId: string;
+    fromStage: string;
+    toStage: string;
+    changedByUserId?: string;
+    reason?: string;
+    changedAt: string;
+    changedByUser?: {
+      id: string;
+      name: string;
+    };
+  }>;
+
+  // Contacts from API
+  contacts?: Array<{
+    id: string;
+    firstName: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    isPrimary?: boolean;
+  }>;
 
   // Project Requirements
   projectType?: string;
@@ -340,20 +587,92 @@ export interface AIAnalysis {
   decisions: string[];
 }
 
+// Meeting entity types
+export type MeetingEntityType = "LEAD" | "PROJECT" | "CUSTOMER";
+export type MeetingStatus =
+  | "scheduled"
+  | "completed"
+  | "cancelled"
+  | "in_progress"
+  | "PROCESSING"
+  | "ANALYZED"
+  | "COMPLETED";
+export type MeetingType =
+  | "CLIENT_INTAKE"
+  | "DESIGN_PRESENTATION"
+  | "SITE_VISIT"
+  | "PROGRESS_REVIEW"
+  | "HANDOVER"
+  | "GENERAL";
+
+// Participant interface for meeting participants
+export interface Participant {
+  id: string;
+  meetingId: string;
+  name: string;
+  email: string;
+  phone: string;
+  createdAt: string;
+}
+
+export interface DiscussionPoint {
+  key: string;
+  label: string;
+  checked: boolean;
+  notes?: string;
+}
+
 export interface Meeting {
   id: string;
   title: string;
+  description?: string;
+
+  // Legacy entity references (backwards compatibility)
   leadId?: string;
   projectId?: string;
   customerId?: string;
-  scheduledDate: string;
+
+  // New generic entity references
+  entityType?: MeetingEntityType;
+  entityId?: string;
+
+  // Meeting type for templates
+  type?: MeetingType;
+
+  scheduledAt?: string; // ISO 8601 format (new API field)
+  scheduledDate?: string; // Legacy field for backwards compatibility
   duration?: number;
   location?: string;
   attendees: string[];
+  participants?: Participant[];
   recordingUrl?: string;
+  recordingId?: string;
   transcription?: TranscriptionSegment[];
   aiAnalysis?: AIAnalysis;
-  status: "scheduled" | "completed" | "cancelled";
+  summary?: string;
+  actionItems?: string[];
+  keyPoints?: string[];
+  discussionPoints?: DiscussionPoint[];
+  // Fields from server (raw names)
+  transcriptJson?: TranscriptionSegment[];
+  transcriptText?: string;
+  audioUrl?: string;
+  audioSize?: number;
+  durationSeconds?: number;
+  startedAt?: string;
+  endedAt?: string;
+  speakerMap?: Record<string, string> | null;
+  status: MeetingStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Meeting Note interface for timestamped notes
+export interface MeetingNote {
+  id: string;
+  meetingId: string;
+  content: string;
+  timestamp: number; // Timestamp in seconds marking when in the recording this note refers to
   createdAt: string;
   updatedAt: string;
 }
@@ -631,22 +950,29 @@ export interface BanUserRequest {
 }
 
 // Project-related enums and types
+// Updated to match real API stage codes
 export enum ProjectStageCode {
+  ENQUIRY = "ENQUIRY",
+  DESIGN_SIGNUP = "DESIGN_SIGNUP",
+  DESIGN = "DESIGN",
+  FIRST_PRESENTATION = "FIRST_PRESENTATION",
+  FINAL_DESIGN = "FINAL_DESIGN",
+  COSTING = "COSTING",
+  EXECUTION = "EXECUTION",
+  HANDOVER = "HANDOVER",
+  TESTIMONIAL = "TESTIMONIAL",
+  // Legacy values (kept for backward compatibility)
   LEAD = "LEAD",
   SITE_VISIT = "SITE_VISIT",
   PROPOSAL = "PROPOSAL",
-  DESIGN = "DESIGN",
-  EXECUTION = "EXECUTION",
-  HANDOVER = "HANDOVER",
   WARRANTY = "WARRANTY",
 }
 
 export enum StageStatus {
-  NOT_STARTED = "NOT_STARTED",
-  IN_PROGRESS = "IN_PROGRESS",
+  PENDING = "PENDING",
+  ONGOING = "ONGOING",
   COMPLETED = "COMPLETED",
-  ON_HOLD = "ON_HOLD",
-  SKIPPED = "SKIPPED",
+  NOT_APPLICABLE = "NOT_APPLICABLE",
 }
 
 export enum PaymentStatus {
@@ -669,12 +995,18 @@ export enum ProjectTaskStatus {
 export interface ProjectStageData {
   id: string;
   projectId: string;
-  stageCode: ProjectStageCode;
+  stageTemplateId?: string | null;
+  stageCode: string; // Allow any string to handle all API stage codes
   stageName: string;
-  status: StageStatus;
-  startDate?: string;
-  endDate?: string;
-  remarks?: string;
+  phaseType: string; // e.g. "DESIGN" or "EXECUTION"
+  orderIndex: number;
+  status: StageStatus | string;
+  startDate?: string | null;
+  tentativeEndDate?: string | null;
+  endDate?: string | null;
+  completedById?: string | null;
+  checklistItems?: Record<string, unknown>[] | null;
+  remarks?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -682,18 +1014,34 @@ export interface ProjectStageData {
 export interface ProjectPayment {
   id: string;
   projectId: string;
-  milestoneName: string;
-  milestone?: string; // Alias for milestoneName
-  amount: number;
-  dueDate: string;
-  status: PaymentStatus;
-  paidDate?: string;
-  collectedDate?: string; // Add this field
-  actualAmount?: number;
-  invoiceNumber?: string;
-  remarks?: string;
+  paymentStage: number;
+  phaseType: string; // e.g. "DESIGN" or "EXECUTION"
+  percentage: number;
+  expectedAmount: string | number;
+  actualAmount?: string | number | null;
+  status: PaymentStatus | string;
+  dueDate?: string | null;
+  collectedAt?: string | null;
+  collectedById?: string | null;
+  receiptUrl?: string | null;
+  receiptFileName?: string | null;
+  invoiceNumber?: string | null;
+  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  collectedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+
+  // Legacy fields for backward compatibility
+  milestoneName?: string;
+  milestone?: string;
+  amount?: number;
+  paidDate?: string;
+  collectedDate?: string;
+  remarks?: string;
 }
 
 export interface ProjectTask {
@@ -703,9 +1051,55 @@ export interface ProjectTask {
   description?: string;
   status: ProjectTaskStatus;
   dueDate?: string;
-  assignedTo?: string | { name: string }; // Update to support both string and object
+  assignedTo?: string | { name: string }; // Support both string and object
   createdAt: string;
   updatedAt: string;
+}
+
+// Stage Template for available-stages endpoint
+export interface StageTemplate {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  phaseType: string;
+  orderIndex: number;
+  isActive: boolean;
+  isDefault: boolean;
+  pipelineType?: string | null;
+  defaultChecklistItems?: { key: string; label: string }[] | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    projectStages: number;
+  };
+}
+
+export interface StageTemplatePhaseType {
+  value: string;
+  label: string;
+}
+
+export interface CreateStageTemplateRequest {
+  code: string;
+  name: string;
+  description: string;
+  phaseType: string;
+  orderIndex: number;
+  isActive: boolean;
+  isDefault: boolean;
+  pipelineType?: string | null;
+  defaultChecklistItems?: { key: string; label: string }[];
+}
+
+export interface UpdateStageTemplateRequest {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface ReorderStageTemplatesRequest {
+  orderings: { id: string; orderIndex: number }[];
 }
 
 // ==========================================
@@ -763,7 +1157,7 @@ export enum StagePhase {
   DESIGN_DEVELOPMENT = "DESIGN_DEVELOPMENT",
   MATERIAL_SELECTION = "MATERIAL_SELECTION",
   FINAL_DESIGN_APPROVAL = "FINAL_DESIGN_APPROVAL",
-  
+
   // Execution Phase Stages
   SITE_PREPARATION = "SITE_PREPARATION",
   CIVIL_WORK = "CIVIL_WORK",
@@ -865,7 +1259,7 @@ export interface ProjectStageWithDays {
   pausedAt?: string;
   pauseReason?: string;
   remarks?: string;
-  
+
   // Payment related fields
   paymentRequired: boolean;
   paymentAmount?: number;
@@ -875,7 +1269,7 @@ export interface ProjectStageWithDays {
   paymentNotes?: string;
   invoiceNumber?: string;
   invoiceUrl?: string;
-  
+
   createdAt: string;
   updatedAt: string;
 }
@@ -939,74 +1333,455 @@ export interface CompleteDaySummary {
   endTime: string;
 }
 
-// Testimonial Types
-export enum TestimonialType {
-  VIDEO = "VIDEO",
-  TEXT = "TEXT",
-  AUDIO = "AUDIO",
+// Testimonial Types — matches actual API response shape
+
+// ==========================================
+// STAGE TASK MATRIX TYPES (Day-wise Task Management)
+// ==========================================
+
+export enum MatrixTaskStatus {
+  PENDING = "PENDING",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  OVERDUE = "OVERDUE",
 }
 
+export enum MatrixAttachmentType {
+  PHOTO = "PHOTO",
+  VIDEO = "VIDEO",
+  DOCUMENT = "DOCUMENT",
+  AUDIO = "AUDIO",
+  OTHER = "OTHER",
+}
+
+export interface MatrixCategory {
+  id: string;
+  name: string;
+  orderIndex: number;
+  color: string;
+}
+
+export interface MatrixTask {
+  id: string;
+  dayNumber: number;
+  title: string;
+  description?: string;
+  status: MatrixTaskStatus | string;
+  taskDate?: string;
+  completionNotes?: string;
+  completedAt?: string | null;
+  completedBy?: { id?: string; name: string } | null;
+  category?: { id?: string; name: string; color?: string } | null;
+  categoryId?: string;
+  _count?: { attachments: number };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TaskAttachment {
+  id: string;
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  attachmentType: MatrixAttachmentType | string;
+  description?: string;
+  uploadedBy?: { id?: string; name: string } | null;
+  task?: { id: string; title: string } | null;
+  createdAt?: string;
+}
+
+export interface TaskMatrix {
+  id: string;
+  projectId?: string;
+  stageId?: string;
+  totalDays: number;
+  startDate: string;
+  categories?: MatrixCategory[];
+  dayTasks?: MatrixTask[];
+  project?: { id: string; projectName: string };
+  projectStage?: { id: string; stageName: string; stageCode: string };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateMatrixRequest {
+  totalDays: number;
+  startDate: string;
+  categories: { name: string; orderIndex: number; color: string }[];
+  tasks?: {
+    dayNumber: number;
+    categoryId?: string;
+    title: string;
+    description?: string;
+    taskDate: string;
+  }[];
+}
+
+export interface UpdateMatrixRequest {
+  totalDays?: number;
+  startDate?: string;
+}
+
+export interface UpdateTaskStatusRequest {
+  status: string;
+  completionNotes?: string;
+}
+
+export interface NotifyCustomerRequest {
+  customMessage?: string;
+  includeAttachments?: boolean;
+}
+
+export interface CreateMatrixResponse {
+  matrix: TaskMatrix;
+  categories: MatrixCategory[];
+  tasks: MatrixTask[];
+  message: string;
+}
+
+export interface NotifyCustomerResponse {
+  sent: boolean;
+  emailId: string;
+  customerEmail: string;
+  attachmentsCount: number;
+}
+
+export interface MatrixStats {
+  matrixId: string;
+  totalDays: number;
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  inProgressTasks: number;
+  completionPercentage: number;
+  categoryCount: number;
+  dayStats: {
+    dayNumber: number;
+    total: number;
+    completed: number;
+    pending: number;
+    inProgress: number;
+  }[];
+}
+
+// Testimonial Types — matches actual API response shape
 export enum TestimonialStatus {
-  PENDING = "PENDING",
-  APPROVED = "APPROVED",
-  REJECTED = "REJECTED",
   DRAFT = "DRAFT",
+  PENDING_APPROVAL = "PENDING_APPROVAL",
+  APPROVED = "APPROVED",
+  PUBLISHED = "PUBLISHED",
+  REJECTED = "REJECTED",
+}
+
+export interface TestimonialDesigner {
+  id: string;
+  name: string;
+  email?: string;
+  role?: string;
+}
+
+export interface TestimonialProject {
+  id: string;
+  projectName: string;
+  projectNumber: string;
+  propertyCity?: string;
 }
 
 export interface ProjectTestimonial {
   id: string;
   projectId: string;
-  projectName?: string;
-  projectStage?: ProjectStageCode; // Add project stage association
-  clientName: string;
-  clientAvatar?: string;
-  type: TestimonialType;
+  capturedByDesignerId: string;
+  testimonialText: string;
+  rating: number;
+  videoUrl: string | null;
+  videoFileName: string | null;
+  audioUrl: string | null;
+  audioFileName: string | null;
+  photoUrls: string[];
+  customerName: string;
+  customerDesignation: string | null;
+  customerCompany: string | null;
+  customerCity: string | null;
+  canSharePublicly: boolean;
+  canUsePhoto: boolean;
+  canUseName: boolean;
   status: TestimonialStatus;
-  rating: number; // 1-5
-  title: string;
-  content?: string; // For text testimonials
-  videoUrl?: string; // For video testimonials
-  videoThumbnail?: string;
-  videoDuration?: number; // in seconds
-  audioUrl?: string; // For audio testimonials
-  audioDuration?: number; // in seconds
-  location?: string;
-  projectCategory?: string;
-  projectValue?: number;
-  tags?: string[];
-  isFeatured: boolean;
-  showOnWebsite: boolean;
-  recordedAt: string;
-  approvedAt?: string;
-  approvedBy?: string;
+  capturedAt: string;
+  approvedAt: string | null;
+  approvedById: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  capturedByDesigner?: TestimonialDesigner;
+  approvedBy?: TestimonialDesigner | null;
+  project?: TestimonialProject;
+}
+
+export interface CreateTestimonialRequest {
+  capturedByDesignerId: string;
+  rating: number;
+  testimonialText: string;
+  customerName: string;
+  canSharePublicly?: boolean;
+  canUsePhoto?: boolean;
+  canUseName?: boolean;
+  customerDesignation?: string;
+  customerCompany?: string;
+  customerCity?: string;
+  notes?: string;
+}
+
+export interface UpdateTestimonialRequest {
+  rating?: number;
+  testimonialText?: string;
+  customerName?: string;
+  customerDesignation?: string;
+  customerCompany?: string;
+  customerCity?: string;
+  canSharePublicly?: boolean;
+  canUsePhoto?: boolean;
+  canUseName?: boolean;
+  notes?: string;
+}
+
+export interface TestimonialAnalytics {
+  byDesigner: {
+    designer: TestimonialDesigner;
+    totalTestimonials: number;
+    averageRating: number;
+  }[];
+  byStatus: {
+    status: string;
+    count: number;
+  }[];
+  byRating: {
+    rating: number;
+    count: number;
+  }[];
+}
+
+// ==========================================
+// Handover & Goodwill Types
+// ==========================================
+
+export interface HandoverActivity {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  cost: string;
+  isCompleted: boolean;
+  completedAt: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CreateTestimonialRequest {
-  projectId: string;
-  clientName: string;
-  type: TestimonialType;
-  rating: number;
-  title: string;
-  projectStage?: ProjectStageCode; // Add project stage
-  content?: string;
-  videoUrl?: string;
-  videoThumbnail?: string;
-  videoDuration?: number;
-  audioUrl?: string;
-  audioDuration?: number;
-  location?: string;
-  tags?: string[];
-  recordedAt?: string;
+export interface CreateHandoverActivityRequest {
+  name: string;
+  description: string;
+  cost: number;
 }
 
-export interface UpdateTestimonialRequest {
-  status?: TestimonialStatus;
-  rating?: number;
-  title?: string;
-  content?: string;
-  isFeatured?: boolean;
-  showOnWebsite?: boolean;
-  tags?: string[];
+export interface UpdateHandoverActivityRequest {
+  name?: string;
+  description?: string;
+  cost?: number;
+  isCompleted?: boolean;
+  completedAt?: string;
+  notes?: string;
+}
+
+export interface HandoverPhoto {
+  id: string;
+  projectId: string;
+  url: string;
+  caption: string | null;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==========================================
+// VOICE API TYPES
+// ==========================================
+
+/**
+ * Request payload for voice processing
+ * POST /api/voice
+ */
+export interface VoiceProcessRequest {
+  /** Base64-encoded audio data */
+  audioBase64: string;
+  /** Session UUID for maintaining conversation context */
+  sessionId: string;
+}
+
+/**
+ * Response from voice processing endpoint
+ */
+export interface VoiceProcessResponse {
+  /** Whether the processing was successful */
+  success: boolean;
+  /** The transcribed text from the audio */
+  transcription?: string;
+  /** AI-generated response (if applicable) */
+  aiResponse?: string;
+  /** Synthesized audio response as base64 (if applicable) */
+  audioResponseBase64?: string;
+  /** Session ID for subsequent requests */
+  sessionId: string;
+  /** Any error message */
+  error?: string;
+  /** Processing timestamp */
+  processedAt?: string;
+}
+
+/**
+ * Request payload for text-to-speech synthesis
+ * POST /api/voice/synthesize
+ */
+export interface VoiceSynthesizeRequest {
+  /** Text to convert to speech */
+  text: string;
+  /** Voice model to use (e.g., "en-IN-Wavenet-A", "en-US-Neural2-A") */
+  voice?: string;
+  /** Language code (e.g., "en-IN", "en-US") */
+  languageCode?: string;
+  /** Speaking rate (0.25 to 4.0, default 1.0) */
+  speakingRate?: number;
+  /** Pitch adjustment (-20.0 to 20.0, default 0) */
+  pitch?: number;
+}
+
+/**
+ * Response from text-to-speech synthesis endpoint
+ */
+export interface VoiceSynthesizeResponse {
+  /** Whether the synthesis was successful */
+  success: boolean;
+  /** Base64-encoded audio data */
+  audioBase64?: string;
+  /** Audio content type (e.g., "audio/mp3", "audio/wav") */
+  contentType?: string;
+  /** Duration of the audio in seconds */
+  durationSeconds?: number;
+  /** Any error message */
+  error?: string;
+}
+
+/**
+ * Request payload for audio transcription
+ * POST /api/voice/transcribe
+ */
+export interface VoiceTranscribeRequest {
+  /** Base64-encoded audio data */
+  audioBase64: string;
+  /** Language code for transcription (e.g., "en-IN", "en-US", "hi-IN") */
+  languageCode?: string;
+  /** Audio encoding type (e.g., "WEBM_OPUS", "LINEAR16", "MP3") */
+  encoding?: string;
+  /** Sample rate in hertz (e.g., 16000, 48000) */
+  sampleRateHertz?: number;
+  /** Enable speaker diarization */
+  enableSpeakerDiarization?: boolean;
+  /** Minimum number of speakers (for diarization) */
+  minSpeakerCount?: number;
+  /** Maximum number of speakers (for diarization) */
+  maxSpeakerCount?: number;
+  /** Enable automatic punctuation */
+  enableAutomaticPunctuation?: boolean;
+  /** Model to use (e.g., "latest_long", "phone_call", "video") */
+  model?: string;
+}
+
+/**
+ * Single word/segment in transcription with timing
+ */
+export interface VoiceTranscriptionWord {
+  /** The transcribed word */
+  word: string;
+  /** Start time in seconds */
+  startTime: number;
+  /** End time in seconds */
+  endTime: number;
+  /** Confidence score (0-1) */
+  confidence?: number;
+  /** Speaker tag (if diarization enabled) */
+  speakerTag?: number;
+}
+
+/**
+ * A segment of voice transcription (typically a sentence or phrase)
+ */
+export interface VoiceTranscriptionSegment {
+  /** Speaker identifier */
+  speaker: string;
+  /** The transcribed text */
+  text: string;
+  /** Start timestamp in seconds */
+  timestamp: number;
+  /** End timestamp in seconds */
+  endTimestamp?: number;
+  /** Confidence score (0-1) */
+  confidence?: number;
+  /** Individual words with timing */
+  words?: VoiceTranscriptionWord[];
+}
+
+/**
+ * Response from audio transcription endpoint
+ */
+export interface VoiceTranscribeResponse {
+  /** Whether the transcription was successful */
+  success: boolean;
+  /** Full transcribed text */
+  transcription?: string;
+  /** Segmented transcription with speaker info and timestamps */
+  segments?: VoiceTranscriptionSegment[];
+  /** Detected language code */
+  languageCode?: string;
+  /** Total duration of the audio in seconds */
+  durationSeconds?: number;
+  /** Number of detected speakers (if diarization enabled) */
+  speakerCount?: number;
+  /** Any error message */
+  error?: string;
+  /** Processing metadata */
+  metadata?: {
+    model: string;
+    processingTimeMs: number;
+    audioChannels: number;
+    sampleRateHertz: number;
+  };
+}
+
+/**
+ * Available voice options for synthesis
+ */
+export interface VoiceOption {
+  /** Voice ID (e.g., "en-IN-Wavenet-A") */
+  id: string;
+  /** Display name (e.g., "Indian English - Female 1") */
+  name: string;
+  /** Language code */
+  languageCode: string;
+  /** Voice gender */
+  gender: "MALE" | "FEMALE" | "NEUTRAL";
+  /** Voice type (Standard, Wavenet, Neural2, etc.) */
+  type: "STANDARD" | "WAVENET" | "NEURAL2";
+}
+
+/**
+ * Available language options for transcription
+ */
+export interface LanguageOption {
+  /** Language code (e.g., "en-IN") */
+  code: string;
+  /** Display name (e.g., "English (India)") */
+  name: string;
+  /** Is this the default option */
+  isDefault?: boolean;
 }

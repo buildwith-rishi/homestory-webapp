@@ -458,7 +458,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowDateFilter((prev) => !prev)}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${showDateFilter || dateFilter !== "all" ? "border-orange-300 bg-orange-50 text-orange-700" : "border-gray-200 bg-white text-gray-700 hover:border-orange-300"}`}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-all duration-150 ease-out active:scale-95 ${showDateFilter || dateFilter !== "all" ? "border-orange-300 bg-orange-50 text-orange-700" : "border-gray-200 bg-white/90 text-gray-700 hover:border-orange-300"}`}
           >
             <CalendarDays className="h-4 w-4" />
             Date Filter
@@ -469,12 +469,12 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
             )}
           </button>
           {showDateFilter && (
-            <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 text-xs shadow-sm">
+            <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white/95 backdrop-blur-sm p-1 text-xs shadow-sm">
               {DATE_FILTERS.map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setDateFilter(filter)}
-                  className={`rounded px-2 py-1 font-medium capitalize transition-colors ${
+                  className={`rounded px-2 py-1 font-medium capitalize transition-all duration-150 ease-out active:scale-95 ${
                     dateFilter === filter
                       ? "bg-orange-500 text-white"
                       : "text-gray-600 hover:bg-gray-100"
@@ -510,7 +510,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                       setCustomDateEnd("");
                       setDateFilter("all");
                     }}
-                    className="rounded p-1 text-gray-500 hover:bg-gray-100"
+                    className="rounded p-1 text-gray-500 hover:bg-gray-100 transition-all duration-150 ease-out active:scale-90"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -520,10 +520,10 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 rounded-lg bg-gray-100 p-1">
+        <div className="flex items-center gap-1.5 rounded-lg bg-gray-100/90 backdrop-blur-sm p-1">
           <button
             onClick={() => setZoomLevel((prev) => Math.max(60, prev - 10))}
-            className="rounded p-2 text-gray-600 transition-colors hover:bg-white disabled:opacity-40"
+            className="rounded p-2 text-gray-600 transition-all duration-150 ease-out hover:bg-white active:scale-90 disabled:opacity-40"
             disabled={zoomLevel <= 60}
           >
             <ZoomOut className="h-4 w-4" />
@@ -533,7 +533,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
           </span>
           <button
             onClick={() => setZoomLevel((prev) => Math.min(150, prev + 10))}
-            className="rounded p-2 text-gray-600 transition-colors hover:bg-white disabled:opacity-40"
+            className="rounded p-2 text-gray-600 transition-all duration-150 ease-out hover:bg-white active:scale-90 disabled:opacity-40"
             disabled={zoomLevel >= 150}
           >
             <ZoomIn className="h-4 w-4" />
@@ -541,7 +541,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
           <div className="mx-1 h-5 w-px bg-gray-300" />
           <button
             onClick={() => setZoomLevel(100)}
-            className="rounded px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-white"
+            className="rounded px-3 py-1.5 text-sm font-medium text-gray-600 transition-all duration-150 ease-out hover:bg-white active:scale-95"
           >
             Reset
           </button>
@@ -572,7 +572,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                   return (
                     <div
                       key={column.id}
-                      className={`flex-shrink-0 rounded-xl border bg-white shadow-sm transition-all ${
+                      className={`flex-shrink-0 rounded-xl border bg-white/95 backdrop-blur-sm shadow-sm transition-all ${
                         isCollapsed ? "w-12" : "w-72"
                       }`}
                       style={{
@@ -582,11 +582,11 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                         flexDirection: "column",
                       }}
                     >
-                      <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-3 py-2.5">
+                      <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/80 backdrop-blur-sm px-3 py-2.5">
                         <div className="flex flex-1 items-center gap-2">
                           <button
                             onClick={() => handleToggleCollapse(column.id)}
-                            className="rounded p-1 text-gray-500 transition-colors hover:bg-gray-200"
+                            className="rounded p-1 text-gray-500 transition-all duration-150 ease-out hover:bg-gray-200 active:scale-90"
                           >
                             {isCollapsed ? (
                               <ChevronRight className="h-4 w-4" />
@@ -615,7 +615,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                         {!isCollapsed && (
                           <button
                             onClick={() => handleDeleteColumn(column.id)}
-                            className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                          className="rounded p-1 text-gray-400 transition-all duration-150 ease-out hover:bg-red-50 hover:text-red-500 active:scale-90"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -640,10 +640,10 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                                       ref={dragProps.innerRef}
                                       {...dragProps.draggableProps}
                                       {...dragProps.dragHandleProps}
-                                      className={`group rounded-lg border bg-white p-2.5 text-sm shadow-sm transition-all ${
+                                      className={`group rounded-lg border bg-white/95 backdrop-blur-sm p-2.5 text-sm shadow-sm transition-all duration-300 ease-out ${
                                         dragSnapshot.isDragging
-                                          ? "scale-[1.02] border-orange-300 shadow-lg"
-                                          : "border-gray-200"
+                                          ? "scale-[1.02] border-orange-300 shadow-lg rotate-1"
+                                          : "border-gray-200 hover:shadow-md hover:-translate-y-0.5"
                                       }`}
                                     >
                                       {renderTaskCard ? (
@@ -656,7 +656,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                                                 e.stopPropagation();
                                                 toggleTaskComplete(task.id);
                                               }}
-                                              className={`h-4 w-4 rounded border-2 transition-colors ${
+                                              className={`h-4 w-4 rounded border-2 transition-all duration-150 ease-out active:scale-90 ${
                                                 task.completed
                                                   ? "border-orange-500 bg-orange-500"
                                                   : "border-gray-300 hover:border-orange-400"
@@ -682,7 +682,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                                                 e.stopPropagation();
                                                 handleDeleteCard(task.id, column.id);
                                               }}
-                                              className="rounded p-1 text-gray-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                                              className="rounded p-1 text-gray-400 opacity-0 transition-all duration-150 ease-out hover:bg-red-50 hover:text-red-500 active:scale-90 group-hover:opacity-100"
                                             >
                                               <Trash2 className="h-3.5 w-3.5" />
                                             </button>
@@ -721,7 +721,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                       {!isCollapsed && (
                         <div className="border-t border-gray-100 px-1.5 pb-1.5 pt-1.5">
                           {addingCardToColumn === column.id ? (
-                            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
+                            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50/95 backdrop-blur-sm p-2">
                               {addCardPrimarySelect ? (
                                 <div className="space-y-1.5">
                                   <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
@@ -749,14 +749,14 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                                   <div className="flex items-center gap-1 rounded-md border border-gray-200 bg-white p-1">
                                     <button
                                       onClick={() => applyFormatting("bold")}
-                                      className="rounded p-1.5 text-gray-500 hover:bg-gray-100"
+                                      className="rounded p-1.5 text-gray-500 hover:bg-gray-100 transition-all duration-150 ease-out active:scale-90"
                                       type="button"
                                     >
                                       <Bold className="h-3.5 w-3.5" />
                                     </button>
                                     <button
                                       onClick={() => applyFormatting("italic")}
-                                      className="rounded p-1.5 text-gray-500 hover:bg-gray-100"
+                                      className="rounded p-1.5 text-gray-500 hover:bg-gray-100 transition-all duration-150 ease-out active:scale-90"
                                       type="button"
                                     >
                                       <Italic className="h-3.5 w-3.5" />
@@ -764,14 +764,14 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                                     <div className="h-4 w-px bg-gray-300" />
                                     <button
                                       onClick={() => applyFormatting("bullet")}
-                                      className="rounded p-1.5 text-gray-500 hover:bg-gray-100"
+                                      className="rounded p-1.5 text-gray-500 hover:bg-gray-100 transition-all duration-150 ease-out active:scale-90"
                                       type="button"
                                     >
                                       <List className="h-3.5 w-3.5" />
                                     </button>
                                     <button
                                       onClick={() => applyFormatting("numbered")}
-                                      className="rounded p-1.5 text-gray-500 hover:bg-gray-100"
+                                      className="rounded p-1.5 text-gray-500 hover:bg-gray-100 transition-all duration-150 ease-out active:scale-90"
                                       type="button"
                                     >
                                       <ListOrdered className="h-3.5 w-3.5" />
@@ -843,7 +843,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                           ) : (
                             <button
                               onClick={() => beginAddCard(column.id)}
-                              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:border-orange-300 hover:bg-orange-50"
+                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-500 transition-all duration-150 ease-out hover:border-orange-300 hover:bg-orange-50 active:scale-95"
                             >
                               <Plus className="h-4 w-4" />
                               Add a card
@@ -857,7 +857,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
 
                 <div className="flex-shrink-0">
                   {isAddingColumn ? (
-                    <div className="w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                    <div className="w-72 rounded-xl border border-gray-200 bg-white/95 backdrop-blur-sm p-3 shadow-sm">
                       <input
                         ref={newColumnInputRef}
                         value={newColumnName}
@@ -875,7 +875,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                       <div className="mt-3 flex items-center gap-2">
                         <button
                           onClick={handleAddColumn}
-                          className="flex-1 rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-600"
+                        className="flex-1 rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition-all duration-150 ease-out hover:bg-orange-600 active:scale-95"
                         >
                           Add Column
                         </button>
@@ -884,7 +884,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                             setIsAddingColumn(false);
                             setNewColumnName("");
                           }}
-                          className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100"
+                        className="rounded-lg p-2 text-gray-500 transition-all duration-150 ease-out hover:bg-gray-100 active:scale-90"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -893,7 +893,7 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                   ) : (
                     <button
                       onClick={() => setIsAddingColumn(true)}
-                      className="flex h-14 w-72 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white/60 text-sm font-semibold text-gray-500 transition-colors hover:border-orange-400 hover:bg-orange-50 hover:text-orange-600"
+                      className="flex h-14 w-72 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white/60 backdrop-blur-sm text-sm font-semibold text-gray-500 transition-all duration-300 ease-out hover:border-orange-400 hover:bg-orange-50 hover:text-orange-600 active:scale-[0.98]"
                     >
                       <Plus className="h-4 w-4" />
                       Add another list

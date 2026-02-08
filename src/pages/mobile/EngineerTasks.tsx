@@ -1,18 +1,17 @@
-import { useEffect, useState } from 'react';
-import { Check, ChevronDown, ChevronUp } from 'lucide-react';
-import { MobileHeader } from '../../components/mobile/MobileHeader';
-import { useProjectStore } from '../../stores/projectStore';
-import { Project, Task } from '../../types';
+import { useEffect, useState } from "react";
+import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { MobileHeader } from "../../components/mobile/MobileHeader";
+import { useProjectStore } from "../../stores/projectStore";
+import { Project, Task } from "../../types";
 
 export function EngineerTasks() {
-  const { projects, tasks, fetchProjects, fetchTasks, updateTask } = useProjectStore();
+  const { projects, tasks, fetchProjects } = useProjectStore();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     fetchProjects();
-    fetchTasks();
-  }, [fetchProjects, fetchTasks]);
+  }, [fetchProjects]);
 
   const getWeekDates = () => {
     const dates = [];
@@ -29,7 +28,7 @@ export function EngineerTasks() {
   };
 
   const weekDates = getWeekDates();
-  const selectedDateStr = selectedDate.toISOString().split('T')[0];
+  const selectedDateStr = selectedDate.toISOString().split("T")[0];
 
   const tasksForDate = tasks.filter((t) => t.dueDate === selectedDateStr);
   const pendingTasks = tasksForDate.filter((t) => !t.completed);
@@ -38,22 +37,22 @@ export function EngineerTasks() {
   const groupedTasks: Record<string, Task[]> = {};
   pendingTasks.forEach((task) => {
     const project = projects.find((p) => p.id === task.projectId);
-    const projectName = project?.name || 'Unknown Project';
+    const projectName = project?.name || "Unknown Project";
     if (!groupedTasks[projectName]) {
       groupedTasks[projectName] = [];
     }
     groupedTasks[projectName].push(task);
   });
 
-  const handleToggleTask = (taskId: string, completed: boolean) => {
-    updateTask(taskId, { completed });
+  const handleToggleTask = (_taskId: string, _completed: boolean) => {
+    // TODO: Implement via real API when task endpoints are available
   };
 
   const formatTime = (time?: string) => {
-    if (!time) return '';
-    const [hours, minutes] = time.split(':');
+    if (!time) return "";
+    const [hours, minutes] = time.split(":");
     const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const ampm = hour >= 12 ? "PM" : "AM";
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
@@ -66,9 +65,10 @@ export function EngineerTasks() {
         <div className="flex gap-2 overflow-x-auto px-4 py-3 scrollbar-hide">
           {weekDates.map((date) => {
             const isSelected =
-              date.toISOString().split('T')[0] === selectedDateStr;
+              date.toISOString().split("T")[0] === selectedDateStr;
             const isToday =
-              date.toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
+              date.toISOString().split("T")[0] ===
+              new Date().toISOString().split("T")[0];
 
             return (
               <button
@@ -76,14 +76,14 @@ export function EngineerTasks() {
                 onClick={() => setSelectedDate(date)}
                 className={`flex flex-col items-center justify-center min-w-[52px] h-16 rounded-lg transition-colors ${
                   isSelected
-                    ? 'bg-orange-500 text-white'
+                    ? "bg-orange-500 text-white"
                     : isToday
-                    ? 'bg-orange-50 text-orange-600 border border-orange-200'
-                    : 'bg-white text-gray-600 border border-gray-200'
+                      ? "bg-orange-50 text-orange-600 border border-orange-200"
+                      : "bg-white text-gray-600 border border-gray-200"
                 }`}
               >
                 <span className="text-xs font-medium">
-                  {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                  {date.toLocaleDateString("en-US", { weekday: "short" })}
                 </span>
                 <span className="text-lg font-bold mt-0.5">
                   {date.getDate()}
@@ -120,14 +120,16 @@ export function EngineerTasks() {
                     >
                       <div className="flex items-start gap-3">
                         <button
-                          onClick={() => handleToggleTask(task.id, !task.completed)}
+                          onClick={() =>
+                            handleToggleTask(task.id, !task.completed)
+                          }
                           className="mt-0.5 flex-shrink-0"
                         >
                           <div
                             className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                               task.completed
-                                ? 'bg-green-500 border-green-500'
-                                : 'border-gray-300 hover:border-orange-500'
+                                ? "bg-green-500 border-green-500"
+                                : "border-gray-300 hover:border-orange-500"
                             }`}
                           >
                             {task.completed && (
@@ -140,8 +142,8 @@ export function EngineerTasks() {
                           <p
                             className={`text-sm font-medium ${
                               task.completed
-                                ? 'text-gray-400 line-through'
-                                : 'text-gray-900'
+                                ? "text-gray-400 line-through"
+                                : "text-gray-900"
                             }`}
                           >
                             {task.title}
@@ -154,7 +156,9 @@ export function EngineerTasks() {
                           {task.dueTime && (
                             <p
                               className={`text-xs mt-2 ${
-                                task.completed ? 'text-gray-400' : 'text-orange-600'
+                                task.completed
+                                  ? "text-gray-400"
+                                  : "text-orange-600"
                               }`}
                             >
                               Due: {formatTime(task.dueTime)}
@@ -185,7 +189,9 @@ export function EngineerTasks() {
                 {showCompleted && (
                   <div className="space-y-2">
                     {completedTasks.map((task) => {
-                      const project = projects.find((p) => p.id === task.projectId);
+                      const project = projects.find(
+                        (p) => p.id === task.projectId,
+                      );
                       return (
                         <div
                           key={task.id}

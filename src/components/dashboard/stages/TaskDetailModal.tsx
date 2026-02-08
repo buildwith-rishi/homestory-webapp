@@ -1,0 +1,638 @@
+import React, { useState, useEffect, useRef } from "react";
+import ReactDOM from "react-dom";
+import {
+  X,
+  Loader2,
+  CheckCircle2,
+  Clock,
+  Circle,
+  Ban,
+  AlertTriangle,
+  Paperclip,
+  Upload,
+  Trash2,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Send,
+  MessageSquare,
+  ExternalLink,
+  File,
+} from "lucide-react";
+import { Button } from "../../ui";
+import type {
+  MatrixTask,
+  TaskAttachment,
+  UpdateTaskStatusRequest,
+  NotifyCustomerRequest,
+} from "../../../types";
+import {
+  getMatrixTaskDetails,
+  getTaskAttachments,
+  uploadTaskAttachment,
+  deleteTaskAttachment,
+  updateMatrixTaskStatus,
+  notifyCustomerTaskComplete,
+} from "../../../services/projectApi";
+import toast from "react-hot-toast";
+
+interface TaskDetailModalProps {
+  taskId: string;
+  categories: { id: string; name: string; color: string }[];
+  onClose: () => void;
+  onStatusChanged: () => void;
+}
+
+const statusConfig: Record<
+  string,
+  {
+    icon: React.ReactNode;
+    bg: string;
+    text: string;
+    label: string;
+    border: string;
+  }
+> = {
+  PENDING: {
+    icon: <Circle className="w-4 h-4" />,
+    bg: "bg-gray-100",
+    text: "text-gray-700",
+    label: "Pending",
+    border: "border-gray-300",
+  },
+  IN_PROGRESS: {
+    icon: <Clock className="w-4 h-4" />,
+    bg: "bg-blue-100",
+    text: "text-blue-700",
+    label: "In Progress",
+    border: "border-blue-300",
+  },
+  COMPLETED: {
+    icon: <CheckCircle2 className="w-4 h-4" />,
+    bg: "bg-green-100",
+    text: "text-green-700",
+    label: "Completed",
+    border: "border-green-300",
+  },
+  CANCELLED: {
+    icon: <Ban className="w-4 h-4" />,
+    bg: "bg-red-50",
+    text: "text-red-600",
+    label: "Cancelled",
+    border: "border-red-300",
+  },
+  OVERDUE: {
+    icon: <AlertTriangle className="w-4 h-4" />,
+    bg: "bg-amber-100",
+    text: "text-amber-700",
+    label: "Overdue",
+    border: "border-amber-300",
+  },
+};
+
+const attachmentTypeIcon: Record<string, React.ReactNode> = {
+  PHOTO: <ImageIcon className="w-4 h-4 text-purple-500" />,
+  VIDEO: <Video className="w-4 h-4 text-pink-500" />,
+  DOCUMENT: <FileText className="w-4 h-4 text-blue-500" />,
+  AUDIO: <File className="w-4 h-4 text-teal-500" />,
+  OTHER: <Paperclip className="w-4 h-4 text-gray-500" />,
+};
+
+const inferAttachmentType = (file: File): string => {
+  const mime = file.type.toLowerCase();
+  if (mime.startsWith("image/")) return "PHOTO";
+  if (mime.startsWith("video/")) return "VIDEO";
+  if (mime.startsWith("audio/")) return "AUDIO";
+  if (
+    mime.includes("pdf") ||
+    mime.includes("document") ||
+    mime.includes("spreadsheet") ||
+    mime.includes("text/")
+  )
+    return "DOCUMENT";
+  return "OTHER";
+};
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const formatDateTime = (d?: string | null) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
+  taskId,
+  categories,
+  onClose,
+  onStatusChanged,
+}) => {
+  const [task, setTask] = useState<MatrixTask | null>(null);
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<
+    "details" | "attachments" | "notify"
+  >("details");
+
+  // Status update
+  const [newStatus, setNewStatus] = useState("");
+  const [completionNotes, setCompletionNotes] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Attachment upload
+  const [uploading, setUploading] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<
+    string | null
+  >(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Notify customer
+  const [notifyMessage, setNotifyMessage] = useState("");
+  const [includeAttachments, setIncludeAttachments] = useState(true);
+  const [notifying, setNotifying] = useState(false);
+
+  useEffect(() => {
+    fetchTaskDetails();
+  }, [taskId]);
+
+  const fetchTaskDetails = async () => {
+    setLoading(true);
+    try {
+      const [taskData, attachData] = await Promise.all([
+        getMatrixTaskDetails(taskId),
+        getTaskAttachments(taskId).catch(() => [] as TaskAttachment[]),
+      ]);
+      setTask(taskData);
+      setAttachments(Array.isArray(attachData) ? attachData : []);
+      setNewStatus(taskData.status);
+      setCompletionNotes(taskData.completionNotes || "");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load task");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!newStatus) return;
+    setUpdatingStatus(true);
+    try {
+      const data: UpdateTaskStatusRequest = { status: newStatus };
+      if (completionNotes.trim()) data.completionNotes = completionNotes.trim();
+      await updateMatrixTaskStatus(taskId, data);
+      toast.success("Task status updated");
+      await fetchTaskDetails();
+      onStatusChanged();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update status",
+      );
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const attachmentType = inferAttachmentType(file);
+      const attachment = await uploadTaskAttachment(
+        taskId,
+        file,
+        attachmentType,
+      );
+      setAttachments((prev) => [...prev, attachment]);
+      toast.success("File uploaded");
+      onStatusChanged(); // refresh counts
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!confirm("Delete this attachment?")) return;
+    setDeletingAttachmentId(attachmentId);
+    try {
+      await deleteTaskAttachment(attachmentId);
+      setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+      toast.success("Attachment deleted");
+      onStatusChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  };
+
+  const handleNotifyCustomer = async () => {
+    setNotifying(true);
+    try {
+      const data: NotifyCustomerRequest = {
+        includeAttachments,
+      };
+      if (notifyMessage.trim()) data.customMessage = notifyMessage.trim();
+      const result = await notifyCustomerTaskComplete(taskId, data);
+      if (result.sent) {
+        toast.success(`Notification sent to ${result.customerEmail}`);
+        setNotifyMessage("");
+      } else {
+        toast.error("Notification could not be sent");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to notify");
+    } finally {
+      setNotifying(false);
+    }
+  };
+
+  const cfg = statusConfig[task?.status || "PENDING"] || statusConfig.PENDING;
+  const catColor =
+    categories.find(
+      (c) => c.id === task?.categoryId || c.name === task?.category?.name,
+    )?.color || "#6b7280";
+
+  const content = (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-3 h-3 rounded-full flex-shrink-0"
+              style={{ backgroundColor: catColor }}
+            />
+            <h2 className="text-lg font-bold text-gray-900 truncate">
+              {loading ? "Loading..." : task?.title || "Task Details"}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+          </div>
+        ) : task ? (
+          <>
+            {/* Tabs */}
+            <div className="flex border-b border-gray-100 px-6">
+              {(
+                [
+                  { key: "details" as const, label: "Details & Status" },
+                  {
+                    key: "attachments" as const,
+                    label: `Attachments (${attachments.length})`,
+                  },
+                  { key: "notify" as const, label: "Notify Customer" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === tab.key
+                      ? "border-orange-500 text-orange-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {activeTab === "details" && (
+                <div className="space-y-5">
+                  {/* Current status badge */}
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${cfg.bg} ${cfg.text}`}
+                    >
+                      {cfg.icon}
+                      {cfg.label}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      Day {task.dayNumber}
+                    </span>
+                    {task.category && (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-medium text-white"
+                        style={{ backgroundColor: catColor }}
+                      >
+                        {task.category.name}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  {task.description && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                        Description
+                      </p>
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        {task.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Metadata */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-400 font-medium">
+                        Created
+                      </p>
+                      <p className="text-gray-700">
+                        {formatDateTime(task.createdAt)}
+                      </p>
+                    </div>
+                    {task.completedAt && (
+                      <div>
+                        <p className="text-xs text-gray-400 font-medium">
+                          Completed
+                        </p>
+                        <p className="text-gray-700">
+                          {formatDateTime(task.completedAt)}
+                        </p>
+                      </div>
+                    )}
+                    {task.completedBy && (
+                      <div>
+                        <p className="text-xs text-gray-400 font-medium">
+                          Completed By
+                        </p>
+                        <p className="text-gray-700">{task.completedBy.name}</p>
+                      </div>
+                    )}
+                    {task.taskDate && (
+                      <div>
+                        <p className="text-xs text-gray-400 font-medium">
+                          Scheduled Date
+                        </p>
+                        <p className="text-gray-700">
+                          {formatDateTime(task.taskDate)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Completion notes (read-only if already set) */}
+                  {task.completionNotes && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-green-700 mb-1">
+                        Completion Notes
+                      </p>
+                      <p className="text-sm text-green-800">
+                        {task.completionNotes}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Status update form */}
+                  <div className="border-t border-gray-100 pt-5">
+                    <p className="text-xs font-semibold text-gray-500 uppercase mb-3">
+                      Update Status
+                    </p>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-5 gap-2">
+                        {Object.entries(statusConfig).map(([key, val]) => (
+                          <button
+                            key={key}
+                            onClick={() => setNewStatus(key)}
+                            className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all text-xs font-medium ${
+                              newStatus === key
+                                ? `${val.bg} ${val.text} ${val.border}`
+                                : "border-gray-200 text-gray-400 hover:border-gray-300"
+                            }`}
+                          >
+                            {val.icon}
+                            <span className="text-[10px]">{val.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <textarea
+                        placeholder="Completion notes (optional — useful when marking as Completed)"
+                        value={completionNotes}
+                        onChange={(e) => setCompletionNotes(e.target.value)}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 resize-none"
+                        rows={2}
+                      />
+
+                      <Button
+                        size="sm"
+                        onClick={handleStatusUpdate}
+                        disabled={
+                          updatingStatus ||
+                          (newStatus === task.status &&
+                            completionNotes === (task.completionNotes || ""))
+                        }
+                        className="bg-orange-500 hover:bg-orange-600 text-white w-full"
+                      >
+                        {updatingStatus ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            Updating...
+                          </>
+                        ) : (
+                          "Update Status"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "attachments" && (
+                <div className="space-y-4">
+                  {/* Upload area */}
+                  <div
+                    className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    />
+                    {uploading ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                        <p className="text-sm text-gray-500">Uploading...</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <Upload className="w-8 h-8 text-gray-300" />
+                        <p className="text-sm text-gray-500">
+                          Click to upload a file
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Photos, videos, documents, audio
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Attachment list */}
+                  {attachments.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4 italic">
+                      No attachments yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {attachments.map((att) => {
+                        const isDeleting = deletingAttachmentId === att.id;
+                        return (
+                          <div
+                            key={att.id}
+                            className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg group"
+                          >
+                            {attachmentTypeIcon[att.attachmentType] ||
+                              attachmentTypeIcon.OTHER}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {att.fileName}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-gray-400">
+                                <span>{formatFileSize(att.fileSize)}</span>
+                                <span>{att.attachmentType}</span>
+                                {att.uploadedBy && (
+                                  <span>by {att.uploadedBy.name}</span>
+                                )}
+                              </div>
+                              {att.description && (
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {att.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <a
+                                href={att.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 text-gray-400 hover:text-blue-600 rounded"
+                                title="Open"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                              <button
+                                onClick={() => handleDeleteAttachment(att.id)}
+                                disabled={isDeleting}
+                                className="p-1.5 text-gray-400 hover:text-red-500 rounded disabled:opacity-50"
+                                title="Delete"
+                              >
+                                {isDeleting ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "notify" && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <Send className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-800">
+                          Notify Customer
+                        </p>
+                        <p className="text-xs text-blue-600 mt-0.5">
+                          Send an email notification to the customer about this
+                          task&apos;s completion status.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">
+                      Custom Message (optional)
+                    </label>
+                    <textarea
+                      value={notifyMessage}
+                      onChange={(e) => setNotifyMessage(e.target.value)}
+                      placeholder="Add a personal message for the customer..."
+                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 resize-none"
+                      rows={4}
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeAttachments}
+                      onChange={(e) => setIncludeAttachments(e.target.checked)}
+                      className="rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Include attachments ({attachments.length} file
+                      {attachments.length !== 1 ? "s" : ""})
+                    </span>
+                  </label>
+
+                  <Button
+                    size="sm"
+                    onClick={handleNotifyCustomer}
+                    disabled={notifying}
+                    className="bg-blue-600 hover:bg-blue-700 text-white w-full"
+                  >
+                    {notifying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquare className="w-4 h-4 mr-1" />
+                        Send Notification
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center py-12">
+            <p className="text-sm text-gray-400">Task not found</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return ReactDOM.createPortal(content, document.body);
+};

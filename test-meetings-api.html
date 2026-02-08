@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meetings API Integration Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    .auth-section {
+      padding: 20px 30px;
+      background: #fef3c7;
+      border-bottom: 2px solid #fbbf24;
+    }
+
+    .auth-section h3 {
+      color: #92400e;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    .token-input {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .token-input input {
+      flex: 1;
+      padding: 10px 15px;
+      border: 2px solid #fbbf24;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .token-input button {
+      padding: 10px 20px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .token-input button:hover {
+      background: #2563eb;
+      transform: translateY(-2px);
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .test-section {
+      margin-bottom: 30px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+
+    .test-section:hover {
+      border-color: #3b82f6;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+    }
+
+    .test-header {
+      background: #f9fafb;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .test-header h3 {
+      color: #1f2937;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .method-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+    }
+
+    .method-get {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .method-post {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .method-put {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .method-delete {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .test-button {
+      padding: 8px 20px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .test-button:hover {
+      background: #2563eb;
+      transform: scale(1.05);
+    }
+
+    .test-button:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .test-body {
+      padding: 20px;
+      display: none;
+      background: white;
+    }
+
+    .test-body.active {
+      display: block;
+    }
+
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 13px;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .result.success {
+      background: #f0fdf4;
+      border: 2px solid #86efac;
+      color: #166534;
+    }
+
+    .result.error {
+      background: #fef2f2;
+      border: 2px solid #fca5a5;
+      color: #991b1b;
+    }
+
+    .result.loading {
+      background: #eff6ff;
+      border: 2px solid #93c5fd;
+      color: #1e40af;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+      color: #374151;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .form-group textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .summary {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+    }
+
+    .summary h2 {
+      color: #166534;
+      margin-bottom: 15px;
+      font-size: 20px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .summary-item {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .summary-item .label {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+
+    .summary-item .value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .test-all-button {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 30px;
+      transition: all 0.3s;
+    }
+
+    .test-all-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+    }
+
+    .test-all-button:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .section-divider {
+      margin: 40px 0 30px 0;
+      padding: 15px;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-left: 4px solid #3b82f6;
+      border-radius: 8px;
+    }
+
+    .section-divider h2 {
+      color: #1e40af;
+      font-size: 18px;
+      margin: 0;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    .note-text {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 10px;
+      padding: 10px;
+      background: #f9fafb;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📅 Meetings API Integration Test</h1>
+      <p>Comprehensive testing for all 17 meetings API endpoints</p>
+    </div>
+
+    <div class="auth-section">
+      <h3>🔐 Authentication Token</h3>
+      <div class="token-input">
+        <input 
+          type="text" 
+          id="authToken" 
+          placeholder="Paste your auth token here (or it will be loaded from localStorage)"
+        >
+        <button onclick="setAuthToken()">Set Token</button>
+      </div>
+      <div id="authStatus"></div>
+    </div>
+
+    <div class="content">
+      <div class="summary" id="summary">
+        <h2>📊 Test Summary</h2>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="label">Total Tests</div>
+            <div class="value">17</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">Passed</div>
+            <div class="value" id="passedCount">0</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">Failed</div>
+            <div class="value" id="failedCount">0</div>
+          </div>
+          <div class="summary-item">
+            <div class="label">Pending</div>
+            <div class="value" id="pendingCount">17</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="test-all-button" onclick="runAllTests()">
+        🚀 Run Core Tests (CRUD + Participants + Notes)
+      </button>
+
+      <!-- ========== SECTION 1: BASIC CRUD OPERATIONS ========== -->
+      <div class="section-divider">
+        <h2>📋 Section 1: Basic CRUD Operations</h2>
+      </div>
+
+      <!-- Test 1: List Meetings -->
+      <div class="test-section" id="test-list">
+        <div class="test-header" onclick="toggleTest('test-list')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            List Meetings
+          </h3>
+          <button class="test-button" onclick="testListMeetings(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/meetings</p>
+          <p><strong>Description:</strong> Fetch all meetings with optional filters</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Entity Type</label>
+              <select id="listEntityType">
+                <option value="">All Types</option>
+                <option value="LEAD">Lead</option>
+                <option value="PROJECT">Project</option>
+                <option value="CUSTOMER">Customer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="listStatus">
+                <option value="">All Statuses</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+          <div id="result-list"></div>
+        </div>
+      </div>
+
+      <!-- Test 2: Create Meeting -->
+      <div class="test-section" id="test-create">
+        <div class="test-header" onclick="toggleTest('test-create')">
+          <h3>
+            <span class="method-badge method-post">POST</span>
+            Create Meeting
+          </h3>
+          <button class="test-button" onclick="testCreateMeeting(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> POST /api/meetings</p>
+          <p><strong>Description:</strong> Create a new meeting</p>
+          
+          <div class="form-group">
+            <label>Title *</label>
+            <input type="text" id="createTitle" value="Test Meeting - Client Discussion" placeholder="Meeting title">
+          </div>
+          
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="createDescription" placeholder="Meeting description">Discuss project requirements and timeline</textarea>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Entity Type *</label>
+              <select id="createEntityType">
+                <option value="LEAD">Lead</option>
+                <option value="PROJECT">Project</option>
+                <option value="CUSTOMER">Customer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Entity ID *</label>
+              <input type="text" id="createEntityId" value="test-lead-123" placeholder="Entity ID">
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Scheduled Date/Time *</label>
+              <input type="datetime-local" id="createScheduledAt" value="">
+            </div>
+            <div class="form-group">
+              <label>Duration (minutes)</label>
+              <input type="number" id="createDuration" value="60" placeholder="60">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Location</label>
+            <input type="text" id="createLocation" value="Office Conference Room" placeholder="Meeting location">
+          </div>
+          
+          <div id="result-create"></div>
+        </div>
+      </div>
+
+      <!-- Test 3: Get Meeting by ID -->
+      <div class="test-section" id="test-get">
+        <div class="test-header" onclick="toggleTest('test-get')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            Get Meeting by ID
+          </h3>
+          <button class="test-button" onclick="testGetMeeting(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/meetings/:id</p>
+          <p><strong>Description:</strong> Fetch a single meeting with transcript and AI analysis</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="getMeetingId" placeholder="Enter meeting ID from create test">
+          </div>
+          
+          <div id="result-get"></div>
+        </div>
+      </div>
+
+      <!-- Test 4: Update Meeting -->
+      <div class="test-section" id="test-update">
+        <div class="test-header" onclick="toggleTest('test-update')">
+          <h3>
+            <span class="method-badge method-put">PUT</span>
+            Update Meeting
+          </h3>
+          <button class="test-button" onclick="testUpdateMeeting(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> PUT /api/meetings/:id</p>
+          <p><strong>Description:</strong> Update an existing meeting</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="updateMeetingId" placeholder="Enter meeting ID to update">
+          </div>
+          
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="updateTitle" value="Updated Meeting Title" placeholder="New title">
+          </div>
+          
+          <div class="form-group">
+            <label>Status</label>
+            <select id="updateStatus">
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          
+          <div id="result-update"></div>
+        </div>
+      </div>
+
+      <!-- Test 5: Delete Meeting -->
+      <div class="test-section" id="test-delete">
+        <div class="test-header" onclick="toggleTest('test-delete')">
+          <h3>
+            <span class="method-badge method-delete">DELETE</span>
+            Delete Meeting
+          </h3>
+          <button class="test-button" onclick="testDeleteMeeting(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> DELETE /api/meetings/:id</p>
+          <p><strong>Description:</strong> Delete a meeting</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="deleteMeetingId" placeholder="Enter meeting ID to delete">
+          </div>
+          
+          <div id="result-delete"></div>
+        </div>
+      </div>
+
+      <!-- Test 6: Get Meeting Statuses -->
+      <div class="test-section" id="test-statuses">
+        <div class="test-header" onclick="toggleTest('test-statuses')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            Get Meeting Statuses
+          </h3>
+          <button class="test-button" onclick="testGetStatuses(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/meetings/statuses</p>
+          <p><strong>Description:</strong> Fetch available meeting status options</p>
+          <div id="result-statuses"></div>
+        </div>
+      </div>
+
+      <!-- ========== SECTION 2: PARTICIPANT MANAGEMENT ========== -->
+      <div class="section-divider">
+        <h2>👥 Section 2: Participant Management</h2>
+      </div>
+
+      <!-- Test 7: Add Participant -->
+      <div class="test-section" id="test-add-participant">
+        <div class="test-header" onclick="toggleTest('test-add-participant')">
+          <h3>
+            <span class="method-badge method-post">POST</span>
+            Add Participant
+          </h3>
+          <button class="test-button" onclick="testAddParticipant(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> POST /api/meetings/:id/participants</p>
+          <p><strong>Description:</strong> Add a participant to a meeting</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="addParticipantMeetingId" placeholder="Enter meeting ID">
+          </div>
+          
+          <div class="form-group">
+            <label>Name *</label>
+            <input type="text" id="addParticipantName" value="John Doe" placeholder="Participant name">
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Email *</label>
+              <input type="email" id="addParticipantEmail" value="john@example.com" placeholder="Email">
+            </div>
+            <div class="form-group">
+              <label>Phone *</label>
+              <input type="text" id="addParticipantPhone" value="+919876543210" placeholder="Phone">
+            </div>
+          </div>
+          
+          <div id="result-add-participant"></div>
+        </div>
+      </div>
+
+      <!-- Test 8: Remove Participant -->
+      <div class="test-section" id="test-remove-participant">
+        <div class="test-header" onclick="toggleTest('test-remove-participant')">
+          <h3>
+            <span class="method-badge method-delete">DELETE</span>
+            Remove Participant
+          </h3>
+          <button class="test-button" onclick="testRemoveParticipant(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> DELETE /api/meetings/:id/participants/:participantId</p>
+          <p><strong>Description:</strong> Remove a participant from a meeting</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Meeting ID</label>
+              <input type="text" id="removeParticipantMeetingId" placeholder="Enter meeting ID">
+            </div>
+            <div class="form-group">
+              <label>Participant ID</label>
+              <input type="text" id="removeParticipantId" placeholder="Enter participant ID">
+            </div>
+          </div>
+          
+          <div id="result-remove-participant"></div>
+        </div>
+      </div>
+
+      <!-- ========== SECTION 3: NOTES MANAGEMENT ========== -->
+      <div class="section-divider">
+        <h2>📝 Section 3: Notes Management</h2>
+      </div>
+
+      <!-- Test 9: Get Notes -->
+      <div class="test-section" id="test-get-notes">
+        <div class="test-header" onclick="toggleTest('test-get-notes')">
+          <h3>
+            <span class="method-badge method-get">GET</span>
+            Get Meeting Notes
+          </h3>
+          <button class="test-button" onclick="testGetNotes(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> GET /api/meetings/:id/notes</p>
+          <p><strong>Description:</strong> Fetch all notes for a meeting</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="getNotesMeetingId" placeholder="Enter meeting ID">
+          </div>
+          
+          <div id="result-get-notes"></div>
+        </div>
+      </div>
+
+      <!-- Test 10: Add Note -->
+      <div class="test-section" id="test-add-note">
+        <div class="test-header" onclick="toggleTest('test-add-note')">
+          <h3>
+            <span class="method-badge method-post">POST</span>
+            Add Note
+          </h3>
+          <button class="test-button" onclick="testAddNote(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> POST /api/meetings/:id/notes</p>
+          <p><strong>Description:</strong> Add a timestamped note to a meeting</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="addNoteMeetingId" placeholder="Enter meeting ID">
+          </div>
+          
+          <div class="form-group">
+            <label>Note Content *</label>
+            <textarea id="addNoteContent" placeholder="Enter note content">Client requested timeline adjustment for phase 2</textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>Timestamp (seconds) *</label>
+            <input type="number" id="addNoteTimestamp" value="120" placeholder="Timestamp in seconds">
+          </div>
+          
+          <div id="result-add-note"></div>
+        </div>
+      </div>
+
+      <!-- Test 11: Update Note -->
+      <div class="test-section" id="test-update-note">
+        <div class="test-header" onclick="toggleTest('test-update-note')">
+          <h3>
+            <span class="method-badge method-put">PUT</span>
+            Update Note
+          </h3>
+          <button class="test-button" onclick="testUpdateNote(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> PUT /api/meetings/:id/notes/:noteId</p>
+          <p><strong>Description:</strong> Update an existing note</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Meeting ID</label>
+              <input type="text" id="updateNoteMeetingId" placeholder="Enter meeting ID">
+            </div>
+            <div class="form-group">
+              <label>Note ID</label>
+              <input type="text" id="updateNoteId" placeholder="Enter note ID">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Updated Content *</label>
+            <textarea id="updateNoteContent" placeholder="Enter updated content">Updated note with additional details</textarea>
+          </div>
+          
+          <div id="result-update-note"></div>
+        </div>
+      </div>
+
+      <!-- Test 12: Delete Note -->
+      <div class="test-section" id="test-delete-note">
+        <div class="test-header" onclick="toggleTest('test-delete-note')">
+          <h3>
+            <span class="method-badge method-delete">DELETE</span>
+            Delete Note
+          </h3>
+          <button class="test-button" onclick="testDeleteNote(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> DELETE /api/meetings/:id/notes/:noteId</p>
+          <p><strong>Description:</strong> Delete a meeting note</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Meeting ID</label>
+              <input type="text" id="deleteNoteMeetingId" placeholder="Enter meeting ID">
+            </div>
+            <div class="form-group">
+              <label>Note ID</label>
+              <input type="text" id="deleteNoteId" placeholder="Enter note ID">
+            </div>
+          </div>
+          
+          <div id="result-delete-note"></div>
+        </div>
+      </div>
+
+      <!-- ========== SECTION 4: RECORDING & ADVANCED FEATURES ========== -->
+      <div class="section-divider">
+        <h2>🎙️ Section 4: Recording & Advanced Features</h2>
+      </div>
+
+      <!-- Test 13: Start Recording -->
+      <div class="test-section" id="test-start-recording">
+        <div class="test-header" onclick="toggleTest('test-start-recording')">
+          <h3>
+            <span class="method-badge method-post">POST</span>
+            Start Recording
+          </h3>
+          <button class="test-button" onclick="testStartRecording(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> POST /api/meetings/:id/start</p>
+          <p><strong>Description:</strong> Start recording a meeting</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="startRecordingMeetingId" placeholder="Enter meeting ID">
+          </div>
+          
+          <div class="note-text">
+            ℹ️ This initiates recording mode. Status will be updated to indicate active recording.
+          </div>
+          
+          <div id="result-start-recording"></div>
+        </div>
+      </div>
+
+      <!-- Test 14: End Recording -->
+      <div class="test-section" id="test-end-recording">
+        <div class="test-header" onclick="toggleTest('test-end-recording')">
+          <h3>
+            <span class="method-badge method-post">POST</span>
+            End Recording
+          </h3>
+          <button class="test-button" onclick="testEndRecording(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> POST /api/meetings/:id/end</p>
+          <p><strong>Description:</strong> End recording and upload audio for transcription</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="endRecordingMeetingId" placeholder="Enter meeting ID">
+          </div>
+          
+          <div class="note-text">
+            ℹ️ Note: This test uses a sample base64 audio string. In production, this would be actual recorded audio data.
+          </div>
+          
+          <div id="result-end-recording"></div>
+        </div>
+      </div>
+
+      <!-- Test 15: Update Speaker Map -->
+      <div class="test-section" id="test-speaker-map">
+        <div class="test-header" onclick="toggleTest('test-speaker-map')">
+          <h3>
+            <span class="method-badge method-put">PUT</span>
+            Update Speaker Map
+          </h3>
+          <button class="test-button" onclick="testUpdateSpeakerMap(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> PUT /api/meetings/:id/speaker-map</p>
+          <p><strong>Description:</strong> Map speaker IDs to names in transcript</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="speakerMapMeetingId" placeholder="Enter meeting ID">
+          </div>
+          
+          <div class="form-group">
+            <label>Speaker Map (JSON) *</label>
+            <textarea id="speakerMapData" placeholder='{"speaker_0": "John Doe", "speaker_1": "Jane Smith"}'>{"speaker_0": "John Doe", "speaker_1": "Jane Smith"}</textarea>
+          </div>
+          
+          <div class="note-text">
+            ℹ️ Maps anonymous speaker IDs to actual participant names for better readability.
+          </div>
+          
+          <div id="result-speaker-map"></div>
+        </div>
+      </div>
+
+      <!-- Test 16: Regenerate Content -->
+      <div class="test-section" id="test-regenerate">
+        <div class="test-header" onclick="toggleTest('test-regenerate')">
+          <h3>
+            <span class="method-badge method-post">POST</span>
+            Regenerate Content
+          </h3>
+          <button class="test-button" onclick="testRegenerate(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> POST /api/meetings/:id/regenerate</p>
+          <p><strong>Description:</strong> Regenerate summary, transcription, or both</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Meeting ID</label>
+              <input type="text" id="regenerateMeetingId" placeholder="Enter meeting ID">
+            </div>
+            <div class="form-group">
+              <label>Regenerate Type *</label>
+              <select id="regenerateType">
+                <option value="summary">Summary Only</option>
+                <option value="transcription">Transcription Only</option>
+                <option value="all">Both Summary & Transcription</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="note-text">
+            ℹ️ Useful for improving AI-generated content quality or after updating speaker names.
+          </div>
+          
+          <div id="result-regenerate"></div>
+        </div>
+      </div>
+
+      <!-- Test 17: Send Notifications -->
+      <div class="test-section" id="test-notifications">
+        <div class="test-header" onclick="toggleTest('test-notifications')">
+          <h3>
+            <span class="method-badge method-post">POST</span>
+            Send Notifications
+          </h3>
+          <button class="test-button" onclick="testSendNotifications(event)">Test</button>
+        </div>
+        <div class="test-body">
+          <p><strong>Endpoint:</strong> POST /api/meetings/:id/notify</p>
+          <p><strong>Description:</strong> Send meeting notifications to all participants</p>
+          
+          <div class="form-group">
+            <label>Meeting ID</label>
+            <input type="text" id="notificationsMeetingId" placeholder="Enter meeting ID">
+          </div>
+          
+          <div class="note-text">
+            ℹ️ Sends notifications via email/SMS to all meeting participants about the meeting details.
+          </div>
+          
+          <div id="result-notifications"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = "https://ghs.oneweekmvps.com";
+    let testResults = {
+      passed: 0,
+      failed: 0,
+      pending: 17
+    };
+    let createdMeetingId = null;
+    let createdParticipantId = null;
+    let createdNoteId = null;
+
+    // Initialize
+    window.onload = function() {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        document.getElementById('authToken').value = token;
+        showAuthStatus('Token loaded from localStorage', 'success');
+      }
+      
+      // Set default datetime to 1 hour from now
+      const defaultDate = new Date();
+      defaultDate.setHours(defaultDate.getHours() + 1);
+      document.getElementById('createScheduledAt').value = defaultDate.toISOString().slice(0, 16);
+    };
+
+    function setAuthToken() {
+      const token = document.getElementById('authToken').value;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+        showAuthStatus('Token saved successfully!', 'success');
+      } else {
+        showAuthStatus('Please enter a token', 'error');
+      }
+    }
+
+    function showAuthStatus(message, type) {
+      const statusDiv = document.getElementById('authStatus');
+      statusDiv.className = `status ${type}`;
+      statusDiv.textContent = message;
+    }
+
+    function getAuthHeaders() {
+      const token = localStorage.getItem('auth_token');
+      return {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+    }
+
+    function toggleTest(testId) {
+      const body = document.querySelector(`#${testId} .test-body`);
+      body.classList.toggle('active');
+    }
+
+    function showResult(resultId, message, type) {
+      const resultDiv = document.getElementById(resultId);
+      resultDiv.className = `result ${type}`;
+      resultDiv.textContent = message;
+    }
+
+    function updateSummary() {
+      document.getElementById('passedCount').textContent = testResults.passed;
+      document.getElementById('failedCount').textContent = testResults.failed;
+      document.getElementById('pendingCount').textContent = testResults.pending;
+    }
+
+    function markTestResult(success) {
+      if (success) {
+        testResults.passed++;
+      } else {
+        testResults.failed++;
+      }
+      testResults.pending--;
+      updateSummary();
+    }
+
+    // ========== SECTION 1: BASIC CRUD OPERATIONS ==========
+
+    // Test 1: List Meetings
+    async function testListMeetings(event) {
+      if (event) event.stopPropagation();
+      showResult('result-list', '⏳ Loading...', 'loading');
+      
+      try {
+        const queryParams = new URLSearchParams();
+        const entityType = document.getElementById('listEntityType').value;
+        const status = document.getElementById('listStatus').value;
+        
+        if (entityType) queryParams.append('entityType', entityType);
+        if (status) queryParams.append('status', status);
+        
+        const url = `${API_BASE_URL}/api/meetings${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-list', 
+            `✅ Success!\n\nStatus: ${response.status}\nTotal: ${data.total || data.meetings?.length || 0}\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-list', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 2: Create Meeting
+    async function testCreateMeeting(event) {
+      if (event) event.stopPropagation();
+      showResult('result-create', '⏳ Creating meeting...', 'loading');
+      
+      try {
+        const meetingData = {
+          title: document.getElementById('createTitle').value,
+          description: document.getElementById('createDescription').value,
+          entityType: document.getElementById('createEntityType').value,
+          entityId: document.getElementById('createEntityId').value,
+          scheduledAt: new Date(document.getElementById('createScheduledAt').value).toISOString(),
+          duration: parseInt(document.getElementById('createDuration').value),
+          location: document.getElementById('createLocation').value
+        };
+
+        const response = await fetch(`${API_BASE_URL}/api/meetings`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(meetingData)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          createdMeetingId = data.id;
+          // Auto-fill IDs in other forms
+          document.getElementById('getMeetingId').value = data.id;
+          document.getElementById('updateMeetingId').value = data.id;
+          document.getElementById('deleteMeetingId').value = data.id;
+          document.getElementById('addParticipantMeetingId').value = data.id;
+          document.getElementById('getNotesMeetingId').value = data.id;
+          document.getElementById('addNoteMeetingId').value = data.id;
+          document.getElementById('startRecordingMeetingId').value = data.id;
+          
+          showResult('result-create', 
+            `✅ Meeting Created!\n\nID: ${data.id}\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-create', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 3: Get Meeting by ID
+    async function testGetMeeting(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('getMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-get', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-get', '⏳ Loading...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-get', 
+            `✅ Meeting Found!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-get', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 4: Update Meeting
+    async function testUpdateMeeting(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('updateMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-update', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-update', '⏳ Updating...', 'loading');
+      
+      try {
+        const updates = {
+          title: document.getElementById('updateTitle').value,
+          status: document.getElementById('updateStatus').value
+        };
+
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(updates)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-update', 
+            `✅ Meeting Updated!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-update', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 5: Delete Meeting
+    async function testDeleteMeeting(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('deleteMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-delete', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      if (!confirm('Are you sure you want to delete this meeting?')) {
+        return;
+      }
+      
+      showResult('result-delete', '⏳ Deleting...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-delete', 
+            `✅ Meeting Deleted!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-delete', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 6: Get Meeting Statuses
+    async function testGetStatuses(event) {
+      if (event) event.stopPropagation();
+      showResult('result-statuses', '⏳ Loading...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/meetings/statuses`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-statuses', 
+            `✅ Success!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-statuses', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // ========== SECTION 2: PARTICIPANT MANAGEMENT ==========
+
+    // Test 7: Add Participant
+    async function testAddParticipant(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('addParticipantMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-add-participant', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-add-participant', '⏳ Adding participant...', 'loading');
+      
+      try {
+        const participantData = {
+          name: document.getElementById('addParticipantName').value,
+          email: document.getElementById('addParticipantEmail').value,
+          phone: document.getElementById('addParticipantPhone').value
+        };
+
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/participants`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(participantData)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          createdParticipantId = data.id;
+          document.getElementById('removeParticipantMeetingId').value = meetingId;
+          document.getElementById('removeParticipantId').value = data.id;
+          
+          showResult('result-add-participant', 
+            `✅ Participant Added!\n\nID: ${data.id}\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-add-participant', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 8: Remove Participant
+    async function testRemoveParticipant(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('removeParticipantMeetingId').value;
+      const participantId = document.getElementById('removeParticipantId').value;
+      
+      if (!meetingId || !participantId) {
+        showResult('result-remove-participant', '❌ Please enter both meeting ID and participant ID', 'error');
+        return;
+      }
+      
+      showResult('result-remove-participant', '⏳ Removing participant...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/participants/${participantId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-remove-participant', 
+            `✅ Participant Removed!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-remove-participant', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // ========== SECTION 3: NOTES MANAGEMENT ==========
+
+    // Test 9: Get Notes
+    async function testGetNotes(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('getNotesMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-get-notes', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-get-notes', '⏳ Loading notes...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/notes`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-get-notes', 
+            `✅ Notes Retrieved!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-get-notes', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 10: Add Note
+    async function testAddNote(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('addNoteMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-add-note', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-add-note', '⏳ Adding note...', 'loading');
+      
+      try {
+        const noteData = {
+          content: document.getElementById('addNoteContent').value,
+          timestamp: parseInt(document.getElementById('addNoteTimestamp').value)
+        };
+
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/notes`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(noteData)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          createdNoteId = data.id;
+          document.getElementById('updateNoteMeetingId').value = meetingId;
+          document.getElementById('updateNoteId').value = data.id;
+          document.getElementById('deleteNoteMeetingId').value = meetingId;
+          document.getElementById('deleteNoteId').value = data.id;
+          
+          showResult('result-add-note', 
+            `✅ Note Added!\n\nID: ${data.id}\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-add-note', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 11: Update Note
+    async function testUpdateNote(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('updateNoteMeetingId').value;
+      const noteId = document.getElementById('updateNoteId').value;
+      
+      if (!meetingId || !noteId) {
+        showResult('result-update-note', '❌ Please enter both meeting ID and note ID', 'error');
+        return;
+      }
+      
+      showResult('result-update-note', '⏳ Updating note...', 'loading');
+      
+      try {
+        const content = document.getElementById('updateNoteContent').value;
+
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/notes/${noteId}`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ content })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-update-note', 
+            `✅ Note Updated!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-update-note', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 12: Delete Note
+    async function testDeleteNote(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('deleteNoteMeetingId').value;
+      const noteId = document.getElementById('deleteNoteId').value;
+      
+      if (!meetingId || !noteId) {
+        showResult('result-delete-note', '❌ Please enter both meeting ID and note ID', 'error');
+        return;
+      }
+      
+      if (!confirm('Are you sure you want to delete this note?')) {
+        return;
+      }
+      
+      showResult('result-delete-note', '⏳ Deleting note...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/notes/${noteId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-delete-note', 
+            `✅ Note Deleted!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-delete-note', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // ========== SECTION 4: RECORDING & ADVANCED FEATURES ==========
+
+    // Test 13: Start Recording
+    async function testStartRecording(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('startRecordingMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-start-recording', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-start-recording', '⏳ Starting recording...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/start`, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          document.getElementById('endRecordingMeetingId').value = meetingId;
+          
+          showResult('result-start-recording', 
+            `✅ Recording Started!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-start-recording', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 14: End Recording
+    async function testEndRecording(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('endRecordingMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-end-recording', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-end-recording', '⏳ Ending recording and processing...', 'loading');
+      
+      try {
+        // Sample base64 audio data (in production, this would be actual recording)
+        const audioData = {
+          audioBase64: "SGVsbG8gV29ybGQhIFRoaXMgaXMgYSB0ZXN0IGF1ZGlvIGZpbGUu",
+          contentType: "audio/webm"
+        };
+
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/end`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(audioData)
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          document.getElementById('speakerMapMeetingId').value = meetingId;
+          document.getElementById('regenerateMeetingId').value = meetingId;
+          document.getElementById('notificationsMeetingId').value = meetingId;
+          
+          showResult('result-end-recording', 
+            `✅ Recording Ended & Processed!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-end-recording', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 15: Update Speaker Map
+    async function testUpdateSpeakerMap(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('speakerMapMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-speaker-map', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-speaker-map', '⏳ Updating speaker map...', 'loading');
+      
+      try {
+        const speakerMapStr = document.getElementById('speakerMapData').value;
+        const speakerMap = JSON.parse(speakerMapStr);
+
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/speaker-map`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ speakerMap })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-speaker-map', 
+            `✅ Speaker Map Updated!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-speaker-map', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 16: Regenerate Content
+    async function testRegenerate(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('regenerateMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-regenerate', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-regenerate', '⏳ Regenerating content...', 'loading');
+      
+      try {
+        const type = document.getElementById('regenerateType').value;
+        const url = `${API_BASE_URL}/api/meetings/${meetingId}/regenerate?type=${type}`;
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-regenerate', 
+            `✅ Content Regenerated!\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-regenerate', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Test 17: Send Notifications
+    async function testSendNotifications(event) {
+      if (event) event.stopPropagation();
+      const meetingId = document.getElementById('notificationsMeetingId').value;
+      
+      if (!meetingId) {
+        showResult('result-notifications', '❌ Please enter a meeting ID', 'error');
+        return;
+      }
+      
+      showResult('result-notifications', '⏳ Sending notifications...', 'loading');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/notify`, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('result-notifications', 
+            `✅ Notifications Sent!\n\nSent Count: ${data.sentCount}\n\n${JSON.stringify(data, null, 2)}`,
+            'success'
+          );
+          markTestResult(true);
+        } else {
+          throw new Error(data.message || 'Request failed');
+        }
+      } catch (error) {
+        showResult('result-notifications', `❌ Error: ${error.message}`, 'error');
+        markTestResult(false);
+      }
+    }
+
+    // Run all core tests sequentially
+    async function runAllTests() {
+      // Reset counters
+      testResults = { passed: 0, failed: 0, pending: 17 };
+      updateSummary();
+      
+      // Expand all sections
+      document.querySelectorAll('.test-body').forEach(body => {
+        body.classList.add('active');
+      });
+      
+      // Run core tests in sequence (CRUD + Participants + Notes)
+      await testListMeetings();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testCreateMeeting();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testGetMeeting();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testUpdateMeeting();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testGetStatuses();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testAddParticipant();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testGetNotes();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testAddNote();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      await testUpdateNote();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Note: Delete tests and recording tests require manual execution
+      alert(`✅ Core Testing Complete!\n\nPassed: ${testResults.passed}\nFailed: ${testResults.failed}\n\n(Delete, recording, and advanced tests require manual execution to avoid unintended data loss)`);
+    }
+  </script>
+</body>
+</html>

@@ -1,40 +1,58 @@
 import { create } from "zustand";
-import {
+import type {
   Project,
   ProjectFilters,
-  Task,
   ProjectStageData,
   ProjectPayment,
   ProjectTask,
+  StageTemplate,
+  CreateProjectRequest,
+  UpdateProjectRequest,
   UpdateStageRequest,
   UpdatePaymentRequest,
-  ProjectStageCode,
-  PipelineType,
-  ProjectCategory,
-  ScopeType,
-  BudgetTier,
-  PropertySubtype,
+  PauseProjectRequest,
+  PauseStatusResponse,
 } from "../types";
+import * as projectAPI from "../services/projectApi";
+import type {
+  AddStageRequest,
+  ReorderStagesRequest,
+  ListProjectsParams,
+} from "../services/projectApi";
 
 interface ProjectState {
+  // State
   projects: Project[];
   currentProject: Project | null;
   filters: ProjectFilters;
-  tasks: Task[];
   projectStages: ProjectStageData[];
   projectPayments: ProjectPayment[];
   projectTasks: ProjectTask[];
+  availableStages: StageTemplate[];
+  currentStageCode: string | null;
+  currentPhase: string | null;
+  totalPaymentValue: string;
+  totalPaidAmount: string;
   isLoading: boolean;
   error: string | null;
-  fetchProjects: () => Promise<void>;
+
+  // Methods
+  fetchProjects: (params?: ListProjectsParams) => Promise<void>;
   fetchProjectById: (id: string) => Promise<void>;
   fetchProjectStages: (projectId: string) => Promise<void>;
   fetchProjectPayments: (projectId: string) => Promise<void>;
   fetchProjectTasks: (projectId: string) => Promise<void>;
+  fetchAvailableStages: (projectId: string) => Promise<void>;
   updateProjectStage: (
     projectId: string,
     stageCode: string,
     data: UpdateStageRequest,
+  ) => Promise<void>;
+  addProjectStage: (projectId: string, data: AddStageRequest) => Promise<void>;
+  deleteProjectStage: (projectId: string, stageCode: string) => Promise<void>;
+  reorderProjectStages: (
+    projectId: string,
+    data: ReorderStagesRequest,
   ) => Promise<void>;
   updateProjectPayment: (
     projectId: string,
@@ -42,311 +60,427 @@ interface ProjectState {
     data: UpdatePaymentRequest,
   ) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
-  fetchTasks: (projectId?: string) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
-  addProject: (
-    project: Omit<Project, "id" | "createdAt" | "updatedAt">,
-  ) => Promise<void>;
-  updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
-  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  addProject: (project: CreateProjectRequest) => Promise<Project>;
+  updateProject: (id: string, updates: UpdateProjectRequest) => Promise<void>;
   setFilters: (filters: ProjectFilters) => void;
   clearError: () => void;
+
+  // Status Management
+  startProject: (projectId: string) => Promise<void>;
+  pauseProject: (projectId: string, data: PauseProjectRequest) => Promise<void>;
+  resumeProject: (projectId: string) => Promise<void>;
+  completeProject: (projectId: string) => Promise<void>;
+  cancelProject: (projectId: string) => Promise<void>;
+  fetchPauseStatus: (projectId: string) => Promise<PauseStatusResponse>;
+  pauseStatus: PauseStatusResponse | null;
 }
 
-const mockProjects: Project[] = [
-  {
-    id: "1",
-    name: "Modern 3BHK Interior",
-    projectName: "Modern 3BHK Interior",
-    leadId: "lead-1",
-    pipelineType: PipelineType.DESIGN_AND_EXECUTION,
-    projectCategory: ProjectCategory.RESIDENTIAL,
-    scopeType: ScopeType.FULL_HOME,
-    budgetTier: BudgetTier.PREMIUM,
-    propertySubtype: PropertySubtype.APARTMENT,
-    propertySizeSqft: 1500,
-    propertyBHK: "3BHK",
-    propertyAddress: "HSR Layout, Bangalore",
-    propertyCity: "Bangalore",
-    totalValue: 2800000,
-    currentStage: ProjectStageCode.DESIGN,
-    status: "active",
-    progress: 65,
-    assignedDesigner: { id: "d1", name: "Arjun Rao", email: "arjun@ghs.com" },
-    assignedPM: { id: "pm1", name: "Priya Kumar", email: "priya@ghs.com" },
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-20T00:00:00Z",
-  },
-  {
-    id: "2",
-    name: "Luxury Villa Renovation",
-    projectName: "Luxury Villa Renovation",
-    leadId: "lead-2",
-    pipelineType: PipelineType.DESIGN_AND_EXECUTION,
-    projectCategory: ProjectCategory.RESIDENTIAL,
-    scopeType: ScopeType.TURNKEY,
-    budgetTier: BudgetTier.LUXURY,
-    propertySubtype: PropertySubtype.VILLA,
-    propertySizeSqft: 3200,
-    propertyBHK: "4BHK",
-    propertyAddress: "Whitefield, Bangalore",
-    propertyCity: "Bangalore",
-    totalValue: 5500000,
-    currentStage: ProjectStageCode.EXECUTION,
-    status: "active",
-    progress: 40,
-    assignedDesigner: {
-      id: "d2",
-      name: "Rahul Sharma",
-      email: "rahul@ghs.com",
-    },
-    assignedPM: { id: "pm2", name: "Meera Gupta", email: "meera@ghs.com" },
-    createdAt: "2025-12-15T00:00:00Z",
-    updatedAt: "2026-01-20T00:00:00Z",
-  },
-  {
-    id: "3",
-    name: "Contemporary 2BHK",
-    projectName: "Contemporary 2BHK",
-    leadId: "lead-3",
-    pipelineType: PipelineType.DESIGN_ONLY,
-    projectCategory: ProjectCategory.RESIDENTIAL,
-    scopeType: ScopeType.INTERIORS,
-    budgetTier: BudgetTier.MID_RANGE,
-    propertySubtype: PropertySubtype.APARTMENT,
-    propertySizeSqft: 1100,
-    propertyBHK: "2BHK",
-    propertyAddress: "Indiranagar, Bangalore",
-    propertyCity: "Bangalore",
-    totalValue: 1800000,
-    currentStage: ProjectStageCode.PROPOSAL,
-    status: "active",
-    progress: 75,
-    assignedDesigner: { id: "d1", name: "Arjun Rao", email: "arjun@ghs.com" },
-    createdAt: "2025-12-20T00:00:00Z",
-    updatedAt: "2026-01-18T00:00:00Z",
-  },
-];
-
-const mockTasks: Task[] = [
-  {
-    id: "t1",
-    projectId: "1",
-    title: "Inspect electrical rough-in",
-    description: "Check all conduits, switch boxes, and panel installation",
-    dueDate: "2026-01-18",
-    dueTime: "14:00",
-    completed: false,
-    assignedTo: "e1",
-    createdAt: "2026-01-17T00:00:00Z",
-  },
-  {
-    id: "t2",
-    projectId: "1",
-    title: "Upload progress photos",
-    description: "Take photos of electrical work and plumbing",
-    dueDate: "2026-01-18",
-    dueTime: "17:00",
-    completed: false,
-    assignedTo: "e1",
-    createdAt: "2026-01-17T00:00:00Z",
-  },
-  {
-    id: "t3",
-    projectId: "1",
-    title: "Material delivery check",
-    description: "Verify tiles delivery and quality",
-    dueDate: "2026-01-18",
-    dueTime: "10:00",
-    completed: true,
-    assignedTo: "e1",
-    createdAt: "2026-01-17T00:00:00Z",
-    completedAt: "2026-01-18T10:30:00Z",
-  },
-  {
-    id: "t4",
-    projectId: "2",
-    title: "Quality check - tiles",
-    description: "Inspect tile laying in bathroom",
-    dueDate: "2026-01-18",
-    dueTime: "16:00",
-    completed: false,
-    assignedTo: "e1",
-    createdAt: "2026-01-17T00:00:00Z",
-  },
-];
-
-export const useProjectStore = create<ProjectState>((set) => ({
-  projects: mockProjects,
+export const useProjectStore = create<ProjectState>((set, get) => ({
+  // Initial state
+  projects: [],
   currentProject: null,
   filters: {},
-  tasks: mockTasks,
   projectStages: [],
   projectPayments: [],
   projectTasks: [],
+  availableStages: [],
+  currentStageCode: null,
+  currentPhase: null,
+  totalPaymentValue: "0",
+  totalPaidAmount: "0",
   isLoading: false,
   error: null,
+  pauseStatus: null,
 
-  fetchProjects: async () => {
+  fetchProjects: async (params?: ListProjectsParams) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    set({ projects: mockProjects, isLoading: false });
+    try {
+      const response = await projectAPI.listProjects(params);
+      set({ projects: response.projects, isLoading: false });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to fetch projects";
+      set({ isLoading: false, error: errorMessage });
+    }
   },
 
   fetchProjectById: async (id: string) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const project = mockProjects.find((p) => p.id === id);
-    if (project) {
+    try {
+      const project = await projectAPI.getProjectById(id);
       set({ currentProject: project, isLoading: false });
-    } else {
-      set({ error: "Project not found", isLoading: false });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to fetch project";
+      set({ isLoading: false, error: errorMessage });
     }
   },
 
-  fetchProjectStages: async (_projectId: string) => {
+  fetchProjectStages: async (projectId: string) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    // Return empty array for now - can be populated with mock data later if needed
-    set({ projectStages: [], isLoading: false });
+    try {
+      const response = await projectAPI.getProjectStages(projectId);
+      set({
+        projectStages: response.stages,
+        currentStageCode: response.currentStageCode,
+        currentPhase: response.currentPhase,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch project stages";
+      set({ isLoading: false, error: errorMessage });
+    }
   },
 
-  fetchProjectPayments: async (_projectId: string) => {
+  fetchProjectPayments: async (projectId: string) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    // Return empty array for now - can be populated with mock data later if needed
-    set({ projectPayments: [], isLoading: false });
+    try {
+      const response = await projectAPI.getProjectPayments(projectId);
+      set({
+        projectPayments: response.payments,
+        totalPaymentValue: response.totalValue,
+        totalPaidAmount: response.paidAmount,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch project payments";
+      set({ isLoading: false, error: errorMessage });
+    }
   },
 
-  fetchProjectTasks: async (_projectId: string) => {
+  fetchProjectTasks: async (projectId: string) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    // Return empty array for now - can be populated with mock data later if needed
-    set({ projectTasks: [], isLoading: false });
+    try {
+      const response = await projectAPI.getProjectTasks(projectId);
+      set({ projectTasks: response.tasks, isLoading: false });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch project tasks";
+      set({ isLoading: false, error: errorMessage });
+    }
+  },
+
+  fetchAvailableStages: async (projectId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await projectAPI.getAvailableStages(projectId);
+      set({ availableStages: response.available, isLoading: false });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch available stages";
+      set({ isLoading: false, error: errorMessage });
+    }
   },
 
   updateProjectStage: async (
-    _projectId: string,
+    projectId: string,
     stageCode: string,
     data: UpdateStageRequest,
   ) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    set((state) => ({
-      projectStages: state.projectStages.map((stage) =>
-        stage.stageCode === stageCode
-          ? ({ ...stage, ...data } as ProjectStageData)
-          : stage,
-      ),
-      isLoading: false,
-    }));
+    try {
+      await projectAPI.updateProjectStage(projectId, stageCode, data);
+      // Re-fetch stages to get updated data
+      const response = await projectAPI.getProjectStages(projectId);
+      set({
+        projectStages: response.stages,
+        currentStageCode: response.currentStageCode,
+        currentPhase: response.currentPhase,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to update project stage";
+      set({ isLoading: false, error: errorMessage });
+    }
+  },
+
+  addProjectStage: async (projectId: string, data: AddStageRequest) => {
+    set({ isLoading: true, error: null });
+    try {
+      await projectAPI.addProjectStage(projectId, data);
+      // Re-fetch stages to get updated data
+      const response = await projectAPI.getProjectStages(projectId);
+      set({
+        projectStages: response.stages,
+        currentStageCode: response.currentStageCode,
+        currentPhase: response.currentPhase,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to add project stage";
+      set({ isLoading: false, error: errorMessage });
+    }
+  },
+
+  deleteProjectStage: async (projectId: string, stageCode: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await projectAPI.deleteProjectStage(projectId, stageCode);
+      // Re-fetch stages to get updated data
+      const response = await projectAPI.getProjectStages(projectId);
+      set({
+        projectStages: response.stages,
+        currentStageCode: response.currentStageCode,
+        currentPhase: response.currentPhase,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete project stage";
+      set({ isLoading: false, error: errorMessage });
+    }
+  },
+
+  reorderProjectStages: async (
+    projectId: string,
+    data: ReorderStagesRequest,
+  ) => {
+    set({ isLoading: true, error: null });
+    try {
+      await projectAPI.reorderProjectStages(projectId, data);
+      // Re-fetch stages to get updated data
+      const response = await projectAPI.getProjectStages(projectId);
+      set({
+        projectStages: response.stages,
+        currentStageCode: response.currentStageCode,
+        currentPhase: response.currentPhase,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to reorder project stages";
+      set({ isLoading: false, error: errorMessage });
+    }
   },
 
   updateProjectPayment: async (
-    _projectId: string,
+    projectId: string,
     paymentId: string,
     data: UpdatePaymentRequest,
   ) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    set((state) => ({
-      projectPayments: state.projectPayments.map((payment) =>
-        payment.id === paymentId
-          ? ({ ...payment, ...data } as ProjectPayment)
-          : payment,
-      ),
-      isLoading: false,
-    }));
+    try {
+      await projectAPI.updateProjectPayment(projectId, paymentId, data);
+      // Re-fetch payments to get updated data
+      const response = await projectAPI.getProjectPayments(projectId);
+      set({
+        projectPayments: response.payments,
+        totalPaymentValue: response.totalValue,
+        totalPaidAmount: response.paidAmount,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to update project payment";
+      set({ isLoading: false, error: errorMessage });
+    }
   },
 
   deleteProject: async (id: string) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    set((state) => ({
-      projects: state.projects.filter((p) => p.id !== id),
-      currentProject:
-        state.currentProject?.id === id ? null : state.currentProject,
-      isLoading: false,
-    }));
-  },
-
-  fetchTasks: async (projectId?: string) => {
-    set({ isLoading: true });
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const filteredTasks = projectId
-      ? mockTasks.filter((t) => t.projectId === projectId)
-      : mockTasks;
-    set({ tasks: filteredTasks, isLoading: false });
+    try {
+      await projectAPI.deleteProject(id);
+      set((state) => ({
+        projects: state.projects.filter((p) => p.id !== id),
+        currentProject:
+          state.currentProject?.id === id ? null : state.currentProject,
+        isLoading: false,
+      }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to delete project";
+      set({ isLoading: false, error: errorMessage });
+    }
   },
 
   setCurrentProject: (project: Project | null) => {
     set({ currentProject: project });
   },
 
-  addProject: async (projectData) => {
+  addProject: async (projectData: CreateProjectRequest) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const newProject: Project = {
-      ...projectData,
-      id: `proj-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    set((state) => ({
-      projects: [...state.projects, newProject],
-      isLoading: false,
-    }));
+    try {
+      const createdProject = await projectAPI.createProject(projectData);
+      // Re-fetch the projects list to stay in sync
+      const response = await projectAPI.listProjects();
+      set({ projects: response.projects, isLoading: false });
+      return createdProject;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to create project";
+      set({ isLoading: false, error: errorMessage });
+      throw error;
+    }
   },
 
-  updateProject: async (id: string, updates: Partial<Project>) => {
+  updateProject: async (id: string, updates: UpdateProjectRequest) => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    set((state) => ({
-      projects: state.projects.map((p) =>
-        p.id === id
-          ? { ...p, ...updates, updatedAt: new Date().toISOString() }
-          : p,
-      ),
-      currentProject:
-        state.currentProject?.id === id
-          ? {
-              ...state.currentProject,
-              ...updates,
-              updatedAt: new Date().toISOString(),
-            }
-          : state.currentProject,
-      isLoading: false,
-    }));
-  },
-
-  updateTask: async (id: string, updates: Partial<Task>) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === id
-          ? {
-              ...t,
-              ...updates,
-              completedAt: updates.completed
-                ? new Date().toISOString()
-                : t.completedAt,
-            }
-          : t,
-      ),
-    }));
+    try {
+      const updatedProject = await projectAPI.updateProject(id, updates);
+      set((state) => ({
+        projects: state.projects.map((p) => (p.id === id ? updatedProject : p)),
+        currentProject:
+          state.currentProject?.id === id
+            ? updatedProject
+            : state.currentProject,
+        isLoading: false,
+      }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to update project";
+      set({ isLoading: false, error: errorMessage });
+    }
   },
 
   setFilters: (filters: ProjectFilters) => {
     set({ filters });
+  },
+
+  // ==========================================
+  // Status Management Actions
+  // ==========================================
+
+  startProject: async (projectId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedProject = await projectAPI.startProject(projectId);
+      set((state) => ({
+        projects: state.projects.map((p) =>
+          p.id === projectId ? updatedProject : p,
+        ),
+        currentProject:
+          state.currentProject?.id === projectId
+            ? updatedProject
+            : state.currentProject,
+        isLoading: false,
+      }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to start project";
+      set({ isLoading: false, error: errorMessage });
+      throw error;
+    }
+  },
+
+  pauseProject: async (projectId: string, data: PauseProjectRequest) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedProject = await projectAPI.pauseProject(projectId, data);
+      set((state) => ({
+        projects: state.projects.map((p) =>
+          p.id === projectId ? updatedProject : p,
+        ),
+        currentProject:
+          state.currentProject?.id === projectId
+            ? updatedProject
+            : state.currentProject,
+        isLoading: false,
+      }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to pause project";
+      set({ isLoading: false, error: errorMessage });
+      throw error;
+    }
+  },
+
+  resumeProject: async (projectId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedProject = await projectAPI.resumeProject(projectId);
+      set((state) => ({
+        projects: state.projects.map((p) =>
+          p.id === projectId ? updatedProject : p,
+        ),
+        currentProject:
+          state.currentProject?.id === projectId
+            ? updatedProject
+            : state.currentProject,
+        isLoading: false,
+      }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to resume project";
+      set({ isLoading: false, error: errorMessage });
+      throw error;
+    }
+  },
+
+  completeProject: async (projectId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedProject = await projectAPI.completeProject(projectId);
+      set((state) => ({
+        projects: state.projects.map((p) =>
+          p.id === projectId ? updatedProject : p,
+        ),
+        currentProject:
+          state.currentProject?.id === projectId
+            ? updatedProject
+            : state.currentProject,
+        isLoading: false,
+      }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to complete project";
+      set({ isLoading: false, error: errorMessage });
+      throw error;
+    }
+  },
+
+  cancelProject: async (projectId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedProject = await projectAPI.cancelProject(projectId);
+      set((state) => ({
+        projects: state.projects.map((p) =>
+          p.id === projectId ? updatedProject : p,
+        ),
+        currentProject:
+          state.currentProject?.id === projectId
+            ? updatedProject
+            : state.currentProject,
+        isLoading: false,
+      }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to cancel project";
+      set({ isLoading: false, error: errorMessage });
+      throw error;
+    }
+  },
+
+  fetchPauseStatus: async (projectId: string) => {
+    try {
+      const pauseStatus = await projectAPI.getPauseStatus(projectId);
+      set({ pauseStatus });
+      return pauseStatus;
+    } catch (error) {
+      console.error("Error fetching pause status:", error);
+      set({ pauseStatus: null });
+      throw error;
+    }
   },
 
   clearError: () => {
