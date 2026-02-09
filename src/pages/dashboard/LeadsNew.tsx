@@ -22,6 +22,7 @@ import {
   Loader2,
   ArrowRight,
   Building2,
+  Layers,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -31,7 +32,13 @@ import LeadAPI, {
   LeadSource,
   LeadStatus,
 } from "../../services/leadApi";
-import AccountAPI from "../../services/accountApi";
+import CustomerAPI from "../../services/customerApi";
+import { getSourceLabel } from "../../utils/leadHelpers";
+import {
+  getActivityLog,
+  clearActivityLog,
+  type KanbanActivityEntry,
+} from "../../stores/kanbanActivityLog";
 
 const stageColors: Record<string, string> = {
   New: "bg-gray-100 text-gray-700 border-gray-200",
@@ -51,18 +58,18 @@ const LeadModal: React.FC<{
 }> = ({ isOpen, onClose, lead, onSave, sources }) => {
   // Default sources if API doesn't return any
   const defaultSources = [
-    { id: "1", name: "Website" },
-    { id: "2", name: "Referral" },
-    { id: "3", name: "Instagram" },
-    { id: "4", name: "Facebook" },
-    { id: "5", name: "LinkedIn" },
-    { id: "6", name: "Google Ads" },
-    { id: "7", name: "Walk-in" },
-    { id: "8", name: "Phone Call" },
-    { id: "9", name: "Email Campaign" },
-    { id: "10", name: "Trade Show" },
-    { id: "11", name: "Partner" },
-    { id: "12", name: "Other" },
+    { value: "WEBSITE", label: "Website" },
+    { value: "REFERRAL", label: "Referral" },
+    { value: "INSTAGRAM", label: "Instagram" },
+    { value: "FACEBOOK", label: "Facebook" },
+    { value: "LINKEDIN", label: "LinkedIn" },
+    { value: "GOOGLE_ADS", label: "Google Ads" },
+    { value: "WALK_IN", label: "Walk-in" },
+    { value: "PHONE", label: "Phone Call" },
+    { value: "EMAIL_CAMPAIGN", label: "Email Campaign" },
+    { value: "TRADE_SHOW", label: "Trade Show" },
+    { value: "PARTNER", label: "Partner" },
+    { value: "OTHER", label: "Other" },
   ];
 
   const availableSources = sources.length > 0 ? sources : defaultSources;
@@ -71,7 +78,7 @@ const LeadModal: React.FC<{
     name: "",
     email: "",
     phone: "",
-    source: availableSources[0]?.name || "Website",
+    source: availableSources[0]?.value || "WEBSITE",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,14 +90,14 @@ const LeadModal: React.FC<{
         name: lead.name || "",
         email: lead.email || "",
         phone: lead.phone || "",
-        source: lead.source || availableSources[0]?.name || "Website",
+        source: lead.source || availableSources[0]?.value || "WEBSITE",
       });
     } else {
       setFormData({
         name: "",
         email: "",
         phone: "",
-        source: availableSources[0]?.name || "Website",
+        source: availableSources[0]?.value || "WEBSITE",
       });
     }
     setErrors({});
@@ -137,7 +144,7 @@ const LeadModal: React.FC<{
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
@@ -300,8 +307,8 @@ const LeadModal: React.FC<{
                   className="w-full pl-10 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer hover:border-gray-300 transition-all"
                 >
                   {availableSources.map((source) => (
-                    <option key={source.id} value={source.name}>
-                      {source.name}
+                    <option key={source.value} value={source.value}>
+                      {source.label}
                     </option>
                   ))}
                 </select>
@@ -388,7 +395,7 @@ const PhoneInputModal: React.FC<{
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
@@ -490,7 +497,7 @@ const OTPModal: React.FC<{
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
@@ -557,17 +564,59 @@ export const LeadsPage: React.FC = () => {
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertAccountType, setConvertAccountType] =
+    useState<string>("HOUSEHOLD");
+  const [accountTypes, setAccountTypes] = useState<
+    { value: string; label: string; description?: string }[]
+  >([]);
   const [otpPhone, setOtpPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [statuses, setStatuses] = useState<LeadStatus[]>([]);
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
+  const [kanbanLog, setKanbanLog] = useState<KanbanActivityEntry[]>([]);
+
+  // Load kanban activity log
+  useEffect(() => {
+    setKanbanLog(getActivityLog());
+    const interval = setInterval(() => {
+      setKanbanLog(getActivityLog());
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch initial data
   useEffect(() => {
     fetchData();
+    fetchCustomerTypes();
   }, []);
+
+  const fetchCustomerTypes = async () => {
+    try {
+      const types = await CustomerAPI.getCustomerTypes();
+      setAccountTypes(types);
+      if (types.length > 0) {
+        setConvertAccountType(types[0].value);
+      }
+    } catch (error) {
+      console.error("Error fetching customer types:", error);
+      // Fallback to default types
+      setAccountTypes([
+        {
+          value: "HOUSEHOLD",
+          label: "Household",
+          description: "Individual or family residential customer",
+        },
+        {
+          value: "COMPANY",
+          label: "Company",
+          description: "Business or commercial customer",
+        },
+      ]);
+      setConvertAccountType("HOUSEHOLD");
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -697,16 +746,25 @@ export const LeadsPage: React.FC = () => {
     }
   };
 
-  // Convert Lead to Account
-  const handleConvertToAccount = async () => {
+  // Convert Lead to Customer
+  const handleConvertToCustomer = async () => {
     if (!selectedLead?.id) return;
 
-    const accountName = selectedLead.name || "Unknown Account";
+    const customerName = selectedLead.name || "Unknown Customer";
+
+    // Validate customer type
+    if (
+      !convertAccountType ||
+      !["HOUSEHOLD", "COMPANY"].includes(convertAccountType)
+    ) {
+      toast.error("Please select a valid customer type");
+      return;
+    }
 
     try {
-      const result = await AccountAPI.convertLeadToAccount(
+      const result = await CustomerAPI.convertLeadToCustomer(
         selectedLead.id,
-        accountName,
+        customerName,
       );
 
       // Remove lead from list
@@ -714,17 +772,19 @@ export const LeadsPage: React.FC = () => {
       setSelectedLead(null);
       setShowConvertModal(false);
 
-      toast.success(`Lead converted to account "${result.name}" successfully!`);
+      toast.success(
+        `Lead converted to customer "${result.name}" successfully!`,
+      );
 
-      // Navigate to accounts page to see the new account
+      // Navigate to customers page to see the new customer
       setTimeout(() => {
-        window.location.href = "/dashboard/accounts";
+        window.location.href = "/dashboard/customers";
       }, 1500);
     } catch (error) {
       const errorMessage =
         error instanceof Error
           ? error.message
-          : "Failed to convert lead to account";
+          : "Failed to convert lead to customer";
       toast.error(errorMessage);
     }
   };
@@ -794,33 +854,6 @@ export const LeadsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {Array.isArray(statuses) &&
-          statuses.map((status) => (
-            <Card
-              key={status.id}
-              className={`p-4 rounded-xl text-center cursor-pointer transition-all hover:shadow-md ${
-                selectedStage === status.name
-                  ? "ring-2 ring-orange-500 shadow-md"
-                  : ""
-              }`}
-              onClick={() =>
-                setSelectedStage(
-                  selectedStage === status.name ? "all" : status.name,
-                )
-              }
-            >
-              <div className="text-3xl font-bold text-gray-900 mb-1">
-                {leadCounts[status.name] || 0}
-              </div>
-              <div className="text-sm font-medium text-gray-600">
-                {status.name}
-              </div>
-            </Card>
-          ))}
-      </div>
-
       {/* Search */}
       <div className="flex-1 relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -842,11 +875,15 @@ export const LeadsPage: React.FC = () => {
             onClick={() => navigate(`/dashboard/leads/${lead.id}`)}
           >
             {/* Accent Line */}
-            <div className={`h-1 w-full ${
-              lead.priority === 'high' ? 'bg-gradient-to-r from-red-500 to-orange-500' :
-              lead.priority === 'medium' ? 'bg-gradient-to-r from-amber-400 to-yellow-400' :
-              'bg-gradient-to-r from-orange-400 to-orange-500'
-            }`}></div>
+            <div
+              className={`h-1 w-full ${
+                lead.priority === "high"
+                  ? "bg-gradient-to-r from-red-500 to-orange-500"
+                  : lead.priority === "medium"
+                    ? "bg-gradient-to-r from-amber-400 to-yellow-400"
+                    : "bg-gradient-to-r from-orange-400 to-orange-500"
+              }`}
+            ></div>
 
             {/* Card Content */}
             <div className="p-5">
@@ -872,18 +909,26 @@ export const LeadsPage: React.FC = () => {
                       {lead.name || "Unknown Lead"}
                     </h3>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        lead.status === 'Qualified' ? 'bg-green-50 text-green-700 ring-1 ring-green-600/20' :
-                        lead.status === 'Contacted' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20' :
-                        lead.status === 'Proposal' ? 'bg-purple-50 text-purple-700 ring-1 ring-purple-600/20' :
-                        lead.status === 'Negotiation' ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20' :
-                        lead.status === 'Won' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20' :
-                        lead.status === 'Lost' ? 'bg-red-50 text-red-700 ring-1 ring-red-600/20' :
-                        'bg-gray-50 text-gray-700 ring-1 ring-gray-600/20'
-                      }`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          lead.status === "Qualified"
+                            ? "bg-green-50 text-green-700 ring-1 ring-green-600/20"
+                            : lead.status === "Contacted"
+                              ? "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20"
+                              : lead.status === "Proposal"
+                                ? "bg-purple-50 text-purple-700 ring-1 ring-purple-600/20"
+                                : lead.status === "Negotiation"
+                                  ? "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
+                                  : lead.status === "Won"
+                                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                                    : lead.status === "Lost"
+                                      ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+                                      : "bg-gray-50 text-gray-700 ring-1 ring-gray-600/20"
+                        }`}
+                      >
                         {lead.status || "New"}
                       </span>
-                      {lead.priority === 'high' && (
+                      {lead.priority === "high" && (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600">
                           <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                           Hot Lead
@@ -934,29 +979,42 @@ export const LeadsPage: React.FC = () => {
               </div>
 
               {/* Property & Budget Info */}
-              {(lead.propertyType || lead.budget || lead.budgetRange || lead.location) && (
+              {(lead.propertyType ||
+                lead.budget ||
+                lead.budgetRange ||
+                lead.location) && (
                 <div className="bg-gradient-to-br from-orange-50/80 to-amber-50/50 rounded-xl p-3.5 mb-4 border border-orange-100/50">
                   <div className="flex items-center gap-2 mb-2.5">
                     <Building2 className="w-4 h-4 text-orange-600" />
-                    <span className="text-xs font-semibold text-orange-900/80 uppercase tracking-wide">Project Interest</span>
+                    <span className="text-xs font-semibold text-orange-900/80 uppercase tracking-wide">
+                      Project Interest
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {lead.propertyType && (
                       <div>
                         <p className="text-xs text-gray-500 mb-0.5">Property</p>
-                        <p className="text-sm font-semibold text-gray-900">{lead.propertyType}{lead.bhkConfig && ` • ${lead.bhkConfig}`}</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {lead.propertyType}
+                          {lead.bhkConfig && ` • ${lead.bhkConfig}`}
+                        </p>
                       </div>
                     )}
                     {(lead.budget || lead.budgetRange) && (
                       <div>
                         <p className="text-xs text-gray-500 mb-0.5">Budget</p>
-                        <p className="text-sm font-semibold text-gray-900">{lead.budgetRange || lead.budget}</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {lead.budgetRange || lead.budget}
+                        </p>
                       </div>
                     )}
                     {lead.location && (
                       <div className="col-span-2">
                         <p className="text-xs text-gray-500 mb-0.5">Location</p>
-                        <p className="text-sm font-medium text-gray-700">{lead.location}{lead.city && `, ${lead.city}`}</p>
+                        <p className="text-sm font-medium text-gray-700">
+                          {lead.location}
+                          {lead.city && `, ${lead.city}`}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -969,19 +1027,30 @@ export const LeadsPage: React.FC = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5">
                       <TrendingUp className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-xs font-medium text-gray-600">Lead Score</span>
+                      <span className="text-xs font-medium text-gray-600">
+                        Lead Score
+                      </span>
                     </div>
-                    <span className={`text-sm font-bold ${
-                      lead.score >= 70 ? 'text-green-600' : 
-                      lead.score >= 40 ? 'text-amber-600' : 'text-red-500'
-                    }`}>{lead.score}%</span>
+                    <span
+                      className={`text-sm font-bold ${
+                        lead.score >= 70
+                          ? "text-green-600"
+                          : lead.score >= 40
+                            ? "text-amber-600"
+                            : "text-red-500"
+                      }`}
+                    >
+                      {lead.score}%
+                    </span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
-                        lead.score >= 70 ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 
-                        lead.score >= 40 ? 'bg-gradient-to-r from-amber-400 to-yellow-500' : 
-                        'bg-gradient-to-r from-red-400 to-orange-400'
+                        lead.score >= 70
+                          ? "bg-gradient-to-r from-green-400 to-emerald-500"
+                          : lead.score >= 40
+                            ? "bg-gradient-to-r from-amber-400 to-yellow-500"
+                            : "bg-gradient-to-r from-red-400 to-orange-400"
                       }`}
                       style={{ width: `${lead.score}%` }}
                     ></div>
@@ -996,7 +1065,9 @@ export const LeadsPage: React.FC = () => {
                   {lead.source && (
                     <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-lg">
                       <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                      <span className="text-xs font-medium text-gray-600">{lead.source}</span>
+                      <span className="text-xs font-medium text-gray-600">
+                        {getSourceLabel(lead.source)}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1004,7 +1075,10 @@ export const LeadsPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   {lead.createdAt && (
                     <span className="text-xs text-gray-400">
-                      {new Date(lead.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {new Date(lead.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
                     </span>
                   )}
                   <div className="w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center group-hover:bg-orange-500 transition-colors">
@@ -1038,6 +1112,139 @@ export const LeadsPage: React.FC = () => {
       )}
 
       {/* Lead Details Sidebar */}
+
+      {/* Kanban Activity Log */}
+      {kanbanLog.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                <Layers className="w-4 h-4 text-orange-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-gray-900">
+                  Kanban Activity Log
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Cards added from the Kanban board
+                </p>
+              </div>
+              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
+                {kanbanLog.length}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                clearActivityLog();
+                setKanbanLog([]);
+              }}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors px-2.5 py-1.5 rounded-lg hover:bg-red-50"
+              title="Clear all logs"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            {kanbanLog.map((entry) => {
+              const time = new Date(entry.timestamp);
+              const now = new Date();
+              const diffMs = now.getTime() - time.getTime();
+              const diffMin = Math.floor(diffMs / 60000);
+              const diffHr = Math.floor(diffMin / 60);
+              const diffDay = Math.floor(diffHr / 24);
+              const relativeTime =
+                diffMin < 1
+                  ? "Just now"
+                  : diffMin < 60
+                    ? `${diffMin}m ago`
+                    : diffHr < 24
+                      ? `${diffHr}h ago`
+                      : diffDay === 1
+                        ? "Yesterday"
+                        : diffDay < 7
+                          ? `${diffDay}d ago`
+                          : time.toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            });
+
+              return (
+                <div
+                  key={entry.id}
+                  className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 hover:bg-orange-50/50 hover:border-orange-100 transition-all"
+                >
+                  <div
+                    className={`flex-shrink-0 mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${
+                      entry.action === "card_moved"
+                        ? "bg-blue-100"
+                        : "bg-orange-100"
+                    }`}
+                  >
+                    {entry.action === "card_moved" ? (
+                      <ArrowRight className="w-4 h-4 text-blue-600" />
+                    ) : (
+                      <Plus className="w-4 h-4 text-orange-600" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-800">
+                      <span className="font-semibold">{entry.cardTitle}</span>
+                      {entry.action === "card_moved" ? (
+                        <>
+                          {" "}
+                          moved from{" "}
+                          <span className="font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                            {entry.fromColumn}
+                          </span>{" "}
+                          to{" "}
+                          <span className="font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                            {entry.columnName}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {" "}
+                          added to{" "}
+                          <span className="font-medium text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">
+                            {entry.columnName}
+                          </span>
+                        </>
+                      )}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {relativeTime}
+                      </span>
+                      {entry.priority && (
+                        <span
+                          className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
+                            entry.priority === "high"
+                              ? "bg-red-100 text-red-700"
+                              : entry.priority === "medium"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          {entry.priority}
+                        </span>
+                      )}
+                      {entry.assignedTo && (
+                        <span className="text-[10px] text-gray-500 flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded">
+                          <User className="w-3 h-3" />
+                          {entry.assignedTo}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {selectedLead &&
         ReactDOM.createPortal(
           <>
@@ -1078,7 +1285,7 @@ export const LeadsPage: React.FC = () => {
                       setShowConvertModal(true);
                     }}
                     className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Convert to Account"
+                    title="Convert to Customer"
                   >
                     <Building2 className="w-5 h-5 text-blue-600" />
                   </button>
@@ -1203,7 +1410,7 @@ export const LeadsPage: React.FC = () => {
                     Lead Source
                   </h4>
                   <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                    {selectedLead.source}
+                    {getSourceLabel(selectedLead.source)}
                   </Badge>
                 </div>
 
@@ -1292,64 +1499,134 @@ export const LeadsPage: React.FC = () => {
         onVerify={handleVerifyOTP}
       />
 
-      {/* Convert to Account Modal */}
+      {/* Convert to Customer Modal */}
       {showConvertModal && selectedLead && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-5">
             <div className="flex items-center gap-3 pb-4 border-b">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                <ArrowRight className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <ArrowRight className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">Convert Lead to Account</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Convert Lead to Customer
+                </h2>
                 <p className="text-sm text-gray-600">
-                  This action cannot be undone
+                  Transform this lead into a customer
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600 mb-2">Lead Information:</p>
-                <p className="font-semibold text-gray-900">
-                  {selectedLead.name || "Unknown"}
+            <div className="space-y-4">
+              {/* Lead Information */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-xs font-semibold text-gray-600 uppercase mb-2">
+                  Current Lead Information
                 </p>
-                <p className="text-sm text-gray-600">{selectedLead.email}</p>
-                <p className="text-sm text-gray-600">{selectedLead.phone}</p>
+                <div className="space-y-1">
+                  <p className="font-semibold text-gray-900">
+                    {selectedLead.name || "Unknown"}
+                  </p>
+                  {selectedLead.email && (
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      {selectedLead.email}
+                    </p>
+                  )}
+                  {selectedLead.phone && (
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      {selectedLead.phone}
+                    </p>
+                  )}
+                  {selectedLead.source && (
+                    <p className="text-sm text-gray-600">
+                      Source: {getSourceLabel(selectedLead.source)}
+                    </p>
+                  )}
+                </div>
               </div>
 
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <div className="flex items-start gap-2">
-                  <Building2 className="w-5 h-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-blue-900">
-                      New Account will be created
+              {/* Customer Type Selection */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-900">
+                  Customer Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={convertAccountType}
+                  onChange={(e) => setConvertAccountType(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  {accountTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+                {accountTypes.find((t) => t.value === convertAccountType)
+                  ?.description && (
+                  <p className="text-xs text-gray-500 mt-1 ml-1">
+                    {
+                      accountTypes.find((t) => t.value === convertAccountType)
+                        ?.description
+                    }
+                  </p>
+                )}
+              </div>
+
+              {/* Customer Preview */}
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-blue-900 mb-1">
+                      New Customer Preview
                     </p>
-                    <p className="text-sm text-blue-700 mt-1">
-                      Account Name: {selectedLead.name || "Unknown Account"}
-                    </p>
-                    <p className="text-sm text-blue-600 mt-1">
-                      The lead will be permanently removed from the leads list
-                      and converted into an account.
-                    </p>
+                    <div className="space-y-1 text-sm">
+                      <p className="text-blue-800">
+                        <span className="font-medium">Name:</span>{" "}
+                        {selectedLead.name || "Unknown Customer"}
+                      </p>
+                      <p className="text-blue-800">
+                        <span className="font-medium">Type:</span>{" "}
+                        {accountTypes.find(
+                          (t) => t.value === convertAccountType,
+                        )?.label || convertAccountType}
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <p className="text-xs text-blue-700 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span>
+                          The lead will be removed from the leads list and
+                          converted into a customer with all contact information
+                          preserved.
+                        </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-2">
               <Button
-                onClick={() => setShowConvertModal(false)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700"
+                onClick={() => {
+                  setShowConvertModal(false);
+                  setConvertAccountType(accountTypes[0]?.value || "HOUSEHOLD");
+                }}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl"
               >
                 Cancel
               </Button>
               <Button
-                onClick={handleConvertToAccount}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handleConvertToCustomer}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/25"
               >
-                <ArrowRight className="w-4 h-4 mr-2" />
-                Convert to Account
+                <Check className="w-4 h-4 mr-2" />
+                Convert to Customer
               </Button>
             </div>
           </div>

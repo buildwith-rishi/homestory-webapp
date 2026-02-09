@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { useProjectStore } from "../stores/projectStore";
 
-interface Project {
+interface ProjectFilterProject {
   id: string;
   name: string;
   client: string;
@@ -10,47 +11,13 @@ interface Project {
 interface ProjectFilterContextType {
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
-  projects: Project[];
-  selectedProject: Project | null;
+  projects: ProjectFilterProject[];
+  selectedProject: ProjectFilterProject | null;
 }
 
 const ProjectFilterContext = createContext<
   ProjectFilterContextType | undefined
 >(undefined);
-
-// Mock projects data - in production, this would come from API
-const mockProjects: Project[] = [
-  {
-    id: "1",
-    name: "Modern 3BHK - Sharma Family",
-    client: "Sharma Family",
-    status: "Design",
-  },
-  {
-    id: "2",
-    name: "Luxury Villa - Kumar Residence",
-    client: "Kumar Residence",
-    status: "Execution",
-  },
-  {
-    id: "3",
-    name: "Contemporary 2BHK - Patel Home",
-    client: "Patel Home",
-    status: "Material",
-  },
-  {
-    id: "4",
-    name: "Office Interior - TechStart Inc",
-    client: "TechStart Inc",
-    status: "Requirements",
-  },
-  {
-    id: "5",
-    name: "Penthouse Makeover - Gupta Family",
-    client: "Gupta Family",
-    status: "Handover",
-  },
-];
 
 export const ProjectFilterProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -59,8 +26,18 @@ export const ProjectFilterProvider: React.FC<{ children: ReactNode }> = ({
     null,
   );
 
+  const { projects: storeProjects } = useProjectStore();
+
+  // Map store projects to the filter context format
+  const projects: ProjectFilterProject[] = storeProjects.map((p) => ({
+    id: p.id,
+    name: p.projectName || p.name || "Untitled",
+    client: p.lead?.name || "\u2014",
+    status: p.currentStageCode || p.status || "",
+  }));
+
   const selectedProject = selectedProjectId
-    ? mockProjects.find((p) => p.id === selectedProjectId) || null
+    ? projects.find((p) => p.id === selectedProjectId) || null
     : null;
 
   return (
@@ -68,7 +45,7 @@ export const ProjectFilterProvider: React.FC<{ children: ReactNode }> = ({
       value={{
         selectedProjectId,
         setSelectedProjectId,
-        projects: mockProjects,
+        projects,
         selectedProject,
       }}
     >

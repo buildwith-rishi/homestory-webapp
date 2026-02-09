@@ -60,7 +60,7 @@ export const DashboardLayout: React.FC = () => {
   return (
     <ProjectFilterProvider>
       <div
-        className="min-h-screen bg-gray-50 overflow-x-hidden"
+        className="min-h-screen bg-gray-50"
         style={{ scrollbarWidth: "auto", scrollbarColor: "#c1c1c1 #f1f1f1" }}
       >
         <DashboardSidebar
@@ -77,11 +77,11 @@ export const DashboardLayout: React.FC = () => {
         />
 
         <div
-          className={`transition-all duration-300 ${
+          className={`transition-[margin-left] duration-300 ${
             sidebarCollapsed ? "ml-20" : "ml-72"
           }`}
         >
-          <main className="pt-20 px-6 pb-8 min-h-screen overflow-x-hidden">
+          <main className="pt-20 px-4 pb-6 min-h-screen">
             <div className="max-w-[1600px] mx-auto">
               <Outlet />
             </div>

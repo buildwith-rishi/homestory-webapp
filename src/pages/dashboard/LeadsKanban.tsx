@@ -1,12 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   KanbanBoard,
   KanbanData,
   KanbanTask,
 } from "../../components/kanban/KanbanBoard";
+import {
+  AddLeadCardFormWithButton,
+  type NewLeadCardData,
+} from "../../components/kanban/AddLeadCardForm";
 import { useLeadStore } from "../../stores/leadStore";
-import { LeadStage, Lead } from "../../types";
+import { Lead, LeadSource } from "../../types";
 import {
   Phone,
   Mail,
@@ -16,20 +20,32 @@ import {
   List,
   ArrowLeft,
   User,
+  FileText,
 } from "lucide-react";
 import Button from "../../components/ui/Button";
+import toast from "react-hot-toast";
 
-const LEAD_ASSIGNEE_OPTIONS = [
-  "Unassigned",
-  "Sales Lead",
-  "Design Consultant",
-  "Project Manager",
-  "Operations Team",
+const LEAD_ASSIGNEES = [
+  { id: "unassigned", name: "Unassigned" },
+  { id: "sales-lead", name: "Sales Lead" },
+  { id: "design-consultant", name: "Design Consultant" },
+  { id: "project-manager", name: "Project Manager" },
+  { id: "operations-team", name: "Operations Team" },
 ];
+
+// Map column IDs to API status values
+const columnToStatus: Record<string, string> = {
+  "col-new": "NEW",
+  "col-working": "WORKING",
+  "col-qualified": "QUALIFIED",
+  "col-disqualified": "DISQUALIFIED",
+  "col-converted": "CONVERTED",
+};
 
 const LeadsKanban: React.FC = () => {
   const navigate = useNavigate();
-  const { leads, isLoading, fetchLeads } = useLeadStore();
+  const { leads, isLoading, fetchLeads, moveLeadByStatus, addLead } =
+    useLeadStore();
 
   // Generate lead selection options for the dropdown
   const leadSelectOptions = useMemo(() => {
@@ -40,60 +56,47 @@ const LeadsKanban: React.FC = () => {
     }));
   }, [leads]);
 
+  // Kanban columns based on API statuses
   const [kanbanData, setKanbanData] = useState<KanbanData>({
     columns: {
-      "col-inquiry": {
-        id: "col-inquiry",
-        title: "Inquiry",
+      "col-new": {
+        id: "col-new",
+        title: "New",
         taskIds: [],
-        color: "#3B82F6",
+        color: "#3B82F6", // Blue
       },
-      "col-contacted": {
-        id: "col-contacted",
-        title: "Contacted",
+      "col-working": {
+        id: "col-working",
+        title: "Working",
         taskIds: [],
-        color: "#8B5CF6",
+        color: "#F59E0B", // Amber
       },
-      "col-meeting": {
-        id: "col-meeting",
-        title: "Meeting Scheduled",
+      "col-qualified": {
+        id: "col-qualified",
+        title: "Qualified",
         taskIds: [],
-        color: "#F59E0B",
+        color: "#10B981", // Emerald
       },
-      "col-proposal": {
-        id: "col-proposal",
-        title: "Proposal Sent",
+      "col-disqualified": {
+        id: "col-disqualified",
+        title: "Disqualified",
         taskIds: [],
-        color: "#10B981",
+        color: "#6B7280", // Gray
       },
-      "col-negotiation": {
-        id: "col-negotiation",
-        title: "Negotiation",
+      "col-converted": {
+        id: "col-converted",
+        title: "Converted",
         taskIds: [],
-        color: "#EF4444",
-      },
-      "col-won": {
-        id: "col-won",
-        title: "Won",
-        taskIds: [],
-        color: "#059669",
-      },
-      "col-lost": {
-        id: "col-lost",
-        title: "Lost",
-        taskIds: [],
-        color: "#6B7280",
+        color: "#059669", // Green
       },
     },
     tasks: {},
     columnOrder: [
-      "col-inquiry",
-      "col-contacted",
-      "col-meeting",
-      "col-proposal",
-      "col-negotiation",
-      "col-won",
-      "col-lost",
+      "col-new",
+      "col-working",
+      "col-qualified",
+      "col-disqualified",
+      "col-converted",
     ],
   });
 
@@ -103,39 +106,38 @@ const LeadsKanban: React.FC = () => {
 
   useEffect(() => {
     if (leads.length > 0) {
-      // Convert leads to kanban tasks
+      // Convert leads to kanban tasks based on API status
       const tasks: Record<string, KanbanTask> = {};
       const columnTaskIds: Record<string, string[]> = {
-        "col-inquiry": [],
-        "col-contacted": [],
-        "col-meeting": [],
-        "col-proposal": [],
-        "col-negotiation": [],
-        "col-won": [],
-        "col-lost": [],
+        "col-new": [],
+        "col-working": [],
+        "col-qualified": [],
+        "col-disqualified": [],
+        "col-converted": [],
+      };
+
+      // Map API status to column ID
+      const statusToColumn: Record<string, string> = {
+        NEW: "col-new",
+        WORKING: "col-working",
+        QUALIFIED: "col-qualified",
+        DISQUALIFIED: "col-disqualified",
+        CONVERTED: "col-converted",
       };
 
       leads.forEach((lead) => {
         const taskId = `lead-${lead.id}`;
         tasks[taskId] = {
           id: taskId,
-          content: lead.name,
+          content: lead.name || lead.email || "Unknown Lead",
           metadata: lead as unknown as Record<string, unknown>,
         };
 
-        // Map lead stage to column
-        const stageToColumn: Record<LeadStage, string> = {
-          [LeadStage.INQUIRY]: "col-inquiry",
-          [LeadStage.CONTACTED]: "col-contacted",
-          [LeadStage.MEETING_SCHEDULED]: "col-meeting",
-          [LeadStage.PROPOSAL_SENT]: "col-proposal",
-          [LeadStage.NEGOTIATION]: "col-negotiation",
-          [LeadStage.WON]: "col-won",
-          [LeadStage.LOST]: "col-lost",
-        };
+        // Use API status field, default to NEW
+        const status = lead.status || "NEW";
+        const columnId = statusToColumn[status] || "col-new";
 
-        const columnId = stageToColumn[lead.stage];
-        if (columnId && columnTaskIds[columnId]) {
+        if (columnTaskIds[columnId]) {
           columnTaskIds[columnId].push(taskId);
         }
       });
@@ -154,6 +156,22 @@ const LeadsKanban: React.FC = () => {
           {},
         ),
       }));
+    } else {
+      // Clear tasks when no leads
+      setKanbanData((prev) => ({
+        ...prev,
+        tasks: {},
+        columns: Object.keys(prev.columns).reduce(
+          (acc, colId) => ({
+            ...acc,
+            [colId]: {
+              ...prev.columns[colId],
+              taskIds: [],
+            },
+          }),
+          {},
+        ),
+      }));
     }
   }, [leads]);
 
@@ -166,12 +184,159 @@ const LeadsKanban: React.FC = () => {
 
   const handleDataChange = (newData: KanbanData) => {
     setKanbanData(newData);
-    // TODO: Update lead stages in backend based on column changes
   };
+
+  const handleTaskColumnChange = useCallback(
+    async (taskId: string, fromCol: string, toCol: string) => {
+      const newStatus = columnToStatus[toCol];
+      const oldStatus = columnToStatus[fromCol];
+      if (!newStatus) return;
+
+      // Extract lead ID from task ID (format: "lead-{id}")
+      const leadId = taskId.replace("lead-", "");
+
+      // Get column titles for the toast message
+      const fromTitle = kanbanData.columns[fromCol]?.title || oldStatus;
+      const toTitle = kanbanData.columns[toCol]?.title || newStatus;
+
+      try {
+        // Update lead status via API
+        await moveLeadByStatus(leadId, newStatus);
+        toast.success(`Lead moved from ${fromTitle} to ${toTitle}`);
+      } catch (error) {
+        console.error("Failed to update lead status:", error);
+        toast.error("Failed to update status. Reverting...");
+        // Refetch leads to revert local state
+        fetchLeads();
+      }
+    },
+    [moveLeadByStatus, fetchLeads, kanbanData.columns],
+  );
+
+  // -----------------------------------------------------------------------
+  // Handle new lead card from AddLeadCardForm - Creates lead via API
+  // -----------------------------------------------------------------------
+  const handleLeadCardAdd = useCallback(
+    async (columnId: string, data: NewLeadCardData) => {
+      // Determine the initial status based on the column
+      const statusFromColumn = columnToStatus[columnId] || "NEW";
+
+      try {
+        // Create lead via API with required fields
+        const newLead = await addLead({
+          name: data.title,
+          email: data.email || "",
+          phone: data.contactNumber || "",
+          source:
+            (data.source?.toUpperCase() as LeadSource) || LeadSource.OTHER,
+          stage: undefined as unknown as Lead["stage"], // Will be set by API based on status
+        });
+
+        // If the column is not "new", update the status after creation
+        if (statusFromColumn !== "NEW" && newLead?.id) {
+          await moveLeadByStatus(newLead.id, statusFromColumn);
+        }
+
+        toast.success("Lead created successfully!");
+
+        // Refresh leads to get the latest data
+        fetchLeads();
+      } catch (error) {
+        console.error("Failed to create lead:", error);
+        toast.error("Failed to create lead");
+      }
+    },
+    [addLead, moveLeadByStatus, fetchLeads],
+  );
+
+  // -----------------------------------------------------------------------
+  // Custom add card form renderer for the Kanban columns
+  // -----------------------------------------------------------------------
+  const renderAddCardForm = useCallback(
+    (
+      columnId: string,
+      _onAddCard: (columnId: string, data: NewLeadCardData) => void,
+      theme: "light" | "dark",
+    ) => {
+      return (
+        <AddLeadCardFormWithButton
+          onSubmit={(data: NewLeadCardData) => {
+            handleLeadCardAdd(columnId, data);
+          }}
+          theme={theme}
+          assignees={LEAD_ASSIGNEES.filter((a) => a.id !== "unassigned").map(
+            (a) => ({ value: a.id, label: a.name }),
+          )}
+          leadStages={[
+            { value: "inquiry", label: "Inquiry" },
+            { value: "contacted", label: "Contacted" },
+            { value: "meeting_scheduled", label: "Meeting Scheduled" },
+            { value: "proposal_sent", label: "Proposal Sent" },
+            { value: "negotiation", label: "Negotiation" },
+            { value: "won", label: "Won" },
+            { value: "lost", label: "Lost" },
+          ]}
+        />
+      );
+    },
+    [handleLeadCardAdd],
+  );
 
   const renderLeadCard = (task: KanbanTask) => {
     const lead = task.metadata as unknown as Lead;
-    if (!lead) return <div className="text-xs">{task.content}</div>;
+
+    // Parse content to extract notes if present (format: "Lead Name - Notes text")
+    const contentParts = task.content.split(" - ");
+    const hasNotes = contentParts.length > 1;
+    const displayName = contentParts[0];
+    const notes = hasNotes ? contentParts.slice(1).join(" - ") : null;
+
+    if (!lead) {
+      // For newly added cards without lead metadata
+      return (
+        <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
+          <h4
+            className={`font-semibold text-[13px] leading-tight ${
+              task.completed ? "line-through text-gray-500" : "text-gray-900"
+            }`}
+          >
+            {displayName}
+          </h4>
+
+          {notes && (
+            <div className="p-2 bg-blue-50 border border-blue-100 rounded-md">
+              <div className="flex items-start gap-1.5">
+                <FileText
+                  size={11}
+                  className="text-blue-600 flex-shrink-0 mt-0.5"
+                />
+                <p className="text-[11px] text-gray-700 leading-snug">
+                  {notes}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Assignment and Due Date badges */}
+          {(task.assignedTo || task.endDate) && (
+            <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
+              {task.assignedTo && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                  <User size={10} />
+                  {task.assignedTo}
+                </span>
+              )}
+              {task.endDate && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+                  <Calendar size={10} />
+                  {new Date(task.endDate).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
 
     return (
       <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
@@ -235,8 +400,21 @@ const LeadsKanban: React.FC = () => {
           </div>
         )}
 
+        {/* Show notes if added via the form */}
+        {notes && (
+          <div className="p-2 bg-blue-50 border border-blue-100 rounded-md">
+            <div className="flex items-start gap-1.5">
+              <FileText
+                size={11}
+                className="text-blue-600 flex-shrink-0 mt-0.5"
+              />
+              <p className="text-[11px] text-gray-700 leading-snug">{notes}</p>
+            </div>
+          </div>
+        )}
+
         {/* Assignment and Due Date badges */}
-        {(task.assignedTo || task.dueDate) && (
+        {(task.assignedTo || task.endDate) && (
           <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
             {task.assignedTo && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
@@ -244,10 +422,10 @@ const LeadsKanban: React.FC = () => {
                 {task.assignedTo}
               </span>
             )}
-            {task.dueDate && (
+            {task.endDate && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
                 <Calendar size={10} />
-                {new Date(task.dueDate).toLocaleDateString()}
+                {new Date(task.endDate).toLocaleDateString()}
               </span>
             )}
           </div>
@@ -303,17 +481,16 @@ const LeadsKanban: React.FC = () => {
           initialData={kanbanData}
           onDataChange={handleDataChange}
           onTaskClick={handleTaskClick}
+          onTaskColumnChange={handleTaskColumnChange}
           renderTaskCard={renderLeadCard}
           theme="light"
-          addCardPrimarySelect={{
+          selectConfig={{
             label: "Select Lead",
             placeholder: "Choose a lead...",
             options: leadSelectOptions,
-            emptyStateText: "No leads available",
           }}
-          addCardAssigneeOptions={LEAD_ASSIGNEE_OPTIONS}
-          addCardAssigneeLabel="Assign to:"
-          addCardDueDateLabel="Due date:"
+          assignees={LEAD_ASSIGNEES}
+          renderAddCardForm={renderAddCardForm}
         />
       </div>
     </div>

@@ -1,13 +1,14 @@
 // Lead API Service
 // Base URL should match your API documentation
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://api.goodhomestory.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
+
+console.log('Lead API Base URL:', API_BASE_URL);
 
 export interface Lead {
   id?: string;
-  name: string;
-  email: string;
-  phone: string;
+  name?: string;
+  email?: string;
+  phone?: string;
   source: string;
   status?: string;
   stage?: string;
@@ -53,28 +54,121 @@ export interface Lead {
   meetingScheduled?: boolean;
   siteVisitDone?: boolean;
   quotationSent?: boolean;
+
+  // Nested data from GET /api/leads/:id
+  contacts?: LeadContact[];
+  stageHistory?: LeadStageHistory[];
+  convertedToAccount?: ConvertedToAccount | null;
+  activities?: LeadActivity[];
+  
+  // Additional fields from API
+  householdOrCompany?: string;
+  companyName?: string | null;
+  sourceDetails?: string | null;
+  serviceInterest?: string | null;
+  area?: string | null;
+  message?: string | null;
+  requirements?: string | null;
+  projectType?: string | null;
+  homeType?: string | null;
+  projectStage?: string | null;
+  startTimeline?: string | null;
+  budgetComfort?: string | null;
+  projectScope?: string | null;
+  floorPlanUrl?: string | null;
+  wantsExperienceCenterVisit?: boolean;
+  canWhatsApp?: boolean;
+  assignedToId?: string | null;
+  assignedTo?: { id: string; name: string } | null;
+  referrerName?: string | null;
+  referrerPhone?: string | null;
+  referrerProjectNumber?: string | null;
+  agentAgencyName?: string | null;
+  agentAgencyDetails?: string | null;
+  references?: any[];
+}
+
+export interface LeadContact {
+  id: string;
+  leadId?: string;
+  accountId?: string | null;
+  firstName: string;
+  lastName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  alternatePhone?: string | null;
+  role?: string;
+  isPrimary?: boolean;
+  preferredChannel?: string;
+  dateOfBirth?: string | null;
+  anniversaryDate?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface LeadStageHistory {
+  id: string;
+  leadId: string;
+  fromStage: string;
+  toStage: string;
+  changedByUserId?: string;
+  reason?: string;
+  changedAt: string;
+  changedByUser?: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface ConvertedToAccount {
+  id: string;
+  name: string;
+  type?: string;
 }
 
 export interface LeadActivity {
   id: string;
-  leadId: string;
-  type: string;
-  description: string;
+  entityType?: string;
+  entityId?: string;
+  activityType: string;
+  occurredAt?: string;
+  performedByUserId?: string;
+  performedByContactId?: string | null;
+  title: string;
+  notes?: string | null;
+  payloadJson?: any;
   createdAt: string;
-  createdBy: string;
+  performedByUser?: {
+    id: string;
+    name: string;
+  };
+  // Legacy fields for backward compat
+  leadId?: string;
+  type?: string;
+  description?: string;
+  createdBy?: string;
+}
+
+export interface LeadNote {
+  id: string;
+  leadId: string;
+  content: string;
+  type: string;
+  createdAt: string;
+  createdBy?: string;
 }
 
 export interface LeadSource {
-  id: string;
-  name: string;
-  count: number;
+  value: string;
+  label: string;
+  count?: number;
 }
 
 export interface LeadStatus {
-  id: string;
-  name: string;
-  color: string;
-  count: number;
+  value: string;
+  label: string;
+  description?: string;
 }
 
 export interface OTPResponse {
@@ -154,7 +248,8 @@ export async function getLeadSources(): Promise<LeadSource[]> {
     headers: getAuthHeaders(),
   });
 
-  return handleResponse<LeadSource[]>(response);
+  const data = await handleResponse<{ sources: LeadSource[] }>(response);
+  return data.sources;
 }
 
 /**
@@ -167,7 +262,8 @@ export async function getLeadStatuses(): Promise<LeadStatus[]> {
     headers: getAuthHeaders(),
   });
 
-  return handleResponse<LeadStatus[]>(response);
+  const data = await handleResponse<{ statuses: LeadStatus[] }>(response);
+  return data.statuses || [];
 }
 
 /**
@@ -225,7 +321,30 @@ export async function getLeadById(id: string): Promise<Lead> {
     headers: getAuthHeaders(),
   });
 
-  return handleResponse<Lead>(response);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = await handleResponse<any>(response);
+
+  // Handle different API response structures:
+  // - { lead: { name: "...", contacts: [...], stageHistory: [...], activities: [...], ... } }
+  // - { data: { name: "...", ... } }
+  // - { name: "...", ... } (flat)
+  const lead: Lead = data.lead || data.data || data;
+
+  console.log('getLeadById raw API response:', data);
+  console.log('Extracted lead object:', lead);
+  console.log('Lead contacts:', lead.contacts?.length || 0);
+  console.log('Lead stageHistory:', lead.stageHistory?.length || 0);
+  console.log('Lead activities:', lead.activities?.length || 0);
+  console.log('Lead convertedToAccount:', lead.convertedToAccount);
+
+  // Sanitize undefined string values that may come from the API
+  // Convert string "undefined" or "null" to actual undefined
+  return {
+    ...lead,
+    name: (!lead.name || lead.name === "undefined" || lead.name === "null") ? undefined : lead.name,
+    email: (!lead.email || lead.email === "undefined" || lead.email === "null") ? undefined : lead.email,
+    phone: (!lead.phone || lead.phone === "undefined" || lead.phone === "null") ? undefined : lead.phone,
+  };
 }
 
 /**
@@ -270,7 +389,13 @@ export async function getLeadActivities(id: string): Promise<LeadActivity[]> {
     headers: getAuthHeaders(),
   });
 
-  return handleResponse<LeadActivity[]>(response);
+  const data = await handleResponse<{ activities?: LeadActivity[] } | LeadActivity[]>(response);
+  
+  // Handle both response formats: { activities: [...] } or [...]
+  if (Array.isArray(data)) {
+    return data;
+  }
+  return data.activities || [];
 }
 
 /**
@@ -293,6 +418,48 @@ export async function addLeadActivity(
   return handleResponse<LeadActivity>(response);
 }
 
+/**
+ * Add note to a lead
+ * POST /api/leads/:id/notes
+ */
+export async function addLeadNote(
+  id: string,
+  note: {
+    content: string;
+    type?: string;
+  },
+): Promise<LeadNote> {
+  const response = await fetch(`${API_BASE_URL}/api/leads/${id}/notes`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      content: note.content,
+      type: note.type || "GENERAL",
+    }),
+  });
+
+  return handleResponse<LeadNote>(response);
+}
+
+/**
+ * Get all notes for a lead
+ * GET /api/leads/:id/notes
+ */
+export async function getLeadNotes(id: string): Promise<LeadNote[]> {
+  const response = await fetch(`${API_BASE_URL}/api/leads/${id}/notes`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await handleResponse<{ notes?: LeadNote[] } | LeadNote[]>(response);
+  
+  // Handle both response formats: { notes: [...] } or [...]
+  if (Array.isArray(data)) {
+    return data;
+  }
+  return data.notes || [];
+}
+
 // Export all functions as a default object for easier imports
 const LeadAPI = {
   sendOTP,
@@ -306,6 +473,8 @@ const LeadAPI = {
   deleteLead,
   getLeadActivities,
   addLeadActivity,
+  addLeadNote,
+  getLeadNotes,
 };
 
 export default LeadAPI;

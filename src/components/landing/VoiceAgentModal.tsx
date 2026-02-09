@@ -60,9 +60,9 @@ const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({ isOpen, onClose }) =>
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-secondary/60 z-50"
+            className="fixed inset-0 bg-secondary/60 z-[60]"
           />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}

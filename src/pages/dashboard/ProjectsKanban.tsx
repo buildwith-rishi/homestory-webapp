@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   KanbanBoard,
@@ -6,7 +6,8 @@ import {
   KanbanTask,
 } from "../../components/kanban/KanbanBoard";
 import { useProjectStore } from "../../stores/projectStore";
-import { Project, ProjectStageCode } from "../../types";
+import ProjectAPI from "../../services/projectApi";
+import { Project } from "../../types";
 import {
   Calendar,
   DollarSign,
@@ -15,15 +16,17 @@ import {
   TrendingUp,
   ArrowLeft,
   List,
+  FileText,
 } from "lucide-react";
 import { Button } from "../../components/ui";
+import toast from "react-hot-toast";
 
-const PROJECT_ASSIGNEE_OPTIONS = [
-  "Unassigned",
-  "Design Lead",
-  "Project Manager",
-  "Site Supervisor",
-  "Operations Team",
+const PROJECT_ASSIGNEES = [
+  { id: "unassigned", name: "Unassigned" },
+  { id: "design-lead", name: "Design Lead" },
+  { id: "project-manager", name: "Project Manager" },
+  { id: "site-supervisor", name: "Site Supervisor" },
+  { id: "operations-team", name: "Operations Team" },
 ];
 
 const ProjectsKanban: React.FC = () => {
@@ -34,36 +37,48 @@ const ProjectsKanban: React.FC = () => {
   const projectSelectOptions = useMemo(() => {
     return projects.map((project) => ({
       value: `project-${project.id}`,
-      label: project.name || project.projectName || `Project ${project.id}`,
+      label: project.projectName || project.name || `Project ${project.id}`,
       metadata: project as unknown as Record<string, unknown>,
     }));
   }, [projects]);
 
   const [kanbanData, setKanbanData] = useState<KanbanData>({
     columns: {
-      "col-lead": {
-        id: "col-lead",
-        title: "Lead",
+      "col-enquiry": {
+        id: "col-enquiry",
+        title: "Enquiry",
+        taskIds: [],
+        color: "#6B7280",
+      },
+      "col-design-signup": {
+        id: "col-design-signup",
+        title: "Design Signup",
         taskIds: [],
         color: "#3B82F6",
-      },
-      "col-site-visit": {
-        id: "col-site-visit",
-        title: "Site Visit",
-        taskIds: [],
-        color: "#8B5CF6",
-      },
-      "col-proposal": {
-        id: "col-proposal",
-        title: "Proposal",
-        taskIds: [],
-        color: "#F59E0B",
       },
       "col-design": {
         id: "col-design",
         title: "Design",
         taskIds: [],
-        color: "#10B981",
+        color: "#8B5CF6",
+      },
+      "col-first-presentation": {
+        id: "col-first-presentation",
+        title: "First Presentation",
+        taskIds: [],
+        color: "#F59E0B",
+      },
+      "col-final-design": {
+        id: "col-final-design",
+        title: "Final Design",
+        taskIds: [],
+        color: "#6366F1",
+      },
+      "col-costing": {
+        id: "col-costing",
+        title: "Costing",
+        taskIds: [],
+        color: "#EC4899",
       },
       "col-execution": {
         id: "col-execution",
@@ -77,22 +92,24 @@ const ProjectsKanban: React.FC = () => {
         taskIds: [],
         color: "#059669",
       },
-      "col-warranty": {
-        id: "col-warranty",
-        title: "Warranty",
+      "col-testimonial": {
+        id: "col-testimonial",
+        title: "Testimonial",
         taskIds: [],
-        color: "#6B7280",
+        color: "#10B981",
       },
     },
     tasks: {},
     columnOrder: [
-      "col-lead",
-      "col-site-visit",
-      "col-proposal",
+      "col-enquiry",
+      "col-design-signup",
       "col-design",
+      "col-first-presentation",
+      "col-final-design",
+      "col-costing",
       "col-execution",
       "col-handover",
-      "col-warranty",
+      "col-testimonial",
     ],
   });
 
@@ -105,35 +122,39 @@ const ProjectsKanban: React.FC = () => {
       // Convert projects to kanban tasks
       const tasks: Record<string, KanbanTask> = {};
       const columnTaskIds: Record<string, string[]> = {
-        "col-lead": [],
-        "col-site-visit": [],
-        "col-proposal": [],
+        "col-enquiry": [],
+        "col-design-signup": [],
         "col-design": [],
+        "col-first-presentation": [],
+        "col-final-design": [],
+        "col-costing": [],
         "col-execution": [],
         "col-handover": [],
-        "col-warranty": [],
+        "col-testimonial": [],
       };
 
       projects.forEach((project) => {
         const taskId = `project-${project.id}`;
         tasks[taskId] = {
           id: taskId,
-          content: project.name || project.projectName || "Untitled Project",
+          content: project.projectName || project.name || "Untitled Project",
           metadata: project as unknown as Record<string, unknown>,
         };
 
         // Map project stage to column
         const stageToColumn: Record<string, string> = {
-          [ProjectStageCode.LEAD]: "col-lead",
-          [ProjectStageCode.SITE_VISIT]: "col-site-visit",
-          [ProjectStageCode.PROPOSAL]: "col-proposal",
-          [ProjectStageCode.DESIGN]: "col-design",
-          [ProjectStageCode.EXECUTION]: "col-execution",
-          [ProjectStageCode.HANDOVER]: "col-handover",
-          [ProjectStageCode.WARRANTY]: "col-warranty",
+          ENQUIRY: "col-enquiry",
+          DESIGN_SIGNUP: "col-design-signup",
+          DESIGN: "col-design",
+          FIRST_PRESENTATION: "col-first-presentation",
+          FINAL_DESIGN: "col-final-design",
+          COSTING: "col-costing",
+          EXECUTION: "col-execution",
+          HANDOVER: "col-handover",
+          TESTIMONIAL: "col-testimonial",
         };
 
-        const currentStage = project.currentStage || ProjectStageCode.LEAD;
+        const currentStage = project.currentStageCode || "ENQUIRY";
         const columnId = stageToColumn[currentStage];
         if (columnId && columnTaskIds[columnId]) {
           columnTaskIds[columnId].push(taskId);
@@ -164,17 +185,103 @@ const ProjectsKanban: React.FC = () => {
     }
   };
 
+  // Map column IDs back to stage codes
+  const columnToStage: Record<string, string> = {
+    "col-enquiry": "ENQUIRY",
+    "col-design-signup": "DESIGN_SIGNUP",
+    "col-design": "DESIGN",
+    "col-first-presentation": "FIRST_PRESENTATION",
+    "col-final-design": "FINAL_DESIGN",
+    "col-costing": "COSTING",
+    "col-execution": "EXECUTION",
+    "col-handover": "HANDOVER",
+    "col-testimonial": "TESTIMONIAL",
+  };
+
   const handleDataChange = (newData: KanbanData) => {
     setKanbanData(newData);
-    // TODO: Update project stages in backend based on column changes
   };
+
+  const handleTaskColumnChange = useCallback(
+    async (taskId: string, _fromCol: string, toCol: string) => {
+      const newStageCode = columnToStage[toCol];
+      if (!newStageCode) return;
+
+      // Extract project ID from task ID (format: "project-{id}")
+      const projectId = taskId.replace("project-", "");
+      try {
+        await ProjectAPI.updateProject(projectId, {
+          currentStageCode: newStageCode,
+        });
+        toast.success("Project stage updated");
+      } catch (error) {
+        console.error("Failed to update project stage:", error);
+        toast.error("Failed to update stage. Reverting...");
+        // Refetch to revert local state
+        fetchProjects();
+      }
+    },
+    [fetchProjects],
+  );
 
   const renderProjectCard = (task: KanbanTask) => {
     const project = task.metadata as unknown as Project;
-    if (!project) return <div className="text-xs">{task.content}</div>;
+
+    // Parse content to extract notes if present (format: "Project Name - Notes text")
+    const contentParts = task.content.split(" - ");
+    const hasNotes = contentParts.length > 1;
+    const displayName = contentParts[0];
+    const notes = hasNotes ? contentParts.slice(1).join(" - ") : null;
+
+    if (!project) {
+      // For newly added cards without project metadata
+      return (
+        <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
+          <h4
+            className={`font-semibold text-[13px] leading-tight ${
+              task.completed ? "line-through text-gray-500" : "text-gray-900"
+            }`}
+          >
+            {displayName}
+          </h4>
+
+          {notes && (
+            <div className="p-2 bg-blue-50 border border-blue-100 rounded-md">
+              <div className="flex items-start gap-1.5">
+                <FileText
+                  size={11}
+                  className="text-blue-600 flex-shrink-0 mt-0.5"
+                />
+                <p className="text-[11px] text-gray-700 leading-snug">
+                  {notes}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Assignment and Due Date badges */}
+          {(task.assignedTo || task.dueDate) && (
+            <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
+              {task.assignedTo && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                  <User size={10} />
+                  {task.assignedTo}
+                </span>
+              )}
+              {task.dueDate && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+                  <Calendar size={10} />
+                  {new Date(task.dueDate).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
 
     const projectName =
-      project.name || project.projectName || "Untitled Project";
+      project.projectName || project.name || "Untitled Project";
 
     return (
       <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
@@ -204,7 +311,7 @@ const ProjectsKanban: React.FC = () => {
                   className="text-green-500 flex-shrink-0"
                 />
                 <span className="font-medium text-gray-700">
-                  ₹{project.totalValue.toLocaleString()}
+                  ₹{parseFloat(String(project.totalValue)).toLocaleString()}
                 </span>
               </div>
             )}
@@ -255,6 +362,19 @@ const ProjectsKanban: React.FC = () => {
                 {project.scopeType}
               </span>
             )}
+          </div>
+        )}
+
+        {/* Show notes if added via the form */}
+        {notes && (
+          <div className="p-2 bg-blue-50 border border-blue-100 rounded-md">
+            <div className="flex items-start gap-1.5">
+              <FileText
+                size={11}
+                className="text-blue-600 flex-shrink-0 mt-0.5"
+              />
+              <p className="text-[11px] text-gray-700 leading-snug">{notes}</p>
+            </div>
           </div>
         )}
 
@@ -326,17 +446,15 @@ const ProjectsKanban: React.FC = () => {
           initialData={kanbanData}
           onDataChange={handleDataChange}
           onTaskClick={handleTaskClick}
+          onTaskColumnChange={handleTaskColumnChange}
           renderTaskCard={renderProjectCard}
           theme="light"
-          addCardPrimarySelect={{
+          selectConfig={{
             label: "Select Project",
             placeholder: "Choose a project...",
             options: projectSelectOptions,
-            emptyStateText: "No projects available",
           }}
-          addCardAssigneeOptions={PROJECT_ASSIGNEE_OPTIONS}
-          addCardAssigneeLabel="Assign to:"
-          addCardDueDateLabel="Due date:"
+          assignees={PROJECT_ASSIGNEES}
         />
       </div>
     </div>

@@ -104,7 +104,7 @@ const Modal: React.FC<ModalProps> = ({
               aria-labelledby={title ? "modal-title" : undefined}
             >
               {(title || showCloseButton) && (
-                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
                   {title && (
                     <h2
                       id="modal-title"
@@ -126,7 +126,7 @@ const Modal: React.FC<ModalProps> = ({
               )}
               <div className="overflow-y-visible">{children}</div>
               {footer && (
-                <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+                <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
                   {footer}
                 </div>
               )}

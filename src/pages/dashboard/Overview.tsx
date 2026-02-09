@@ -9,7 +9,6 @@ import {
   CheckCircle,
   LayoutGrid,
   Plus,
-  Filter,
 } from "lucide-react";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
@@ -18,7 +17,7 @@ import { LeadSourceChart } from "../../components/dashboard/LeadSourceChart";
 import { ActivityFeed } from "../../components/dashboard/ActivityFeed";
 import { DashboardGrid } from "../../components/dashboard/DashboardGrid";
 import { WidgetLibraryModal } from "../../components/dashboard/WidgetLibraryModal";
-import { Card, Button, Badge, Progress, Select } from "../../components/ui";
+import { Card, Button, Badge, Progress } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 
@@ -26,16 +25,13 @@ export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const { openWidgetLibrary } = useUIStore();
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
-  const [deadlineStageFilter, setDeadlineStageFilter] = useState<string>("all");
+  const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
 
-  // Stage filter options for deadline filtering
-  const stageFilterOptions = [
-    { value: "all", label: "All Stages" },
-    { value: "Design", label: "Design" },
-    { value: "Execution", label: "Execution" },
-    { value: "Material", label: "Material Selection" },
-    { value: "Requirements", label: "Requirements" },
-    { value: "Handover", label: "Handover" },
+  // Pipeline type filter options for deadline filtering
+  const pipelineTypeFilterOptions = [
+    { value: "all", label: "All Projects" },
+    { value: "DESIGN_ONLY", label: "Design Only" },
+    { value: "DESIGN_AND_EXECUTION", label: "Design & Execution" },
   ];
 
   // Sparkline data for stat cards (last 7 days)
@@ -107,56 +103,62 @@ export const DashboardOverview: React.FC = () => {
     return allMeetings.filter((m) => m.projectId === selectedProject.id);
   }, [selectedProject]);
 
+  // All deadlines data
+  const allDeadlines = useMemo(() => [
+    {
+      id: "1",
+      name: "Modern 3BHK - Sharma Family",
+      deadline: "Jan 25, 2026",
+      daysLeft: 5,
+      status: "urgent",
+      stage: "Design",
+      pipelineType: "DESIGN_ONLY",
+      progress: 65,
+    },
+    {
+      id: "2",
+      name: "Luxury Villa - Kumar Residence",
+      deadline: "Feb 10, 2026",
+      daysLeft: 21,
+      status: "on-track",
+      stage: "Execution",
+      pipelineType: "DESIGN_AND_EXECUTION",
+      progress: 40,
+    },
+    {
+      id: "3",
+      name: "Contemporary 2BHK - Patel Home",
+      deadline: "Jan 28, 2026",
+      daysLeft: 8,
+      status: "warning",
+      stage: "Material",
+      pipelineType: "DESIGN_AND_EXECUTION",
+      progress: 75,
+    },
+    {
+      id: "4",
+      name: "Office Interior - TechStart Inc",
+      deadline: "Feb 5, 2026",
+      daysLeft: 16,
+      status: "on-track",
+      stage: "Requirements",
+      pipelineType: "DESIGN_ONLY",
+      progress: 25,
+    },
+    {
+      id: "5",
+      name: "Penthouse Makeover - Gupta Family",
+      deadline: "Jan 22, 2026",
+      daysLeft: 2,
+      status: "critical",
+      stage: "Handover",
+      pipelineType: "DESIGN_AND_EXECUTION",
+      progress: 92,
+    },
+  ], []);
+
   // Filter deadlines based on selection
   const filteredDeadlines = useMemo(() => {
-    const allDeadlines = [
-      {
-        id: "1",
-        name: "Modern 3BHK - Sharma Family",
-        deadline: "Jan 25, 2026",
-        daysLeft: 5,
-        status: "urgent",
-        stage: "Design",
-        progress: 65,
-      },
-      {
-        id: "2",
-        name: "Luxury Villa - Kumar Residence",
-        deadline: "Feb 10, 2026",
-        daysLeft: 21,
-        status: "on-track",
-        stage: "Execution",
-        progress: 40,
-      },
-      {
-        id: "3",
-        name: "Contemporary 2BHK - Patel Home",
-        deadline: "Jan 28, 2026",
-        daysLeft: 8,
-        status: "warning",
-        stage: "Material",
-        progress: 75,
-      },
-      {
-        id: "4",
-        name: "Office Interior - TechStart Inc",
-        deadline: "Feb 5, 2026",
-        daysLeft: 16,
-        status: "on-track",
-        stage: "Requirements",
-        progress: 25,
-      },
-      {
-        id: "5",
-        name: "Penthouse Makeover - Gupta Family",
-        deadline: "Jan 22, 2026",
-        daysLeft: 2,
-        status: "critical",
-        stage: "Handover",
-        progress: 92,
-      },
-    ];
-
     let filtered = allDeadlines;
 
     // Filter by selected project if any
@@ -164,19 +166,19 @@ export const DashboardOverview: React.FC = () => {
       filtered = filtered.filter((d) => d.id === selectedProject.id);
     }
 
-    // Filter by stage
-    if (deadlineStageFilter !== "all") {
-      filtered = filtered.filter((d) => d.stage === deadlineStageFilter);
+    // Filter by pipeline type
+    if (pipelineTypeFilter !== "all") {
+      filtered = filtered.filter((d) => d.pipelineType === pipelineTypeFilter);
     }
 
     return filtered;
-  }, [selectedProject, deadlineStageFilter]);
+  }, [allDeadlines, selectedProject, pipelineTypeFilter]);
 
   // Show filtered message when a specific project is selected
   const isFiltered = selectedProject !== null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Widget Library Modal */}
       <WidgetLibraryModal />
 
@@ -230,7 +232,7 @@ export const DashboardOverview: React.FC = () => {
           )}
 
           {/* Stat Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               icon={FolderKanban}
               label="Active Projects"
@@ -268,7 +270,7 @@ export const DashboardOverview: React.FC = () => {
           </div>
 
           {/* Charts Grid */}
-          <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2">
               <RevenueChart />
             </div>
@@ -278,10 +280,10 @@ export const DashboardOverview: React.FC = () => {
           </div>
 
           {/* Projects and Activity Grid */}
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+          <div className="grid lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 space-y-4">
               <Card className="animate-scale-in">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
                       Recent Projects
@@ -294,7 +296,7 @@ export const DashboardOverview: React.FC = () => {
                     View All →
                   </Button>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="p-4 space-y-3">
                   {filteredProjects.map((project) => (
                     <div
                       key={project.id}
@@ -326,7 +328,7 @@ export const DashboardOverview: React.FC = () => {
               </Card>
 
               <Card className="animate-scale-in">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
                       Today's Meetings
@@ -339,7 +341,7 @@ export const DashboardOverview: React.FC = () => {
                     View Calendar →
                   </Button>
                 </div>
-                <div className="p-6 space-y-3">
+                <div className="p-4 space-y-3">
                   {filteredMeetings.map((meeting, i) => (
                     <div
                       key={i}
@@ -373,8 +375,8 @@ export const DashboardOverview: React.FC = () => {
 
               {/* Project Deadlines Section */}
               <Card className="animate-scale-in">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="p-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div>
                         <h2 className="text-lg font-semibold text-gray-900">
@@ -402,22 +404,40 @@ export const DashboardOverview: React.FC = () => {
                     </Button>
                   </div>
 
-                  {/* Stage Filter Dropdown */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Filter className="w-4 h-4" />
-                      <span className="font-medium">Filter by Stage:</span>
-                    </div>
-                    <Select
-                      value={deadlineStageFilter}
-                      onChange={(value) => setDeadlineStageFilter(value)}
-                      options={stageFilterOptions}
-                      placeholder="All Stages"
-                      className="flex-1"
-                    />
+                  {/* Pipeline Type Filter Pills */}
+                  <div className="flex items-center gap-2">
+                    {pipelineTypeFilterOptions.map((option) => {
+                      const count = option.value === "all" 
+                        ? allDeadlines.length 
+                        : allDeadlines.filter(d => d.pipelineType === option.value).length;
+                      const isActive = pipelineTypeFilter === option.value;
+                      
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => setPipelineTypeFilter(option.value)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                            isActive
+                              ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-200"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            {option.label}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                              isActive 
+                                ? "bg-white/20 text-white" 
+                                : "bg-gray-200 text-gray-600"
+                            }`}>
+                              {count}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="p-6 space-y-3">
+                <div className="p-4 space-y-3">
                   {filteredDeadlines.map((project, i) => (
                     <div
                       key={i}
@@ -519,8 +539,8 @@ export const DashboardOverview: React.FC = () => {
                         No Deadlines Found
                       </p>
                       <p className="text-sm text-gray-500">
-                        {deadlineStageFilter !== "all"
-                          ? `No projects in "${stageFilterOptions.find((o) => o.value === deadlineStageFilter)?.label}" stage with upcoming deadlines.`
+                        {pipelineTypeFilter !== "all"
+                          ? `No "${pipelineTypeFilterOptions.find((o) => o.value === pipelineTypeFilter)?.label}" projects with upcoming deadlines.`
                           : "No upcoming deadlines for the selected filter."}
                       </p>
                     </div>
@@ -529,15 +549,15 @@ export const DashboardOverview: React.FC = () => {
               </Card>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               <ActivityFeed />
               <Card>
-                <div className="p-6 border-b border-ash/10">
+                <div className="p-4 border-b border-ash/10">
                   <h2 className="font-display text-display-sm text-secondary">
                     Lead Pipeline
                   </h2>
                 </div>
-                <div className="p-6 space-y-3">
+                <div className="p-4 space-y-3">
                   {[
                     { stage: "New", count: 32, color: "ash" },
                     { stage: "Qualified", count: 18, color: "teal" },
@@ -558,12 +578,12 @@ export const DashboardOverview: React.FC = () => {
               </Card>
 
               <Card>
-                <div className="p-6 border-b border-ash/10">
+                <div className="p-4 border-b border-ash/10">
                   <h2 className="font-display text-display-sm text-secondary">
                     Quick Actions
                   </h2>
                 </div>
-                <div className="p-6 grid grid-cols-2 gap-3">
+                <div className="p-4 grid grid-cols-2 gap-3">
                   <Button variant="ghost" className="h-20 flex flex-col gap-2">
                     <Calendar size={20} />
                     <span className="text-xs">Schedule Meeting</span>

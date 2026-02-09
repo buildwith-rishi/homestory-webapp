@@ -93,7 +93,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} size="full" showCloseButton={false}>
       <div className="flex flex-col h-[90vh]">
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-gray-200">
+        <div className="flex items-start justify-between p-4 border-b border-gray-200">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-100 to-orange-50 flex items-center justify-center shadow-sm">
               <User className="w-8 h-8 text-orange-600" />
@@ -127,8 +127,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 bg-gray-50 px-6">
-          <div className="flex gap-6">
+        <div className="border-b border-gray-200 bg-gray-50 px-4">
+          <div className="flex gap-4">
             <button
               onClick={() => setActiveTab("details")}
               className={`py-3 px-1 text-sm font-semibold border-b-2 transition-colors ${
@@ -170,12 +170,12 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4">
           {activeTab === "details" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-7xl">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-7xl">
               {/* Contact Information */}
-              <Card className="p-5">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+              <Card className="p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Contact Information</h3>
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 text-sm">
                     <Mail className="w-4 h-4 text-gray-400" />
@@ -195,8 +195,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               </Card>
 
               {/* Project Details */}
-              <Card className="p-5">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Details</h3>
+              <Card className="p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Project Details</h3>
                 <div className="space-y-3">
                   {lead.propertyType && (
                     <div className="flex items-center gap-3 text-sm">
@@ -231,8 +231,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
               {/* Design Preferences */}
               {lead.designStyle && (
-                <Card className="p-5">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Design Preferences</h3>
+                <Card className="p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Design Preferences</h3>
                   <div className="space-y-3">
                     <div>
                       <span className="text-sm text-gray-600">Style:</span>
@@ -259,8 +259,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               )}
 
               {/* Timeline */}
-              <Card className="p-5">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Timeline</h3>
+              <Card className="p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Timeline</h3>
                 <div className="space-y-3">
                   {lead.followUpDate && (
                     <div className="flex items-center gap-3 text-sm">
@@ -294,8 +294,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
               {/* Notes */}
               {lead.notes && (
-                <Card className="p-5 lg:col-span-2">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Card className="p-4 lg:col-span-2">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <MessageSquare className="w-5 h-5 text-gray-400" />
                     Notes
                   </h3>
@@ -330,7 +330,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
           <Button variant="secondary" onClick={onClose}>
             Close
           </Button>
