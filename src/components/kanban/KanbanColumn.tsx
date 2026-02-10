@@ -487,11 +487,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
                         ${emptyStateClass}
                       `}
                     >
-                      <p className="text-xs">
-                        Drop cards here or click
-                        <br />
-                        "Add a card" below
-                      </p>
+                      <p className="text-xs">Drop cards here</p>
                     </div>
                   )}
 
@@ -522,32 +518,6 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 </div>
               )}
             </Droppable>
-          )}
-
-          {/* ============================================================= */}
-          {/* FOOTER - Add Card Form - Hidden when collapsed */}
-          {/* ============================================================= */}
-          {!isCollapsed && (
-            <div
-              className={`${footerBorderClass} ${compactMode ? "p-1.5" : "p-2"}`}
-            >
-              {renderAddCardForm ? (
-                renderAddCardForm(
-                  column.id,
-                  (colId: string, data: any) => {
-                    onAddCard?.(colId, data);
-                  },
-                  theme,
-                )
-              ) : (
-                <AddCardFormWithButton
-                  onSubmit={handleAddCard}
-                  theme={theme}
-                  selectConfig={selectConfig}
-                  assignees={assignees}
-                />
-              )}
-            </div>
           )}
         </div>
       )}

@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import {
-  ChevronUp,
-  ChevronDown,
   Trash2,
   Edit3,
   CheckCircle2,
@@ -25,8 +23,6 @@ interface Props {
   currentStageCode: string | null;
   projectId: string;
   onDelete: (stageCode: string) => void;
-  onMoveUp: (stageCode: string) => void;
-  onMoveDown: (stageCode: string) => void;
   onOpenMatrix?: (stage: ProjectStageData) => void;
 }
 
@@ -78,8 +74,6 @@ export const ProjectStagesTableView: React.FC<Props> = ({
   currentStageCode,
   projectId,
   onDelete,
-  onMoveUp,
-  onMoveDown,
   onOpenMatrix,
 }) => {
   const { updateProjectStage } = useProjectStore();
@@ -281,20 +275,6 @@ export const ProjectStagesTableView: React.FC<Props> = ({
                       </div>
                     ) : (
                       <div className="flex items-center justify-end gap-0.5">
-                        <button
-                          onClick={() => onMoveUp(stage.stageCode)}
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                          title="Move up"
-                        >
-                          <ChevronUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => onMoveDown(stage.stageCode)}
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                          title="Move down"
-                        >
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        </button>
                         {onOpenMatrix && (
                           <button
                             onClick={() => onOpenMatrix(stage)}

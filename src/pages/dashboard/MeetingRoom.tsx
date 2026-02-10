@@ -89,6 +89,11 @@ export const MeetingRoom: React.FC = () => {
   const [newCheckpoint, setNewCheckpoint] = useState("");
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
+  // Recording indicator state
+  const [showRecordingIndicator, setShowRecordingIndicator] = useState(false);
+  const [isTranscriptionProcessing, setIsTranscriptionProcessing] =
+    useState(false);
+
   // ─── Store (API-driven state) ────────────────────────────────────────
   const {
     isInMeeting,
@@ -149,6 +154,15 @@ export const MeetingRoom: React.FC = () => {
   // Use live transcripts from the recording hook (they have interim + final)
   const transcripts = liveTranscripts;
 
+  // Track transcription processing state
+  useEffect(() => {
+    if (processingStage === "transcribing" || processingStage === "analyzing") {
+      setIsTranscriptionProcessing(true);
+    } else {
+      setIsTranscriptionProcessing(false);
+    }
+  }, [processingStage]);
+
   // ─── Elapsed time (from meetingStartTime) ────────────────────────────
   const [elapsedTime, setElapsedTime] = useState("00:00");
 
@@ -200,6 +214,11 @@ export const MeetingRoom: React.FC = () => {
       stopRecording();
     } else {
       await startRecording();
+      // Show recording indicator for 2 seconds
+      setShowRecordingIndicator(true);
+      setTimeout(() => {
+        setShowRecordingIndicator(false);
+      }, 2000);
     }
   };
 
@@ -629,6 +648,23 @@ export const MeetingRoom: React.FC = () => {
                 </div>
               </div>
 
+              {/* Recording Indicator Toast */}
+              {showRecordingIndicator && (
+                <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in">
+                  <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl border-2 border-emerald-400 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+                      <Radio className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-lg">Recording Started!</p>
+                      <p className="text-emerald-100 text-sm">
+                        You can start speaking now
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Participants Grid (from API) */}
               {participants.length > 1 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -893,14 +929,39 @@ export const MeetingRoom: React.FC = () => {
               {/* End Call */}
               <button
                 onClick={handleEndMeeting}
+                disabled={isTranscriptionProcessing}
                 className="relative group flex flex-col items-center gap-1"
+                title={
+                  isTranscriptionProcessing
+                    ? "Please wait while transcription is being processed..."
+                    : "End the meeting"
+                }
               >
-                <div className="w-20 h-14 rounded-2xl bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all shadow-sm">
-                  <Phone className="w-6 h-6 rotate-[135deg]" />
+                <div
+                  className={`w-20 h-14 rounded-2xl text-white flex items-center justify-center transition-all shadow-sm ${
+                    isTranscriptionProcessing
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-red-500 hover:bg-red-600"
+                  }`}
+                >
+                  {isTranscriptionProcessing ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Phone className="w-6 h-6 rotate-[135deg]" />
+                  )}
                 </div>
                 <span className="text-xs text-gray-500 font-medium">
-                  End Call
+                  {isTranscriptionProcessing ? "Processing..." : "End Call"}
                 </span>
+                {/* Tooltip for disabled state */}
+                {isTranscriptionProcessing && (
+                  <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap z-50">
+                    Transcription processing...
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                      <div className="border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                )}
               </button>
             </div>
           </div>
@@ -960,6 +1021,27 @@ export const MeetingRoom: React.FC = () => {
             {/* Transcript Tab */}
             {activeTab === "transcript" && (
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Transcription Processing Indicator */}
+                {isTranscriptionProcessing && (
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-900">
+                          Processing transcription...
+                        </p>
+                        <p className="text-xs text-blue-700 mt-0.5">
+                          {processingStage === "transcribing"
+                            ? "Converting audio to text"
+                            : processingStage === "analyzing"
+                              ? "Analyzing conversation"
+                              : "Please wait, this may take a few moments"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {transcripts.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">

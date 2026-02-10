@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import type {
   DraggableProvided,
   DraggableStateSnapshot,
@@ -166,7 +167,8 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
   const endDateOverdue =
     task.endDate && !isCompleted && isOverdue(task.endDate);
 
-  return (
+  // Card content to render (used both in portal and normal modes)
+  const cardContent = (
     <div
       ref={provided.innerRef}
       {...provided.draggableProps}
@@ -174,16 +176,15 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
         group relative rounded-lg overflow-hidden
         transition-all duration-300 ease-out
         border-l-4 ${priorityBorderClass}
-        backdrop-blur-sm
         ${
           isDragging
-            ? `rotate-1 scale-[1.02] shadow-2xl ring-2 ring-orange-500/50 z-50`
-            : `shadow-sm hover:shadow-lg hover:-translate-y-0.5 cursor-grab active:cursor-grabbing`
+            ? `rotate-1 scale-[1.02] shadow-2xl ring-2 ring-orange-500/50`
+            : `shadow-sm hover:shadow-lg hover:-translate-y-0.5 cursor-grab active:cursor-grabbing backdrop-blur-sm`
         }
         ${
           isLight
-            ? "bg-white/95 border border-gray-100 hover:border-gray-300"
-            : "bg-gray-900/80 border border-gray-700/40 hover:border-gray-500/80"
+            ? "bg-white border border-gray-100 hover:border-gray-300"
+            : "bg-gray-900 border border-gray-700/40 hover:border-gray-500/80"
         }
       `}
       style={provided.draggableProps.style}
@@ -452,6 +453,13 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
       </div>
     </div>
   );
+
+  // Use portal when dragging to escape stacking context of parent column
+  if (isDragging) {
+    return createPortal(cardContent, document.body);
+  }
+
+  return cardContent;
 };
 
 export default KanbanCard;

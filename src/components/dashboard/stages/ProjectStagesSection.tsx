@@ -39,7 +39,6 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
     error,
     fetchProjectStages,
     deleteProjectStage,
-    reorderProjectStages,
   } = useProjectStore();
 
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
@@ -89,34 +88,6 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
       return;
     try {
       await deleteProjectStage(project.id, stageCode);
-    } catch {
-      // Error handled in store
-    }
-  };
-
-  const handleMoveStage = async (
-    stageCode: string,
-    direction: "up" | "down",
-  ) => {
-    const sorted = [...projectStages].sort(
-      (a, b) => a.orderIndex - b.orderIndex,
-    );
-    const idx = sorted.findIndex((s) => s.stageCode === stageCode);
-    if (
-      (direction === "up" && idx <= 0) ||
-      (direction === "down" && idx >= sorted.length - 1)
-    )
-      return;
-
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    const newOrder = sorted.map((s, i) => {
-      if (i === idx) return { stageCode: s.stageCode, orderIndex: swapIdx + 1 };
-      if (i === swapIdx) return { stageCode: s.stageCode, orderIndex: idx + 1 };
-      return { stageCode: s.stageCode, orderIndex: i + 1 };
-    });
-
-    try {
-      await reorderProjectStages(project.id, { stages: newOrder });
     } catch {
       // Error handled in store
     }
@@ -335,8 +306,6 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
           currentStageCode={currentStageCode}
           projectId={project.id}
           onDelete={handleDeleteStage}
-          onMoveUp={(code) => handleMoveStage(code, "up")}
-          onMoveDown={(code) => handleMoveStage(code, "down")}
           onOpenMatrix={(stage) => setMatrixStage(stage)}
         />
       ) : (

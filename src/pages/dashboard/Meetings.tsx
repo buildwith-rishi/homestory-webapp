@@ -20,6 +20,8 @@ import {
   Plus,
   ExternalLink,
   Trash2,
+  Briefcase,
+  UserCircle,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
@@ -29,6 +31,9 @@ import {
   ScheduleMeetingModal,
   MeetingFormData,
 } from "../../components/dashboard/ScheduleMeetingModal";
+import { listLeads } from "../../services/leadApi";
+import { listProjects } from "../../services/projectApi";
+import type { Lead, Project } from "../../types";
 
 type MeetingDisplayStatus =
   | "scheduled"
@@ -116,6 +121,43 @@ export const MeetingsPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMeetingTypeModal, setShowMeetingTypeModal] = useState(false);
 
+  // New state for lead/project selection
+  const [selectedMeetingType, setSelectedMeetingType] = useState<
+    "residential" | "commercial" | null
+  >(null);
+  const [showEntitySelection, setShowEntitySelection] = useState(false);
+  const [entityType, setEntityType] = useState<"lead" | "project" | "none">(
+    "none",
+  );
+  const [selectedLeadId, setSelectedLeadId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [meetingTitle, setMeetingTitle] = useState<string>("");
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingEntities, setLoadingEntities] = useState(false);
+
+  // Fetch leads and projects
+  useEffect(() => {
+    const fetchEntities = async () => {
+      if (showMeetingTypeModal && !showEntitySelection) {
+        setLoadingEntities(true);
+        try {
+          const [leadsData, projectsData] = await Promise.all([
+            listLeads({ limit: 100 }),
+            listProjects({ limit: 100 }),
+          ]);
+          setLeads(leadsData.leads || []);
+          setProjects(projectsData.projects || []);
+        } catch (error) {
+          console.error("Error fetching leads/projects:", error);
+        } finally {
+          setLoadingEntities(false);
+        }
+      }
+    };
+    fetchEntities();
+  }, [showMeetingTypeModal, showEntitySelection]);
+
   // Fetch meetings on mount
   useEffect(() => {
     fetchMeetings();
@@ -197,22 +239,64 @@ export const MeetingsPage: React.FC = () => {
 
   const handleStartMeeting = () => {
     setShowMeetingTypeModal(true);
+    // Reset selections
+    setSelectedMeetingType(null);
+    setShowEntitySelection(false);
+    setEntityType("none");
+    setSelectedLeadId("");
+    setSelectedProjectId("");
+    setMeetingTitle("");
   };
 
   const handleStartMeetingWithType = async (
     meetingType: "residential" | "commercial",
   ) => {
+    setSelectedMeetingType(meetingType);
+    setShowEntitySelection(true);
+  };
+
+  const handleFinalStartMeeting = async () => {
+    if (!selectedMeetingType) return;
+
     setShowMeetingTypeModal(false);
+    setShowEntitySelection(false);
+
     try {
-      // Create a new meeting via API so we have a real meetingId
+      // Determine title and related entity
+      let title = meetingTitle;
+      let linkedLeadId: string | undefined;
+      let linkedProjectId: string | undefined;
+
+      if (entityType === "lead" && selectedLeadId) {
+        const lead = leads.find((l) => l.id === selectedLeadId);
+        title =
+          title ||
+          `${selectedMeetingType === "residential" ? "Residential" : "Commercial"} Meeting - ${lead?.name}`;
+        linkedLeadId = selectedLeadId;
+      } else if (entityType === "project" && selectedProjectId) {
+        const project = projects.find((p) => p.id === selectedProjectId);
+        title =
+          title ||
+          `${selectedMeetingType === "residential" ? "Residential" : "Commercial"} Meeting - ${project?.projectName || project?.name}`;
+        linkedProjectId = selectedProjectId;
+      } else {
+        title =
+          title ||
+          `${selectedMeetingType === "residential" ? "Residential" : "Commercial"} Meeting`;
+      }
+
+      // Create a new meeting via API
       const meetingData = {
-        title: `${meetingType === "residential" ? "Residential" : "Commercial"} Meeting`,
-        description: `${meetingType === "residential" ? "Residential" : "Commercial"} meeting`,
+        title,
+        description: `${selectedMeetingType === "residential" ? "Residential" : "Commercial"} meeting`,
         scheduledDate: new Date().toISOString(),
         duration: 30,
         status: "in_progress" as const,
         attendees: [],
+        leadId: linkedLeadId,
+        projectId: linkedProjectId,
       };
+
       const created = await createMeeting(meetingData);
       navigate("/dashboard/meeting-room", { state: { meetingId: created.id } });
     } catch (err) {
@@ -1036,15 +1120,22 @@ export const MeetingsPage: React.FC = () => {
                       </div>
                       <div>
                         <h2 className="text-xl font-bold text-gray-900">
-                          Select Meeting Type
+                          {showEntitySelection
+                            ? "Link Meeting"
+                            : "Select Meeting Type"}
                         </h2>
                         <p className="text-sm text-gray-600 mt-0.5">
-                          Choose the type of meeting you want to start
+                          {showEntitySelection
+                            ? `${selectedMeetingType === "residential" ? "Residential" : "Commercial"} meeting - Link to a lead or project`
+                            : "Choose the type of meeting you want to start"}
                         </p>
                       </div>
                     </div>
                     <button
-                      onClick={() => setShowMeetingTypeModal(false)}
+                      onClick={() => {
+                        setShowMeetingTypeModal(false);
+                        setShowEntitySelection(false);
+                      }}
                       className="p-2 hover:bg-white/50 rounded-lg transition-colors"
                     >
                       <X className="w-5 h-5 text-gray-500" />
@@ -1052,95 +1143,307 @@ export const MeetingsPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Meeting Type Options */}
-                <div className="p-6 space-y-4">
-                  {/* Residential Option */}
-                  <button
-                    onClick={() => handleStartMeetingWithType("residential")}
-                    className="w-full p-6 rounded-xl border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 transition-all group text-left"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                        <Users className="w-7 h-7 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-orange-600 transition-colors">
-                          Residential Meeting
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-3">
-                          For individual homeowners, families, and household
-                          projects
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
-                            Home Design
-                          </span>
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
-                            Renovation
-                          </span>
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
-                            Interior Consultation
-                          </span>
+                {/* Content */}
+                {!showEntitySelection ? (
+                  /* Meeting Type Options */
+                  <div className="p-6 space-y-4">
+                    {/* Residential Option */}
+                    <button
+                      onClick={() => handleStartMeetingWithType("residential")}
+                      className="w-full p-6 rounded-xl border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 transition-all group text-left"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                          <Users className="w-7 h-7 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-orange-600 transition-colors">
+                            Residential Meeting
+                          </h3>
+                          <p className="text-sm text-gray-600 mb-3">
+                            For individual homeowners, families, and household
+                            projects
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
+                              Home Design
+                            </span>
+                            <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
+                              Renovation
+                            </span>
+                            <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg border border-blue-200">
+                              Interior Consultation
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 group-hover:bg-orange-500 transition-colors flex-shrink-0">
+                          <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-white rotate-[-90deg]" />
                         </div>
                       </div>
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 group-hover:bg-orange-500 transition-colors flex-shrink-0">
-                        <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-white rotate-[-90deg]" />
-                      </div>
-                    </div>
-                  </button>
+                    </button>
 
-                  {/* Commercial Option */}
-                  <button
-                    onClick={() => handleStartMeetingWithType("commercial")}
-                    className="w-full p-6 rounded-xl border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 transition-all group text-left"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                        <MapPin className="w-7 h-7 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-orange-600 transition-colors">
-                          Commercial Meeting
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-3">
-                          For businesses, offices, retail spaces, and commercial
-                          projects
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
-                            Office Space
-                          </span>
-                          <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
-                            Retail Design
-                          </span>
-                          <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
-                            Corporate Projects
-                          </span>
+                    {/* Commercial Option */}
+                    <button
+                      onClick={() => handleStartMeetingWithType("commercial")}
+                      className="w-full p-6 rounded-xl border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 transition-all group text-left"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                          <MapPin className="w-7 h-7 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-orange-600 transition-colors">
+                            Commercial Meeting
+                          </h3>
+                          <p className="text-sm text-gray-600 mb-3">
+                            For businesses, offices, retail spaces, and
+                            commercial projects
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
+                              Office Space
+                            </span>
+                            <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
+                              Retail Design
+                            </span>
+                            <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg border border-purple-200">
+                              Corporate Projects
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 group-hover:bg-orange-500 transition-colors flex-shrink-0">
+                          <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-white rotate-[-90deg]" />
                         </div>
                       </div>
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 group-hover:bg-orange-500 transition-colors flex-shrink-0">
-                        <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-white rotate-[-90deg]" />
-                      </div>
-                    </div>
-                  </button>
+                    </button>
 
-                  {/* Info Banner */}
-                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm text-blue-900 font-medium mb-1">
-                          Why choose a meeting type?
-                        </p>
-                        <p className="text-xs text-blue-700">
-                          Selecting the meeting type helps us customize the
-                          experience with relevant tools, templates, and
-                          guidance specific to your project needs.
-                        </p>
+                    {/* Info Banner */}
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm text-blue-900 font-medium mb-1">
+                            Why choose a meeting type?
+                          </p>
+                          <p className="text-xs text-blue-700">
+                            Selecting the meeting type helps us customize the
+                            experience with relevant tools, templates, and
+                            guidance specific to your project needs.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  /* Entity Selection */
+                  <div className="p-6 space-y-6">
+                    {/* Entity Type Selection */}
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium text-gray-900">
+                        Link this meeting to:
+                      </label>
+                      <div className="grid grid-cols-3 gap-3">
+                        <button
+                          onClick={() => {
+                            setEntityType("lead");
+                            setSelectedProjectId("");
+                          }}
+                          className={`p-4 rounded-xl border-2 transition-all ${
+                            entityType === "lead"
+                              ? "border-orange-500 bg-orange-50"
+                              : "border-gray-200 hover:border-orange-300"
+                          }`}
+                        >
+                          <UserCircle
+                            className={`w-6 h-6 mx-auto mb-2 ${
+                              entityType === "lead"
+                                ? "text-orange-600"
+                                : "text-gray-400"
+                            }`}
+                          />
+                          <p
+                            className={`text-sm font-medium ${
+                              entityType === "lead"
+                                ? "text-orange-900"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            Lead
+                          </p>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEntityType("project");
+                            setSelectedLeadId("");
+                          }}
+                          className={`p-4 rounded-xl border-2 transition-all ${
+                            entityType === "project"
+                              ? "border-orange-500 bg-orange-50"
+                              : "border-gray-200 hover:border-orange-300"
+                          }`}
+                        >
+                          <Briefcase
+                            className={`w-6 h-6 mx-auto mb-2 ${
+                              entityType === "project"
+                                ? "text-orange-600"
+                                : "text-gray-400"
+                            }`}
+                          />
+                          <p
+                            className={`text-sm font-medium ${
+                              entityType === "project"
+                                ? "text-orange-900"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            Project
+                          </p>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEntityType("none");
+                            setSelectedLeadId("");
+                            setSelectedProjectId("");
+                          }}
+                          className={`p-4 rounded-xl border-2 transition-all ${
+                            entityType === "none"
+                              ? "border-orange-500 bg-orange-50"
+                              : "border-gray-200 hover:border-orange-300"
+                          }`}
+                        >
+                          <FileText
+                            className={`w-6 h-6 mx-auto mb-2 ${
+                              entityType === "none"
+                                ? "text-orange-600"
+                                : "text-gray-400"
+                            }`}
+                          />
+                          <p
+                            className={`text-sm font-medium ${
+                              entityType === "none"
+                                ? "text-orange-900"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            None
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Lead Selection */}
+                    {entityType === "lead" && (
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-900">
+                          Select Lead
+                        </label>
+                        {loadingEntities ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+                          </div>
+                        ) : leads.length > 0 ? (
+                          <select
+                            value={selectedLeadId}
+                            onChange={(e) => setSelectedLeadId(e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          >
+                            <option value="">Select a lead...</option>
+                            {leads.map((lead) => (
+                              <option key={lead.id} value={lead.id}>
+                                {lead.name}{" "}
+                                {lead.email ? `(${lead.email})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                            <p className="text-sm text-gray-600 text-center">
+                              No leads available. You can still start the
+                              meeting without linking it.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Project Selection */}
+                    {entityType === "project" && (
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-900">
+                          Select Project
+                        </label>
+                        {loadingEntities ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+                          </div>
+                        ) : projects.length > 0 ? (
+                          <select
+                            value={selectedProjectId}
+                            onChange={(e) =>
+                              setSelectedProjectId(e.target.value)
+                            }
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          >
+                            <option value="">Select a project...</option>
+                            {projects.map((project) => (
+                              <option key={project.id} value={project.id}>
+                                {project.projectName || project.name}{" "}
+                                {project.lead?.name
+                                  ? `- ${project.lead.name}`
+                                  : ""}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                            <p className="text-sm text-gray-600 text-center">
+                              No projects available. You can still start the
+                              meeting without linking it.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Meeting Title */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-900">
+                        Meeting Title{" "}
+                        {entityType === "none" && (
+                          <span className="text-red-500">*</span>
+                        )}
+                      </label>
+                      <input
+                        type="text"
+                        value={meetingTitle}
+                        onChange={(e) => setMeetingTitle(e.target.value)}
+                        placeholder={
+                          entityType === "none"
+                            ? "Enter meeting title..."
+                            : "Optional - auto-generated if empty"
+                        }
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => setShowEntitySelection(false)}
+                        className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={handleFinalStartMeeting}
+                        disabled={entityType === "none" && !meetingTitle.trim()}
+                        className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Start Meeting
+                      </button>
+                    </div>
+                  </div>
+                )}
               </Card>
             </div>
           </>,

@@ -351,6 +351,8 @@ const KanbanView: React.FC = () => {
         toast.success(
           `Lead moved from ${fromColumn?.title || oldStatus} to ${toColumn?.title || newStatus}`,
         );
+        // Auto-refresh to sync with backend
+        fetchLeads();
       } catch (error) {
         console.error("Failed to update lead status:", error);
         toast.error("Failed to update status. Reverting...");
@@ -446,6 +448,8 @@ const KanbanView: React.FC = () => {
           currentStageCode: newStageCode,
         });
         toast.success("Project stage updated");
+        // Auto-refresh to sync with backend
+        fetchProjects();
       } catch (error) {
         console.error("Failed to update project stage:", error);
         toast.error("Failed to update stage. Reverting...");
