@@ -23,6 +23,7 @@ import {
 import { Button, Card } from "../../ui";
 import { CreateMatrixModal } from "./CreateMatrixModal";
 import { EditMatrixModal } from "./EditMatrixModal";
+import { AddDayModal } from "./AddDayModal";
 import { DayTasksPanel } from "./DayTasksPanel";
 import { TaskDetailModal } from "./TaskDetailModal";
 import { CategoryTasksView } from "./CategoryTasksView";
@@ -84,15 +85,24 @@ const taskStatusConfig: Record<
   },
 };
 
+const parseDate = (d: string) => {
+  // Handle ISO strings like "2026-02-11T00:00:00.000Z" and plain "2026-02-11"
+  const dateOnly = d.includes("T") ? d.split("T")[0] : d;
+  return new Date(dateOnly + "T00:00:00");
+};
+
 const formatDate = (d: string) => {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
+  const date = parseDate(d);
+  if (isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
   });
 };
 
 const getDateForDay = (startDate: string, dayNumber: number) => {
-  const d = new Date(startDate + "T00:00:00");
+  const d = parseDate(startDate);
+  if (isNaN(d.getTime())) return "—";
   d.setDate(d.getDate() + dayNumber - 1);
   return d.toLocaleDateString("en-IN", {
     weekday: "short",
@@ -112,9 +122,13 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddDayModal, setShowAddDayModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskData, setSelectedTaskData] = useState<MatrixTask | null>(
+    null,
+  );
   const [matrixViewMode, setMatrixViewMode] = useState<"days" | "categories">(
     "days",
   );
@@ -122,6 +136,15 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   // Day pagination
   const DAYS_PER_PAGE = 7;
   const [dayPage, setDayPage] = useState(0);
+
+  const handleAddDaySuccess = () => {
+    setShowAddDayModal(false);
+    fetchMatrix();
+    // Jump to last page to show the new day
+    const newTotal = (matrix?.totalDays || 0) + 1;
+    const newLastPage = Math.ceil(newTotal / DAYS_PER_PAGE) - 1;
+    setDayPage(newLastPage);
+  };
 
   const fetchMatrix = useCallback(async () => {
     setLoading(true);
@@ -336,6 +359,15 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             variant="outline"
             size="sm"
             onClick={() => setShowEditModal(true)}
+            className="text-blue-600 border-blue-300 hover:bg-blue-50"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Days
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowEditModal(true)}
             className="text-gray-600 border-gray-300 hover:bg-gray-50"
           >
             <Settings className="w-4 h-4 mr-1" />
@@ -469,14 +501,22 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       {matrixViewMode === "days" && (
         <div className="flex items-center gap-3 flex-wrap">
           {categories.map((cat) => (
-            <div key={cat.id} className="flex items-center gap-1.5">
+            <div
+              key={cat.id}
+              className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg"
+            >
               <div
                 className="w-3 h-3 rounded-sm"
                 style={{ backgroundColor: cat.color }}
               />
-              <span className="text-xs font-medium text-gray-600">
+              <span className="text-xs font-medium text-gray-700">
                 {cat.name}
               </span>
+              {cat.assignedTo && cat.assignedTo !== "unassigned" && (
+                <span className="text-[10px] text-gray-500 ml-1">
+                  ({cat.assignedTo.replace(/-/g, " ")})
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -488,7 +528,10 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           categories={categories}
           stats={stats}
           matrixId={matrix?.id || ""}
-          onTaskClick={(taskId) => setSelectedTaskId(taskId)}
+          onTaskClick={(taskId, task) => {
+            setSelectedTaskId(taskId);
+            setSelectedTaskData(task || null);
+          }}
           onStatusChange={handleStatusChange}
           updatingTaskId={updatingTaskId}
         />
@@ -562,7 +605,10 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                       dayNumber={dayNum}
                       startDate={matrix.startDate}
                       categories={categories}
-                      onTaskClick={(taskId) => setSelectedTaskId(taskId)}
+                      onTaskClick={(taskId, task) => {
+                        setSelectedTaskId(taskId);
+                        setSelectedTaskData(task || null);
+                      }}
                       onStatusChange={handleStatusChange}
                       updatingTaskId={updatingTaskId}
                     />
@@ -571,6 +617,21 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
               </Card>
             );
           })}
+
+          {/* Add Next Day card — shown on the last page */}
+          {dayPage >= totalPages - 1 && matrixViewMode === "days" && (
+            <Card
+              className="bg-white/60 border-dashed border-2 border-gray-200 hover:border-orange-300 hover:bg-orange-50/30 transition-all cursor-pointer"
+              onClick={() => setShowAddDayModal(true)}
+            >
+              <button className="w-full flex items-center justify-center gap-2 px-4 py-4">
+                <Plus className="w-5 h-5 text-orange-400" />
+                <span className="text-sm font-medium text-gray-500">
+                  Add Day {totalDays + 1}
+                </span>
+              </button>
+            </Card>
+          )}
         </div>
       )}
 
@@ -586,6 +647,19 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             setShowEditModal(false);
             fetchMatrix();
           }}
+        />
+      )}
+
+      {/* Add Day Modal */}
+      {showAddDayModal && matrix && (
+        <AddDayModal
+          matrixId={matrix.id}
+          currentTotalDays={matrix.totalDays}
+          startDate={matrix.startDate}
+          categories={categories}
+          stageName={stage.stageName}
+          onClose={() => setShowAddDayModal(false)}
+          onSuccess={handleAddDaySuccess}
         />
       )}
 
@@ -611,7 +685,11 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             name: c.name,
             color: c.color,
           }))}
-          onClose={() => setSelectedTaskId(null)}
+          fallbackTask={selectedTaskData}
+          onClose={() => {
+            setSelectedTaskId(null);
+            setSelectedTaskData(null);
+          }}
           onStatusChanged={() => {
             fetchMatrix();
           }}

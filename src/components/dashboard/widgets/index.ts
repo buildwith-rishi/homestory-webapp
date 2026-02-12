@@ -31,6 +31,7 @@ const LeaderboardWidget = React.lazy(() => import("./LeaderboardWidget"));
 const ActivityWidget = React.lazy(() => import("./ActivityWidget"));
 const QuickAddWidget = React.lazy(() => import("./QuickAddWidget"));
 const NotesWidget = React.lazy(() => import("./NotesWidget"));
+const UpcomingTasksWidget = React.lazy(() => import("./UpcomingTasksWidget"));
 
 // Widget Registry
 export const WIDGET_REGISTRY: WidgetRegistryItem[] = [
@@ -142,6 +143,17 @@ export const WIDGET_REGISTRY: WidgetRegistryItem[] = [
     icon: "StickyNote",
     defaultSize: { w: 1, h: 1 },
     component: NotesWidget,
+  },
+  {
+    id: "upcoming-tasks",
+    name: "Upcoming Tasks",
+    description:
+      "View upcoming tasks across all projects due in the next 7 days.",
+    category: "actions",
+    icon: "ListTodo",
+    featured: true,
+    defaultSize: { w: 1, h: 1 },
+    component: UpcomingTasksWidget,
   },
 ];
 

@@ -169,7 +169,9 @@ const EventComponent: React.FC<{ event: CalendarMeeting }> = ({ event }) => {
 const MeetingModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSave: (meeting: Omit<CalendarMeeting, "id"> | CalendarMeeting) => Promise<void>;
+  onSave: (
+    meeting: Omit<CalendarMeeting, "id"> | CalendarMeeting,
+  ) => Promise<void>;
   onDelete?: () => Promise<void>;
   meeting?: CalendarMeeting | null;
   defaultStart?: Date;
@@ -283,7 +285,9 @@ const MeetingModal: React.FC<{
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-900">Failed to save meeting</p>
+                <p className="text-sm font-medium text-red-900">
+                  Failed to save meeting
+                </p>
                 <p className="text-sm text-red-700 mt-1">{error}</p>
               </div>
             </div>
@@ -541,7 +545,14 @@ const MeetingDetailPopup: React.FC<{
   onDelete: () => Promise<void>;
   onViewDetails: () => void;
   isLoading?: boolean;
-}> = ({ meeting, onClose, onEdit, onDelete, onViewDetails, isLoading = false }) => {
+}> = ({
+  meeting,
+  onClose,
+  onEdit,
+  onDelete,
+  onViewDetails,
+  isLoading = false,
+}) => {
   const typeConfig = meetingTypes[meeting.type] || meetingTypes.consultation; // Fallback to consultation if type not found
   const TypeIcon = typeConfig.icon;
   const status = statusConfig[meeting.status] || statusConfig.scheduled; // Fallback to scheduled if status not found
@@ -705,16 +716,16 @@ const MeetingDetailPopup: React.FC<{
 // Main Calendar Page Component
 export const MeetingsCalendarPage: React.FC = () => {
   const navigate = useNavigate();
-  const { 
-    meetings: apiMeetings, 
-    isLoading, 
-    error, 
+  const {
+    meetings: apiMeetings,
+    isLoading,
+    error,
     fetchMeetings,
     createMeeting,
     updateMeeting,
     deleteMeeting,
   } = useMeetingStore();
-  
+
   const [view, setView] = useState<"month" | "week" | "day" | "agenda">(
     "month",
   );
@@ -740,29 +751,49 @@ export const MeetingsCalendarPage: React.FC = () => {
   const calendarMeetings: CalendarMeeting[] = useMemo(() => {
     return apiMeetings.map((meeting) => {
       // Get scheduled date with fallbacks
-      const scheduledDate = meeting.scheduledAt || meeting.scheduledDate || meeting.createdAt;
-      
+      const scheduledDate =
+        meeting.scheduledAt || meeting.scheduledDate || meeting.createdAt;
+
       // Create date object with validation
       let start: Date;
       if (scheduledDate) {
         start = new Date(scheduledDate);
         // Check if date is valid
         if (isNaN(start.getTime())) {
-          console.warn('Invalid date for calendar meeting:', meeting.id, scheduledDate);
+          console.warn(
+            "Invalid date for calendar meeting:",
+            meeting.id,
+            scheduledDate,
+          );
           start = new Date(); // Fallback to current date
         }
       } else {
-        console.warn('No date found for calendar meeting:', meeting.id);
+        console.warn("No date found for calendar meeting:", meeting.id);
         start = new Date(); // Fallback to current date
       }
-      
+
       const durationMinutes = meeting.duration || 30;
       const end = new Date(start.getTime() + durationMinutes * 60000);
-      
+
+      // Parse title to extract lead/project name and meeting type
+      // Format: "Meeting Type - Lead/Project Name"
+      let displayTitle = meeting.title;
+      let displaySubtitle = meeting.description || "Client";
+
+      if (meeting.title && meeting.title.includes(" - ")) {
+        const parts = meeting.title.split(" - ");
+        if (parts.length >= 2) {
+          // Main title should be the lead/project name (after the dash)
+          displayTitle = parts[1].trim();
+          // Subtitle should be the meeting type (before the dash)
+          displaySubtitle = parts[0].trim();
+        }
+      }
+
       return {
         id: meeting.id,
-        title: meeting.title,
-        client: meeting.description || "Client",
+        title: displayTitle,
+        client: displaySubtitle,
         start,
         end,
         status: meeting.status,
@@ -795,7 +826,7 @@ export const MeetingsCalendarPage: React.FC = () => {
   const handleAddMeeting = async (meeting: Omit<CalendarMeeting, "id">) => {
     setMutationLoading(true);
     setMutationError(null);
-    
+
     try {
       // Map calendar meeting to store format (NOT directly to API format)
       // The store's createMeeting will handle the mapping to API format
@@ -803,19 +834,22 @@ export const MeetingsCalendarPage: React.FC = () => {
         title: meeting.title,
         description: meeting.client,
         scheduledDate: meeting.start.toISOString(),
-        duration: Math.round((meeting.end.getTime() - meeting.start.getTime()) / 60000),
+        duration: Math.round(
+          (meeting.end.getTime() - meeting.start.getTime()) / 60000,
+        ),
         location: meeting.location,
         attendees: meeting.attendees,
         status: meeting.status,
         // These fields help the store determine entityType
         // If no specific entity, the store will use defaults
       };
-      
+
       await createMeeting(meetingData);
       // Refresh meetings list
       await fetchMeetings();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to create meeting";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to create meeting";
       setMutationError(errorMessage);
       throw error; // Re-throw to prevent modal from closing
     } finally {
@@ -827,24 +861,27 @@ export const MeetingsCalendarPage: React.FC = () => {
   const handleUpdateMeeting = async (meeting: CalendarMeeting) => {
     setMutationLoading(true);
     setMutationError(null);
-    
+
     try {
       // Map calendar meeting to API update format
       const updates = {
         title: meeting.title,
         description: meeting.client,
         scheduledDate: meeting.start.toISOString(),
-        duration: Math.round((meeting.end.getTime() - meeting.start.getTime()) / 60000),
+        duration: Math.round(
+          (meeting.end.getTime() - meeting.start.getTime()) / 60000,
+        ),
         location: meeting.location,
         attendees: meeting.attendees,
         status: meeting.status,
       };
-      
+
       await updateMeeting(meeting.id.toString(), updates);
       // Refresh meetings list
       await fetchMeetings();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to update meeting";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to update meeting";
       setMutationError(errorMessage);
       throw error; // Re-throw to prevent modal from closing
     } finally {
@@ -856,13 +893,14 @@ export const MeetingsCalendarPage: React.FC = () => {
   const handleDeleteMeeting = async (id: number | string) => {
     setMutationLoading(true);
     setMutationError(null);
-    
+
     try {
       await deleteMeeting(id.toString());
       // Refresh meetings list
       await fetchMeetings();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete meeting";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to delete meeting";
       setMutationError(errorMessage);
       throw error;
     } finally {
@@ -901,7 +939,9 @@ export const MeetingsCalendarPage: React.FC = () => {
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
             <div>
-              <h3 className="text-sm font-semibold text-red-900">Error loading meetings</h3>
+              <h3 className="text-sm font-semibold text-red-900">
+                Error loading meetings
+              </h3>
               <p className="text-sm text-red-700 mt-1">{error}</p>
               <Button
                 onClick={() => fetchMeetings()}
@@ -973,16 +1013,19 @@ export const MeetingsCalendarPage: React.FC = () => {
 
       {/* Calendar */}
       {isLoading ? (
-        <Card className="p-12 rounded-xl text-center" style={{ minHeight: "600px" }}>
+        <Card
+          className="p-12 rounded-xl text-center"
+          style={{ minHeight: "600px" }}
+        >
           <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Loading meetings...</p>
         </Card>
       ) : (
-      <Card
-        className="p-6"
-        style={{ height: "calc(100vh - 280px)", minHeight: "600px" }}
-      >
-        <style>{`
+        <Card
+          className="p-6"
+          style={{ height: "calc(100vh - 280px)", minHeight: "600px" }}
+        >
+          <style>{`
           .rbc-calendar {
             height: 100%;
             font-family: inherit;
@@ -1103,50 +1146,52 @@ export const MeetingsCalendarPage: React.FC = () => {
             display: none;
           }
         `}</style>
-        <CustomToolbar
-          date={date}
-          onNavigate={(action) => {
-            if (action === "TODAY") handleNavigate(new Date());
-            else if (action === "PREV") {
-              const newDate = new Date(date);
-              if (view === "month") newDate.setMonth(newDate.getMonth() - 1);
-              else if (view === "week") newDate.setDate(newDate.getDate() - 7);
-              else newDate.setDate(newDate.getDate() - 1);
-              handleNavigate(newDate);
-            } else {
-              const newDate = new Date(date);
-              if (view === "month") newDate.setMonth(newDate.getMonth() + 1);
-              else if (view === "week") newDate.setDate(newDate.getDate() + 7);
-              else newDate.setDate(newDate.getDate() + 1);
-              handleNavigate(newDate);
-            }
-          }}
-          onView={setView}
-          view={view}
-        />
-        <div className="h-[calc(100%-60px)]">
-          <Calendar
-            localizer={localizer}
-            events={calendarMeetings}
-            startAccessor="start"
-            endAccessor="end"
-            view={view}
+          <CustomToolbar
             date={date}
-            onNavigate={handleNavigate}
-            onView={(newView) => setView(newView as typeof view)}
-            onSelectSlot={handleSelectSlot}
-            onSelectEvent={handleSelectEvent}
-            selectable
-            dayPropGetter={dayPropGetter}
-            eventPropGetter={eventPropGetter}
-            components={{
-              event: EventComponent,
+            onNavigate={(action) => {
+              if (action === "TODAY") handleNavigate(new Date());
+              else if (action === "PREV") {
+                const newDate = new Date(date);
+                if (view === "month") newDate.setMonth(newDate.getMonth() - 1);
+                else if (view === "week")
+                  newDate.setDate(newDate.getDate() - 7);
+                else newDate.setDate(newDate.getDate() - 1);
+                handleNavigate(newDate);
+              } else {
+                const newDate = new Date(date);
+                if (view === "month") newDate.setMonth(newDate.getMonth() + 1);
+                else if (view === "week")
+                  newDate.setDate(newDate.getDate() + 7);
+                else newDate.setDate(newDate.getDate() + 1);
+                handleNavigate(newDate);
+              }
             }}
-            popup
-            views={["month", "week", "day", "agenda"]}
+            onView={setView}
+            view={view}
           />
-        </div>
-      </Card>
+          <div className="h-[calc(100%-60px)]">
+            <Calendar
+              localizer={localizer}
+              events={calendarMeetings}
+              startAccessor="start"
+              endAccessor="end"
+              view={view}
+              date={date}
+              onNavigate={handleNavigate}
+              onView={(newView) => setView(newView as typeof view)}
+              onSelectSlot={handleSelectSlot}
+              onSelectEvent={handleSelectEvent}
+              selectable
+              dayPropGetter={dayPropGetter}
+              eventPropGetter={eventPropGetter}
+              components={{
+                event: EventComponent,
+              }}
+              popup
+              views={["month", "week", "day", "agenda"]}
+            />
+          </div>
+        </Card>
       )}
 
       {/* Modals */}

@@ -23,17 +23,80 @@ export enum ProjectStage {
   COMPLETE = "complete",
 }
 
+// Task API Enums
+export enum TaskType {
+  CALL = "CALL",
+  MEETING = "MEETING",
+  PRESENTATION = "PRESENTATION",
+  SURVEY = "SURVEY",
+  INTERVIEW = "INTERVIEW",
+  SITE_VISIT = "SITE_VISIT",
+  FOLLOW_UP = "FOLLOW_UP",
+  DOCUMENT_UPLOAD = "DOCUMENT_UPLOAD",
+  APPROVAL_PENDING = "APPROVAL_PENDING",
+  DESIGN_REVIEW = "DESIGN_REVIEW",
+  PAYMENT_COLLECTION = "PAYMENT_COLLECTION",
+  HANDOVER = "HANDOVER",
+  OTHER = "OTHER",
+}
+
+export enum TaskPriority {
+  LOW = "LOW",
+  MEDIUM = "MEDIUM",
+  HIGH = "HIGH",
+  URGENT = "URGENT",
+}
+
+export enum TaskStatus {
+  TODO = "TODO",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  BLOCKED = "BLOCKED",
+  CANCELLED = "CANCELLED",
+}
+
+// Task Interface (matches API response)
 export interface Task {
   id: string;
   projectId: string;
   title: string;
-  description?: string;
+  taskType: string;
   dueDate: string;
-  dueTime?: string;
+  priority: string;
+  status: string;
+  assignedToId?: string;
+  notes?: string;
   completed: boolean;
-  assignedTo?: string;
   createdAt: string;
+  updatedAt: string;
+  // Legacy fields for backwards compatibility
+  description?: string;
+  dueTime?: string;
+  assignedTo?: string;
   completedAt?: string;
+}
+
+// Task API Request Types
+export interface CreateTaskRequest {
+  title: string;
+  taskType: string;
+  projectId: string;
+  dueDate: string;
+  priority: string;
+  status: string;
+  assignedToId?: string;
+  notes?: string;
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  taskType?: string;
+  dueDate?: string;
+  priority?: string;
+  status?: string;
+  assignedToId?: string;
+  notes?: string;
+  completed?: boolean;
 }
 
 // Project API Enums
@@ -127,6 +190,7 @@ export interface ProjectOptions {
 // Pause Project Request
 export interface PauseProjectRequest {
   reason: string;
+  pauseDays: number;
   expectedResumeDate: string; // ISO 8601 format
 }
 
@@ -559,7 +623,8 @@ export interface Lead {
   quotationSent?: boolean;
 
   // Assignment & Activities
-  assignedTo?: string;
+  assignedTo?: { id: string; name: string } | null; // BDR (Business Development Representative)
+  assignedToId?: string | null;
   assignedDesigner?: string;
   activities?: LeadActivity[];
   references?: LeadReference[];
@@ -1360,6 +1425,7 @@ export interface MatrixCategory {
   name: string;
   orderIndex: number;
   color: string;
+  assignedTo?: string;
 }
 
 export interface MatrixTask {
@@ -1409,7 +1475,12 @@ export interface TaskMatrix {
 export interface CreateMatrixRequest {
   totalDays: number;
   startDate: string;
-  categories: { name: string; orderIndex: number; color: string }[];
+  categories: {
+    name: string;
+    orderIndex: number;
+    color: string;
+    assignedTo?: string;
+  }[];
   tasks?: {
     dayNumber: number;
     categoryId?: string;
@@ -1784,4 +1855,67 @@ export interface LanguageOption {
   name: string;
   /** Is this the default option */
   isDefault?: boolean;
+}
+
+// ==========================================
+// Activity Types
+// ==========================================
+
+/**
+ * Types of activities that can be logged in the system
+ */
+export type ActivityType =
+  | "NOTE"
+  | "CALL"
+  | "MEETING"
+  | "EMAIL"
+  | "WHATSAPP"
+  | "SITE_VISIT"
+  | "STAGE_CHANGE"
+  | "STATUS_CHANGE"
+  | "PAYMENT"
+  | "DOCUMENT_UPLOAD"
+  | "TASK_COMPLETED";
+
+/**
+ * Entity types that can have activities
+ */
+export type EntityType = "LEAD" | "PROJECT" | "CUSTOMER";
+
+/**
+ * Main Activity interface
+ */
+export interface Activity {
+  id: string;
+  entityType: EntityType;
+  entityId: string;
+  type: ActivityType;
+  description: string;
+  durationMinutes?: number;
+  metadata?: Record<string, any>;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Request payload for creating an activity
+ */
+export interface CreateActivityRequest {
+  entityType: EntityType;
+  entityId: string;
+  type: ActivityType;
+  description: string;
+  durationMinutes?: number;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Request payload for logging specific activity types
+ */
+export interface LogActivityRequest {
+  entityType: EntityType;
+  entityId: string;
+  description: string;
+  durationMinutes?: number;
 }

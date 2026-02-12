@@ -35,6 +35,8 @@ import {
   EngineerTasks,
   PhotoUpload,
   ReportIssue,
+  EngineerProfile,
+  EngineerIssues,
 } from "./pages/mobile";
 import { UserRole } from "./types";
 
@@ -75,7 +77,10 @@ function App() {
           >
             <Route index element={<DashboardOverview />} />
             <Route path="meetings" element={<MeetingsPage />} />
-            <Route path="meetings/:meetingId" element={<MeetingDetailsPage />} />
+            <Route
+              path="meetings/:meetingId"
+              element={<MeetingDetailsPage />}
+            />
             <Route
               path="meetings/calendar"
               element={<MeetingsCalendarPage />}
@@ -165,7 +170,31 @@ function App() {
                 allowedRoles={[UserRole.ENGINEER, UserRole.ADMIN]}
               >
                 <MobileAppShell>
+                  <EngineerIssues />
+                </MobileAppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/issues/report"
+            element={
+              <ProtectedRoute
+                allowedRoles={[UserRole.ENGINEER, UserRole.ADMIN]}
+              >
+                <MobileAppShell>
                   <ReportIssue />
+                </MobileAppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/profile"
+            element={
+              <ProtectedRoute
+                allowedRoles={[UserRole.ENGINEER, UserRole.ADMIN]}
+              >
+                <MobileAppShell>
+                  <EngineerProfile />
                 </MobileAppShell>
               </ProtectedRoute>
             }

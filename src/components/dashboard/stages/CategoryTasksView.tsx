@@ -20,7 +20,7 @@ interface CategoryTasksViewProps {
   categories: MatrixCategory[];
   stats: MatrixStats | null;
   matrixId: string;
-  onTaskClick: (taskId: string) => void;
+  onTaskClick: (taskId: string, task?: MatrixTask) => void;
   onStatusChange: (taskId: string, newStatus: string) => void;
   updatingTaskId: string | null;
 }
@@ -182,9 +182,17 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
       {taskStats.total > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-gray-500 font-medium">
-              {selectedCat?.name} Progress
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">
+                {selectedCat?.name} Progress
+              </span>
+              {selectedCat?.assignedTo &&
+                selectedCat.assignedTo !== "unassigned" && (
+                  <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                    {selectedCat.assignedTo.replace(/-/g, " ")}
+                  </span>
+                )}
+            </div>
             <span className="text-xs font-bold text-gray-700">
               {Math.round((taskStats.completed / taskStats.total) * 100)}%
             </span>
@@ -276,7 +284,7 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
 
                         <div
                           className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => onTaskClick(task.id)}
+                          onClick={() => onTaskClick(task.id, task)}
                         >
                           <p
                             className={`text-sm font-medium ${
@@ -307,7 +315,7 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
                         )}
 
                         <button
-                          onClick={() => onTaskClick(task.id)}
+                          onClick={() => onTaskClick(task.id, task)}
                           className="p-1 text-gray-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition-all"
                           title="View details"
                         >

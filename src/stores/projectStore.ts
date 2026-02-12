@@ -4,7 +4,7 @@ import type {
   ProjectFilters,
   ProjectStageData,
   ProjectPayment,
-  ProjectTask,
+  Task,
   StageTemplate,
   CreateProjectRequest,
   UpdateProjectRequest,
@@ -12,8 +12,11 @@ import type {
   UpdatePaymentRequest,
   PauseProjectRequest,
   PauseStatusResponse,
+  CreateTaskRequest,
+  UpdateTaskRequest,
 } from "../types";
 import * as projectAPI from "../services/projectApi";
+import * as tasksAPI from "../services/tasksApi";
 import type {
   AddStageRequest,
   ReorderStagesRequest,
@@ -27,7 +30,11 @@ interface ProjectState {
   filters: ProjectFilters;
   projectStages: ProjectStageData[];
   projectPayments: ProjectPayment[];
-  projectTasks: ProjectTask[];
+  projectTasks: Task[];
+  upcomingTasks: Task[];
+  allTasks: Task[];
+  tasksLoading: boolean;
+  tasksError: string | null;
   availableStages: StageTemplate[];
   currentStageCode: string | null;
   currentPhase: string | null;
@@ -74,6 +81,14 @@ interface ProjectState {
   cancelProject: (projectId: string) => Promise<void>;
   fetchPauseStatus: (projectId: string) => Promise<PauseStatusResponse>;
   pauseStatus: PauseStatusResponse | null;
+
+  // Task Management
+  createTask: (data: CreateTaskRequest) => Promise<Task>;
+  updateTask: (taskId: string, data: UpdateTaskRequest) => Promise<Task>;
+  deleteTask: (taskId: string) => Promise<void>;
+  completeTask: (taskId: string) => Promise<Task>;
+  fetchUpcomingTasks: () => Promise<void>;
+  fetchAllTasks: () => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -84,6 +99,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   projectStages: [],
   projectPayments: [],
   projectTasks: [],
+  upcomingTasks: [],
+  allTasks: [],
+  tasksLoading: false,
+  tasksError: null,
   availableStages: [],
   currentStageCode: null,
   currentPhase: null,
@@ -155,17 +174,34 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  fetchProjectTasks: async (projectId: string) => {
-    set({ isLoading: true, error: null });
+  fetchProjectTasks: async (projectId: string, retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    set({ tasksLoading: true, tasksError: null });
     try {
-      const response = await projectAPI.getProjectTasks(projectId);
-      set({ projectTasks: response.tasks, isLoading: false });
+      const tasks = await tasksAPI.getTasks(projectId);
+      // Ensure tasks is always an array
+      const tasksArray = Array.isArray(tasks) ? tasks : [];
+      set({ projectTasks: tasksArray, tasksLoading: false, tasksError: null });
     } catch (error) {
+      // Retry logic for transient errors
+      if (
+        retryCount < MAX_RETRIES &&
+        error instanceof Error &&
+        (error.message.includes("network") ||
+          error.message.includes("timeout") ||
+          error.message.includes("503"))
+      ) {
+        console.log(`Retrying fetchProjectTasks... attempt ${retryCount + 1}`);
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * (retryCount + 1)),
+        );
+        return get().fetchProjectTasks(projectId, retryCount + 1);
+      }
       const errorMessage =
         error instanceof Error
           ? error.message
-          : "Failed to fetch project tasks";
-      set({ isLoading: false, error: errorMessage });
+          : "Failed to fetch project tasks. Please refresh to try again.";
+      set({ tasksLoading: false, tasksError: errorMessage });
     }
   },
 
@@ -483,7 +519,328 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
+  // Task Management Methods
+  createTask: async (data: CreateTaskRequest, retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    set({ tasksLoading: true, tasksError: null });
+    try {
+      const newTask = await tasksAPI.createTask(data);
+      set((state) => ({
+        projectTasks: [...state.projectTasks, newTask],
+        allTasks: [...state.allTasks, newTask],
+        upcomingTasks:
+          newTask.dueDate && !newTask.completed
+            ? [...state.upcomingTasks, newTask].sort(
+                (a, b) =>
+                  new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+              )
+            : state.upcomingTasks,
+        tasksLoading: false,
+      }));
+      return newTask;
+    } catch (error) {
+      // Retry logic for transient errors
+      if (
+        retryCount < MAX_RETRIES &&
+        error instanceof Error &&
+        (error.message.includes("network") ||
+          error.message.includes("timeout") ||
+          error.message.includes("503"))
+      ) {
+        console.log(`Retrying createTask... attempt ${retryCount + 1}`);
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * (retryCount + 1)),
+        );
+        return get().createTask(data, retryCount + 1);
+      }
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to create task. Please try again.";
+      set({ tasksLoading: false, tasksError: errorMessage });
+      throw error;
+    }
+  },
+
+  updateTask: async (
+    taskId: string,
+    data: UpdateTaskRequest,
+    retryCount = 0,
+  ) => {
+    const MAX_RETRIES = 2;
+    const state = get();
+    const originalTask =
+      state.projectTasks.find((t) => t.id === taskId) ||
+      state.allTasks.find((t) => t.id === taskId);
+
+    // Optimistic update
+    const optimisticTask = originalTask ? { ...originalTask, ...data } : null;
+    if (optimisticTask) {
+      set((state) => ({
+        projectTasks: state.projectTasks.map((task) =>
+          task.id === taskId ? optimisticTask : task,
+        ),
+        upcomingTasks: state.upcomingTasks.map((task) =>
+          task.id === taskId ? optimisticTask : task,
+        ),
+        allTasks: state.allTasks.map((task) =>
+          task.id === taskId ? optimisticTask : task,
+        ),
+      }));
+    }
+
+    try {
+      const updatedTask = await tasksAPI.updateTask(taskId, data);
+      set((state) => ({
+        projectTasks: state.projectTasks.map((task) =>
+          task.id === taskId ? updatedTask : task,
+        ),
+        upcomingTasks: state.upcomingTasks.map((task) =>
+          task.id === taskId ? updatedTask : task,
+        ),
+        allTasks: state.allTasks.map((task) =>
+          task.id === taskId ? updatedTask : task,
+        ),
+        tasksError: null,
+      }));
+      return updatedTask;
+    } catch (error) {
+      // Rollback optimistic update on failure
+      if (originalTask) {
+        set((state) => ({
+          projectTasks: state.projectTasks.map((task) =>
+            task.id === taskId ? originalTask : task,
+          ),
+          upcomingTasks: state.upcomingTasks.map((task) =>
+            task.id === taskId ? originalTask : task,
+          ),
+          allTasks: state.allTasks.map((task) =>
+            task.id === taskId ? originalTask : task,
+          ),
+        }));
+      }
+
+      // Retry logic for transient errors
+      if (
+        retryCount < MAX_RETRIES &&
+        error instanceof Error &&
+        (error.message.includes("network") ||
+          error.message.includes("timeout") ||
+          error.message.includes("503"))
+      ) {
+        console.log(`Retrying updateTask... attempt ${retryCount + 1}`);
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * (retryCount + 1)),
+        );
+        return get().updateTask(taskId, data, retryCount + 1);
+      }
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to update task. Please try again.";
+      set({ tasksError: errorMessage });
+      throw error;
+    }
+  },
+
+  deleteTask: async (taskId: string, retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    const state = get();
+    const originalTask =
+      state.projectTasks.find((t) => t.id === taskId) ||
+      state.allTasks.find((t) => t.id === taskId);
+
+    // Optimistic delete - remove immediately from UI
+    set((state) => ({
+      projectTasks: state.projectTasks.filter((task) => task.id !== taskId),
+      upcomingTasks: state.upcomingTasks.filter((task) => task.id !== taskId),
+      allTasks: state.allTasks.filter((task) => task.id !== taskId),
+    }));
+
+    try {
+      await tasksAPI.deleteTask(taskId);
+      set({ tasksError: null });
+    } catch (error) {
+      // Rollback optimistic delete on failure
+      if (originalTask) {
+        set((state) => ({
+          projectTasks: [...state.projectTasks, originalTask],
+          upcomingTasks:
+            originalTask.dueDate && !originalTask.completed
+              ? [...state.upcomingTasks, originalTask]
+              : state.upcomingTasks,
+          allTasks: [...state.allTasks, originalTask],
+        }));
+      }
+
+      // Retry logic for transient errors
+      if (
+        retryCount < MAX_RETRIES &&
+        error instanceof Error &&
+        (error.message.includes("network") ||
+          error.message.includes("timeout") ||
+          error.message.includes("503"))
+      ) {
+        console.log(`Retrying deleteTask... attempt ${retryCount + 1}`);
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * (retryCount + 1)),
+        );
+        return get().deleteTask(taskId, retryCount + 1);
+      }
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete task. Please try again.";
+      set({ tasksError: errorMessage });
+      throw error;
+    }
+  },
+
+  completeTask: async (taskId: string, retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    const state = get();
+    const originalTask =
+      state.projectTasks.find((t) => t.id === taskId) ||
+      state.allTasks.find((t) => t.id === taskId);
+
+    // Optimistic update - mark as completed immediately
+    const optimisticTask = originalTask
+      ? {
+          ...originalTask,
+          completed: true,
+          status: "COMPLETED" as const,
+          completedAt: new Date().toISOString(),
+        }
+      : null;
+
+    if (optimisticTask) {
+      set((state) => ({
+        projectTasks: state.projectTasks.map((task) =>
+          task.id === taskId ? optimisticTask : task,
+        ),
+        upcomingTasks: state.upcomingTasks.filter((task) => task.id !== taskId),
+        allTasks: state.allTasks.map((task) =>
+          task.id === taskId ? optimisticTask : task,
+        ),
+      }));
+    }
+
+    try {
+      const completedTask = await tasksAPI.completeTask(taskId);
+      set((state) => ({
+        projectTasks: state.projectTasks.map((task) =>
+          task.id === taskId ? completedTask : task,
+        ),
+        upcomingTasks: state.upcomingTasks.filter((task) => task.id !== taskId),
+        allTasks: state.allTasks.map((task) =>
+          task.id === taskId ? completedTask : task,
+        ),
+        tasksError: null,
+      }));
+      return completedTask;
+    } catch (error) {
+      // Rollback optimistic update on failure
+      if (originalTask) {
+        set((state) => ({
+          projectTasks: state.projectTasks.map((task) =>
+            task.id === taskId ? originalTask : task,
+          ),
+          upcomingTasks:
+            originalTask.dueDate && !originalTask.completed
+              ? [...state.upcomingTasks, originalTask].sort(
+                  (a, b) =>
+                    new Date(a.dueDate).getTime() -
+                    new Date(b.dueDate).getTime(),
+                )
+              : state.upcomingTasks,
+          allTasks: state.allTasks.map((task) =>
+            task.id === taskId ? originalTask : task,
+          ),
+        }));
+      }
+
+      // Retry logic for transient errors
+      if (
+        retryCount < MAX_RETRIES &&
+        error instanceof Error &&
+        (error.message.includes("network") ||
+          error.message.includes("timeout") ||
+          error.message.includes("503"))
+      ) {
+        console.log(`Retrying completeTask... attempt ${retryCount + 1}`);
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * (retryCount + 1)),
+        );
+        return get().completeTask(taskId, retryCount + 1);
+      }
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to complete task. Please try again.";
+      set({ tasksError: errorMessage });
+      throw error;
+    }
+  },
+
+  fetchUpcomingTasks: async (retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    set({ tasksLoading: true, tasksError: null });
+    try {
+      const tasks = await tasksAPI.getUpcomingTasks();
+      set({ upcomingTasks: tasks, tasksLoading: false, tasksError: null });
+    } catch (error) {
+      // Retry logic for transient errors
+      if (
+        retryCount < MAX_RETRIES &&
+        error instanceof Error &&
+        (error.message.includes("network") ||
+          error.message.includes("timeout") ||
+          error.message.includes("503"))
+      ) {
+        console.log(`Retrying fetchUpcomingTasks... attempt ${retryCount + 1}`);
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * (retryCount + 1)),
+        );
+        return get().fetchUpcomingTasks(retryCount + 1);
+      }
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch upcoming tasks. Pull down to retry.";
+      set({ tasksLoading: false, tasksError: errorMessage });
+    }
+  },
+
+  fetchAllTasks: async (retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    set({ tasksLoading: true, tasksError: null });
+    try {
+      const tasks = await tasksAPI.getTasks();
+      set({ allTasks: tasks, tasksLoading: false, tasksError: null });
+    } catch (error) {
+      // Retry logic for transient errors
+      if (
+        retryCount < MAX_RETRIES &&
+        error instanceof Error &&
+        (error.message.includes("network") ||
+          error.message.includes("timeout") ||
+          error.message.includes("503"))
+      ) {
+        console.log(`Retrying fetchAllTasks... attempt ${retryCount + 1}`);
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 * (retryCount + 1)),
+        );
+        return get().fetchAllTasks(retryCount + 1);
+      }
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch tasks. Pull down to retry.";
+      set({ tasksLoading: false, tasksError: errorMessage });
+    }
+  },
+
   clearError: () => {
-    set({ error: null });
+    set({ error: null, tasksError: null });
   },
 }));

@@ -210,11 +210,26 @@ export const MeetingsPage: React.FC = () => {
         date = new Date();
       }
 
+      // Parse title to extract lead/project name and meeting type
+      // Format: "Meeting Type - Lead/Project Name"
+      let displayTitle = meeting.title;
+      let displaySubtitle = meeting.description || "";
+
+      if (meeting.title && meeting.title.includes(" - ")) {
+        const parts = meeting.title.split(" - ");
+        if (parts.length >= 2) {
+          // Main title should be the lead/project name (after the dash)
+          displayTitle = parts[1].trim();
+          // Subtitle should be the meeting type (before the dash)
+          displaySubtitle = parts[0].trim();
+        }
+      }
+
       return {
         id: meeting.id,
         projectId: meeting.projectId || meeting.entityId,
-        title: meeting.title,
-        client: meeting.description || "",
+        title: displayTitle,
+        client: displaySubtitle,
         date: date.toISOString().split("T")[0],
         time: date.toLocaleTimeString("en-US", {
           hour: "2-digit",

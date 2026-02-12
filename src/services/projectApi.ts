@@ -55,6 +55,8 @@ console.log("Project API Base URL:", API_BASE_URL);
 // Helper function to get auth headers
 const getAuthHeaders = (): HeadersInit => {
   const token = localStorage.getItem("auth_token");
+  console.log("🔑 Auth token exists:", !!token);
+  console.log("🔑 Auth token length:", token?.length || 0);
   return {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
@@ -505,19 +507,30 @@ export async function pauseProject(
   data: PauseProjectRequest,
 ): Promise<Project> {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/projects/${projectId}/pause`,
-      {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data),
-      },
-    );
+    const url = `${API_BASE_URL}/api/projects/${projectId}/pause`;
+    const headers = getAuthHeaders();
+    const body = JSON.stringify(data);
+
+    console.log("🔵 Pause Project API Call:");
+    console.log("URL:", url);
+    console.log("Headers:", headers);
+    console.log("Body:", body);
+    console.log("Request data:", data);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: body,
+    });
+
+    console.log("🔵 Response status:", response.status);
+    console.log("🔵 Response ok:", response.ok);
 
     const result = await handleResponse<any>(response);
+    console.log("🔵 Result:", result);
     return result.project || result;
   } catch (error) {
-    console.error("Error pausing project:", error);
+    console.error("❌ Error pausing project:", error);
     throw error;
   }
 }
@@ -1787,7 +1800,7 @@ export async function getCategoryTasks(
 
 /**
  * Upload attachment to a task (multipart)
- * POST /api/tasks/:taskId/attachments
+ * POST /api/matrix-tasks/:taskId/attachments
  */
 export async function uploadTaskAttachment(
   taskId: string,
@@ -1805,7 +1818,7 @@ export async function uploadTaskAttachment(
 
     const token = localStorage.getItem("auth_token");
     const response = await fetch(
-      `${API_BASE_URL}/api/tasks/${taskId}/attachments`,
+      `${API_BASE_URL}/api/matrix-tasks/${taskId}/attachments`,
       {
         method: "POST",
         headers: {
@@ -1824,14 +1837,14 @@ export async function uploadTaskAttachment(
 
 /**
  * List task attachments
- * GET /api/tasks/:taskId/attachments
+ * GET /api/matrix-tasks/:taskId/attachments
  */
 export async function getTaskAttachments(
   taskId: string,
 ): Promise<TaskAttachment[]> {
   try {
     const response = await fetch(
-      `${API_BASE_URL}/api/tasks/${taskId}/attachments`,
+      `${API_BASE_URL}/api/matrix-tasks/${taskId}/attachments`,
       {
         method: "GET",
         headers: getAuthHeaders(),

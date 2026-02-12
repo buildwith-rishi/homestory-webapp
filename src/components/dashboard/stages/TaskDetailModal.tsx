@@ -39,6 +39,7 @@ import toast from "react-hot-toast";
 interface TaskDetailModalProps {
   taskId: string;
   categories: { id: string; name: string; color: string }[];
+  fallbackTask?: MatrixTask | null;
   onClose: () => void;
   onStatusChanged: () => void;
 }
@@ -133,6 +134,7 @@ const formatDateTime = (d?: string | null) => {
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   taskId,
   categories,
+  fallbackTask,
   onClose,
   onStatusChanged,
 }) => {
@@ -176,7 +178,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setNewStatus(taskData.status);
       setCompletionNotes(taskData.completionNotes || "");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load task");
+      // If API fails but we have fallback data from the list, use it
+      if (fallbackTask) {
+        setTask(fallbackTask);
+        setNewStatus(fallbackTask.status);
+        setCompletionNotes(fallbackTask.completionNotes || "");
+      } else {
+        toast.error(err instanceof Error ? err.message : "Failed to load task");
+      }
     } finally {
       setLoading(false);
     }
@@ -579,7 +588,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">
-                      Custom Message (optional)
+                      Custom Mail (optional)
                     </label>
                     <textarea
                       value={notifyMessage}
@@ -617,7 +626,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     ) : (
                       <>
                         <MessageSquare className="w-4 h-4 mr-1" />
-                        Send Notification
+                        Send Email
                       </>
                     )}
                   </Button>
@@ -625,6 +634,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               )}
             </div>
           </>
+        ) : loading ? (
+          <div className="flex-1 flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+            <span className="ml-2 text-sm text-gray-500">Loading task...</span>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center py-12">
             <p className="text-sm text-gray-400">Task not found</p>

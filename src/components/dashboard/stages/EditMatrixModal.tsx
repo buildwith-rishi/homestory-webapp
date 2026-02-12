@@ -64,9 +64,14 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-orange-500" />
-            <h2 className="text-lg font-bold text-gray-900">
-              Edit Day Plan Settings
-            </h2>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                Edit Day Plan Settings
+              </h2>
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                Add more days or adjust dates
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -155,7 +160,9 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
                     • Start date:{" "}
                     {currentStartDate
                       ? new Date(
-                          currentStartDate + "T00:00:00",
+                          (currentStartDate.includes("T")
+                            ? currentStartDate.split("T")[0]
+                            : currentStartDate) + "T00:00:00",
                         ).toLocaleDateString("en-IN", {
                           day: "2-digit",
                           month: "short",
@@ -163,14 +170,15 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
                         })
                       : "—"}{" "}
                     →{" "}
-                    {new Date(startDate + "T00:00:00").toLocaleDateString(
-                      "en-IN",
-                      {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      },
-                    )}
+                    {new Date(
+                      (startDate.includes("T")
+                        ? startDate.split("T")[0]
+                        : startDate) + "T00:00:00",
+                    ).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
                   </li>
                 )}
               </ul>

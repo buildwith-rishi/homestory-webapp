@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Layers,
@@ -12,6 +19,8 @@ import {
   DollarSign,
   User,
   TrendingUp,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import {
   KanbanBoard,
@@ -27,7 +36,8 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useLeadStore } from "../../stores/leadStore";
 import { addActivityEntry } from "../../stores/kanbanActivityLog";
 import ProjectAPI from "../../services/projectApi";
-import { Lead, LeadStage, LeadSource, Project } from "../../types";
+import { adminAPI } from "../../services/api";
+import { Lead, LeadStage, LeadSource, Project, AdminUser } from "../../types";
 import toast from "react-hot-toast";
 
 type ViewType = "leads" | "projects";
@@ -73,7 +83,86 @@ const KanbanView: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>("leads");
 
   const { projects, fetchProjects } = useProjectStore();
-  const { leads, fetchLeads, moveLeadByStatus, addLead } = useLeadStore();
+  const { leads, fetchLeads, moveLeadByStatus, addLead, updateLead } =
+    useLeadStore();
+
+  // BDR (Business Development Representatives) state
+  const [bdrUsers, setBdrUsers] = useState<AdminUser[]>([]);
+  const [bdrDropdownOpen, setBdrDropdownOpen] = useState<string | null>(null);
+  const [bdrDropdownPos, setBdrDropdownPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const bdrButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Fetch BDR users on mount
+  useEffect(() => {
+    const fetchBDRs = async () => {
+      try {
+        const response = await adminAPI.getAllUsers();
+        let usersList: AdminUser[] = [];
+
+        if (response && typeof response === "object") {
+          if ("users" in response && Array.isArray(response.users)) {
+            usersList = response.users;
+          } else if (Array.isArray(response)) {
+            usersList = response;
+          }
+        }
+
+        // Deduplicate users by id
+        const seen = new Set<string>();
+        const uniqueUsers = usersList.filter((u) => {
+          if (seen.has(u.id)) return false;
+          seen.add(u.id);
+          return true;
+        });
+
+        setBdrUsers(uniqueUsers);
+      } catch (error) {
+        console.error("Failed to fetch BDR users:", error);
+        setBdrUsers([]);
+      }
+    };
+    fetchBDRs();
+  }, []);
+
+  // BDR dropdown closes via backdrop click (in portal), no separate handler needed
+
+  // Handle BDR assignment
+  const handleAssignBDR = useCallback(
+    async (leadId: string, bdrId: string | null) => {
+      try {
+        await updateLead(leadId, { assignedToId: bdrId });
+        toast.success(bdrId ? "BDR assigned successfully" : "BDR unassigned");
+        setBdrDropdownOpen(null);
+        setBdrDropdownPos(null);
+        fetchLeads();
+      } catch (error) {
+        console.error("Failed to assign BDR:", error);
+        toast.error("Failed to assign BDR");
+      }
+    },
+    [updateLead, fetchLeads],
+  );
+
+  // Open BDR dropdown positioned relative to button
+  const openBdrDropdown = useCallback(
+    (leadId: string) => {
+      if (bdrDropdownOpen === leadId) {
+        setBdrDropdownOpen(null);
+        setBdrDropdownPos(null);
+        return;
+      }
+      const btn = bdrButtonRefs.current[leadId];
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        setBdrDropdownPos({ top: rect.bottom + 4, left: rect.left });
+      }
+      setBdrDropdownOpen(leadId);
+    },
+    [bdrDropdownOpen],
+  );
 
   // Leads Kanban Data - Using API statuses
   const [leadsKanbanData, setLeadsKanbanData] = useState<KanbanData>({
@@ -499,94 +588,113 @@ const KanbanView: React.FC = () => {
 
   // ─── Rich Card Renderers ─────────────────────────────────────────────────
 
-  const renderLeadCard = useCallback((task: KanbanTask) => {
-    const lead = task.metadata as unknown as Lead;
-    if (!lead) {
+  const renderLeadCard = useCallback(
+    (task: KanbanTask) => {
+      const lead = task.metadata as unknown as Lead;
+      if (!lead) {
+        return (
+          <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
+            <h4
+              className={`font-semibold text-[13px] leading-tight ${
+                task.completed ? "line-through text-gray-500" : "text-gray-900"
+              }`}
+            >
+              {task.content}
+            </h4>
+            {task.assignedTo && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 text-[10px]">
+                <User size={10} />
+                {task.assignedTo}
+              </span>
+            )}
+          </div>
+        );
+      }
+
       return (
         <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
           <h4
-            className={`font-semibold text-[13px] leading-tight ${
+            className={`font-semibold text-[13px] leading-tight truncate ${
               task.completed ? "line-through text-gray-500" : "text-gray-900"
             }`}
           >
-            {task.content}
+            {lead.name}
           </h4>
-          {task.assignedTo && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 text-[10px]">
-              <User size={10} />
-              {task.assignedTo}
-            </span>
+          <div className="space-y-0.5 text-[11px] text-gray-500">
+            {lead.phone && (
+              <div className="flex items-center gap-1">
+                <Phone size={10} className="text-gray-400 flex-shrink-0" />
+                <span className="truncate">{lead.phone}</span>
+              </div>
+            )}
+            {lead.email && (
+              <div className="flex items-center gap-1">
+                <Mail size={10} className="text-gray-400 flex-shrink-0" />
+                <span className="truncate max-w-[180px]">{lead.email}</span>
+              </div>
+            )}
+            {lead.location && (
+              <div className="flex items-center gap-1">
+                <MapPin size={10} className="text-gray-400 flex-shrink-0" />
+                <span className="truncate">{lead.location}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 pt-0.5">
+              {lead.budget && (
+                <div className="flex items-center gap-0.5">
+                  <DollarSign
+                    size={10}
+                    className="text-green-500 flex-shrink-0"
+                  />
+                  <span className="font-medium text-gray-700">
+                    \u20B9{lead.budget.toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* BDR Assignment Section */}
+            <div className="pt-1">
+              <button
+                ref={(el) => {
+                  bdrButtonRefs.current[lead.id] = el;
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  openBdrDropdown(lead.id);
+                }}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-blue-50 transition-colors group"
+              >
+                <User
+                  size={10}
+                  className={
+                    lead.assignedTo ? "text-blue-500" : "text-gray-400"
+                  }
+                />
+                <span
+                  className={`text-[10px] font-medium ${lead.assignedTo ? "text-blue-600" : "text-gray-400 italic"}`}
+                >
+                  {lead.assignedTo?.name || "Assign BDR"}
+                </span>
+                <ChevronDown
+                  size={10}
+                  className={`transition-transform ${bdrDropdownOpen === lead.id ? "rotate-180" : ""} text-gray-400 group-hover:text-gray-600`}
+                />
+              </button>
+            </div>
+          </div>
+          {lead.source && (
+            <div className="pt-1">
+              <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-md bg-orange-50 text-orange-600 border border-orange-200/50">
+                {lead.source}
+              </span>
+            </div>
           )}
         </div>
       );
-    }
-
-    return (
-      <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
-        <h4
-          className={`font-semibold text-[13px] leading-tight truncate ${
-            task.completed ? "line-through text-gray-500" : "text-gray-900"
-          }`}
-        >
-          {lead.name}
-        </h4>
-        <div className="space-y-0.5 text-[11px] text-gray-500">
-          {lead.phone && (
-            <div className="flex items-center gap-1">
-              <Phone size={10} className="text-gray-400 flex-shrink-0" />
-              <span className="truncate">{lead.phone}</span>
-            </div>
-          )}
-          {lead.email && (
-            <div className="flex items-center gap-1">
-              <Mail size={10} className="text-gray-400 flex-shrink-0" />
-              <span className="truncate max-w-[180px]">{lead.email}</span>
-            </div>
-          )}
-          {lead.location && (
-            <div className="flex items-center gap-1">
-              <MapPin size={10} className="text-gray-400 flex-shrink-0" />
-              <span className="truncate">{lead.location}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2 pt-0.5">
-            {lead.budget && (
-              <div className="flex items-center gap-0.5">
-                <DollarSign
-                  size={10}
-                  className="text-green-500 flex-shrink-0"
-                />
-                <span className="font-medium text-gray-700">
-                  \u20B9{lead.budget.toLocaleString()}
-                </span>
-              </div>
-            )}
-            {lead.createdAt && (
-              <div className="flex items-center gap-0.5">
-                <Calendar size={10} className="text-gray-400 flex-shrink-0" />
-                <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
-              </div>
-            )}
-          </div>
-        </div>
-        {lead.source && (
-          <div className="pt-1">
-            <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-md bg-orange-50 text-orange-600 border border-orange-200/50">
-              {lead.source}
-            </span>
-          </div>
-        )}
-        {task.assignedTo && (
-          <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
-              <User size={10} />
-              {task.assignedTo}
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  }, []);
+    },
+    [bdrDropdownOpen, bdrUsers, handleAssignBDR],
+  );
 
   const renderProjectCard = useCallback((task: KanbanTask) => {
     const project = task.metadata as unknown as Project;
@@ -711,8 +819,95 @@ const KanbanView: React.FC = () => {
   const handleTaskClick =
     activeView === "leads" ? handleLeadClick : handleProjectClick;
 
+  // Find the currently opened lead for the BDR dropdown portal
+  const openLead = useMemo(() => {
+    if (!bdrDropdownOpen) return null;
+    return leads.find((l) => l.id === bdrDropdownOpen) || null;
+  }, [bdrDropdownOpen, leads]);
+
   return (
     <div className="h-full w-full flex flex-col bg-gray-50 overflow-hidden">
+      {/* BDR Dropdown Portal */}
+      {bdrDropdownOpen &&
+        bdrDropdownPos &&
+        openLead &&
+        createPortal(
+          <>
+            {/* Backdrop to close */}
+            <div
+              className="fixed inset-0"
+              style={{ zIndex: 99998 }}
+              onClick={() => {
+                setBdrDropdownOpen(null);
+                setBdrDropdownPos(null);
+              }}
+            />
+            {/* Dropdown */}
+            <div
+              className="fixed w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1"
+              style={{
+                zIndex: 99999,
+                top: bdrDropdownPos.top,
+                left: bdrDropdownPos.left,
+                maxHeight: "280px",
+              }}
+            >
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50 rounded-t-lg">
+                Assign BDR
+              </div>
+              <div className="max-h-[230px] overflow-y-auto">
+                <button
+                  onClick={() => handleAssignBDR(openLead.id, null)}
+                  className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center gap-2 transition-colors ${
+                    !openLead.assignedTo
+                      ? "bg-blue-50 text-blue-600 font-medium"
+                      : "text-gray-600"
+                  }`}
+                >
+                  <span className="w-4 flex-shrink-0">
+                    {!openLead.assignedTo ? (
+                      <Check size={12} className="text-blue-500" />
+                    ) : null}
+                  </span>
+                  <span>Unassigned</span>
+                </button>
+                {bdrUsers.map((bdr) => {
+                  const isSelected = openLead.assignedTo?.id === bdr.id;
+                  const roleLabel = bdr.role
+                    .replace(/_/g, " ")
+                    .replace(/\b\w/g, (c: string) => c.toUpperCase());
+                  return (
+                    <button
+                      key={bdr.id}
+                      onClick={() => handleAssignBDR(openLead.id, bdr.id)}
+                      className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center gap-2 transition-colors ${
+                        isSelected
+                          ? "bg-blue-50 text-blue-600 font-medium"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      <span className="w-4 flex-shrink-0">
+                        {isSelected ? (
+                          <Check size={12} className="text-blue-500" />
+                        ) : null}
+                      </span>
+                      <span className="truncate">{bdr.name}</span>
+                      <span className="text-[9px] text-gray-400 ml-auto flex-shrink-0">
+                        {roleLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+                {bdrUsers.length === 0 && (
+                  <div className="px-3 py-2 text-[11px] text-gray-400 italic text-center">
+                    No users available
+                  </div>
+                )}
+              </div>
+            </div>
+          </>,
+          document.body,
+        )}
       {/* Header */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">

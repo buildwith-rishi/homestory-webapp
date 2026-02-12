@@ -26,6 +26,17 @@ const DEFAULT_COLORS = [
   "#f97316",
 ];
 
+const TEAM_MEMBERS = [
+  { id: "unassigned", name: "Unassigned" },
+  { id: "design-lead", name: "Design Lead" },
+  { id: "project-manager", name: "Project Manager" },
+  { id: "site-supervisor", name: "Site Supervisor" },
+  { id: "civil-contractor", name: "Civil Contractor" },
+  { id: "electrical-contractor", name: "Electrical Contractor" },
+  { id: "plumbing-contractor", name: "Plumbing Contractor" },
+  { id: "operations-team", name: "Operations Team" },
+];
+
 export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   projectId,
   stageId,
@@ -35,16 +46,31 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [totalDays, setTotalDays] = useState(7);
+  const [totalDays, setTotalDays] = useState(1);
   const [startDate, setStartDate] = useState(
     new Date().toISOString().split("T")[0],
   );
   const [categories, setCategories] = useState<
-    { name: string; orderIndex: number; color: string }[]
+    { name: string; orderIndex: number; color: string; assignedTo?: string }[]
   >([
-    { name: "Design", orderIndex: 0, color: "#3b82f6" },
-    { name: "Civil", orderIndex: 1, color: "#22c55e" },
-    { name: "Electrical", orderIndex: 2, color: "#f59e0b" },
+    {
+      name: "Design",
+      orderIndex: 0,
+      color: "#3b82f6",
+      assignedTo: "unassigned",
+    },
+    {
+      name: "Civil",
+      orderIndex: 1,
+      color: "#22c55e",
+      assignedTo: "unassigned",
+    },
+    {
+      name: "Electrical",
+      orderIndex: 2,
+      color: "#f59e0b",
+      assignedTo: "unassigned",
+    },
   ]);
   const [tasks, setTasks] = useState<
     {
@@ -121,13 +147,18 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
     const nextColor = DEFAULT_COLORS[categories.length % DEFAULT_COLORS.length];
     setCategories((prev) => [
       ...prev,
-      { name: "", orderIndex: prev.length, color: nextColor },
+      {
+        name: "",
+        orderIndex: prev.length,
+        color: nextColor,
+        assignedTo: "unassigned",
+      },
     ]);
   };
 
   const updateCategory = (
     idx: number,
-    field: "name" | "color",
+    field: "name" | "color" | "assignedTo",
     value: string,
   ) => {
     setCategories((prev) =>
@@ -257,7 +288,9 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h3 className="text-lg font-bold text-gray-900">Create Day Plan</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Stage: {stageName}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Stage: {stageName} • Plan one day at a time
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -295,17 +328,20 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Total Days
+                Number of Days
               </label>
               <input
                 type="number"
                 min={1}
-                max={365}
+                max={30}
                 value={totalDays}
                 onChange={(e) => setTotalDays(Number(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 required
               />
+              <p className="text-[10px] text-gray-400 mt-1">
+                Recommended: Create 1 day at a time
+              </p>
             </div>
           </div>
 
@@ -325,44 +361,65 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
               </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {categories.map((cat, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  {/* Color picker */}
-                  <div className="relative">
+                <div key={idx} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    {/* Color picker */}
+                    <div className="relative">
+                      <input
+                        type="color"
+                        value={cat.color}
+                        onChange={(e) =>
+                          updateCategory(idx, "color", e.target.value)
+                        }
+                        className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5"
+                        title="Pick color"
+                      />
+                    </div>
+                    {/* Name */}
                     <input
-                      type="color"
-                      value={cat.color}
+                      type="text"
+                      value={cat.name}
                       onChange={(e) =>
-                        updateCategory(idx, "color", e.target.value)
+                        updateCategory(idx, "name", e.target.value)
                       }
-                      className="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5"
-                      title="Pick color"
+                      className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                      placeholder={`Category ${idx + 1}`}
                     />
+                    {/* Order badge */}
+                    <span className="text-[10px] text-gray-400 font-mono w-6 text-center">
+                      #{idx + 1}
+                    </span>
+                    {/* Remove */}
+                    <button
+                      type="button"
+                      onClick={() => removeCategory(idx)}
+                      className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                      disabled={categories.length <= 1}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  {/* Name */}
-                  <input
-                    type="text"
-                    value={cat.name}
-                    onChange={(e) =>
-                      updateCategory(idx, "name", e.target.value)
-                    }
-                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                    placeholder={`Category ${idx + 1}`}
-                  />
-                  {/* Order badge */}
-                  <span className="text-[10px] text-gray-400 font-mono w-6 text-center">
-                    #{idx + 1}
-                  </span>
-                  {/* Remove */}
-                  <button
-                    type="button"
-                    onClick={() => removeCategory(idx)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                    disabled={categories.length <= 1}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {/* Assigned Person */}
+                  <div className="ml-10">
+                    <label className="text-xs text-gray-500 block mb-1">
+                      Assigned To
+                    </label>
+                    <select
+                      value={cat.assignedTo || "unassigned"}
+                      onChange={(e) =>
+                        updateCategory(idx, "assignedTo", e.target.value)
+                      }
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white"
+                    >
+                      {TEAM_MEMBERS.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               ))}
             </div>
@@ -450,9 +507,13 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
           </div>
 
           {/* Summary */}
-          <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
+          <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700 border border-blue-200">
+            <p className="font-medium mb-1">Plan Summary:</p>
             <p>
-              This will create a <strong>{totalDays}-day</strong> task plan
+              • Creating{" "}
+              <strong>
+                {totalDays} day{totalDays > 1 ? "s" : ""}
+              </strong>{" "}
               starting{" "}
               <strong>
                 {new Date(startDate + "T00:00:00").toLocaleDateString("en-IN", {
@@ -460,16 +521,17 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                   month: "short",
                   year: "numeric",
                 })}
-              </strong>{" "}
-              with{" "}
+              </strong>
+              <br />•{" "}
               <strong>
-                {categories.filter((c) => c.name.trim()).length} categories
+                {categories.filter((c) => c.name.trim()).length} work categories
               </strong>{" "}
-              and{" "}
+              with assigned team members
+              <br />•{" "}
               <strong>
                 {tasks.filter((t) => t.title.trim()).length} initial tasks
               </strong>
-              .
+              {totalDays === 1 && " (recommended daily approach)"}
             </p>
           </div>
         </form>

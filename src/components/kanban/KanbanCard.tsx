@@ -173,7 +173,7 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
       ref={provided.innerRef}
       {...provided.draggableProps}
       className={`
-        group relative rounded-lg overflow-hidden
+        group relative rounded-lg overflow-visible
         transition-all duration-300 ease-out
         border-l-4 ${priorityBorderClass}
         ${

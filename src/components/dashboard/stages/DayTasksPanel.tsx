@@ -9,20 +9,23 @@ import {
   Filter,
   Eye,
   Paperclip,
+  Plus,
+  Calendar,
 } from "lucide-react";
-import { Card } from "../../ui";
+import { Card, Button } from "../../ui";
 import type { MatrixTask, MatrixCategory } from "../../../types";
 import {
   getMatrixDayTasks,
   getCategoryTasks,
 } from "../../../services/projectApi";
+import { NewTaskModal } from "./NewTaskModal";
 
 interface DayTasksPanelProps {
   matrixId: string;
   dayNumber: number;
   startDate: string;
   categories: MatrixCategory[];
-  onTaskClick: (taskId: string) => void;
+  onTaskClick: (taskId: string, task?: MatrixTask) => void;
   onStatusChange: (taskId: string, newStatus: string) => void;
   updatingTaskId: string | null;
 }
@@ -64,7 +67,12 @@ const taskStatusConfig: Record<
 };
 
 const getDateForDay = (startDate: string, dayNumber: number) => {
-  const d = new Date(startDate + "T00:00:00");
+  // Handle ISO strings like "2026-02-11T00:00:00.000Z" and plain "2026-02-11"
+  const dateOnly = startDate.includes("T")
+    ? startDate.split("T")[0]
+    : startDate;
+  const d = new Date(dateOnly + "T00:00:00");
+  if (isNaN(d.getTime())) return "—";
   d.setDate(d.getDate() + dayNumber - 1);
   return d.toLocaleDateString("en-IN", {
     weekday: "long",
@@ -87,6 +95,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
 
   const fetchDayTasks = useCallback(async () => {
     setLoading(true);
@@ -147,9 +156,15 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       {/* Day summary header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold text-gray-900">
-            Day {dayNumber} — {getDateForDay(startDate, dayNumber)}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-900">
+              Day {dayNumber}
+            </p>
+            <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              <Calendar className="w-3 h-3" />
+              {getDateForDay(startDate, dayNumber)}
+            </span>
+          </div>
           <p className="text-xs text-gray-400 mt-0.5">
             {statusCounts.completed}/{statusCounts.total} completed
             {statusCounts.inProgress > 0 &&
@@ -157,6 +172,17 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Add Task button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowNewTaskModal(true)}
+            className="text-orange-600 border-orange-300 hover:bg-orange-50"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            Add Task
+          </Button>
+
           {/* Status filter */}
           <select
             value={filterStatus || ""}
@@ -266,7 +292,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                         {/* Task info */}
                         <div
                           className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => onTaskClick(task.id)}
+                          onClick={() => onTaskClick(task.id, task)}
                         >
                           <p
                             className={`text-sm font-medium ${
@@ -280,6 +306,19 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                           {task.description && (
                             <p className="text-xs text-gray-400 truncate mt-0.5">
                               {task.description}
+                            </p>
+                          )}
+                          {task.taskDate && (
+                            <p className="text-[10px] text-blue-500 mt-0.5">
+                              📅{" "}
+                              {new Date(task.taskDate).toLocaleDateString(
+                                "en-IN",
+                                {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                },
+                              )}
                             </p>
                           )}
                           {task.completionNotes && (
@@ -299,7 +338,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
 
                         {/* View detail */}
                         <button
-                          onClick={() => onTaskClick(task.id)}
+                          onClick={() => onTaskClick(task.id, task)}
                           className="p-1 text-gray-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition-all"
                           title="View details"
                         >
@@ -332,6 +371,21 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
             );
           })}
         </div>
+      )}
+
+      {/* New Task Modal */}
+      {showNewTaskModal && (
+        <NewTaskModal
+          matrixId={matrixId}
+          dayNumber={dayNumber}
+          startDate={startDate}
+          categories={categories}
+          onClose={() => setShowNewTaskModal(false)}
+          onSuccess={() => {
+            setShowNewTaskModal(false);
+            fetchDayTasks();
+          }}
+        />
       )}
     </div>
   );

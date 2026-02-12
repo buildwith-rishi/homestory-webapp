@@ -33,12 +33,17 @@ import {
   Ban,
   Image,
   Gift,
+  ClipboardList,
+  Plus,
+  Filter,
+  CheckSquare,
 } from "lucide-react";
 import { Button, Progress, Badge, Card } from "../../components/ui";
 import { ProjectStagesSection } from "../../components/dashboard/stages";
 import { TestimonialsTab } from "../../components/dashboard/testimonials";
 import { ProjectReferencesTab } from "../../components/dashboard/references";
 import { HandoverTab } from "../../components/dashboard/handover";
+import { ActivitiesTab } from "../../components/dashboard/activities";
 import toast from "react-hot-toast";
 import { useProjectStore } from "../../stores/projectStore";
 import { useProjectOptions } from "../../hooks/useProjectOptions";
@@ -49,7 +54,14 @@ import {
   ProjectTaskStatus,
   UpdateProjectRequest,
   PauseProjectRequest,
+  Task,
+  TaskStatus,
 } from "../../types";
+import {
+  createActivity,
+  getActivitiesByEntity,
+} from "../../services/activitiesApi";
+import type { Activity } from "../../types";
 
 // Helper function to format currency
 const formatCurrency = (value: number): string => {
@@ -180,6 +192,8 @@ export const ProjectDetails: React.FC = () => {
     projectTasks,
     isLoading,
     error,
+    tasksLoading,
+    tasksError,
     pauseStatus,
     fetchProjectById,
     fetchProjectStages,
@@ -195,6 +209,10 @@ export const ProjectDetails: React.FC = () => {
     completeProject,
     cancelProject,
     fetchPauseStatus,
+    createTask,
+    updateTask,
+    deleteTask,
+    completeTask,
   } = useProjectStore();
 
   // Project options from API
@@ -214,6 +232,7 @@ export const ProjectDetails: React.FC = () => {
     | "references"
     | "testimonials"
     | "handover"
+    | "activities"
   >("overview");
 
   // Payment update modal
@@ -258,6 +277,58 @@ export const ProjectDetails: React.FC = () => {
   >(null);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
 
+  // Activity state
+  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+
+  // Task modal state
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskFilter, setTaskFilter] = useState<string>("all");
+  const [taskLoading, setTaskLoading] = useState<string | null>(null);
+  const [isSavingTask, setIsSavingTask] = useState(false);
+  const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState<
+    string | null
+  >(null);
+
+  // Task form state
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    taskType: "OTHER" as string,
+    dueDate: "",
+    priority: "MEDIUM" as string,
+    status: "TODO" as string,
+    notes: "",
+  });
+
+  // Fetch recent activities for the project
+  const fetchRecentActivities = async (projectId: string) => {
+    try {
+      setActivitiesLoading(true);
+      const response = await getActivitiesByEntity("PROJECT", projectId);
+
+      // Normalise API shapes: some endpoints return an array, others wrap it
+      const list = Array.isArray(response)
+        ? response
+        : Array.isArray((response as any)?.data)
+          ? (response as any).data
+          : Array.isArray((response as any)?.activities)
+            ? (response as any).activities
+            : [];
+
+      // Sort by creation date and take the latest 10 so pause/resume history is always shown
+      const sorted = list.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      setRecentActivities(sorted.slice(0, 10));
+    } catch (error) {
+      console.error("Failed to fetch activities:", error);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  };
+
   // Fetch project data on mount
   useEffect(() => {
     if (projectId) {
@@ -265,6 +336,7 @@ export const ProjectDetails: React.FC = () => {
       fetchProjectStages(projectId);
       fetchProjectPayments(projectId);
       fetchProjectTasks(projectId);
+      fetchRecentActivities(projectId);
     }
   }, [
     projectId,
@@ -375,26 +447,70 @@ export const ProjectDetails: React.FC = () => {
     if (!projectId) return;
     setIsChangingStatus(true);
     try {
+      const previousStatus = currentProject?.status || "UNKNOWN";
+      let newStatus = "";
+      let successMessage = "";
+
       switch (action) {
         case "start":
           await startProject(projectId);
-          toast.success("Project started successfully!");
+          newStatus = "ONGOING";
+          successMessage = "Project started successfully!";
           break;
         case "resume":
           await resumeProject(projectId);
-          toast.success("Project resumed successfully!");
+          newStatus = "ONGOING";
+          successMessage = "Project resumed successfully!";
           break;
         case "complete":
           await completeProject(projectId);
-          toast.success("Project marked as completed!");
+          newStatus = "COMPLETED";
+          successMessage = "Project marked as completed!";
           break;
         case "cancel":
           await cancelProject(projectId);
-          toast.success("Project cancelled!");
+          newStatus = "CANCELLED";
+          successMessage = "Project cancelled!";
           break;
       }
+
+      // Log activity for audit trail
+      try {
+        const descriptions: Record<string, string> = {
+          start: `Project started — status changed to Ongoing`,
+          resume: `Project resumed from Paused — status changed back to Ongoing`,
+          complete: `Project marked as Completed`,
+          cancel: `Project has been Cancelled`,
+        };
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "STATUS_CHANGE",
+          description:
+            descriptions[action] ||
+            `Project status changed from ${previousStatus} to ${newStatus}`,
+          metadata: {
+            statusChange: {
+              from: previousStatus,
+              to: newStatus,
+            },
+            action,
+          },
+        });
+        console.log(`✅ Status change activity logged: ${action}`);
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log status change activity:",
+          activityError,
+        );
+        // Don't fail the entire operation if activity logging fails
+      }
+
+      toast.success(successMessage);
       setShowStatusConfirm(null);
       fetchProjectById(projectId);
+      // Refresh activities to show the new status change log
+      if (projectId) fetchRecentActivities(projectId);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : `Failed to ${action} project`;
@@ -422,18 +538,55 @@ export const ProjectDetails: React.FC = () => {
       resumeDate.setUTCHours(0, 0, 0, 0);
       const expectedResumeDate = resumeDate.toISOString();
 
-      await pauseProject(projectId, {
+      console.log("🟢 Pausing project:", projectId);
+      console.log("🟢 Form data:", pauseForm);
+      console.log("🟢 Expected resume date:", expectedResumeDate);
+      console.log("🟢 Request payload:", {
         reason: pauseForm.reason.trim(),
+        pauseDays: pauseForm.pauseDays,
         expectedResumeDate,
       });
+
+      await pauseProject(projectId, {
+        reason: pauseForm.reason.trim(),
+        pauseDays: pauseForm.pauseDays,
+        expectedResumeDate,
+      });
+
+      // Log activity for audit trail
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "STATUS_CHANGE",
+          description: `Project paused for ${pauseForm.pauseDays} days. Reason: ${pauseForm.reason.trim()}. Expected resume: ${new Date(expectedResumeDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`,
+          metadata: {
+            statusChange: {
+              from: "ONGOING",
+              to: "PAUSED",
+            },
+            pauseDays: pauseForm.pauseDays,
+            reason: pauseForm.reason.trim(),
+            expectedResumeDate,
+          },
+        });
+        console.log("✅ Pause activity logged successfully");
+      } catch (activityError) {
+        console.error("⚠️ Failed to log pause activity:", activityError);
+        // Don't fail the entire operation if activity logging fails
+      }
+
       toast.success(`Project paused for ${pauseForm.pauseDays} days`);
       setShowPauseModal(false);
       setPauseForm({ pauseDays: 7, reason: "" });
       fetchProjectById(projectId);
+      // Refresh activities to show the new pause log
+      if (projectId) fetchRecentActivities(projectId);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to pause project";
       toast.error(msg);
+      console.error("❌ Error in handlePauseProject:", err);
     } finally {
       setIsPausingProject(false);
     }
@@ -535,6 +688,172 @@ export const ProjectDetails: React.FC = () => {
     }
 
     return actions;
+  };
+
+  // Task management handlers
+  const resetTaskForm = () => {
+    setTaskForm({
+      title: "",
+      taskType: "OTHER",
+      dueDate: "",
+      priority: "MEDIUM",
+      status: "TODO",
+      notes: "",
+    });
+    setEditingTask(null);
+  };
+
+  const handleOpenTaskModal = (task?: Task) => {
+    if (task) {
+      setEditingTask(task);
+      setTaskForm({
+        title: task.title || "",
+        taskType: task.taskType || "OTHER",
+        dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
+        priority: task.priority || "MEDIUM",
+        status: task.status || "TODO",
+        notes: task.notes || "",
+      });
+    } else {
+      resetTaskForm();
+    }
+    setShowTaskModal(true);
+  };
+
+  const handleSaveTask = async () => {
+    if (!projectId || !taskForm.title.trim()) {
+      toast.error("Task title is required");
+      return;
+    }
+
+    setIsSavingTask(true);
+    try {
+      if (editingTask) {
+        // Update existing task
+        await updateTask(editingTask.id, {
+          title: taskForm.title.trim(),
+          taskType: taskForm.taskType,
+          dueDate: taskForm.dueDate || undefined,
+          priority: taskForm.priority,
+          status: taskForm.status,
+          notes: taskForm.notes || undefined,
+        });
+        toast.success("Task updated successfully!");
+      } else {
+        // Create new task
+        await createTask({
+          title: taskForm.title.trim(),
+          taskType: taskForm.taskType,
+          projectId: projectId,
+          dueDate: taskForm.dueDate || new Date().toISOString().split("T")[0],
+          priority: taskForm.priority,
+          status: taskForm.status,
+          notes: taskForm.notes || undefined,
+        });
+        toast.success("Task created successfully!");
+      }
+      setShowTaskModal(false);
+      resetTaskForm();
+      fetchProjectTasks(projectId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to save task";
+      toast.error(msg);
+    } finally {
+      setIsSavingTask(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!projectId) return;
+
+    setTaskLoading(taskId);
+    try {
+      await deleteTask(taskId);
+      toast.success("Task deleted successfully!");
+      setShowDeleteTaskConfirm(null);
+      fetchProjectTasks(projectId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to delete task";
+      toast.error(msg);
+    } finally {
+      setTaskLoading(null);
+    }
+  };
+
+  const handleCompleteTask = async (task: Task) => {
+    if (!projectId) return;
+
+    setTaskLoading(task.id);
+    try {
+      if (task.completed || task.status === TaskStatus.COMPLETED) {
+        // Mark as incomplete by updating status to TODO
+        await updateTask(task.id, {
+          status: TaskStatus.TODO,
+          completed: false,
+        });
+        toast.success("Task marked as incomplete");
+      } else {
+        // Mark as complete
+        await completeTask(task.id);
+        toast.success("Task marked as complete!");
+      }
+      fetchProjectTasks(projectId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update task";
+      toast.error(msg);
+    } finally {
+      setTaskLoading(null);
+    }
+  };
+
+  // Filter tasks based on selected filter
+  const tasksArray = Array.isArray(projectTasks) ? projectTasks : [];
+  const filteredTasks = tasksArray.filter((task) => {
+    if (taskFilter === "all") return true;
+    if (taskFilter === "todo")
+      return task.status === TaskStatus.TODO || task.status === "TODO";
+    if (taskFilter === "in_progress")
+      return (
+        task.status === TaskStatus.IN_PROGRESS || task.status === "IN_PROGRESS"
+      );
+    if (taskFilter === "completed")
+      return (
+        task.status === TaskStatus.COMPLETED ||
+        task.status === "COMPLETED" ||
+        task.completed
+      );
+    return true;
+  });
+
+  // Get priority badge styling
+  const getPriorityBadge = (priority: string) => {
+    const styles: Record<string, string> = {
+      LOW: "bg-gray-100 text-gray-700",
+      MEDIUM: "bg-blue-100 text-blue-700",
+      HIGH: "bg-orange-100 text-orange-700",
+      URGENT: "bg-red-100 text-red-700",
+    };
+    return styles[priority] || styles.MEDIUM;
+  };
+
+  // Get task type label
+  const getTaskTypeLabel = (taskType: string) => {
+    const labels: Record<string, string> = {
+      CALL: "Call",
+      MEETING: "Meeting",
+      PRESENTATION: "Presentation",
+      SURVEY: "Survey",
+      INTERVIEW: "Interview",
+      SITE_VISIT: "Site Visit",
+      FOLLOW_UP: "Follow Up",
+      DOCUMENT_UPLOAD: "Document Upload",
+      APPROVAL_PENDING: "Approval Pending",
+      DESIGN_REVIEW: "Design Review",
+      PAYMENT_COLLECTION: "Payment Collection",
+      HANDOVER: "Handover",
+      OTHER: "Other",
+    };
+    return labels[taskType] || taskType;
   };
 
   // Calculate payment totals
@@ -847,6 +1166,7 @@ export const ProjectDetails: React.FC = () => {
                 icon: MessageSquare,
               },
               { id: "handover", label: "Handover", icon: Gift },
+              { id: "activities", label: "Activities", icon: ClipboardList },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1101,6 +1421,236 @@ export const ProjectDetails: React.FC = () => {
                 </div>
               </Card>
 
+              {/* Recent Activity */}
+              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
+                    <ClipboardList className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  Recent Activity
+                </h3>
+
+                {activitiesLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                    <span className="ml-2 text-sm text-gray-500">
+                      Loading...
+                    </span>
+                  </div>
+                ) : recentActivities.length > 0 ? (
+                  <div className="space-y-2 relative">
+                    {/* Timeline line */}
+                    <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gray-200" />
+
+                    {recentActivities.map((activity, index) => {
+                      // Determine specific icon/color for pause/resume actions
+                      const isPause =
+                        activity.type === "STATUS_CHANGE" &&
+                        activity.metadata?.statusChange?.to === "PAUSED";
+                      const isResume =
+                        activity.type === "STATUS_CHANGE" &&
+                        activity.metadata?.action === "resume";
+
+                      const config = isPause
+                        ? {
+                            icon: Pause,
+                            color: "text-yellow-600",
+                            bgColor: "bg-yellow-50",
+                            borderColor: "border-yellow-300",
+                            dotColor: "bg-yellow-500",
+                          }
+                        : isResume
+                          ? {
+                              icon: Play,
+                              color: "text-green-600",
+                              bgColor: "bg-green-50",
+                              borderColor: "border-green-300",
+                              dotColor: "bg-green-500",
+                            }
+                          : {
+                              NOTE: {
+                                icon: FileText,
+                                color: "text-blue-600",
+                                bgColor: "bg-blue-50",
+                                borderColor: "border-blue-200",
+                                dotColor: "bg-blue-500",
+                              },
+                              CALL: {
+                                icon: Phone,
+                                color: "text-green-600",
+                                bgColor: "bg-green-50",
+                                borderColor: "border-green-200",
+                                dotColor: "bg-green-500",
+                              },
+                              MEETING: {
+                                icon: Users,
+                                color: "text-purple-600",
+                                bgColor: "bg-purple-50",
+                                borderColor: "border-purple-200",
+                                dotColor: "bg-purple-500",
+                              },
+                              EMAIL: {
+                                icon: Mail,
+                                color: "text-orange-600",
+                                bgColor: "bg-orange-50",
+                                borderColor: "border-orange-200",
+                                dotColor: "bg-orange-500",
+                              },
+                              WHATSAPP: {
+                                icon: MessageSquare,
+                                color: "text-emerald-600",
+                                bgColor: "bg-emerald-50",
+                                borderColor: "border-emerald-200",
+                                dotColor: "bg-emerald-500",
+                              },
+                              SITE_VISIT: {
+                                icon: MapPin,
+                                color: "text-red-600",
+                                bgColor: "bg-red-50",
+                                borderColor: "border-red-200",
+                                dotColor: "bg-red-500",
+                              },
+                              STAGE_CHANGE: {
+                                icon: TrendingUp,
+                                color: "text-indigo-600",
+                                bgColor: "bg-indigo-50",
+                                borderColor: "border-indigo-200",
+                                dotColor: "bg-indigo-500",
+                              },
+                              STATUS_CHANGE: {
+                                icon: RefreshCw,
+                                color: "text-amber-600",
+                                bgColor: "bg-amber-50",
+                                borderColor: "border-amber-200",
+                                dotColor: "bg-amber-500",
+                              },
+                              PAYMENT: {
+                                icon: CreditCard,
+                                color: "text-teal-600",
+                                bgColor: "bg-teal-50",
+                                borderColor: "border-teal-200",
+                                dotColor: "bg-teal-500",
+                              },
+                              DOCUMENT_UPLOAD: {
+                                icon: Upload,
+                                color: "text-cyan-600",
+                                bgColor: "bg-cyan-50",
+                                borderColor: "border-cyan-200",
+                                dotColor: "bg-cyan-500",
+                              },
+                              TASK_COMPLETED: {
+                                icon: CheckCircle2,
+                                color: "text-lime-600",
+                                bgColor: "bg-lime-50",
+                                borderColor: "border-lime-200",
+                                dotColor: "bg-lime-500",
+                              },
+                            }[activity.type] || {
+                              icon: ClipboardList,
+                              color: "text-gray-600",
+                              bgColor: "bg-gray-50",
+                              borderColor: "border-gray-200",
+                              dotColor: "bg-gray-500",
+                            };
+
+                      const ActivityIcon = config.icon;
+
+                      // Activity label
+                      const activityLabel = isPause
+                        ? "Project Paused"
+                        : isResume
+                          ? "Project Resumed"
+                          : (activity.type || "ACTIVITY").replace("_", " ");
+
+                      // Format full date and time
+                      const activityTime = new Date(activity.createdAt);
+                      const formattedDate = activityTime.toLocaleDateString(
+                        "en-IN",
+                        {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        },
+                      );
+                      const formattedTime = activityTime.toLocaleTimeString(
+                        "en-IN",
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        },
+                      );
+
+                      // Show relative time for recent items
+                      const now = new Date();
+                      const diffMs = now.getTime() - activityTime.getTime();
+                      const diffMins = Math.floor(diffMs / 60000);
+                      const diffHours = Math.floor(diffMs / 3600000);
+                      const timeAgo =
+                        diffMins < 1
+                          ? "Just now"
+                          : diffMins < 60
+                            ? `${diffMins}m ago`
+                            : diffHours < 24
+                              ? `${diffHours}h ago`
+                              : "";
+
+                      return (
+                        <div
+                          key={activity.id}
+                          className="relative flex gap-3 pb-2"
+                        >
+                          {/* Timeline dot */}
+                          <div
+                            className={`relative z-10 w-8 h-8 rounded-full ${config.bgColor} border-2 ${config.borderColor} flex items-center justify-center flex-shrink-0`}
+                          >
+                            <ActivityIcon
+                              className={`w-3.5 h-3.5 ${config.color}`}
+                            />
+                          </div>
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0 pt-0.5">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <p className="text-xs font-semibold text-gray-900">
+                                {activityLabel}
+                              </p>
+                              {timeAgo && (
+                                <span className="text-[10px] text-gray-500 flex-shrink-0">
+                                  {timeAgo}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-700 leading-relaxed mb-1.5">
+                              {activity.description}
+                            </p>
+                            <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                              <Clock className="w-3 h-3" />
+                              <span>
+                                {formattedDate} at {formattedTime}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* View All Link */}
+                    <button
+                      onClick={() => setActiveTab("activities")}
+                      className="w-full text-center text-xs text-indigo-600 hover:text-indigo-700 py-2 hover:bg-indigo-50 rounded-lg transition-colors"
+                    >
+                      View all activities →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <ClipboardList className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-xs text-gray-500">No activities yet</p>
+                  </div>
+                )}
+              </Card>
+
               {/* Quick Actions */}
               <Card className="p-4 bg-gradient-to-br from-white via-orange-50/20 to-white border-orange-100/50 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-900 mb-4">
@@ -1255,78 +1805,249 @@ export const ProjectDetails: React.FC = () => {
         {/* Tasks Tab */}
         {activeTab === "tasks" && (
           <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                <Package className="w-4 h-4 text-white" />
+            {/* Header with Add Button and Filter */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                  <Package className="w-4 h-4 text-white" />
+                </div>
+                Project Tasks
+                {!tasksLoading && !tasksError && (
+                  <span className="text-sm font-normal text-gray-500 ml-2">
+                    ({filteredTasks.length}{" "}
+                    {taskFilter !== "all" ? `of ${tasksArray.length}` : ""})
+                  </span>
+                )}
+              </h2>
+              <div className="flex items-center gap-3">
+                {/* Refresh Button */}
+                {tasksError && (
+                  <Button
+                    onClick={() => projectId && fetchProjectTasks(projectId)}
+                    variant="secondary"
+                    className="text-sm px-3 py-1.5"
+                    disabled={tasksLoading}
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 mr-1.5 ${tasksLoading ? "animate-spin" : ""}`}
+                    />
+                    Retry
+                  </Button>
+                )}
+                {/* Status Filter */}
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-400" />
+                  <select
+                    value={taskFilter}
+                    onChange={(e) => setTaskFilter(e.target.value)}
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    disabled={tasksLoading}
+                  >
+                    <option value="all">All Tasks</option>
+                    <option value="todo">To Do</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+                {/* Add Task Button */}
+                <Button
+                  onClick={() => handleOpenTaskModal()}
+                  className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1.5"
+                  disabled={tasksLoading}
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Add Task
+                </Button>
               </div>
-              Project Tasks
-            </h2>
+            </div>
 
-            {projectTasks.length === 0 ? (
+            {/* Loading Skeleton State */}
+            {tasksLoading && (
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50 animate-pulse"
+                  >
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="w-6 h-6 rounded bg-gray-200" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-1/3" />
+                        <div className="h-3 bg-gray-200 rounded w-1/4" />
+                        <div className="h-3 bg-gray-200 rounded w-1/5" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-16 bg-gray-200 rounded" />
+                      <div className="h-8 w-8 bg-gray-200 rounded" />
+                      <div className="h-8 w-8 bg-gray-200 rounded" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error State */}
+            {!tasksLoading && tasksError && (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="w-8 h-8 text-red-500" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  Failed to Load Tasks
+                </h3>
+                <p className="text-gray-500 mb-4 max-w-sm mx-auto">
+                  {tasksError}
+                </p>
+                <Button
+                  onClick={() => projectId && fetchProjectTasks(projectId)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  <RefreshCw className="w-4 h-4 mr-1.5" />
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!tasksLoading && !tasksError && filteredTasks.length === 0 && (
               <div className="text-center py-8">
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">
-                  No tasks found for this project.
+                  {taskFilter !== "all"
+                    ? `No ${taskFilter.replace("_", " ")} tasks found.`
+                    : "No tasks found for this project."}
                 </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {projectTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-md transition-all"
+                {taskFilter === "all" && (
+                  <Button
+                    onClick={() => handleOpenTaskModal()}
+                    className="mt-4 bg-blue-500 hover:bg-blue-600 text-white"
                   >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          task.status === ProjectTaskStatus.DONE
-                            ? "bg-green-100 text-green-600"
-                            : task.status === ProjectTaskStatus.IN_PROGRESS
-                              ? "bg-orange-100 text-orange-600"
-                              : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {task.status === ProjectTaskStatus.DONE ? (
-                          <CheckCircle2 className="w-5 h-5" />
-                        ) : (
-                          <Clock className="w-5 h-5" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-bold text-gray-900">{task.title}</p>
-                        {task.description && (
-                          <p className="text-sm text-gray-600">
-                            {task.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                          {task.dueDate && (
-                            <span>Due: {formatDate(task.dueDate)}</span>
-                          )}
-                          {task.assignedTo && (
-                            <span>
-                              Assigned:{" "}
-                              {typeof task.assignedTo === "string"
-                                ? task.assignedTo
-                                : task.assignedTo.name}
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Create First Task
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Task List */}
+            {!tasksLoading && !tasksError && filteredTasks.length > 0 && (
+              <div className="space-y-3">
+                {filteredTasks.map((task) => {
+                  const isCompleted =
+                    task.completed ||
+                    task.status === TaskStatus.COMPLETED ||
+                    task.status === "COMPLETED";
+                  const isLoadingTask = taskLoading === task.id;
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                        isCompleted
+                          ? "bg-green-50/50 border-green-100"
+                          : "bg-gray-50 border-gray-100 hover:shadow-md"
+                      } ${isLoadingTask ? "opacity-60" : ""}`}
+                    >
+                      <div className="flex items-center gap-4 flex-1">
+                        {/* Completion Checkbox */}
+                        <button
+                          onClick={() => handleCompleteTask(task)}
+                          disabled={isLoadingTask}
+                          className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                            isCompleted
+                              ? "bg-green-500 text-white"
+                              : "border-2 border-gray-300 hover:border-blue-500"
+                          } ${isLoadingTask ? "cursor-wait" : "cursor-pointer"}`}
+                        >
+                          {isLoadingTask ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : isCompleted ? (
+                            <CheckSquare className="w-4 h-4" />
+                          ) : null}
+                        </button>
+
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p
+                              className={`font-bold ${isCompleted ? "text-gray-500 line-through" : "text-gray-900"}`}
+                            >
+                              {task.title}
+                            </p>
+                            {/* Task Type Badge */}
+                            <span className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-600">
+                              {getTaskTypeLabel(task.taskType)}
                             </span>
+                            {/* Priority Badge */}
+                            <Badge
+                              className={`text-xs font-semibold ${getPriorityBadge(task.priority)}`}
+                            >
+                              {task.priority}
+                            </Badge>
+                          </div>
+                          {task.notes && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              {task.notes}
+                            </p>
                           )}
+                          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
+                            {task.dueDate && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                Due: {formatDate(task.dueDate)}
+                              </span>
+                            )}
+                            {task.assignedToId && (
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                Assigned
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Status Badge */}
+                        <Badge
+                          className={`text-xs font-semibold ${
+                            isCompleted
+                              ? "bg-green-100 text-green-700"
+                              : task.status === TaskStatus.IN_PROGRESS ||
+                                  task.status === "IN_PROGRESS"
+                                ? "bg-orange-100 text-orange-700"
+                                : task.status === TaskStatus.BLOCKED ||
+                                    task.status === "BLOCKED"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {(task.status || "TODO").replace(/_/g, " ")}
+                        </Badge>
+
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => handleOpenTaskModal(task)}
+                          disabled={isLoadingTask}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit task"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => setShowDeleteTaskConfirm(task.id)}
+                          disabled={isLoadingTask}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete task"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <Badge
-                      className={`text-xs font-semibold ${
-                        task.status === ProjectTaskStatus.DONE
-                          ? "bg-green-100 text-green-700"
-                          : task.status === ProjectTaskStatus.IN_PROGRESS
-                            ? "bg-orange-100 text-orange-700"
-                            : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {task.status.replace("_", " ")}
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -1697,6 +2418,11 @@ export const ProjectDetails: React.FC = () => {
         {/* Handover & Goodwill Tab */}
         {activeTab === "handover" && project && (
           <HandoverTab projectId={project.id} />
+        )}
+
+        {/* Activities Tab */}
+        {activeTab === "activities" && project && (
+          <ActivitiesTab projectId={project.id} />
         )}
       </div>
 
@@ -2255,6 +2981,224 @@ export const ProjectDetails: React.FC = () => {
                   </>
                 );
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Form Modal */}
+      {showTaskModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">
+                  {editingTask ? "Edit Task" : "Create New Task"}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowTaskModal(false);
+                    resetTaskForm();
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Form */}
+              <div className="space-y-4">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Task Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={taskForm.title}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, title: e.target.value })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter task title..."
+                  />
+                </div>
+
+                {/* Task Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Task Type
+                  </label>
+                  <select
+                    value={taskForm.taskType}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, taskType: e.target.value })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="CALL">Call</option>
+                    <option value="MEETING">Meeting</option>
+                    <option value="PRESENTATION">Presentation</option>
+                    <option value="SURVEY">Survey</option>
+                    <option value="INTERVIEW">Interview</option>
+                    <option value="SITE_VISIT">Site Visit</option>
+                    <option value="FOLLOW_UP">Follow Up</option>
+                    <option value="DOCUMENT_UPLOAD">Document Upload</option>
+                    <option value="APPROVAL_PENDING">Approval Pending</option>
+                    <option value="DESIGN_REVIEW">Design Review</option>
+                    <option value="PAYMENT_COLLECTION">
+                      Payment Collection
+                    </option>
+                    <option value="HANDOVER">Handover</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                {/* Priority and Status Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Priority */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Priority
+                    </label>
+                    <select
+                      value={taskForm.priority}
+                      onChange={(e) =>
+                        setTaskForm({ ...taskForm, priority: e.target.value })
+                      }
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="URGENT">Urgent</option>
+                    </select>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Status
+                    </label>
+                    <select
+                      value={taskForm.status}
+                      onChange={(e) =>
+                        setTaskForm({ ...taskForm, status: e.target.value })
+                      }
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="TODO">To Do</option>
+                      <option value="IN_PROGRESS">In Progress</option>
+                      <option value="COMPLETED">Completed</option>
+                      <option value="BLOCKED">Blocked</option>
+                      <option value="CANCELLED">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Due Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={taskForm.dueDate}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, dueDate: e.target.value })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes
+                  </label>
+                  <textarea
+                    value={taskForm.notes}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, notes: e.target.value })
+                    }
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    placeholder="Additional notes or description..."
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowTaskModal(false);
+                    resetTaskForm();
+                  }}
+                  disabled={isSavingTask}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                  onClick={handleSaveTask}
+                  disabled={isSavingTask || !taskForm.title.trim()}
+                >
+                  {isSavingTask ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  {editingTask ? "Update Task" : "Create Task"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Task Confirmation Modal */}
+      {showDeleteTaskConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+                  <Trash2 className="w-8 h-8 text-red-600" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                Delete Task?
+              </h3>
+              <p className="text-gray-600 text-center mb-6">
+                Are you sure you want to delete this task? This action cannot be
+                undone.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowDeleteTaskConfirm(null)}
+                  disabled={taskLoading === showDeleteTaskConfirm}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                  onClick={() => handleDeleteTask(showDeleteTaskConfirm)}
+                  disabled={taskLoading === showDeleteTaskConfirm}
+                >
+                  {taskLoading === showDeleteTaskConfirm ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Trash2 className="w-4 h-4 mr-2" />
+                  )}
+                  Delete
+                </Button>
+              </div>
             </div>
           </div>
         </div>

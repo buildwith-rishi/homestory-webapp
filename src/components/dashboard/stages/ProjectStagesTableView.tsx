@@ -8,6 +8,8 @@ import {
   Calendar,
   Ban,
   CalendarDays,
+  ArrowRight,
+  CalendarCheck,
 } from "lucide-react";
 import { Card, Badge } from "../../ui";
 import { useProjectStore } from "../../../stores/projectStore";
@@ -115,6 +117,20 @@ export const ProjectStagesTableView: React.FC<Props> = ({
       if (editForm.tentativeEndDate)
         data.tentativeEndDate = editForm.tentativeEndDate;
       if (editForm.remarks) data.remarks = editForm.remarks;
+
+      // Auto-set endDate to today when marking as COMPLETED
+      if (editForm.status === "COMPLETED" && stage.status !== "COMPLETED") {
+        data.endDate = new Date().toISOString().split("T")[0];
+      }
+
+      // Auto-set startDate to today when moving to ONGOING
+      if (
+        editForm.status === "ONGOING" &&
+        stage.status !== "ONGOING" &&
+        !stage.startDate
+      ) {
+        data.startDate = new Date().toISOString().split("T")[0];
+      }
 
       await updateProjectStage(projectId, stage.stageCode, data);
       toast.success(`Stage "${stage.stageName}" updated`);
@@ -246,11 +262,86 @@ export const ProjectStagesTableView: React.FC<Props> = ({
                         className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-orange-400"
                       />
                     ) : (
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(stage.startDate)}
-                        <span className="text-gray-300">&rarr;</span>
-                        {formatDate(stage.endDate || stage.tentativeEndDate)}
+                      <div className="space-y-1">
+                        {/* Completed stage: show actual start → end */}
+                        {stage.status === "COMPLETED" ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1 text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">
+                              <CalendarCheck className="w-3 h-3" />
+                              {formatDate(stage.endDate)}
+                            </div>
+                            {stage.startDate && (
+                              <span className="text-[10px] text-gray-400">
+                                from {formatDate(stage.startDate)}
+                              </span>
+                            )}
+                          </div>
+                        ) : stage.status === "ONGOING" ? (
+                          /* Ongoing stage: show start date + expected end */
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <div className="flex items-center gap-1 text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full">
+                              <Clock className="w-3 h-3" />
+                              {stage.startDate
+                                ? formatDate(stage.startDate)
+                                : "Started"}
+                            </div>
+                            {stage.tentativeEndDate && (
+                              <>
+                                <ArrowRight className="w-3 h-3 text-gray-300" />
+                                <span className="text-gray-500">
+                                  {formatDate(stage.tentativeEndDate)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          /* Pending / N/A: show tentative end if available */
+                          <div className="flex items-center gap-1 text-xs text-gray-400">
+                            <Calendar className="w-3 h-3" />
+                            {stage.tentativeEndDate ? (
+                              <span>
+                                Est. {formatDate(stage.tentativeEndDate)}
+                              </span>
+                            ) : (
+                              <span>{"\u2014"}</span>
+                            )}
+                          </div>
+                        )}
+                        {/* Duration indicator for completed or ongoing */}
+                        {stage.status === "COMPLETED" &&
+                          stage.startDate &&
+                          stage.endDate && (
+                            <span className="text-[10px] text-gray-400">
+                              {(() => {
+                                const days = Math.ceil(
+                                  (new Date(stage.endDate).getTime() -
+                                    new Date(stage.startDate).getTime()) /
+                                    86400000,
+                                );
+                                return days === 0
+                                  ? "Same day"
+                                  : days === 1
+                                    ? "1 day"
+                                    : `${days} days`;
+                              })()}
+                            </span>
+                          )}
+                        {stage.status === "ONGOING" && stage.startDate && (
+                          <span className="text-[10px] text-gray-400">
+                            {(() => {
+                              const days = Math.ceil(
+                                (new Date().getTime() -
+                                  new Date(stage.startDate).getTime()) /
+                                  86400000,
+                              );
+                              return days === 0
+                                ? "Started today"
+                                : days === 1
+                                  ? "1 day ago"
+                                  : `${days} days in`;
+                            })()}
+                          </span>
+                        )}
                       </div>
                     )}
                   </td>

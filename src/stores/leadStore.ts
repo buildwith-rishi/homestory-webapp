@@ -70,6 +70,8 @@ const convertAPILeadToLead = (apiLead: APILead): Lead => {
     stageHistory: apiLead.stageHistory,
     contacts: apiLead.contacts,
     activities: apiLead.activities,
+    assignedTo: apiLead.assignedTo || null,
+    assignedToId: apiLead.assignedToId || null,
   } as Lead;
 };
 
@@ -160,6 +162,8 @@ export const useLeadStore = create<LeadState>((set, get) => ({
       if (updates.phone) apiUpdates.phone = updates.phone;
       if (updates.status) apiUpdates.status = updates.status;
       if (updates.notes) apiUpdates.notes = updates.notes;
+      if ("assignedToId" in updates)
+        apiUpdates.assignedToId = updates.assignedToId;
 
       console.log("Updating lead via API:", id, apiUpdates);
       const updatedApiLead = await LeadAPI.updateLead(id, apiUpdates);

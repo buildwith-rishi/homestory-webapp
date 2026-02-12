@@ -17,7 +17,7 @@ const Logo: React.FC<LogoProps> = ({
   className = "",
 }) => {
   const [showText, setShowText] = useState(false);
-  
+
   useEffect(() => {
     // Trigger text animation on mount
     const timer = setTimeout(() => setShowText(true), 200);
@@ -33,8 +33,8 @@ const Logo: React.FC<LogoProps> = ({
     colorScheme === "light" || colorScheme === "mono-white"
       ? "#ffffff"
       : colorScheme === "mono-dark"
-      ? "#1a1a1a"
-      : "#1a1a1a";
+        ? "#1a1a1a"
+        : "#1a1a1a";
 
   // Filter for icon based on color scheme
   const iconFilter =
@@ -44,6 +44,7 @@ const Logo: React.FC<LogoProps> = ({
 
   const text1 = "Good";
   const text2 = "Homestory";
+  const text3 = "CRM";
 
   // Animation variants for letters
   const letterVariants = {
@@ -103,7 +104,8 @@ const Logo: React.FC<LogoProps> = ({
             fontWeight: 500,
             letterSpacing: "-0.01em",
             lineHeight: 1.2,
-            fontFamily: '"Neue Haas Grotesk Display Pro", "Helvetica Neue", "Arial", system-ui, -apple-system, sans-serif',
+            fontFamily:
+              '"Neue Haas Grotesk Display Pro", "Helvetica Neue", "Arial", system-ui, -apple-system, sans-serif',
             color: textColor,
           }}
         >
@@ -131,7 +133,8 @@ const Logo: React.FC<LogoProps> = ({
             fontWeight: 500,
             letterSpacing: "-0.01em",
             lineHeight: 1.2,
-            fontFamily: '"Neue Haas Grotesk Display Pro", "Helvetica Neue", "Arial", system-ui, -apple-system, sans-serif',
+            fontFamily:
+              '"Neue Haas Grotesk Display Pro", "Helvetica Neue", "Arial", system-ui, -apple-system, sans-serif',
             color: textColor,
           }}
         >
@@ -144,7 +147,38 @@ const Logo: React.FC<LogoProps> = ({
                 animate="visible"
                 transition={{
                   duration: 0.3,
-                  delay: (text1.length * 0.05) + (index * 0.05),
+                  delay: text1.length * 0.05 + index * 0.05,
+                  ease: "easeOut",
+                }}
+                style={{ display: "inline-block" }}
+              >
+                {char}
+              </motion.span>
+            ))}
+        </div>
+        <div
+          style={{
+            fontSize: fontSize * 0.75,
+            fontWeight: 600,
+            letterSpacing: "0.05em",
+            lineHeight: 1.2,
+            fontFamily:
+              '"Neue Haas Grotesk Display Pro", "Helvetica Neue", "Arial", system-ui, -apple-system, sans-serif',
+            color: textColor,
+            opacity: 0.85,
+          }}
+        >
+          {showText &&
+            text3.split("").map((char, index) => (
+              <motion.span
+                key={`crm-${index}`}
+                variants={letterVariants}
+                initial="hidden"
+                animate="visible"
+                transition={{
+                  duration: 0.3,
+                  delay:
+                    text1.length * 0.05 + text2.length * 0.05 + index * 0.05,
                   ease: "easeOut",
                 }}
                 style={{ display: "inline-block" }}
