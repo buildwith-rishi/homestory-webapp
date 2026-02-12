@@ -59,7 +59,7 @@ export async function getActivities(): Promise<Activity[]> {
  * @returns Promise resolving to the created activity
  */
 export async function createActivity(
-  data: CreateActivityRequest
+  data: CreateActivityRequest,
 ): Promise<Activity> {
   const response = await fetch(`${API_BASE_URL}/api/activities`, {
     method: "POST",
@@ -169,7 +169,7 @@ export async function logEmail(data: LogActivityRequest): Promise<Activity> {
  * @returns Promise resolving to the created activity
  */
 export async function logSiteVisit(
-  data: LogActivityRequest
+  data: LogActivityRequest,
 ): Promise<Activity> {
   const response = await fetch(
     `${API_BASE_URL}/api/activities/log/site-visit`,
@@ -177,7 +177,7 @@ export async function logSiteVisit(
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
-    }
+    },
   );
   return handleResponse<Activity>(response);
 }
@@ -190,14 +190,14 @@ export async function logSiteVisit(
  */
 export async function getActivitiesByEntity(
   entityType: EntityType,
-  entityId: string
+  entityId: string,
 ): Promise<Activity[]> {
   const response = await fetch(
     `${API_BASE_URL}/api/activities/${entityType}/${entityId}`,
     {
       method: "GET",
       headers: getAuthHeaders(),
-    }
+    },
   );
   return handleResponse<Activity[]>(response);
 }
