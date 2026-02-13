@@ -14,11 +14,17 @@ import {
 } from "lucide-react";
 import { Card, Badge, Modal } from "../../components/ui";
 import { adminAPI } from "../../services/api";
-import { AdminUser, CreateUserRequest, UserRole } from "../../types";
+import { AdminUser, CreateUserRequest } from "../../types";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+  getRoleBadgeClasses,
+  getRoleDisplayName,
+  ROLES,
+  type RoleId,
+} from "../../config/rbac";
 
 export const UserManagement: React.FC = () => {
-  const { hasRole } = useAuth();
+  const { roleId } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,7 +46,7 @@ export const UserManagement: React.FC = () => {
     name: "",
     email: "",
     password: "",
-    role: "CUSTOMER",
+    role: "BDR",
     phone: "",
   });
   const [editForm, setEditForm] = useState<{
@@ -49,14 +55,14 @@ export const UserManagement: React.FC = () => {
     phone: string;
   }>({
     name: "",
-    role: "CUSTOMER",
+    role: "BDR",
     phone: "",
   });
   const [banReason, setBanReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
   // Check if user has admin role
-  const isAdmin = hasRole(UserRole.ADMIN);
+  const isAdmin = roleId === "SUPER_ADMIN" || roleId === "ADMIN";
 
   const loadUsers = async () => {
     try {
@@ -146,7 +152,7 @@ export const UserManagement: React.FC = () => {
         name: "",
         email: "",
         password: "",
-        role: "CUSTOMER",
+        role: "BDR",
         phone: "",
       });
       await loadUsers();
@@ -287,16 +293,7 @@ export const UserManagement: React.FC = () => {
   });
 
   const getRoleBadgeColor = (role: string) => {
-    const colors = {
-      ADMIN: "bg-purple-100 text-purple-700",
-      FOUNDER_ARCHITECT: "bg-indigo-100 text-indigo-700",
-      PROJECT_MANAGER: "bg-blue-100 text-blue-700",
-      DESIGNER: "bg-pink-100 text-pink-700",
-      SITE_ENGINEER: "bg-green-100 text-green-700",
-      SALES_EXECUTIVE: "bg-orange-100 text-orange-700",
-      CUSTOMER: "bg-gray-100 text-gray-700",
-    };
-    return colors[role as keyof typeof colors] || "bg-gray-100 text-gray-700";
+    return getRoleBadgeClasses(role as RoleId);
   };
 
   const formatDate = (dateString: string) => {
@@ -428,13 +425,12 @@ export const UserManagement: React.FC = () => {
             }}
           >
             <option value="all">All Roles</option>
+            <option value="SUPER_ADMIN">Super Admin</option>
             <option value="ADMIN">Admin</option>
-            <option value="FOUNDER_ARCHITECT">Founder Architect</option>
+            <option value="BDR">Business Development Rep</option>
             <option value="PROJECT_MANAGER">Project Manager</option>
-            <option value="DESIGNER">Designer</option>
+            <option value="ACCOUNTS">Accounts / Finance</option>
             <option value="SITE_ENGINEER">Site Engineer</option>
-            <option value="SALES_EXECUTIVE">Sales Executive</option>
-            <option value="CUSTOMER">Customer</option>
           </select>
 
           {/* Status Filter */}
@@ -525,7 +521,7 @@ export const UserManagement: React.FC = () => {
                       <Badge
                         className={`${getRoleBadgeColor(user.role)} px-3 py-1`}
                       >
-                        {user.role.replace("_", " ")}
+                        {getRoleDisplayName(user.role as RoleId)}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -706,13 +702,12 @@ export const UserManagement: React.FC = () => {
                 backgroundSize: "1.25em 1.25em",
               }}
             >
-              <option value="CUSTOMER">Customer</option>
-              <option value="DESIGNER">Designer</option>
+              <option value="BDR">Business Development Rep</option>
               <option value="SITE_ENGINEER">Site Engineer</option>
               <option value="PROJECT_MANAGER">Project Manager</option>
-              <option value="SALES_EXECUTIVE">Sales Executive</option>
-              <option value="FOUNDER_ARCHITECT">Founder Architect</option>
+              <option value="ACCOUNTS">Accounts / Finance</option>
               <option value="ADMIN">Admin</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
             </select>
           </div>
 
@@ -731,6 +726,19 @@ export const UserManagement: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
             />
           </div>
+
+          {/* Role Description */}
+          {createForm.role && ROLES[createForm.role as RoleId] && (
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+              <p className="text-xs font-medium text-blue-700 mb-1">
+                {getRoleDisplayName(createForm.role as RoleId)} —{" "}
+                {ROLES[createForm.role as RoleId].accessLevel} Access
+              </p>
+              <p className="text-xs text-blue-600">
+                {ROLES[createForm.role as RoleId].description}
+              </p>
+            </div>
+          )}
 
           {/* Modal Footer */}
           <div className="flex gap-3 pt-3 border-t border-gray-100 mt-4">
@@ -962,13 +970,12 @@ export const UserManagement: React.FC = () => {
                 backgroundSize: "1.25em 1.25em",
               }}
             >
-              <option value="CUSTOMER">Customer</option>
-              <option value="DESIGNER">Designer</option>
+              <option value="BDR">Business Development Rep</option>
               <option value="SITE_ENGINEER">Site Engineer</option>
               <option value="PROJECT_MANAGER">Project Manager</option>
-              <option value="SALES_EXECUTIVE">Sales Executive</option>
-              <option value="FOUNDER_ARCHITECT">Founder Architect</option>
+              <option value="ACCOUNTS">Accounts / Finance</option>
               <option value="ADMIN">Admin</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
             </select>
           </div>
 

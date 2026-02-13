@@ -39,6 +39,7 @@ import type {
   CreateMatrixResponse,
   UpdateMatrixRequest,
   UpdateTaskStatusRequest,
+  UpdateMatrixTaskRequest,
   NotifyCustomerRequest,
   NotifyCustomerResponse,
   HandoverActivity,
@@ -1728,6 +1729,33 @@ export async function updateMatrixTaskStatus(
 }
 
 /**
+ * Update a matrix task's details (title, description, category, etc.)
+ * PUT /api/tasks/:taskId
+ */
+export async function updateMatrixTask(
+  taskId: string,
+  data: UpdateMatrixTaskRequest,
+): Promise<MatrixTask> {
+  try {
+    // Strip out undefined values to keep payload clean
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(([_, v]) => v !== undefined),
+    );
+    console.log("[updateMatrixTask] PUT /api/tasks/" + taskId, cleanData);
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(cleanData),
+    });
+    const result = await handleResponse<any>(response);
+    return result.task || result;
+  } catch (error) {
+    console.error("Error updating task:", error);
+    throw error;
+  }
+}
+
+/**
  * Get task details
  * GET /api/tasks/:taskId
  */
@@ -1828,7 +1856,11 @@ export async function uploadTaskAttachment(
       },
     );
     const result = await handleResponse<any>(response);
-    return result.attachment || result;
+    console.log("[uploadTaskAttachment] Raw response:", result);
+    // Handle various response shapes from the API
+    const attachment =
+      result.attachment || result.data?.attachment || result.data || result;
+    return attachment;
   } catch (error) {
     console.error("Error uploading task attachment:", error);
     throw error;
@@ -1851,8 +1883,14 @@ export async function getTaskAttachments(
       },
     );
     const result = await handleResponse<any>(response);
+    console.log("[getTaskAttachments] Raw response:", result);
+    // Handle various response shapes from the API
     if (Array.isArray(result)) return result;
-    return result.attachments || [];
+    if (Array.isArray(result.attachments)) return result.attachments;
+    if (Array.isArray(result.data?.attachments)) return result.data.attachments;
+    if (Array.isArray(result.data)) return result.data;
+    console.warn("[getTaskAttachments] Unexpected response shape:", result);
+    return [];
   } catch (error) {
     console.error("Error fetching task attachments:", error);
     throw error;
@@ -2238,6 +2276,7 @@ const ProjectAPI = {
   getProjectMatrices,
   getMatrixStats,
   updateMatrixTaskStatus,
+  updateMatrixTask,
   getMatrixTaskDetails,
   getMatrixDayTasks,
   getCategoryTasks,

@@ -43,7 +43,6 @@ import { ProjectStagesSection } from "../../components/dashboard/stages";
 import { TestimonialsTab } from "../../components/dashboard/testimonials";
 import { ProjectReferencesTab } from "../../components/dashboard/references";
 import { HandoverTab } from "../../components/dashboard/handover";
-import { ActivitiesTab } from "../../components/dashboard/activities";
 import toast from "react-hot-toast";
 import { useProjectStore } from "../../stores/projectStore";
 import { useProjectOptions } from "../../hooks/useProjectOptions";
@@ -232,7 +231,6 @@ export const ProjectDetails: React.FC = () => {
     | "references"
     | "testimonials"
     | "handover"
-    | "activities"
   >("overview");
 
   // Payment update modal
@@ -476,12 +474,29 @@ export const ProjectDetails: React.FC = () => {
 
       // Log activity for audit trail
       try {
+        const resumedOnDate = new Date().toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
         const descriptions: Record<string, string> = {
           start: `Project started — status changed to Ongoing`,
-          resume: `Project resumed from Paused — status changed back to Ongoing`,
+          resume: `Project resumed on ${resumedOnDate} — status changed back to Ongoing`,
           complete: `Project marked as Completed`,
           cancel: `Project has been Cancelled`,
         };
+
+        // Calculate pause duration for resume action
+        let pauseDurationDays: number | undefined;
+        if (action === "resume" && pauseStatus?.pausedAt) {
+          const pausedAtDate = new Date(pauseStatus.pausedAt);
+          const nowDate = new Date();
+          pauseDurationDays = Math.round(
+            (nowDate.getTime() - pausedAtDate.getTime()) /
+              (1000 * 60 * 60 * 24),
+          );
+        }
+
         await createActivity({
           entityType: "PROJECT",
           entityId: projectId,
@@ -495,6 +510,11 @@ export const ProjectDetails: React.FC = () => {
               to: newStatus,
             },
             action,
+            ...(action === "resume" && {
+              resumedOn: new Date().toISOString(),
+              pausedFrom: pauseStatus?.pausedAt || null,
+              actualPauseDays: pauseDurationDays,
+            }),
           },
         });
         console.log(`✅ Status change activity logged: ${action}`);
@@ -555,18 +575,29 @@ export const ProjectDetails: React.FC = () => {
 
       // Log activity for audit trail
       try {
+        const pausedFromDate = new Date().toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+        const pausedUntilDate = new Date(expectedResumeDate).toLocaleDateString(
+          "en-IN",
+          { day: "2-digit", month: "short", year: "numeric" },
+        );
         await createActivity({
           entityType: "PROJECT",
           entityId: projectId,
           type: "STATUS_CHANGE",
-          description: `Project paused for ${pauseForm.pauseDays} days. Reason: ${pauseForm.reason.trim()}. Expected resume: ${new Date(expectedResumeDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`,
+          description: `Project paused from ${pausedFromDate} to ${pausedUntilDate} (${pauseForm.pauseDays} days). Reason: ${pauseForm.reason.trim()}`,
           metadata: {
             statusChange: {
               from: "ONGOING",
               to: "PAUSED",
             },
+            action: "pause",
             pauseDays: pauseForm.pauseDays,
             reason: pauseForm.reason.trim(),
+            pausedFrom: new Date().toISOString(),
             expectedResumeDate,
           },
         });
@@ -1166,7 +1197,6 @@ export const ProjectDetails: React.FC = () => {
                 icon: MessageSquare,
               },
               { id: "handover", label: "Handover", icon: Gift },
-              { id: "activities", label: "Activities", icon: ClipboardList },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1595,6 +1625,37 @@ export const ProjectDetails: React.FC = () => {
                               ? `${diffHours}h ago`
                               : "";
 
+                      // Build pause/resume date chips
+                      const pauseFromStr = activity.metadata?.pausedFrom
+                        ? new Date(
+                            activity.metadata.pausedFrom,
+                          ).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                          })
+                        : null;
+                      const pauseUntilStr = activity.metadata
+                        ?.expectedResumeDate
+                        ? new Date(
+                            activity.metadata.expectedResumeDate,
+                          ).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                          })
+                        : null;
+                      const resumedOnStr = activity.metadata?.resumedOn
+                        ? new Date(
+                            activity.metadata.resumedOn,
+                          ).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                          })
+                        : null;
+                      const actualPauseDays =
+                        activity.metadata?.actualPauseDays;
+                      const pauseDays = activity.metadata?.pauseDays;
+                      const pauseReason = activity.metadata?.reason;
+
                       return (
                         <div
                           key={activity.id}
@@ -1611,7 +1672,7 @@ export const ProjectDetails: React.FC = () => {
 
                           {/* Content */}
                           <div className="flex-1 min-w-0 pt-0.5">
-                            <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex items-start justify-between gap-2 mb-0.5">
                               <p className="text-xs font-semibold text-gray-900">
                                 {activityLabel}
                               </p>
@@ -1621,9 +1682,60 @@ export const ProjectDetails: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-gray-700 leading-relaxed mb-1.5">
-                              {activity.description}
-                            </p>
+
+                            {/* Compact pause date-range chip */}
+                            {isPause && pauseFromStr && pauseUntilStr && (
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <div className="inline-flex items-center gap-1 bg-yellow-50 border border-yellow-200 rounded-md px-1.5 py-0.5">
+                                  <Calendar className="w-2.5 h-2.5 text-yellow-500" />
+                                  <span className="text-[10px] font-medium text-yellow-700">
+                                    {pauseFromStr} → {pauseUntilStr}
+                                  </span>
+                                  {pauseDays && (
+                                    <span className="text-[10px] text-yellow-500">
+                                      ({pauseDays}d)
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Compact resume chip */}
+                            {isResume && (
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <div className="inline-flex items-center gap-1 bg-green-50 border border-green-200 rounded-md px-1.5 py-0.5">
+                                  <Play className="w-2.5 h-2.5 text-green-500" />
+                                  <span className="text-[10px] font-medium text-green-700">
+                                    Resumed
+                                    {resumedOnStr ? ` on ${resumedOnStr}` : ""}
+                                  </span>
+                                  {actualPauseDays !== undefined &&
+                                    actualPauseDays !== null && (
+                                      <span className="text-[10px] text-green-500">
+                                        · paused {actualPauseDays}d
+                                      </span>
+                                    )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Pause reason inline */}
+                            {isPause && pauseReason && (
+                              <p
+                                className="text-[10px] text-gray-500 italic mb-1 truncate"
+                                title={pauseReason}
+                              >
+                                "{pauseReason}"
+                              </p>
+                            )}
+
+                            {/* Default description for non-pause/resume activities */}
+                            {!isPause && !isResume && (
+                              <p className="text-xs text-gray-700 leading-relaxed mb-1.5">
+                                {activity.description}
+                              </p>
+                            )}
+
                             <div className="flex items-center gap-1 text-[10px] text-gray-500">
                               <Clock className="w-3 h-3" />
                               <span>
@@ -2419,11 +2531,6 @@ export const ProjectDetails: React.FC = () => {
         {activeTab === "handover" && project && (
           <HandoverTab projectId={project.id} />
         )}
-
-        {/* Activities Tab */}
-        {activeTab === "activities" && project && (
-          <ActivitiesTab projectId={project.id} />
-        )}
       </div>
 
       {/* Payment Update Modal */}
@@ -2861,11 +2968,54 @@ export const ProjectDetails: React.FC = () => {
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
                     placeholder="Number of days to pause"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    The project will be automatically flagged as expired after
-                    this period.
-                  </p>
                 </div>
+
+                {/* Pause date range preview */}
+                {pauseForm.pauseDays >= 1 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="w-3.5 h-3.5 text-yellow-600" />
+                      <span className="text-xs font-semibold text-yellow-800">
+                        Pause Period
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-center">
+                        <p className="text-[10px] uppercase tracking-wide text-yellow-600 font-medium">
+                          From
+                        </p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {new Date().toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <div className="flex-1 mx-3 border-t border-dashed border-yellow-300 relative">
+                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-yellow-50 px-1.5 text-[10px] text-yellow-600 font-medium">
+                          {pauseForm.pauseDays}d
+                        </span>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] uppercase tracking-wide text-yellow-600 font-medium">
+                          Until
+                        </p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {(() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + pauseForm.pauseDays);
+                            return d.toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            });
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">

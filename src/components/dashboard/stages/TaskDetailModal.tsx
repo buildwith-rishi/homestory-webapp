@@ -18,6 +18,8 @@ import {
   MessageSquare,
   ExternalLink,
   File,
+  Edit3,
+  Save,
 } from "lucide-react";
 import { Button } from "../../ui";
 import type {
@@ -25,6 +27,7 @@ import type {
   TaskAttachment,
   UpdateTaskStatusRequest,
   NotifyCustomerRequest,
+  UpdateMatrixTaskRequest,
 } from "../../../types";
 import {
   getMatrixTaskDetails,
@@ -32,6 +35,7 @@ import {
   uploadTaskAttachment,
   deleteTaskAttachment,
   updateMatrixTaskStatus,
+  updateMatrixTask,
   notifyCustomerTaskComplete,
 } from "../../../services/projectApi";
 import toast from "react-hot-toast";
@@ -162,33 +166,106 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [includeAttachments, setIncludeAttachments] = useState(true);
   const [notifying, setNotifying] = useState(false);
 
+  // Task editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const startEditing = () => {
+    if (!task) return;
+    setEditTitle(task.title || "");
+    setEditDescription(task.description || "");
+    setEditCategoryId(task.categoryId || task.category?.id || "");
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+  };
+
+  const handleSaveTaskEdit = async () => {
+    if (!task) return;
+    if (!editTitle.trim()) {
+      toast.error("Task title is required");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      // Send ALL task fields (PUT = full replace) so the backend gets a complete object
+      const payload: UpdateMatrixTaskRequest = {
+        title: editTitle.trim(),
+        description: editDescription.trim() || undefined,
+        categoryId:
+          editCategoryId || task.categoryId || task.category?.id || undefined,
+        dayNumber: task.dayNumber,
+        taskDate: task.taskDate || undefined,
+        status: task.status,
+      };
+
+      await updateMatrixTask(taskId, payload);
+      toast.success("Task updated successfully");
+      setIsEditing(false);
+      await fetchTaskDetails();
+      onStatusChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update task");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   useEffect(() => {
     fetchTaskDetails();
   }, [taskId]);
 
   const fetchTaskDetails = async () => {
     setLoading(true);
+
+    // Fetch task details and attachments independently so one failing doesn't block the other
+    let taskData: MatrixTask | null = null;
+    let attachData: TaskAttachment[] = [];
+
+    // 1. Fetch task details
     try {
-      const [taskData, attachData] = await Promise.all([
-        getMatrixTaskDetails(taskId),
-        getTaskAttachments(taskId).catch(() => [] as TaskAttachment[]),
-      ]);
+      taskData = await getMatrixTaskDetails(taskId);
+      console.log("[TaskDetailModal] Task data:", taskData);
+    } catch (err) {
+      console.error("[TaskDetailModal] Failed to fetch task details:", err);
+      // Use fallback task data from the list view
+      if (fallbackTask) {
+        taskData = fallbackTask;
+      }
+    }
+
+    // 2. Always fetch attachments regardless of task detail success/failure
+    try {
+      attachData = await getTaskAttachments(taskId);
+      console.log("[TaskDetailModal] Attachments data:", attachData);
+      if (!Array.isArray(attachData)) {
+        console.warn(
+          "[TaskDetailModal] attachData is not an array:",
+          attachData,
+        );
+        attachData = [];
+      }
+    } catch (err) {
+      console.error("[TaskDetailModal] Failed to fetch attachments:", err);
+      attachData = [];
+    }
+
+    // 3. Set state
+    if (taskData) {
       setTask(taskData);
-      setAttachments(Array.isArray(attachData) ? attachData : []);
       setNewStatus(taskData.status);
       setCompletionNotes(taskData.completionNotes || "");
-    } catch (err) {
-      // If API fails but we have fallback data from the list, use it
-      if (fallbackTask) {
-        setTask(fallbackTask);
-        setNewStatus(fallbackTask.status);
-        setCompletionNotes(fallbackTask.completionNotes || "");
-      } else {
-        toast.error(err instanceof Error ? err.message : "Failed to load task");
-      }
-    } finally {
-      setLoading(false);
+    } else {
+      toast.error("Failed to load task details");
     }
+    setAttachments(attachData);
+
+    setLoading(false);
   };
 
   const handleStatusUpdate = async () => {
@@ -216,12 +293,15 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setUploading(true);
     try {
       const attachmentType = inferAttachmentType(file);
-      const attachment = await uploadTaskAttachment(
-        taskId,
-        file,
-        attachmentType,
-      );
-      setAttachments((prev) => [...prev, attachment]);
+      await uploadTaskAttachment(taskId, file, attachmentType);
+      // Re-fetch all attachments from API to ensure we have the correct data
+      try {
+        const freshAttachments = await getTaskAttachments(taskId);
+        setAttachments(Array.isArray(freshAttachments) ? freshAttachments : []);
+      } catch {
+        // Fallback: just refresh everything
+        await fetchTaskDetails();
+      }
       toast.success("File uploaded");
       onStatusChanged(); // refresh counts
     } catch (err) {
@@ -333,37 +413,124 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {activeTab === "details" && (
                 <div className="space-y-5">
-                  {/* Current status badge */}
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${cfg.bg} ${cfg.text}`}
-                    >
-                      {cfg.icon}
-                      {cfg.label}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      Day {task.dayNumber}
-                    </span>
-                    {task.category && (
+                  {/* Status badge + Edit button row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
                       <span
-                        className="text-xs px-2 py-0.5 rounded-full font-medium text-white"
-                        style={{ backgroundColor: catColor }}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${cfg.bg} ${cfg.text}`}
                       >
-                        {task.category.name}
+                        {cfg.icon}
+                        {cfg.label}
                       </span>
+                      <span className="text-xs text-gray-400">
+                        Day {task.dayNumber}
+                      </span>
+                      {task.category && !isEditing && (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-medium text-white"
+                          style={{ backgroundColor: catColor }}
+                        >
+                          {task.category.name}
+                        </span>
+                      )}
+                    </div>
+                    {!isEditing && (
+                      <button
+                        onClick={startEditing}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
                     )}
                   </div>
 
-                  {/* Description */}
-                  {task.description && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                        Description
-                      </p>
-                      <p className="text-sm text-gray-700 leading-relaxed">
-                        {task.description}
-                      </p>
+                  {/* Inline editing form */}
+                  {isEditing ? (
+                    <div className="space-y-4 bg-orange-50/40 border border-orange-200 rounded-xl p-4">
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                          Title
+                        </label>
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+                          placeholder="Task title"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                          Description
+                        </label>
+                        <textarea
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 resize-none"
+                          rows={3}
+                          placeholder="Task description (optional)"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                          Category
+                        </label>
+                        <select
+                          value={editCategoryId}
+                          onChange={(e) => setEditCategoryId(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white"
+                        >
+                          <option value="">No category</option>
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          onClick={handleSaveTaskEdit}
+                          disabled={savingEdit || !editTitle.trim()}
+                          className="bg-orange-500 hover:bg-orange-600 text-white"
+                        >
+                          {savingEdit ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                              Saving…
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-3.5 h-3.5 mr-1" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                        <button
+                          onClick={cancelEditing}
+                          disabled={savingEdit}
+                          className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      {/* Description (read-only) */}
+                      {task.description && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                            Description
+                          </p>
+                          <p className="text-sm text-gray-700 leading-relaxed">
+                            {task.description}
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Metadata */}

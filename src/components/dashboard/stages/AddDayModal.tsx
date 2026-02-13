@@ -3,14 +3,12 @@ import ReactDOM from "react-dom";
 import { X, Loader2, Plus, Trash2, Calendar } from "lucide-react";
 import { Button } from "../../ui";
 import type { MatrixCategory } from "../../../types";
-import { updateMatrix } from "../../../services/projectApi";
+import { createTaskMatrix } from "../../../services/projectApi";
 import toast from "react-hot-toast";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
-
 interface AddDayModalProps {
-  matrixId: string;
+  projectId: string;
+  stageId: string;
   currentTotalDays: number;
   startDate: string;
   categories: MatrixCategory[];
@@ -19,16 +17,9 @@ interface AddDayModalProps {
   onSuccess: () => void;
 }
 
-const getAuthHeaders = (): HeadersInit => {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-};
-
 export const AddDayModal: React.FC<AddDayModalProps> = ({
-  matrixId,
+  projectId,
+  stageId,
   currentTotalDays,
   startDate,
   categories,
@@ -74,8 +65,6 @@ export const AddDayModal: React.FC<AddDayModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dayDate = getTaskDate(newDayNumber);
-
   const addTask = () => {
     setTasks((prev) => [
       ...prev,
@@ -115,31 +104,31 @@ export const AddDayModal: React.FC<AddDayModalProps> = ({
       setError("Add at least one task with a title");
       return;
     }
-
     setSaving(true);
     try {
-      // Step 1: Extend the matrix to add the new day
-      await updateMatrix(matrixId, { totalDays: newDayNumber });
+      const dayDate = getTaskDate(newDayNumber);
 
-      // Step 2: Create tasks for the new day
-      const taskPromises = validTasks.map((task) =>
-        fetch(`${API_BASE_URL}/api/matrices/${matrixId}/tasks`, {
-          method: "POST",
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            dayNumber: newDayNumber,
-            categoryId: task.categoryId,
-            title: task.title,
-            description: task.description || undefined,
-            taskDate: dayDate,
-          }),
-        }).then((res) => {
-          if (!res.ok) throw new Error(`Failed to create task: ${task.title}`);
-          return res.json();
-        }),
-      );
+      // Build payload to extend matrix and add tasks in a single call
+      const payload = {
+        totalDays: newDayNumber,
+        startDate,
+        categories: categories.map((c) => ({
+          name: c.name,
+          orderIndex: c.orderIndex,
+          color: c.color,
+          ...(c.assignedTo ? { assignedTo: c.assignedTo } : {}),
+        })),
+        tasks: validTasks.map((task) => ({
+          dayNumber: newDayNumber,
+          categoryId: task.categoryId,
+          title: task.title,
+          description: task.description || undefined,
+          taskDate: dayDate,
+        })),
+      };
 
-      await Promise.all(taskPromises);
+      await createTaskMatrix(projectId, stageId, payload, false);
+
       toast.success(
         `Day ${newDayNumber} added with ${validTasks.length} task${validTasks.length !== 1 ? "s" : ""}`,
       );
@@ -166,7 +155,7 @@ export const AddDayModal: React.FC<AddDayModalProps> = ({
                 Add Day {newDayNumber}
               </h2>
               <p className="text-[10px] text-gray-500 mt-0.5">
-                {stageName} • {formatDateForDisplay(dayDate)}
+                {stageName} • {formatDateForDisplay(getTaskDate(newDayNumber))}
               </p>
             </div>
           </div>

@@ -15,3 +15,4 @@ export { Marketing } from "./Marketing";
 export { Analytics } from "./Analytics";
 export { UserManagement } from "./UserManagement";
 export { default as KanbanView } from "./KanbanView";
+export { EmailEditor } from "./EmailEditor";

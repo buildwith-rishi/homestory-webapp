@@ -8,17 +8,10 @@ interface LoginResponse {
     id: string;
     email: string;
     name: string;
-    role:
-      | "ADMIN"
-      | "ENGINEER"
-      | "MANAGER"
-      | "CUSTOMER"
-      | "admin"
-      | "engineer"
-      | "manager"
-      | "customer";
+    role: string; // Any role string from backend – normalised via rbac.ts
     phone?: string;
     avatar?: string;
+    permissions?: string[];
   };
   accessToken?: string;
   refreshToken?: string;
@@ -334,14 +327,7 @@ export const adminAPI = {
     name: string;
     email: string;
     password: string;
-    role:
-      | "ADMIN"
-      | "FOUNDER_ARCHITECT"
-      | "PROJECT_MANAGER"
-      | "DESIGNER"
-      | "SITE_ENGINEER"
-      | "SALES_EXECUTIVE"
-      | "CUSTOMER";
+    role: string;
     phone?: string;
   }) => {
     return fetchAPI("/api/admin/users", {
@@ -355,14 +341,7 @@ export const adminAPI = {
     userId: string,
     userData: {
       name?: string;
-      role?:
-        | "ADMIN"
-        | "FOUNDER_ARCHITECT"
-        | "PROJECT_MANAGER"
-        | "DESIGNER"
-        | "SITE_ENGINEER"
-        | "SALES_EXECUTIVE"
-        | "CUSTOMER";
+      role?: string;
       phone?: string;
     },
   ) => {

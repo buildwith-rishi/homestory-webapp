@@ -358,7 +358,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowEditModal(true)}
+            onClick={() => setShowAddDayModal(true)}
             className="text-blue-600 border-blue-300 hover:bg-blue-50"
           >
             <Plus className="w-4 h-4 mr-1" />
@@ -653,7 +653,8 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       {/* Add Day Modal */}
       {showAddDayModal && matrix && (
         <AddDayModal
-          matrixId={matrix.id}
+          projectId={projectId}
+          stageId={stage.id}
           currentTotalDays={matrix.totalDays}
           startDate={matrix.startDate}
           categories={categories}

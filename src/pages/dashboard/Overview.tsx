@@ -9,6 +9,10 @@ import {
   CheckCircle,
   LayoutGrid,
   Plus,
+  DollarSign,
+  Wrench,
+  FileCheck,
+  Phone,
 } from "lucide-react";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
@@ -20,10 +24,13 @@ import { WidgetLibraryModal } from "../../components/dashboard/WidgetLibraryModa
 import { Card, Button, Badge, Progress } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
+import { useAuth } from "../../contexts/AuthContext";
+import { getRoleDisplayName } from "../../config/rbac";
 
 export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const { openWidgetLibrary } = useUIStore();
+  const { can, canAny, roleId } = useAuth();
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
   const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
 
@@ -104,58 +111,61 @@ export const DashboardOverview: React.FC = () => {
   }, [selectedProject]);
 
   // All deadlines data
-  const allDeadlines = useMemo(() => [
-    {
-      id: "1",
-      name: "Modern 3BHK - Sharma Family",
-      deadline: "Jan 25, 2026",
-      daysLeft: 5,
-      status: "urgent",
-      stage: "Design",
-      pipelineType: "DESIGN_ONLY",
-      progress: 65,
-    },
-    {
-      id: "2",
-      name: "Luxury Villa - Kumar Residence",
-      deadline: "Feb 10, 2026",
-      daysLeft: 21,
-      status: "on-track",
-      stage: "Execution",
-      pipelineType: "DESIGN_AND_EXECUTION",
-      progress: 40,
-    },
-    {
-      id: "3",
-      name: "Contemporary 2BHK - Patel Home",
-      deadline: "Jan 28, 2026",
-      daysLeft: 8,
-      status: "warning",
-      stage: "Material",
-      pipelineType: "DESIGN_AND_EXECUTION",
-      progress: 75,
-    },
-    {
-      id: "4",
-      name: "Office Interior - TechStart Inc",
-      deadline: "Feb 5, 2026",
-      daysLeft: 16,
-      status: "on-track",
-      stage: "Requirements",
-      pipelineType: "DESIGN_ONLY",
-      progress: 25,
-    },
-    {
-      id: "5",
-      name: "Penthouse Makeover - Gupta Family",
-      deadline: "Jan 22, 2026",
-      daysLeft: 2,
-      status: "critical",
-      stage: "Handover",
-      pipelineType: "DESIGN_AND_EXECUTION",
-      progress: 92,
-    },
-  ], []);
+  const allDeadlines = useMemo(
+    () => [
+      {
+        id: "1",
+        name: "Modern 3BHK - Sharma Family",
+        deadline: "Jan 25, 2026",
+        daysLeft: 5,
+        status: "urgent",
+        stage: "Design",
+        pipelineType: "DESIGN_ONLY",
+        progress: 65,
+      },
+      {
+        id: "2",
+        name: "Luxury Villa - Kumar Residence",
+        deadline: "Feb 10, 2026",
+        daysLeft: 21,
+        status: "on-track",
+        stage: "Execution",
+        pipelineType: "DESIGN_AND_EXECUTION",
+        progress: 40,
+      },
+      {
+        id: "3",
+        name: "Contemporary 2BHK - Patel Home",
+        deadline: "Jan 28, 2026",
+        daysLeft: 8,
+        status: "warning",
+        stage: "Material",
+        pipelineType: "DESIGN_AND_EXECUTION",
+        progress: 75,
+      },
+      {
+        id: "4",
+        name: "Office Interior - TechStart Inc",
+        deadline: "Feb 5, 2026",
+        daysLeft: 16,
+        status: "on-track",
+        stage: "Requirements",
+        pipelineType: "DESIGN_ONLY",
+        progress: 25,
+      },
+      {
+        id: "5",
+        name: "Penthouse Makeover - Gupta Family",
+        deadline: "Jan 22, 2026",
+        daysLeft: 2,
+        status: "critical",
+        stage: "Handover",
+        pipelineType: "DESIGN_AND_EXECUTION",
+        progress: 92,
+      },
+    ],
+    [],
+  );
 
   // Filter deadlines based on selection
   const filteredDeadlines = useMemo(() => {
@@ -231,53 +241,83 @@ export const DashboardOverview: React.FC = () => {
             </div>
           )}
 
-          {/* Stat Cards Grid */}
+          {/* Stat Cards Grid – role-aware */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              icon={FolderKanban}
-              label="Active Projects"
-              value={24}
-              change={{ value: 12, isPositive: true }}
-              iconColor="primary"
-              sparklineData={projectsSparkline}
-              animated={true}
-            />
-            <StatCard
-              icon={Users}
-              label="Total Leads"
-              value={68}
-              change={{ value: 8, isPositive: true }}
-              iconColor="teal"
-              sparklineData={leadsSparkline}
-              animated={true}
-            />
-            <StatCard
-              icon={TrendingUp}
-              label="Revenue This Month"
-              value="₹45.2L"
-              change={{ value: 15, isPositive: true }}
-              iconColor="olive"
-              sparklineData={revenueSparkline}
-            />
-            <StatCard
-              icon={Calendar}
-              label="Meetings Today"
-              value={5}
-              iconColor="rose"
-              sparklineData={meetingsSparkline}
-              animated={true}
-            />
+            {/* Projects – visible to roles with projects.read */}
+            {can("projects.read") && (
+              <StatCard
+                icon={FolderKanban}
+                label="Active Projects"
+                value={24}
+                change={{ value: 12, isPositive: true }}
+                iconColor="primary"
+                sparklineData={projectsSparkline}
+                animated={true}
+              />
+            )}
+
+            {/* Leads – visible to roles with leads.read */}
+            {can("leads.read") && (
+              <StatCard
+                icon={Users}
+                label="Total Leads"
+                value={68}
+                change={{ value: 8, isPositive: true }}
+                iconColor="teal"
+                sparklineData={leadsSparkline}
+                animated={true}
+              />
+            )}
+
+            {/* Revenue – visible to admin/PM/accounts roles */}
+            {canAny(["payments.*", "reports.view", "dashboard.*"]) && (
+              <StatCard
+                icon={TrendingUp}
+                label="Revenue This Month"
+                value="₹45.2L"
+                change={{ value: 15, isPositive: true }}
+                iconColor="olive"
+                sparklineData={revenueSparkline}
+              />
+            )}
+
+            {/* Meetings – visible to roles with meetings.read */}
+            {can("meetings.read") && (
+              <StatCard
+                icon={Calendar}
+                label="Meetings Today"
+                value={5}
+                iconColor="rose"
+                sparklineData={meetingsSparkline}
+                animated={true}
+              />
+            )}
+
+            {/* Tasks – shown to Site Engineers & PMs */}
+            {can("tasks.read") && !can("dashboard.*") && (
+              <StatCard
+                icon={CheckCircle}
+                label="Tasks Due Today"
+                value={7}
+                change={{ value: 3, isPositive: false }}
+                iconColor="primary"
+                sparklineData={[3, 5, 4, 7, 6, 8, 7]}
+                animated={true}
+              />
+            )}
           </div>
 
-          {/* Charts Grid */}
-          <div className="grid lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <RevenueChart />
+          {/* Charts Grid – only for roles with reports/dashboard access */}
+          {canAny(["reports.view", "dashboard.*"]) && (
+            <div className="grid lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <RevenueChart />
+              </div>
+              <div>
+                <LeadSourceChart />
+              </div>
             </div>
-            <div>
-              <LeadSourceChart />
-            </div>
-          </div>
+          )}
 
           {/* Projects and Activity Grid */}
           <div className="grid lg:grid-cols-3 gap-4">
@@ -391,12 +431,19 @@ export const DashboardOverview: React.FC = () => {
                         variant={
                           filteredDeadlines.length === 0
                             ? "neutral"
-                            : filteredDeadlines.some((d) => d.status === "critical" || d.status === "urgent")
+                            : filteredDeadlines.some(
+                                  (d) =>
+                                    d.status === "critical" ||
+                                    d.status === "urgent",
+                                )
                               ? "error"
                               : "info"
                         }
                       >
-                        {filteredDeadlines.length} {filteredDeadlines.length === 1 ? "Project" : "Projects"}
+                        {filteredDeadlines.length}{" "}
+                        {filteredDeadlines.length === 1
+                          ? "Project"
+                          : "Projects"}
                       </Badge>
                     </div>
                     <Button variant="ghost" size="sm">
@@ -407,11 +454,14 @@ export const DashboardOverview: React.FC = () => {
                   {/* Pipeline Type Filter Pills */}
                   <div className="flex items-center gap-2">
                     {pipelineTypeFilterOptions.map((option) => {
-                      const count = option.value === "all" 
-                        ? allDeadlines.length 
-                        : allDeadlines.filter(d => d.pipelineType === option.value).length;
+                      const count =
+                        option.value === "all"
+                          ? allDeadlines.length
+                          : allDeadlines.filter(
+                              (d) => d.pipelineType === option.value,
+                            ).length;
                       const isActive = pipelineTypeFilter === option.value;
-                      
+
                       return (
                         <button
                           key={option.value}
@@ -424,11 +474,13 @@ export const DashboardOverview: React.FC = () => {
                         >
                           <span className="flex items-center gap-2">
                             {option.label}
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                              isActive 
-                                ? "bg-white/20 text-white" 
-                                : "bg-gray-200 text-gray-600"
-                            }`}>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                isActive
+                                  ? "bg-white/20 text-white"
+                                  : "bg-gray-200 text-gray-600"
+                              }`}
+                            >
                               {count}
                             </span>
                           </span>

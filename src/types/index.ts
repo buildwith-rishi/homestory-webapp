@@ -1,8 +1,15 @@
 export enum UserRole {
-  ADMIN = "admin",
-  MANAGER = "manager",
-  ENGINEER = "engineer",
-  CUSTOMER = "customer",
+  // New RBAC roles (match backend /api/roles)
+  SUPER_ADMIN = "SUPER_ADMIN",
+  ADMIN = "ADMIN",
+  BDR = "BDR",
+  PROJECT_MANAGER = "PROJECT_MANAGER",
+  ACCOUNTS = "ACCOUNTS",
+  SITE_ENGINEER = "SITE_ENGINEER",
+  // Legacy aliases (kept for backward compatibility)
+  MANAGER = "PROJECT_MANAGER",
+  ENGINEER = "SITE_ENGINEER",
+  CUSTOMER = "BDR",
 }
 
 export interface User {
@@ -10,9 +17,12 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  /** Raw role string from the API (e.g. "ADMIN", "BDR") */
+  apiRole?: string;
   phone?: string;
   avatar?: string;
   createdAt: string;
+  permissions?: string[];
 }
 
 export enum ProjectStage {
@@ -978,13 +988,12 @@ export interface AdminUser {
   name: string;
   email: string;
   role:
+    | "SUPER_ADMIN"
     | "ADMIN"
-    | "FOUNDER_ARCHITECT"
+    | "BDR"
     | "PROJECT_MANAGER"
-    | "DESIGNER"
-    | "SITE_ENGINEER"
-    | "SALES_EXECUTIVE"
-    | "CUSTOMER";
+    | "ACCOUNTS"
+    | "SITE_ENGINEER";
   phone?: string;
   avatar?: string;
   isBanned: boolean;
@@ -1000,13 +1009,12 @@ export interface CreateUserRequest {
   email: string;
   password: string;
   role:
+    | "SUPER_ADMIN"
     | "ADMIN"
-    | "FOUNDER_ARCHITECT"
+    | "BDR"
     | "PROJECT_MANAGER"
-    | "DESIGNER"
-    | "SITE_ENGINEER"
-    | "SALES_EXECUTIVE"
-    | "CUSTOMER";
+    | "ACCOUNTS"
+    | "SITE_ENGINEER";
   phone?: string;
 }
 
@@ -1498,6 +1506,15 @@ export interface UpdateMatrixRequest {
 export interface UpdateTaskStatusRequest {
   status: string;
   completionNotes?: string;
+}
+
+export interface UpdateMatrixTaskRequest {
+  title?: string;
+  description?: string;
+  categoryId?: string;
+  dayNumber?: number;
+  taskDate?: string;
+  status?: string;
 }
 
 export interface NotifyCustomerRequest {

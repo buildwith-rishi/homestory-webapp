@@ -1,6 +1,7 @@
 import { create } from "zustand";
-import { User } from "../types";
+import { User, UserRole } from "../types";
 import { authAPI, ApiError } from "../services/api";
+import { normalizeRole, ROLE_PERMISSIONS, RoleId } from "../config/rbac";
 
 interface AuthState {
   user: User | null;
@@ -28,36 +29,28 @@ export const useAuthStore = create<AuthState>((set) => ({
       const response = await authAPI.login(email, password);
 
       if (response.user) {
-        // Map API role to UserRole enum (handle both UPPERCASE and lowercase)
-        let userRole: User["role"];
-        const roleStr = response.user.role.toLowerCase();
+        // Normalise the API role to our canonical RoleId
+        const apiRole = response.user.role || "BDR";
+        const normalizedRoleId: RoleId = normalizeRole(apiRole);
 
-        switch (roleStr) {
-          case "admin":
-            userRole = "admin" as User["role"];
-            break;
-          case "engineer":
-            userRole = "engineer" as User["role"];
-            break;
-          case "manager":
-            userRole = "manager" as User["role"];
-            break;
-          case "customer":
-          default:
-            userRole = "customer" as User["role"];
-            break;
-        }
+        // Map to UserRole enum value
+        const userRole = normalizedRoleId as unknown as UserRole;
+
+        // Get permissions for the role
+        const permissions = ROLE_PERMISSIONS[normalizedRoleId] || [];
 
         const user: User = {
           id: response.user.id,
           email: response.user.email,
           name: response.user.name,
           role: userRole,
+          apiRole: apiRole,
           phone: response.user.phone || "",
           avatar:
             response.user.avatar ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user.name)}&background=DC5800&color=fff`,
           createdAt: new Date().toISOString(),
+          permissions: permissions,
         };
 
         // Store user in localStorage
