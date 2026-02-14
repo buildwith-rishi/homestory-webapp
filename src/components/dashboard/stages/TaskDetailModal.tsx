@@ -20,6 +20,7 @@ import {
   File,
   Edit3,
   Save,
+  Mail,
 } from "lucide-react";
 import { Button } from "../../ui";
 import type {
@@ -165,6 +166,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [notifyMessage, setNotifyMessage] = useState("");
   const [includeAttachments, setIncludeAttachments] = useState(true);
   const [notifying, setNotifying] = useState(false);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [loadingCustomerEmail, setLoadingCustomerEmail] = useState(false);
 
   // Task editing
   const [isEditing, setIsEditing] = useState(false);
@@ -327,6 +330,36 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
+  const fetchCustomerEmail = async () => {
+    if (customerEmail || loadingCustomerEmail) return;
+    setLoadingCustomerEmail(true);
+    try {
+      // Fetch task to get project/customer info
+      // The backend will resolve customer email from task -> project -> customer
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com"}/api/tasks/${taskId}/customer-email`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setCustomerEmail(data.customerEmail || data.email || "Customer");
+      } else {
+        // Fallback: use a placeholder
+        setCustomerEmail("Customer (email not found)");
+      }
+    } catch {
+      setCustomerEmail("Customer");
+    } finally {
+      setLoadingCustomerEmail(false);
+    }
+  };
+
   const handleNotifyCustomer = async () => {
     setNotifying(true);
     try {
@@ -338,6 +371,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       if (result.sent) {
         toast.success(`Notification sent to ${result.customerEmail}`);
         setNotifyMessage("");
+        // Update local state with returned email
+        if (!customerEmail) setCustomerEmail(result.customerEmail);
       } else {
         toast.error("Notification could not be sent");
       }
@@ -397,7 +432,17 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               ).map((tab) => (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    // Lazy load customer email when notify tab is clicked
+                    if (
+                      tab.key === "notify" &&
+                      !customerEmail &&
+                      !loadingCustomerEmail
+                    ) {
+                      fetchCustomerEmail();
+                    }
+                  }}
                   className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.key
                       ? "border-orange-500 text-orange-600"
@@ -741,7 +786,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-start gap-2">
                       <Send className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm font-medium text-blue-800">
                           Notify Customer
                         </p>
@@ -751,6 +796,42 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         </p>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Recipient Email Display */}
+                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                        <Mail className="w-3.5 h-3.5 text-orange-600" />
+                      </div>
+                      <p className="text-xs font-semibold text-orange-900 uppercase tracking-wide">
+                        Recipient
+                      </p>
+                    </div>
+                    {loadingCustomerEmail ? (
+                      <div className="flex items-center gap-2 mt-2 ml-8">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" />
+                        <span className="text-sm text-orange-600">
+                          Loading customer email...
+                        </span>
+                      </div>
+                    ) : customerEmail ? (
+                      <div className="ml-8 mt-2">
+                        <p className="text-sm font-semibold text-orange-900">
+                          {customerEmail}
+                        </p>
+                        <p className="text-xs text-orange-600 mt-0.5">
+                          Email will be sent to this address
+                        </p>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={fetchCustomerEmail}
+                        className="ml-8 mt-2 text-xs text-orange-600 hover:text-orange-800 font-medium underline"
+                      >
+                        Load customer email
+                      </button>
+                    )}
                   </div>
 
                   <div>
