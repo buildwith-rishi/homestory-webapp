@@ -6,7 +6,12 @@ import {
   PipelineStats,
   LeadSource,
 } from "../types";
-import LeadAPI, { Lead as APILead, LeadStatus } from "../services/leadApi";
+import LeadAPI, {
+  Lead as APILead,
+  LeadStatus,
+  LeadAssignee,
+  LeadAssigneesResponse,
+} from "../services/leadApi";
 
 // API status values from GET /api/leads/statuses
 export type APILeadStatus =
@@ -23,6 +28,8 @@ interface LeadState {
   pipelineStats: PipelineStats;
   isLoading: boolean;
   leadStatuses: LeadStatus[];
+  unassignedLeads: Lead[];
+  isAssigning: boolean;
   fetchLeads: () => Promise<void>;
   fetchLeadStatuses: () => Promise<LeadStatus[]>;
   setCurrentLead: (lead: Lead | null) => void;
@@ -34,6 +41,24 @@ interface LeadState {
   moveLeadByStatus: (id: string, newStatus: string) => Promise<void>;
   setFilters: (filters: LeadFilters) => void;
   calculatePipelineStats: () => void;
+  assignLead: (
+    leadId: string,
+    assigneeUserId: string,
+    notes?: string,
+  ) => Promise<void>;
+  bulkAssignLeads: (
+    leadIds: string[],
+    assigneeUserId: string,
+    notes?: string,
+  ) => Promise<void>;
+  fetchUnassignedLeads: (limit?: number, offset?: number) => Promise<void>;
+  fetchLeadAssignees: (leadId: string) => Promise<LeadAssignee[]>;
+  addLeadAssignees: (
+    leadId: string,
+    userIds: string[],
+    notes?: string,
+  ) => Promise<void>;
+  removeLeadAssignee: (leadId: string, userId: string) => Promise<void>;
 }
 
 // Helper to convert API lead to frontend Lead type
@@ -91,6 +116,8 @@ export const useLeadStore = create<LeadState>((set, get) => ({
   },
   isLoading: false,
   leadStatuses: [],
+  unassignedLeads: [],
+  isAssigning: false,
 
   fetchLeadStatuses: async () => {
     try {
@@ -231,6 +258,96 @@ export const useLeadStore = create<LeadState>((set, get) => ({
 
   setFilters: (filters: LeadFilters) => {
     set({ filters });
+  },
+
+  assignLead: async (
+    leadId: string,
+    assigneeUserId: string,
+    notes?: string,
+  ) => {
+    set({ isAssigning: true });
+    try {
+      await LeadAPI.assignLead(leadId, { assigneeUserId, notes });
+      // Refresh leads after assignment
+      await get().fetchLeads();
+    } catch (error) {
+      console.error("Failed to assign lead:", error);
+      throw error;
+    } finally {
+      set({ isAssigning: false });
+    }
+  },
+
+  bulkAssignLeads: async (
+    leadIds: string[],
+    assigneeUserId: string,
+    notes?: string,
+  ) => {
+    set({ isAssigning: true });
+    try {
+      await LeadAPI.bulkAssignLeads({ leadIds, assigneeUserId, notes });
+      // Refresh leads after bulk assignment
+      await get().fetchLeads();
+    } catch (error) {
+      console.error("Failed to bulk assign leads:", error);
+      throw error;
+    } finally {
+      set({ isAssigning: false });
+    }
+  },
+
+  fetchUnassignedLeads: async (limit?: number, offset?: number) => {
+    set({ isLoading: true });
+    try {
+      const response = await LeadAPI.getUnassignedLeads({ limit, offset });
+      const convertedLeads = (response.leads || []).map(convertAPILeadToLead);
+      set({ unassignedLeads: convertedLeads, isLoading: false });
+    } catch (error) {
+      console.error("Failed to fetch unassigned leads:", error);
+      set({ unassignedLeads: [], isLoading: false });
+    }
+  },
+
+  fetchLeadAssignees: async (leadId: string): Promise<LeadAssignee[]> => {
+    try {
+      const response = await LeadAPI.getLeadAssignees(leadId);
+      return response.assignees || [];
+    } catch (error) {
+      console.error("Failed to fetch lead assignees:", error);
+      return [];
+    }
+  },
+
+  addLeadAssignees: async (
+    leadId: string,
+    userIds: string[],
+    notes?: string,
+  ) => {
+    set({ isAssigning: true });
+    try {
+      await LeadAPI.addLeadAssignees(leadId, { userIds, notes });
+      // Refresh leads after adding assignees
+      await get().fetchLeads();
+    } catch (error) {
+      console.error("Failed to add lead assignees:", error);
+      throw error;
+    } finally {
+      set({ isAssigning: false });
+    }
+  },
+
+  removeLeadAssignee: async (leadId: string, userId: string) => {
+    set({ isAssigning: true });
+    try {
+      await LeadAPI.removeLeadAssignee(leadId, userId);
+      // Refresh leads after removing assignee
+      await get().fetchLeads();
+    } catch (error) {
+      console.error("Failed to remove lead assignee:", error);
+      throw error;
+    } finally {
+      set({ isAssigning: false });
+    }
   },
 
   calculatePipelineStats: () => {

@@ -1,8 +1,9 @@
 // Lead API Service
 // Base URL should match your API documentation
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
 
-console.log('Lead API Base URL:', API_BASE_URL);
+console.log("Lead API Base URL:", API_BASE_URL);
 
 export interface Lead {
   id?: string;
@@ -27,29 +28,29 @@ export interface Lead {
   lastContactedAt?: string;
   createdAt?: string;
   updatedAt?: string;
-  
+
   // Property Details
   bhkConfig?: string;
   carpetArea?: number;
-  
+
   // Timeline
   timeline?: string;
   expectedStartDate?: string;
   moveinDate?: string;
-  
+
   // Design Preferences
   designStyle?: string[];
   colorPreferences?: string[];
   inspirationImages?: string[];
-  
+
   // Scope of Work
   scopeOfWork?: string[];
   servicesInterested?: string[];
-  
+
   // Lead Quality
   qualification?: string;
   competitorInfo?: string;
-  
+
   // Follow-up Tracking
   meetingScheduled?: boolean;
   siteVisitDone?: boolean;
@@ -60,7 +61,7 @@ export interface Lead {
   stageHistory?: LeadStageHistory[];
   convertedToAccount?: ConvertedToAccount | null;
   activities?: LeadActivity[];
-  
+
   // Additional fields from API
   householdOrCompany?: string;
   companyName?: string | null;
@@ -330,20 +331,29 @@ export async function getLeadById(id: string): Promise<Lead> {
   // - { name: "...", ... } (flat)
   const lead: Lead = data.lead || data.data || data;
 
-  console.log('getLeadById raw API response:', data);
-  console.log('Extracted lead object:', lead);
-  console.log('Lead contacts:', lead.contacts?.length || 0);
-  console.log('Lead stageHistory:', lead.stageHistory?.length || 0);
-  console.log('Lead activities:', lead.activities?.length || 0);
-  console.log('Lead convertedToAccount:', lead.convertedToAccount);
+  console.log("getLeadById raw API response:", data);
+  console.log("Extracted lead object:", lead);
+  console.log("Lead contacts:", lead.contacts?.length || 0);
+  console.log("Lead stageHistory:", lead.stageHistory?.length || 0);
+  console.log("Lead activities:", lead.activities?.length || 0);
+  console.log("Lead convertedToAccount:", lead.convertedToAccount);
 
   // Sanitize undefined string values that may come from the API
   // Convert string "undefined" or "null" to actual undefined
   return {
     ...lead,
-    name: (!lead.name || lead.name === "undefined" || lead.name === "null") ? undefined : lead.name,
-    email: (!lead.email || lead.email === "undefined" || lead.email === "null") ? undefined : lead.email,
-    phone: (!lead.phone || lead.phone === "undefined" || lead.phone === "null") ? undefined : lead.phone,
+    name:
+      !lead.name || lead.name === "undefined" || lead.name === "null"
+        ? undefined
+        : lead.name,
+    email:
+      !lead.email || lead.email === "undefined" || lead.email === "null"
+        ? undefined
+        : lead.email,
+    phone:
+      !lead.phone || lead.phone === "undefined" || lead.phone === "null"
+        ? undefined
+        : lead.phone,
   };
 }
 
@@ -389,8 +399,10 @@ export async function getLeadActivities(id: string): Promise<LeadActivity[]> {
     headers: getAuthHeaders(),
   });
 
-  const data = await handleResponse<{ activities?: LeadActivity[] } | LeadActivity[]>(response);
-  
+  const data = await handleResponse<
+    { activities?: LeadActivity[] } | LeadActivity[]
+  >(response);
+
   // Handle both response formats: { activities: [...] } or [...]
   if (Array.isArray(data)) {
     return data;
@@ -451,13 +463,184 @@ export async function getLeadNotes(id: string): Promise<LeadNote[]> {
     headers: getAuthHeaders(),
   });
 
-  const data = await handleResponse<{ notes?: LeadNote[] } | LeadNote[]>(response);
-  
+  const data = await handleResponse<{ notes?: LeadNote[] } | LeadNote[]>(
+    response,
+  );
+
   // Handle both response formats: { notes: [...] } or [...]
   if (Array.isArray(data)) {
     return data;
   }
   return data.notes || [];
+}
+
+// ==========================================
+// Lead Assignment API Types & Functions
+// ==========================================
+
+export interface BulkAssignRequest {
+  leadIds: string[];
+  assigneeUserId: string;
+  notes?: string;
+}
+
+export interface AssignLeadRequest {
+  assigneeUserId: string;
+  notes?: string;
+}
+
+export interface AddAssigneesRequest {
+  userIds: string[];
+  notes?: string;
+}
+
+export interface LeadAssignee {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  assignedAt: string;
+  notes?: string;
+}
+
+export interface BulkAssignResponse {
+  success: boolean;
+  message: string;
+  assignedCount: number;
+}
+
+export interface AssignLeadResponse {
+  success: boolean;
+  message: string;
+  lead?: Lead;
+}
+
+export interface UnassignedLeadsResponse {
+  leads: Lead[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface LeadAssigneesResponse {
+  assignees: LeadAssignee[];
+}
+
+/**
+ * Bulk assign leads to a user
+ * POST /api/leads/bulk-assign
+ */
+export async function bulkAssignLeads(
+  request: BulkAssignRequest,
+): Promise<BulkAssignResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/leads/bulk-assign`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(request),
+  });
+
+  return handleResponse<BulkAssignResponse>(response);
+}
+
+/**
+ * Assign a single lead to a user
+ * POST /api/leads/:leadId/assign
+ */
+export async function assignLead(
+  leadId: string,
+  request: AssignLeadRequest,
+): Promise<AssignLeadResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/leads/${leadId}/assign`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(request),
+  });
+
+  return handleResponse<AssignLeadResponse>(response);
+}
+
+/**
+ * Get unassigned leads with pagination
+ * GET /api/leads/unassigned
+ */
+export async function getUnassignedLeads(params?: {
+  limit?: number;
+  offset?: number;
+}): Promise<UnassignedLeadsResponse> {
+  const queryParams = new URLSearchParams();
+
+  if (params) {
+    if (params.limit !== undefined)
+      queryParams.append("limit", params.limit.toString());
+    if (params.offset !== undefined)
+      queryParams.append("offset", params.offset.toString());
+  }
+
+  const url = `${API_BASE_URL}/api/leads/unassigned${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  return handleResponse<UnassignedLeadsResponse>(response);
+}
+
+/**
+ * Get assignees for a specific lead
+ * GET /api/leads/:leadId/assignees
+ */
+export async function getLeadAssignees(
+  leadId: string,
+): Promise<LeadAssigneesResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/leads/${leadId}/assignees`,
+    {
+      method: "GET",
+      headers: getAuthHeaders(),
+    },
+  );
+
+  return handleResponse<LeadAssigneesResponse>(response);
+}
+
+/**
+ * Add assignees (co-assign) to a lead
+ * POST /api/leads/:leadId/assignees
+ */
+export async function addLeadAssignees(
+  leadId: string,
+  request: AddAssigneesRequest,
+): Promise<AssignLeadResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/leads/${leadId}/assignees`,
+    {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(request),
+    },
+  );
+
+  return handleResponse<AssignLeadResponse>(response);
+}
+
+/**
+ * Remove an assignee from a lead
+ * DELETE /api/leads/:leadId/assignees/:userId
+ */
+export async function removeLeadAssignee(
+  leadId: string,
+  userId: string,
+): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/leads/${leadId}/assignees/${userId}`,
+    {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    },
+  );
+
+  return handleResponse<{ success: boolean; message: string }>(response);
 }
 
 // Export all functions as a default object for easier imports
@@ -475,6 +658,12 @@ const LeadAPI = {
   addLeadActivity,
   addLeadNote,
   getLeadNotes,
+  bulkAssignLeads,
+  assignLead,
+  getUnassignedLeads,
+  getLeadAssignees,
+  addLeadAssignees,
+  removeLeadAssignee,
 };
 
 export default LeadAPI;

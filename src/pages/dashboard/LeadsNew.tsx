@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -23,6 +23,9 @@ import {
   ArrowRight,
   Building2,
   Layers,
+  ChevronDown,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -33,12 +36,15 @@ import LeadAPI, {
   LeadStatus,
 } from "../../services/leadApi";
 import CustomerAPI from "../../services/customerApi";
+import { adminAPI } from "../../services/api";
+import { AdminUser } from "../../types";
 import { getSourceLabel } from "../../utils/leadHelpers";
 import {
   getActivityLog,
   clearActivityLog,
   type KanbanActivityEntry,
 } from "../../stores/kanbanActivityLog";
+import { useLeadStore } from "../../stores/leadStore";
 
 const stageColors: Record<string, string> = {
   New: "bg-gray-100 text-gray-700 border-gray-200",
@@ -577,6 +583,35 @@ export const LeadsPage: React.FC = () => {
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
   const [kanbanLog, setKanbanLog] = useState<KanbanActivityEntry[]>([]);
 
+  // BDR Assignment State
+  const [bdrUsers, setBdrUsers] = useState<AdminUser[]>([]);
+  const [bdrDropdownOpen, setBdrDropdownOpen] = useState<string | null>(null);
+  const [bdrDropdownPos, setBdrDropdownPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const bdrButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Bulk Selection State
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [bulkBdrDropdownOpen, setBulkBdrDropdownOpen] = useState(false);
+  const bulkBdrButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [bulkBdrDropdownPos, setBulkBdrDropdownPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+
+  // Unassigned Filter State
+  const [unassignedLeads, setUnassignedLeads] = useState<Lead[]>([]);
+  const [unassignedLoading, setUnassignedLoading] = useState(false);
+  const [unassignedPage, setUnassignedPage] = useState(0);
+  const [unassignedHasMore, setUnassignedHasMore] = useState(false);
+
+  // Assignment loading state
+  const [isAssigning, setIsAssigning] = useState(false);
+
   // Load kanban activity log
   useEffect(() => {
     setKanbanLog(getActivityLog());
@@ -586,11 +621,60 @@ export const LeadsPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch BDR users
+  useEffect(() => {
+    const fetchBDRs = async () => {
+      try {
+        const response = await adminAPI.getAllUsers();
+        const usersArray = Array.isArray(response)
+          ? response
+          : response?.users || [];
+        // Deduplicate by id
+        const seen = new Set<string>();
+        const uniqueUsers: AdminUser[] = [];
+        for (const u of usersArray) {
+          if (u.id && !seen.has(u.id) && !u.isBanned) {
+            seen.add(u.id);
+            uniqueUsers.push(u);
+          }
+        }
+        setBdrUsers(uniqueUsers);
+      } catch (error) {
+        console.error("Error fetching BDR users:", error);
+      }
+    };
+    fetchBDRs();
+  }, []);
+
   // Fetch initial data
   useEffect(() => {
     fetchData();
     fetchCustomerTypes();
   }, []);
+
+  // Close BDR dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bdrDropdownOpen) {
+        setBdrDropdownOpen(null);
+        setBdrDropdownPos(null);
+      }
+      if (bulkBdrDropdownOpen) {
+        setBulkBdrDropdownOpen(false);
+        setBulkBdrDropdownPos(null);
+      }
+    };
+    if (bdrDropdownOpen || bulkBdrDropdownOpen) {
+      // Use setTimeout so the click that opens the dropdown doesn't immediately close it
+      const timer = setTimeout(() => {
+        document.addEventListener("click", handleClickOutside);
+      }, 0);
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener("click", handleClickOutside);
+      };
+    }
+  }, [bdrDropdownOpen, bulkBdrDropdownOpen]);
 
   const fetchCustomerTypes = async () => {
     try {
@@ -805,6 +889,135 @@ export const LeadsPage: React.FC = () => {
     }
   };
 
+  // Fetch unassigned leads when tab selected (supports pagination)
+  const fetchUnassignedLeads = useCallback(
+    async (loadMore = false) => {
+      setUnassignedLoading(true);
+      const limit = 50;
+      const offset = loadMore ? (unassignedPage + 1) * limit : 0;
+      try {
+        const response = await LeadAPI.getUnassignedLeads({ limit, offset });
+        const newLeads = response.leads || [];
+        if (loadMore) {
+          setUnassignedLeads((prev) => [...prev, ...newLeads]);
+          setUnassignedPage((p) => p + 1);
+        } else {
+          setUnassignedLeads(newLeads);
+          setUnassignedPage(0);
+        }
+        setUnassignedHasMore(newLeads.length === limit);
+      } catch (error) {
+        console.error("Error fetching unassigned leads:", error);
+        toast.error("Failed to load unassigned leads");
+        if (!loadMore) setUnassignedLeads([]);
+      } finally {
+        setUnassignedLoading(false);
+      }
+    },
+    [unassignedPage],
+  );
+
+  useEffect(() => {
+    if (selectedStage === "__unassigned__") {
+      fetchUnassignedLeads();
+    }
+  }, [selectedStage, fetchUnassignedLeads]);
+
+  // Single BDR assignment handler
+  const handleAssignBDR = async (leadId: string, userId: string | null) => {
+    setIsAssigning(true);
+    try {
+      if (userId) {
+        await LeadAPI.assignLead(leadId, { assigneeUserId: userId });
+        const user = bdrUsers.find((u) => u.id === userId);
+        toast.success(`Lead assigned to ${user?.name || "user"}`);
+      } else {
+        // Unassign - assign to empty
+        await LeadAPI.assignLead(leadId, { assigneeUserId: "" });
+        toast.success("Lead unassigned");
+      }
+      setBdrDropdownOpen(null);
+      setBdrDropdownPos(null);
+      fetchData();
+      if (selectedStage === "__unassigned__") fetchUnassignedLeads();
+      // Sync Zustand store so KanbanView stays in sync
+      useLeadStore.getState().fetchLeads();
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Failed to assign lead";
+      toast.error(msg);
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Bulk BDR assignment handler
+  const handleBulkAssignBDR = async (userId: string) => {
+    const leadIds = Array.from(selectedLeadIds);
+    const user = bdrUsers.find((u) => u.id === userId);
+    if (
+      !window.confirm(
+        `Assign ${leadIds.length} lead${leadIds.length > 1 ? "s" : ""} to ${user?.name || "user"}?`,
+      )
+    )
+      return;
+    setIsAssigning(true);
+    try {
+      await LeadAPI.bulkAssignLeads({ leadIds, assigneeUserId: userId });
+      toast.success(
+        `${leadIds.length} lead(s) assigned to ${user?.name || "user"}`,
+      );
+      setSelectedLeadIds(new Set());
+      setBulkBdrDropdownOpen(false);
+      setBulkBdrDropdownPos(null);
+      fetchData();
+      if (selectedStage === "__unassigned__") fetchUnassignedLeads();
+      // Sync Zustand store so KanbanView stays in sync
+      useLeadStore.getState().fetchLeads();
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Failed to bulk assign leads";
+      toast.error(msg);
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Toggle lead checkbox selection
+  const toggleLeadSelection = (leadId: string) => {
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  };
+
+  // Open per-card BDR dropdown
+  const openBdrDropdown = (leadId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const btn = bdrButtonRefs.current[leadId];
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      setBdrDropdownPos({ top: rect.bottom + 4, left: rect.left });
+    }
+    setBdrDropdownOpen((prev) => (prev === leadId ? null : leadId));
+  };
+
+  // Open bulk BDR dropdown
+  const openBulkBdrDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const btn = bulkBdrButtonRef.current;
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      setBulkBdrDropdownPos({ top: rect.top - 4, left: rect.left });
+    }
+    setBulkBdrDropdownOpen((prev) => !prev);
+  };
+
   const filteredLeads = leads.filter((lead) => {
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
@@ -812,16 +1025,22 @@ export const LeadsPage: React.FC = () => {
       (lead.email?.toLowerCase() || "").includes(searchLower) ||
       (lead.phone?.toLowerCase() || "").includes(searchLower);
     const matchesStage =
-      selectedStage === "all" || lead.status === selectedStage;
+      selectedStage === "all" ||
+      selectedStage === "__unassigned__" ||
+      lead.status === selectedStage;
     return matchesSearch && matchesStage;
   });
+
+  // Determine which leads to display
+  const displayLeads =
+    selectedStage === "__unassigned__" ? unassignedLeads : filteredLeads;
 
   // Calculate lead counts by status
   const leadCounts = Array.isArray(statuses)
     ? statuses.reduce(
         (acc, status) => {
-          acc[status.name] = leads.filter(
-            (l) => l.status === status.name,
+          acc[status.value] = leads.filter(
+            (l) => l.status === status.value,
           ).length;
           return acc;
         },
@@ -866,14 +1085,104 @@ export const LeadsPage: React.FC = () => {
         />
       </div>
 
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <button
+          onClick={() => {
+            setSelectedStage("all");
+            setSelectedLeadIds(new Set());
+          }}
+          className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+            selectedStage === "all"
+              ? "bg-orange-500 text-white shadow-md shadow-orange-200"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          All ({leads.length})
+        </button>
+        {Array.isArray(statuses) &&
+          statuses.map((status) => (
+            <button
+              key={status.value}
+              onClick={() => {
+                setSelectedStage(status.value);
+                setSelectedLeadIds(new Set());
+              }}
+              className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                selectedStage === status.value
+                  ? "bg-orange-500 text-white shadow-md shadow-orange-200"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {status.label} ({leadCounts[status.value] || 0})
+            </button>
+          ))}
+        <button
+          onClick={() => {
+            setSelectedStage("__unassigned__");
+            setSelectedLeadIds(new Set());
+          }}
+          className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+            selectedStage === "__unassigned__"
+              ? "bg-orange-500 text-white shadow-md shadow-orange-200"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          Unassigned
+          {unassignedLeads.length > 0
+            ? ` (${unassignedLeads.length}${unassignedHasMore ? "+" : ""})`
+            : ""}
+        </button>
+      </div>
+
+      {/* Loading for unassigned tab */}
+      {selectedStage === "__unassigned__" && unassignedLoading && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+          <span className="ml-2 text-gray-500">
+            Loading unassigned leads...
+          </span>
+        </div>
+      )}
+
       {/* Leads Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-        {filteredLeads.map((lead) => (
+        {displayLeads.map((lead) => (
           <div
             key={lead.id}
-            className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-orange-100 transition-all duration-300 cursor-pointer overflow-hidden"
+            className={`group bg-white rounded-2xl border shadow-sm hover:shadow-xl hover:border-orange-100 transition-all duration-300 cursor-pointer overflow-hidden relative ${
+              lead.id && selectedLeadIds.has(lead.id)
+                ? "border-orange-400 ring-2 ring-orange-200"
+                : "border-gray-100"
+            }`}
             onClick={() => navigate(`/dashboard/leads/${lead.id}`)}
           >
+            {/* Checkbox */}
+            <div
+              className={`absolute top-3 left-3 z-10 transition-opacity ${
+                selectedLeadIds.size > 0
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100"
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (lead.id) toggleLeadSelection(lead.id);
+              }}
+            >
+              <div
+                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center cursor-pointer transition-all ${
+                  lead.id && selectedLeadIds.has(lead.id)
+                    ? "bg-orange-500 border-orange-500"
+                    : "border-gray-300 bg-white hover:border-orange-400"
+                }`}
+              >
+                {lead.id && selectedLeadIds.has(lead.id) && (
+                  <Check className="w-3 h-3 text-white" />
+                )}
+              </div>
+            </div>
+
             {/* Accent Line */}
             <div
               className={`h-1 w-full ${
@@ -1060,7 +1369,7 @@ export const LeadsPage: React.FC = () => {
 
               {/* Footer */}
               <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
                   {/* Source Badge */}
                   {lead.source && (
                     <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-lg">
@@ -1070,6 +1379,24 @@ export const LeadsPage: React.FC = () => {
                       </span>
                     </div>
                   )}
+                  {/* Assign BDR Button */}
+                  <button
+                    ref={(el) => {
+                      if (lead.id) bdrButtonRefs.current[lead.id] = el;
+                    }}
+                    onClick={(e) => {
+                      if (lead.id) openBdrDropdown(lead.id, e);
+                    }}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      lead.assignedTo
+                        ? "bg-blue-50 text-blue-700 hover:bg-blue-100 ring-1 ring-blue-200"
+                        : "bg-orange-50 text-orange-700 hover:bg-orange-100 ring-1 ring-orange-200"
+                    }`}
+                  >
+                    <Users className="w-3 h-3" />
+                    {lead.assignedTo ? lead.assignedTo.name : "Assign BDR"}
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
                 </div>
                 {/* Date & Arrow */}
                 <div className="flex items-center gap-2">
@@ -1091,18 +1418,36 @@ export const LeadsPage: React.FC = () => {
         ))}
       </div>
 
-      {filteredLeads.length === 0 && (
+      {/* Load More for Unassigned */}
+      {selectedStage === "__unassigned__" &&
+        unassignedHasMore &&
+        !unassignedLoading && (
+          <div className="flex justify-center py-4">
+            <button
+              onClick={() => fetchUnassignedLeads(true)}
+              className="px-6 py-2.5 bg-orange-50 text-orange-700 rounded-xl text-sm font-medium hover:bg-orange-100 transition-colors ring-1 ring-orange-200"
+            >
+              Load More Unassigned Leads
+            </button>
+          </div>
+        )}
+
+      {displayLeads.length === 0 && !unassignedLoading && (
         <div className="text-center py-16">
           <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <User className="w-10 h-10 text-gray-400" />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            No leads found
+            {selectedStage === "__unassigned__"
+              ? "No unassigned leads"
+              : "No leads found"}
           </h3>
           <p className="text-gray-500 mb-4">
-            {searchQuery
-              ? "Try adjusting your search criteria"
-              : "Get started by adding your first lead"}
+            {selectedStage === "__unassigned__"
+              ? "All leads have been assigned"
+              : searchQuery
+                ? "Try adjusting your search criteria"
+                : "Get started by adding your first lead"}
           </p>
           <Button onClick={() => setShowAddModal(true)} className="rounded-xl">
             <Plus className="w-4 h-4 mr-2" />
@@ -1498,6 +1843,164 @@ export const LeadsPage: React.FC = () => {
         phone={otpPhone}
         onVerify={handleVerifyOTP}
       />
+
+      {/* Per-card BDR Dropdown Portal */}
+      {bdrDropdownOpen &&
+        bdrDropdownPos &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed z-[70] bg-white rounded-xl shadow-2xl border border-gray-200 py-1 w-56 max-h-64 overflow-y-auto"
+            style={{ top: bdrDropdownPos.top, left: bdrDropdownPos.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Assign BDR
+              </p>
+            </div>
+            {/* Unassign option */}
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isAssigning}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAssignBDR(bdrDropdownOpen, null);
+              }}
+            >
+              {isAssigning ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
+                  <X className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+              )}
+              <span>Unassigned</span>
+            </button>
+            <div className="border-t border-gray-100" />
+            {bdrUsers.map((user) => (
+              <button
+                key={user.id}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isAssigning}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAssignBDR(bdrDropdownOpen, user.id);
+                }}
+              >
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-xs font-bold">
+                  {user.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)}
+                </div>
+                <div className="text-left">
+                  <p className="font-medium">{user.name}</p>
+                  <p className="text-xs text-gray-400">{user.role}</p>
+                </div>
+              </button>
+            ))}
+            {bdrUsers.length === 0 && (
+              <div className="px-3 py-4 text-center text-sm text-gray-400">
+                No users available
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
+
+      {/* Bulk Assign Toolbar */}
+      {selectedLeadIds.size > 0 &&
+        ReactDOM.createPortal(
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[60] bg-white rounded-2xl shadow-2xl border border-gray-200 px-6 py-3 flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                <Users className="w-4 h-4 text-orange-600" />
+              </div>
+              <span className="text-sm font-semibold text-gray-900">
+                {selectedLeadIds.size} lead{selectedLeadIds.size > 1 ? "s" : ""}{" "}
+                selected
+              </span>
+            </div>
+            <div className="w-px h-8 bg-gray-200" />
+            <div className="relative">
+              <button
+                ref={bulkBdrButtonRef}
+                onClick={openBulkBdrDropdown}
+                disabled={isAssigning}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl text-sm font-medium hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-200/50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isAssigning ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <UserPlus className="w-4 h-4" />
+                )}
+                {isAssigning ? "Assigning..." : "Assign BDR"}
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <button
+              onClick={() => setSelectedLeadIds(new Set())}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Clear
+            </button>
+          </div>,
+          document.body,
+        )}
+
+      {/* Bulk BDR Dropdown Portal */}
+      {bulkBdrDropdownOpen &&
+        bulkBdrDropdownPos &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed z-[70] bg-white rounded-xl shadow-2xl border border-gray-200 py-1 w-56 max-h-64 overflow-y-auto"
+            style={{
+              top: bulkBdrDropdownPos.top,
+              left: bulkBdrDropdownPos.left,
+              transform: "translateY(-100%)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Bulk Assign BDR
+              </p>
+            </div>
+            {bdrUsers.map((user) => (
+              <button
+                key={user.id}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isAssigning}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleBulkAssignBDR(user.id);
+                }}
+              >
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-xs font-bold">
+                  {user.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)}
+                </div>
+                <div className="text-left">
+                  <p className="font-medium">{user.name}</p>
+                  <p className="text-xs text-gray-400">{user.role}</p>
+                </div>
+              </button>
+            ))}
+            {bdrUsers.length === 0 && (
+              <div className="px-3 py-4 text-center text-sm text-gray-400">
+                No users available
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
 
       {/* Convert to Customer Modal */}
       {showConvertModal && selectedLead && (

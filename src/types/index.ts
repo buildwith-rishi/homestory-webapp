@@ -647,6 +647,15 @@ export interface Lead {
   lostReason?: string;
 }
 
+export interface LeadAssignee {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  assignedAt: string;
+  notes?: string;
+}
+
 export interface TranscriptionSegment {
   speaker: string;
   text: string;
@@ -1935,4 +1944,57 @@ export interface LogActivityRequest {
   entityId: string;
   description: string;
   durationMinutes?: number;
+}
+
+// ─── Email Template Types ────────────────────────────────────────
+
+/**
+ * Email template variable definition
+ */
+export interface EmailTemplateVariable {
+  name: string;
+  required: boolean;
+  description?: string;
+}
+
+/**
+ * Email template entity
+ */
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  htmlBody: string;
+  textBody?: string;
+  category: string;
+  description?: string;
+  variables?: EmailTemplateVariable[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Request payload for creating an email template
+ */
+export interface CreateEmailTemplateRequest {
+  name: string;
+  subject: string;
+  htmlBody: string;
+  textBody?: string;
+  category: string;
+  description?: string;
+  variables?: EmailTemplateVariable[];
+}
+
+/**
+ * Request payload for updating an email template
+ */
+export interface UpdateEmailTemplateRequest {
+  name?: string;
+  subject?: string;
+  htmlBody?: string;
+  textBody?: string;
+  category?: string;
+  description?: string;
+  variables?: EmailTemplateVariable[];
 }

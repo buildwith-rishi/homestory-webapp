@@ -21,6 +21,10 @@ import {
   TrendingUp,
   ChevronDown,
   Check,
+  UserPlus,
+  Users,
+  X,
+  Loader2,
 } from "lucide-react";
 import {
   KanbanBoard,
@@ -36,6 +40,7 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useLeadStore } from "../../stores/leadStore";
 import { addActivityEntry } from "../../stores/kanbanActivityLog";
 import ProjectAPI from "../../services/projectApi";
+import LeadAPI, { LeadAssignee } from "../../services/leadApi";
 import { adminAPI } from "../../services/api";
 import { Lead, LeadStage, LeadSource, Project, AdminUser } from "../../types";
 import toast from "react-hot-toast";
@@ -83,8 +88,7 @@ const KanbanView: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>("leads");
 
   const { projects, fetchProjects } = useProjectStore();
-  const { leads, fetchLeads, moveLeadByStatus, addLead, updateLead } =
-    useLeadStore();
+  const { leads, fetchLeads, moveLeadByStatus, addLead } = useLeadStore();
 
   // BDR (Business Development Representatives) state
   const [bdrUsers, setBdrUsers] = useState<AdminUser[]>([]);
@@ -94,6 +98,28 @@ const KanbanView: React.FC = () => {
     left: number;
   } | null>(null);
   const bdrButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Multi-select for bulk assign
+  const [selectedKanbanLeads, setSelectedKanbanLeads] = useState<Set<string>>(
+    new Set(),
+  );
+  const [bulkAssignDropdownOpen, setBulkAssignDropdownOpen] = useState(false);
+
+  // Assignee panel state
+  const [assigneePanelOpen, setAssigneePanelOpen] = useState<string | null>(
+    null,
+  );
+  const [assigneePanelPos, setAssigneePanelPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [leadAssignees, setLeadAssignees] = useState<LeadAssignee[]>([]);
+  const [assigneesLoading, setAssigneesLoading] = useState(false);
+  const [addAssigneeDropdown, setAddAssigneeDropdown] = useState(false);
+  const assigneePanelRef = useRef<HTMLDivElement | null>(null);
+
+  // Assignment loading state
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // Fetch BDR users on mount
   useEffect(() => {
@@ -129,11 +155,14 @@ const KanbanView: React.FC = () => {
 
   // BDR dropdown closes via backdrop click (in portal), no separate handler needed
 
-  // Handle BDR assignment
+  // Handle BDR assignment via /assign API
   const handleAssignBDR = useCallback(
     async (leadId: string, bdrId: string | null) => {
+      setIsAssigning(true);
       try {
-        await updateLead(leadId, { assignedToId: bdrId });
+        await LeadAPI.assignLead(leadId, {
+          assigneeUserId: bdrId || "",
+        });
         toast.success(bdrId ? "BDR assigned successfully" : "BDR unassigned");
         setBdrDropdownOpen(null);
         setBdrDropdownPos(null);
@@ -141,9 +170,11 @@ const KanbanView: React.FC = () => {
       } catch (error) {
         console.error("Failed to assign BDR:", error);
         toast.error("Failed to assign BDR");
+      } finally {
+        setIsAssigning(false);
       }
     },
-    [updateLead, fetchLeads],
+    [fetchLeads],
   );
 
   // Open BDR dropdown positioned relative to button
@@ -162,6 +193,121 @@ const KanbanView: React.FC = () => {
       setBdrDropdownOpen(leadId);
     },
     [bdrDropdownOpen],
+  );
+
+  // ─── Assignee Panel Handlers ──────────────────────────────────────────────
+
+  const openAssigneePanel = useCallback(
+    async (leadId: string, anchorEl: HTMLElement) => {
+      const rect = anchorEl.getBoundingClientRect();
+      setAssigneePanelPos({
+        top: rect.bottom + 4,
+        left: Math.min(rect.left, window.innerWidth - 280),
+      });
+      setAssigneePanelOpen(leadId);
+      setAssigneesLoading(true);
+      setAddAssigneeDropdown(false);
+      try {
+        const data = await LeadAPI.getLeadAssignees(leadId);
+        setLeadAssignees(data.assignees || []);
+      } catch (error) {
+        console.error("Failed to fetch assignees:", error);
+        setLeadAssignees([]);
+      } finally {
+        setAssigneesLoading(false);
+      }
+    },
+    [],
+  );
+
+  const closeAssigneePanel = useCallback(() => {
+    setAssigneePanelOpen(null);
+    setAssigneePanelPos(null);
+    setLeadAssignees([]);
+    setAddAssigneeDropdown(false);
+  }, []);
+
+  const handleRemoveAssignee = useCallback(
+    async (leadId: string, userId: string) => {
+      try {
+        await LeadAPI.removeLeadAssignee(leadId, userId);
+        setLeadAssignees((prev) => prev.filter((a) => a.id !== userId));
+        toast.success("Assignee removed");
+        fetchLeads();
+      } catch (error) {
+        console.error("Failed to remove assignee:", error);
+        toast.error("Failed to remove assignee");
+      }
+    },
+    [fetchLeads],
+  );
+
+  const handleAddAssignee = useCallback(
+    async (leadId: string, userId: string) => {
+      try {
+        await LeadAPI.addLeadAssignees(leadId, { userIds: [userId] });
+        // Re-fetch assignees to get updated list
+        const data = await LeadAPI.getLeadAssignees(leadId);
+        setLeadAssignees(data.assignees || []);
+        toast.success("Assignee added");
+        setAddAssigneeDropdown(false);
+        fetchLeads();
+      } catch (error) {
+        console.error("Failed to add assignee:", error);
+        toast.error("Failed to add assignee");
+      }
+    },
+    [fetchLeads],
+  );
+
+  // ─── Bulk Selection Handlers ──────────────────────────────────────────────
+
+  const toggleLeadSelection = useCallback((leadId: string) => {
+    setSelectedKanbanLeads((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedKanbanLeads(new Set());
+    setBulkAssignDropdownOpen(false);
+  }, []);
+
+  const handleBulkAssign = useCallback(
+    async (userId: string) => {
+      if (selectedKanbanLeads.size === 0) return;
+      const user = bdrUsers.find((u) => u.id === userId);
+      if (
+        !window.confirm(
+          `Assign ${selectedKanbanLeads.size} lead${selectedKanbanLeads.size > 1 ? "s" : ""} to ${user?.name || "user"}?`,
+        )
+      )
+        return;
+      setIsAssigning(true);
+      try {
+        await LeadAPI.bulkAssignLeads({
+          leadIds: [...selectedKanbanLeads],
+          assigneeUserId: userId,
+        });
+        toast.success(
+          `Assigned ${selectedKanbanLeads.size} lead${selectedKanbanLeads.size > 1 ? "s" : ""} successfully`,
+        );
+        clearSelection();
+        fetchLeads();
+      } catch (error) {
+        console.error("Failed to bulk assign:", error);
+        toast.error("Failed to bulk assign leads");
+      } finally {
+        setIsAssigning(false);
+      }
+    },
+    [selectedKanbanLeads, clearSelection, fetchLeads, bdrUsers],
   );
 
   // Leads Kanban Data - Using API statuses
@@ -591,9 +737,14 @@ const KanbanView: React.FC = () => {
   const renderLeadCard = useCallback(
     (task: KanbanTask) => {
       const lead = task.metadata as unknown as Lead;
+      const isSelected = selectedKanbanLeads.has(task.id);
+      const showCheckbox = selectedKanbanLeads.size > 0 || isSelected;
+
       if (!lead) {
         return (
-          <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
+          <div
+            className={`relative space-y-1.5 ${task.completed ? "opacity-60" : ""}`}
+          >
             <h4
               className={`font-semibold text-[13px] leading-tight ${
                 task.completed ? "line-through text-gray-500" : "text-gray-900"
@@ -612,14 +763,50 @@ const KanbanView: React.FC = () => {
       }
 
       return (
-        <div className={`space-y-1.5 ${task.completed ? "opacity-60" : ""}`}>
+        <div
+          className={`relative space-y-1.5 group/card ${task.completed ? "opacity-60" : ""}`}
+        >
+          {/* Checkbox for bulk selection */}
+          <div
+            className={`absolute -top-1 -left-1 z-10 ${showCheckbox ? "opacity-100" : "opacity-0 group-hover/card:opacity-100"} transition-opacity`}
+          >
+            <label
+              className="flex items-center justify-center w-5 h-5 cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  toggleLeadSelection(lead.id);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="w-3.5 h-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-1 cursor-pointer"
+              />
+            </label>
+          </div>
           <h4
-            className={`font-semibold text-[13px] leading-tight truncate ${
+            className={`font-semibold text-[13px] leading-tight truncate ${showCheckbox ? "pl-5" : ""} ${
               task.completed ? "line-through text-gray-500" : "text-gray-900"
             }`}
           >
             {lead.name}
           </h4>
+          {/* Unassigned lead indicator */}
+          {!lead.assignedTo && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+              </span>
+              <span className="text-[10px] font-medium text-orange-600">
+                No BDR
+              </span>
+            </div>
+          )}
           <div className="space-y-0.5 text-[11px] text-gray-500">
             {lead.phone && (
               <div className="flex items-center gap-1">
@@ -653,7 +840,7 @@ const KanbanView: React.FC = () => {
               )}
             </div>
             {/* BDR Assignment Section */}
-            <div className="pt-1">
+            <div className="pt-1 flex items-center gap-1.5">
               <button
                 ref={(el) => {
                   bdrButtonRefs.current[lead.id] = el;
@@ -681,6 +868,21 @@ const KanbanView: React.FC = () => {
                   className={`transition-transform ${bdrDropdownOpen === lead.id ? "rotate-180" : ""} text-gray-400 group-hover:text-gray-600`}
                 />
               </button>
+              {/* View Assignees button */}
+              {lead.assignedTo && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    openAssigneePanel(lead.id, e.currentTarget);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="flex items-center gap-0.5 px-1 py-0.5 rounded-md hover:bg-purple-50 transition-colors text-[10px] text-purple-500 hover:text-purple-700"
+                  title="View / manage assignees"
+                >
+                  <Users size={10} />
+                </button>
+              )}
             </div>
           </div>
           {lead.source && (
@@ -693,7 +895,14 @@ const KanbanView: React.FC = () => {
         </div>
       );
     },
-    [bdrDropdownOpen, bdrUsers, handleAssignBDR],
+    [
+      bdrDropdownOpen,
+      bdrUsers,
+      handleAssignBDR,
+      selectedKanbanLeads,
+      toggleLeadSelection,
+      openAssigneePanel,
+    ],
   );
 
   const renderProjectCard = useCallback((task: KanbanTask) => {
@@ -858,14 +1067,20 @@ const KanbanView: React.FC = () => {
               <div className="max-h-[230px] overflow-y-auto">
                 <button
                   onClick={() => handleAssignBDR(openLead.id, null)}
-                  className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center gap-2 transition-colors ${
+                  disabled={isAssigning}
+                  className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     !openLead.assignedTo
                       ? "bg-blue-50 text-blue-600 font-medium"
                       : "text-gray-600"
                   }`}
                 >
                   <span className="w-4 flex-shrink-0">
-                    {!openLead.assignedTo ? (
+                    {isAssigning ? (
+                      <Loader2
+                        size={12}
+                        className="animate-spin text-gray-400"
+                      />
+                    ) : !openLead.assignedTo ? (
                       <Check size={12} className="text-blue-500" />
                     ) : null}
                   </span>
@@ -880,7 +1095,8 @@ const KanbanView: React.FC = () => {
                     <button
                       key={bdr.id}
                       onClick={() => handleAssignBDR(openLead.id, bdr.id)}
-                      className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center gap-2 transition-colors ${
+                      disabled={isAssigning}
+                      className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                         isSelected
                           ? "bg-blue-50 text-blue-600 font-medium"
                           : "text-gray-700"
@@ -908,6 +1124,249 @@ const KanbanView: React.FC = () => {
           </>,
           document.body,
         )}
+
+      {/* Assignee Management Panel Portal */}
+      {assigneePanelOpen &&
+        assigneePanelPos &&
+        createPortal(
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0"
+              style={{ zIndex: 99996 }}
+              onClick={closeAssigneePanel}
+            />
+            {/* Panel */}
+            <div
+              ref={assigneePanelRef}
+              className="fixed w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden"
+              style={{
+                zIndex: 99997,
+                top: assigneePanelPos.top,
+                left: assigneePanelPos.left,
+                maxHeight: "360px",
+              }}
+            >
+              <div className="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Users size={11} />
+                  Lead Assignees
+                </span>
+                <button
+                  onClick={closeAssigneePanel}
+                  className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+                >
+                  <X size={11} className="text-gray-500" />
+                </button>
+              </div>
+              <div className="max-h-[240px] overflow-y-auto">
+                {assigneesLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 size={16} className="animate-spin text-gray-400" />
+                  </div>
+                ) : leadAssignees.length === 0 ? (
+                  <div className="px-3 py-4 text-[11px] text-gray-400 italic text-center">
+                    No assignees found
+                  </div>
+                ) : (
+                  leadAssignees.map((assignee) => (
+                    <div
+                      key={assignee.id}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 border-b border-gray-50 last:border-b-0"
+                    >
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
+                        style={{
+                          backgroundColor: `hsl(${(assignee.name.charCodeAt(0) * 37) % 360}, 55%, 50%)`,
+                        }}
+                      >
+                        {assignee.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-medium text-gray-800 truncate">
+                          {assignee.name}
+                        </div>
+                        <div className="text-[9px] text-gray-400">
+                          {assignee.role
+                            ?.replace(/_/g, " ")
+                            .replace(/\b\w/g, (c: string) => c.toUpperCase()) ||
+                            "Member"}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleRemoveAssignee(assigneePanelOpen!, assignee.id)
+                        }
+                        className="p-0.5 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                        title="Remove assignee"
+                      >
+                        <X
+                          size={11}
+                          className="text-gray-400 hover:text-red-500"
+                        />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              {/* Add Assignee Section */}
+              <div className="border-t border-gray-100 p-2">
+                {!addAssigneeDropdown ? (
+                  <button
+                    onClick={() => setAddAssigneeDropdown(true)}
+                    className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-purple-600 hover:bg-purple-50 rounded-md transition-colors font-medium"
+                  >
+                    <UserPlus size={11} />
+                    Add Assignee
+                  </button>
+                ) : (
+                  <div>
+                    <div className="text-[10px] font-medium text-gray-500 px-1 mb-1">
+                      Select user to co-assign:
+                    </div>
+                    <div className="max-h-[120px] overflow-y-auto">
+                      {bdrUsers
+                        .filter(
+                          (u) => !leadAssignees.some((a) => a.id === u.id),
+                        )
+                        .map((user) => (
+                          <button
+                            key={user.id}
+                            onClick={() =>
+                              handleAddAssignee(assigneePanelOpen!, user.id)
+                            }
+                            className="w-full px-2 py-1.5 text-left text-[11px] hover:bg-purple-50 flex items-center gap-2 rounded-md transition-colors text-gray-700"
+                          >
+                            <div
+                              className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                              style={{
+                                backgroundColor: `hsl(${(user.name.charCodeAt(0) * 37) % 360}, 55%, 50%)`,
+                              }}
+                            >
+                              {user.name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </div>
+                            <span className="truncate">{user.name}</span>
+                          </button>
+                        ))}
+                      {bdrUsers.filter(
+                        (u) => !leadAssignees.some((a) => a.id === u.id),
+                      ).length === 0 && (
+                        <div className="px-2 py-1.5 text-[10px] text-gray-400 italic text-center">
+                          All users already assigned
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setAddAssigneeDropdown(false)}
+                      className="w-full mt-1 px-2 py-1 text-[10px] text-gray-500 hover:text-gray-700 text-center"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>,
+          document.body,
+        )}
+
+      {/* Bulk Assign Toolbar - bottom floating bar */}
+      {activeView === "leads" &&
+        selectedKanbanLeads.size > 0 &&
+        createPortal(
+          <div
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-2xl border border-gray-200 px-5 py-3 flex items-center gap-4"
+            style={{ zIndex: 99995 }}
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center">
+                <Users size={14} className="text-purple-600" />
+              </div>
+              <span className="text-sm font-semibold text-gray-800">
+                {selectedKanbanLeads.size} lead
+                {selectedKanbanLeads.size > 1 ? "s" : ""} selected
+              </span>
+            </div>
+            <div className="w-px h-6 bg-gray-200" />
+            <div className="relative">
+              <button
+                onClick={() => setBulkAssignDropdownOpen((v) => !v)}
+                disabled={isAssigning}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isAssigning ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <UserPlus size={14} />
+                )}
+                {isAssigning ? "Assigning..." : "Assign BDR"}
+                <ChevronDown
+                  size={12}
+                  className={`transition-transform ${bulkAssignDropdownOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {bulkAssignDropdownOpen && (
+                <div className="absolute bottom-full mb-2 left-0 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1 max-h-[240px] overflow-y-auto">
+                  {bdrUsers.map((bdr) => {
+                    const roleLabel = bdr.role
+                      .replace(/_/g, " ")
+                      .replace(/\b\w/g, (c: string) => c.toUpperCase());
+                    return (
+                      <button
+                        key={bdr.id}
+                        onClick={() => handleBulkAssign(bdr.id)}
+                        disabled={isAssigning}
+                        className="w-full px-3 py-2 text-left text-[11px] hover:bg-purple-50 flex items-center gap-2 transition-colors text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                          style={{
+                            backgroundColor: `hsl(${(bdr.name.charCodeAt(0) * 37) % 360}, 55%, 50%)`,
+                          }}
+                        >
+                          {bdr.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </div>
+                        <span className="truncate">{bdr.name}</span>
+                        <span className="text-[9px] text-gray-400 ml-auto flex-shrink-0">
+                          {roleLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {bdrUsers.length === 0 && (
+                    <div className="px-3 py-2 text-[11px] text-gray-400 italic text-center">
+                      No users available
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={clearSelection}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X size={14} />
+              Clear
+            </button>
+          </div>,
+          document.body,
+        )}
+
       {/* Header */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -928,7 +1387,10 @@ const KanbanView: React.FC = () => {
         {/* View Toggle */}
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button
-            onClick={() => setActiveView("leads")}
+            onClick={() => {
+              setActiveView("leads");
+              setSelectedKanbanLeads(new Set());
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all ${
               activeView === "leads"
                 ? "bg-white text-purple-700 shadow-sm"
@@ -949,7 +1411,10 @@ const KanbanView: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveView("projects")}
+            onClick={() => {
+              setActiveView("projects");
+              setSelectedKanbanLeads(new Set());
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all ${
               activeView === "projects"
                 ? "bg-white text-orange-700 shadow-sm"
