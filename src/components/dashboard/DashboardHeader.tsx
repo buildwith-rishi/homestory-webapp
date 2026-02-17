@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Search, Bell, ChevronRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useProjectStore } from "../../stores/projectStore";
+import { useMeetingStore } from "../../stores/meetingStore";
 
 interface DashboardHeaderProps {
   sidebarCollapsed?: boolean;
@@ -14,6 +15,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const { user } = useAuth();
   const location = useLocation();
   const { currentProject } = useProjectStore();
+  const { currentMeeting } = useMeetingStore();
 
   // Get breadcrumb from current path
   const getBreadcrumb = () => {
@@ -30,6 +32,16 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       return (
         currentProject.projectName || currentProject.name || "Project Details"
       );
+    }
+
+    // If we're on a meeting details page, show the meeting title instead of UUID
+    const isMeetingDetailsPage =
+      path.length >= 3 &&
+      path[1] === "meetings" &&
+      path[2] &&
+      path[2].length > 20; // UUIDs are long
+    if (isMeetingDetailsPage && currentMeeting) {
+      return currentMeeting.title || "Meeting Details";
     }
 
     // Capitalize and format the path segment

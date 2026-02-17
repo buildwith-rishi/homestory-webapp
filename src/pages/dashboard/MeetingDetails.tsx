@@ -30,6 +30,7 @@ import {
   User,
   Mic,
   Play,
+  Share2,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import * as meetingAPI from "../../services/meetingApi";
@@ -41,6 +42,7 @@ import type {
   LeadReference,
 } from "../../types";
 import { LeadReferencesManager } from "../../components/leads";
+import { useMeetingStore } from "../../stores/meetingStore";
 
 const statusColors: Record<
   string,
@@ -402,6 +404,7 @@ const NoteForm: React.FC<{
 export const MeetingDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const { meetingId } = useParams<{ meetingId: string }>();
+  const { setCurrentMeeting } = useMeetingStore();
 
   // State
   const [meeting, setMeeting] = useState<
@@ -432,8 +435,10 @@ export const MeetingDetailsPage: React.FC = () => {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
+      // Clear currentMeeting when leaving the page
+      setCurrentMeeting(null);
     };
-  }, []);
+  }, [setCurrentMeeting]);
 
   // Trigger server-side regeneration to kick off transcription
   const triggerRegeneration = useCallback(async (id: string) => {
@@ -560,6 +565,7 @@ export const MeetingDetailsPage: React.FC = () => {
         // Fetch meeting details
         const meetingData = await meetingAPI.getMeetingById(meetingId);
         setMeeting(meetingData);
+        setCurrentMeeting(meetingData); // Update store for breadcrumb
 
         // Extract participants from meeting data if available
         if (
@@ -811,6 +817,72 @@ export const MeetingDetailsPage: React.FC = () => {
     setReferences(references.filter((ref) => ref.id !== referenceId));
     console.log("Deleted reference:", referenceId);
     // TODO: Persist to API
+  };
+
+  // Share AI Summary via WhatsApp
+  const handleShareWhatsApp = () => {
+    if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
+    
+    const summary = meeting.aiAnalysis?.summary || (meeting as any).summary;
+    const keyPoints = meeting.aiAnalysis?.keyPoints || (meeting as any).keyPoints || [];
+    const actionItems = meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
+    
+    let message = `*${meeting.title}* - AI Meeting Summary\n\n`;
+    message += `${summary}\n\n`;
+    
+    if (keyPoints.length > 0) {
+      message += `*Key Points:*\n`;
+      keyPoints.forEach((point: any, idx: number) => {
+        const text = typeof point === 'string' ? point : point?.text || point?.point;
+        message += `${idx + 1}. ${text}\n`;
+      });
+      message += `\n`;
+    }
+    
+    if (actionItems.length > 0) {
+      message += `*Action Items:*\n`;
+      actionItems.forEach((item: any, idx: number) => {
+        const text = typeof item === 'string' ? item : item?.task || item?.text || item?.action;
+        message += `✓ ${text}\n`;
+      });
+    }
+    
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  // Share AI Summary via Email
+  const handleShareEmail = () => {
+    if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
+    
+    const summary = meeting.aiAnalysis?.summary || (meeting as any).summary;
+    const keyPoints = meeting.aiAnalysis?.keyPoints || (meeting as any).keyPoints || [];
+    const actionItems = meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
+    
+    const subject = `Meeting Summary: ${meeting.title}`;
+    let body = `Meeting: ${meeting.title}\n`;
+    body += `Date: ${scheduledDate ? new Date(scheduledDate).toLocaleDateString() : 'N/A'}\n\n`;
+    body += `AI SUMMARY:\n${summary}\n\n`;
+    
+    if (keyPoints.length > 0) {
+      body += `KEY POINTS:\n`;
+      keyPoints.forEach((point: any, idx: number) => {
+        const text = typeof point === 'string' ? point : point?.text || point?.point;
+        body += `${idx + 1}. ${text}\n`;
+      });
+      body += `\n`;
+    }
+    
+    if (actionItems.length > 0) {
+      body += `ACTION ITEMS:\n`;
+      actionItems.forEach((item: any) => {
+        const text = typeof item === 'string' ? item : item?.task || item?.text || item?.action;
+        body += `✓ ${text}\n`;
+      });
+    }
+    
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoUrl;
   };
 
   // Loading state
@@ -1165,10 +1237,30 @@ export const MeetingDetailsPage: React.FC = () => {
           {/* AI Summary Card */}
           {(meeting.aiAnalysis || (meeting as any).summary) && (
             <Card className="p-6 rounded-xl bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-600" />
-                AI Summary
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-600" />
+                  AI Summary
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleShareWhatsApp}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                    title="Share via WhatsApp"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    WhatsApp
+                  </button>
+                  <button
+                    onClick={handleShareEmail}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                    title="Share via Email"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Email
+                  </button>
+                </div>
+              </div>
               <p className="text-gray-700 mb-4">
                 {meeting.aiAnalysis?.summary || (meeting as any).summary}
               </p>
