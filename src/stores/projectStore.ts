@@ -10,6 +10,7 @@ import type {
   UpdateProjectRequest,
   UpdateStageRequest,
   UpdatePaymentRequest,
+  CreatePaymentRequest,
   PauseProjectRequest,
   PauseStatusResponse,
   CreateTaskRequest,
@@ -65,6 +66,10 @@ interface ProjectState {
     projectId: string,
     paymentId: string,
     data: UpdatePaymentRequest,
+  ) => Promise<void>;
+  createProjectPayment: (
+    projectId: string,
+    data: CreatePaymentRequest,
   ) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
@@ -330,6 +335,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           ? error.message
           : "Failed to update project payment";
       set({ isLoading: false, error: errorMessage });
+    }
+  },
+
+  createProjectPayment: async (
+    projectId: string,
+    data: CreatePaymentRequest,
+  ) => {
+    set({ isLoading: true, error: null });
+    try {
+      await projectAPI.createProjectPayment(projectId, data);
+      const response = await projectAPI.getProjectPayments(projectId);
+      set({
+        projectPayments: response.payments,
+        totalPaymentValue: response.totalValue,
+        totalPaidAmount: response.paidAmount,
+        isLoading: false,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to create payment milestone";
+      set({ isLoading: false, error: errorMessage });
+      throw errorMessage;
     }
   },
 

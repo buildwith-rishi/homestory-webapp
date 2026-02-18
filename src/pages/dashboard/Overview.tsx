@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
+import { differenceInDays, parseISO } from "date-fns";
 import {
   FolderKanban,
   Users,
@@ -26,6 +27,8 @@ import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuth } from "../../contexts/AuthContext";
 import { getRoleDisplayName } from "../../config/rbac";
+import { listProjects } from "../../services/projectApi";
+import type { Project } from "../../types";
 
 export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
@@ -33,6 +36,22 @@ export const DashboardOverview: React.FC = () => {
   const { can, canAny, roleId } = useAuth();
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
   const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const data = await listProjects({ limit: 100 });
+        // @ts-ignore - Handle potential API response structure variations
+        const projectsData = Array.isArray(data) ? data : data.projects || [];
+        setProjects(projectsData);
+      } catch (error) {
+        console.error("Failed to fetch projects", error);
+        setProjects([]);
+      }
+    };
+    fetchProjects();
+  }, []);
 
   // Pipeline type filter options for deadline filtering
   const pipelineTypeFilterOptions = [
@@ -111,61 +130,59 @@ export const DashboardOverview: React.FC = () => {
   }, [selectedProject]);
 
   // All deadlines data
-  const allDeadlines = useMemo(
-    () => [
-      {
-        id: "1",
-        name: "Modern 3BHK - Sharma Family",
-        deadline: "Jan 25, 2026",
-        daysLeft: 5,
-        status: "urgent",
-        stage: "Design",
-        pipelineType: "DESIGN_ONLY",
-        progress: 65,
-      },
-      {
-        id: "2",
-        name: "Luxury Villa - Kumar Residence",
-        deadline: "Feb 10, 2026",
-        daysLeft: 21,
-        status: "on-track",
-        stage: "Execution",
-        pipelineType: "DESIGN_AND_EXECUTION",
-        progress: 40,
-      },
-      {
-        id: "3",
-        name: "Contemporary 2BHK - Patel Home",
-        deadline: "Jan 28, 2026",
-        daysLeft: 8,
-        status: "warning",
-        stage: "Material",
-        pipelineType: "DESIGN_AND_EXECUTION",
-        progress: 75,
-      },
-      {
-        id: "4",
-        name: "Office Interior - TechStart Inc",
-        deadline: "Feb 5, 2026",
-        daysLeft: 16,
-        status: "on-track",
-        stage: "Requirements",
-        pipelineType: "DESIGN_ONLY",
-        progress: 25,
-      },
-      {
-        id: "5",
-        name: "Penthouse Makeover - Gupta Family",
-        deadline: "Jan 22, 2026",
-        daysLeft: 2,
-        status: "critical",
-        stage: "Handover",
-        pipelineType: "DESIGN_AND_EXECUTION",
-        progress: 92,
-      },
-    ],
-    [],
-  );
+  const allDeadlines = useMemo(() => {
+    return projects
+      .filter((p) => {
+        // Filter out completed or cancelled projects
+        const status = p.status?.toUpperCase();
+        if (status === "COMPLETED" || status === "CANCELLED") return false;
+        return true;
+      })
+      .map((project) => {
+        let deadlineDate = null;
+        let daysLeft = 9999; // Sort to bottom if no deadline
+        let deadlineStr = "Schedule Pending";
+
+        if (project.tentativeHandoverDate) {
+          deadlineDate = parseISO(project.tentativeHandoverDate);
+          daysLeft = differenceInDays(deadlineDate, new Date());
+          deadlineStr = deadlineDate.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+        }
+
+        let status = "no-deadline";
+        if (deadlineDate) {
+          status = "on-track";
+          if (daysLeft < 0) status = "overdue";
+          else if (daysLeft <= 3) status = "critical";
+          else if (daysLeft <= 7) status = "urgent";
+          else if (daysLeft <= 14) status = "warning";
+        }
+
+        // Format stage name
+        const formattedStage = project.currentStageCode
+          ? project.currentStageCode
+              .replace(/_/g, " ")
+              .toLowerCase()
+              .replace(/\b\w/g, (c) => c.toUpperCase())
+          : "Unknown";
+
+        return {
+          id: project.id,
+          name: project.projectName || project.name || "Untitled Project",
+          deadline: deadlineStr,
+          daysLeft,
+          status,
+          stage: formattedStage,
+          pipelineType: project.pipelineType,
+          progress: 50, // Default progress as it's not in Project type
+        };
+      })
+      .sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [projects]);
 
   // Filter deadlines based on selection
   const filteredDeadlines = useMemo(() => {
@@ -494,34 +511,48 @@ export const DashboardOverview: React.FC = () => {
                     <div
                       key={i}
                       className={`flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-all cursor-pointer ${
-                        project.status === "critical"
+                        project.status === "critical" ||
+                        project.status === "overdue"
                           ? "border-red-300 bg-red-50"
                           : project.status === "urgent"
                             ? "border-orange-300 bg-orange-50"
                             : project.status === "warning"
                               ? "border-yellow-300 bg-yellow-50"
-                              : "border-gray-200 hover:border-orange-300"
+                              : project.status === "no-deadline"
+                                ? "border-gray-200 bg-gray-50/50"
+                                : "border-gray-200 hover:border-orange-300"
                       }`}
                     >
                       {/* Status Icon */}
                       <div
                         className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          project.status === "critical"
+                          project.status === "critical" ||
+                          project.status === "overdue"
                             ? "bg-red-100"
                             : project.status === "urgent"
                               ? "bg-orange-100"
                               : project.status === "warning"
                                 ? "bg-yellow-100"
-                                : "bg-green-100"
+                                : project.status === "no-deadline"
+                                  ? "bg-gray-100"
+                                  : "bg-green-100"
                         }`}
                       >
                         {project.status === "critical" ||
+                        project.status === "overdue" ||
                         project.status === "urgent" ? (
                           <AlertTriangle
-                            className={`w-5 h-5 ${project.status === "critical" ? "text-red-600" : "text-orange-600"}`}
+                            className={`w-5 h-5 ${
+                              project.status === "critical" ||
+                              project.status === "overdue"
+                                ? "text-red-600"
+                                : "text-orange-600"
+                            }`}
                           />
                         ) : project.status === "warning" ? (
                           <Clock className="w-5 h-5 text-yellow-600" />
+                        ) : project.status === "no-deadline" ? (
+                          <Calendar className="w-5 h-5 text-gray-400" />
                         ) : (
                           <CheckCircle className="w-5 h-5 text-green-600" />
                         )}
@@ -565,16 +596,23 @@ export const DashboardOverview: React.FC = () => {
                       <div className="text-right flex-shrink-0">
                         <p
                           className={`text-sm font-semibold ${
-                            project.status === "critical"
-                              ? "text-red-600"
+                            project.status === "critical" ||
+                            project.status === "overdue"
+                              ? "text-red-700"
                               : project.status === "urgent"
                                 ? "text-orange-600"
                                 : project.status === "warning"
                                   ? "text-yellow-600"
-                                  : "text-gray-700"
+                                  : project.status === "no-deadline"
+                                    ? "text-gray-500"
+                                    : "text-gray-700"
                           }`}
                         >
-                          {project.daysLeft} days left
+                          {project.status === "overdue"
+                            ? `${Math.abs(project.daysLeft)} days overdue`
+                            : project.status === "no-deadline"
+                              ? "No deadline set"
+                              : `${project.daysLeft} days left`}
                         </p>
                         <p className="text-xs text-gray-500">
                           {project.deadline}

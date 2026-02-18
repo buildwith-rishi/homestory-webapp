@@ -39,9 +39,13 @@ export interface CustomerFamilyMember {
 
 export interface CustomerImportantDate {
   id: string;
-  title: string;
+  dateType: string;
   date: string;
-  type?: string;
+  isRecurring?: boolean;
+  reminderDays?: number;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ConvertedFromLead {

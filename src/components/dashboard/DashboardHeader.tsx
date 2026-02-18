@@ -1,9 +1,10 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
-import { Search, Bell, ChevronRight } from "lucide-react";
+import { Search, ChevronRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useProjectStore } from "../../stores/projectStore";
 import { useMeetingStore } from "../../stores/meetingStore";
+import { useCustomerStore } from "../../stores/customerStore";
 
 interface DashboardHeaderProps {
   sidebarCollapsed?: boolean;
@@ -16,6 +17,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const location = useLocation();
   const { currentProject } = useProjectStore();
   const { currentMeeting } = useMeetingStore();
+  const { currentCustomer } = useCustomerStore();
 
   // Get breadcrumb from current path
   const getBreadcrumb = () => {
@@ -44,6 +46,19 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       return currentMeeting.title || "Meeting Details";
     }
 
+    // If we're on a customer details page, show the customer name instead of UUID
+    const isCustomerDetailsPage =
+      path.length >= 3 &&
+      path[1] === "customers" &&
+      path[2] &&
+      path[2].length > 20; // UUIDs are long
+    if (isCustomerDetailsPage && currentCustomer) {
+      return currentCustomer.name || "Customer Details";
+    }
+    if (isCustomerDetailsPage) {
+      return "Customer Details";
+    }
+
     // Capitalize and format the path segment
     const formatSegment = (segment: string) => {
       return segment
@@ -54,8 +69,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
     return formatSegment(lastSegment);
   };
-
-  const notificationCount = 3; // This should come from your state/store
 
   return (
     <header
@@ -85,19 +98,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               className="w-64 h-10 pl-10 pr-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all"
             />
           </div>
-
-          {/* Notifications */}
-          <button
-            className="relative p-2 hover:bg-gray-50 rounded-lg transition-colors"
-            aria-label="Notifications"
-          >
-            <Bell size={20} className="text-gray-600" />
-            {notificationCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-xs font-semibold rounded-full flex items-center justify-center">
-                {notificationCount}
-              </span>
-            )}
-          </button>
 
           {/* User Profile */}
           <div className="flex items-center gap-3 pl-3 border-l border-gray-200">

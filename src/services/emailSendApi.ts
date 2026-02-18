@@ -1,24 +1,6 @@
 // Email Send API Service
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
-
-const getAuthHeaders = (): HeadersInit => {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-};
-
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
-  }
-  return response.json();
-}
+// Uses shared fetchAPI from api.ts for consistent base URL, auth, and token refresh
+import { fetchAPI } from "./api";
 
 export interface SendEmailRequest {
   to: string;
@@ -52,21 +34,18 @@ export interface SendEmailResponse {
 }
 
 export async function sendEmail(data: SendEmailRequest): Promise<SendEmailResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/emails/send`, {
+  return fetchAPI<SendEmailResponse>("/api/emails/send", {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return handleResponse<SendEmailResponse>(response);
 }
 
 export async function sendTemplateEmail(data: SendTemplateEmailRequest): Promise<SendEmailResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/emails/send-template`, {
+  // Use the same /api/emails/send endpoint for template emails
+  return fetchAPI<SendEmailResponse>("/api/emails/send", {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return handleResponse<SendEmailResponse>(response);
 }
 
 const EmailSendAPI = {

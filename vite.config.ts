@@ -7,4 +7,13 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://ghs.oneweekmvps.com',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
 });

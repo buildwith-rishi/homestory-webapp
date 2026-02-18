@@ -279,6 +279,8 @@ export interface UpdateMeetingRequest {
   attendees?: string[];
   status?: MeetingStatus;
   recordingUrl?: string;
+  summary?: string;
+  aiAnalysis?: any;
 }
 
 // Request payload for adding participants

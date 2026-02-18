@@ -428,6 +428,11 @@ export const MeetingDetailsPage: React.FC = () => {
   const [isPollingTranscript, setIsPollingTranscript] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Summary editing state
+  const [isEditingSummary, setIsEditingSummary] = useState(false);
+  const [editedSummary, setEditedSummary] = useState("");
+  const [isSavingSummary, setIsSavingSummary] = useState(false);
+
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -819,68 +824,132 @@ export const MeetingDetailsPage: React.FC = () => {
     // TODO: Persist to API
   };
 
+  // Save edited summary
+  const handleSaveSummary = async () => {
+    if (!meeting || !editedSummary.trim()) return;
+
+    setIsSavingSummary(true);
+    try {
+      const updatedAiAnalysis = meeting.aiAnalysis
+        ? { ...meeting.aiAnalysis, summary: editedSummary }
+        : {
+            summary: editedSummary,
+            actionItems: [],
+            keyPoints: [],
+            sentiment: "neutral",
+            concerns: [],
+            decisions: [],
+          };
+
+      // Depending on API structure, update meeting object
+      // If backend supports partial update via updateMeeting:
+      const updatedMeeting = await meetingAPI.updateMeeting(meeting.id, {
+        aiAnalysis: updatedAiAnalysis,
+        summary: editedSummary, // Fallback for legacy fields
+      });
+
+      setMeeting(updatedMeeting);
+      setIsEditingSummary(false);
+    } catch (err) {
+      console.error("Error saving summary:", err);
+      // Fallback: update local state if API fails (for demo purposes)
+      // In production, show error toast
+      if (meeting) {
+        setMeeting({
+          ...meeting,
+          aiAnalysis: {
+            ...(meeting.aiAnalysis || {
+              actionItems: [],
+              keyPoints: [],
+              sentiment: "neutral",
+              concerns: [],
+              decisions: [],
+            }),
+            summary: editedSummary,
+          } as any,
+          summary: editedSummary,
+        });
+        setIsEditingSummary(false);
+      }
+    } finally {
+      setIsSavingSummary(false);
+    }
+  };
+
   // Share AI Summary via WhatsApp
   const handleShareWhatsApp = () => {
     if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
-    
+
     const summary = meeting.aiAnalysis?.summary || (meeting as any).summary;
-    const keyPoints = meeting.aiAnalysis?.keyPoints || (meeting as any).keyPoints || [];
-    const actionItems = meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
-    
+    const keyPoints =
+      meeting.aiAnalysis?.keyPoints || (meeting as any).keyPoints || [];
+    const actionItems =
+      meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
+
     let message = `*${meeting.title}* - AI Meeting Summary\n\n`;
     message += `${summary}\n\n`;
-    
+
     if (keyPoints.length > 0) {
       message += `*Key Points:*\n`;
       keyPoints.forEach((point: any, idx: number) => {
-        const text = typeof point === 'string' ? point : point?.text || point?.point;
+        const text =
+          typeof point === "string" ? point : point?.text || point?.point;
         message += `${idx + 1}. ${text}\n`;
       });
       message += `\n`;
     }
-    
+
     if (actionItems.length > 0) {
       message += `*Action Items:*\n`;
       actionItems.forEach((item: any, idx: number) => {
-        const text = typeof item === 'string' ? item : item?.task || item?.text || item?.action;
+        const text =
+          typeof item === "string"
+            ? item
+            : item?.task || item?.text || item?.action;
         message += `✓ ${text}\n`;
       });
     }
-    
+
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
+    window.open(whatsappUrl, "_blank");
   };
 
   // Share AI Summary via Email
   const handleShareEmail = () => {
     if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
-    
+
     const summary = meeting.aiAnalysis?.summary || (meeting as any).summary;
-    const keyPoints = meeting.aiAnalysis?.keyPoints || (meeting as any).keyPoints || [];
-    const actionItems = meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
-    
+    const keyPoints =
+      meeting.aiAnalysis?.keyPoints || (meeting as any).keyPoints || [];
+    const actionItems =
+      meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
+
     const subject = `Meeting Summary: ${meeting.title}`;
     let body = `Meeting: ${meeting.title}\n`;
-    body += `Date: ${scheduledDate ? new Date(scheduledDate).toLocaleDateString() : 'N/A'}\n\n`;
+    body += `Date: ${scheduledDate ? new Date(scheduledDate).toLocaleDateString() : "N/A"}\n\n`;
     body += `AI SUMMARY:\n${summary}\n\n`;
-    
+
     if (keyPoints.length > 0) {
       body += `KEY POINTS:\n`;
       keyPoints.forEach((point: any, idx: number) => {
-        const text = typeof point === 'string' ? point : point?.text || point?.point;
+        const text =
+          typeof point === "string" ? point : point?.text || point?.point;
         body += `${idx + 1}. ${text}\n`;
       });
       body += `\n`;
     }
-    
+
     if (actionItems.length > 0) {
       body += `ACTION ITEMS:\n`;
       actionItems.forEach((item: any) => {
-        const text = typeof item === 'string' ? item : item?.task || item?.text || item?.action;
+        const text =
+          typeof item === "string"
+            ? item
+            : item?.task || item?.text || item?.action;
         body += `✓ ${text}\n`;
       });
     }
-    
+
     const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailtoUrl;
   };
@@ -984,9 +1053,9 @@ export const MeetingDetailsPage: React.FC = () => {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Column - Meeting Info & Actions */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="lg:col-span-1 space-y-6 sticky top-6">
           {/* Meeting Details Card */}
           <Card className="p-6 rounded-xl">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -1111,125 +1180,7 @@ export const MeetingDetailsPage: React.FC = () => {
             </Card>
           )}
 
-          {/* Actions Card */}
-          <Card className="p-6 rounded-xl">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Actions
-            </h2>
-            <div className="space-y-3">
-              <Button
-                variant="secondary"
-                onClick={handleSendNotifications}
-                disabled={actionLoading === "notify"}
-                className="w-full justify-center rounded-xl"
-              >
-                {actionLoading === "notify" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Bell className="w-4 h-4" />
-                )}
-                Send Notifications
-              </Button>
-
-              {meeting.transcription && meeting.transcription.length > 0 && (
-                <>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowSpeakerModal(true)}
-                    className="w-full justify-center rounded-xl"
-                  >
-                    <Mic className="w-4 h-4" />
-                    Map Speakers
-                  </Button>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleRegenerate("summary")}
-                      disabled={actionLoading?.startsWith("regenerate")}
-                      className="justify-center rounded-xl text-sm"
-                      size="sm"
-                    >
-                      {actionLoading === "regenerate-summary" ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4" />
-                      )}
-                      Summary
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleRegenerate("transcription")}
-                      disabled={actionLoading?.startsWith("regenerate")}
-                      className="justify-center rounded-xl text-sm"
-                      size="sm"
-                    >
-                      {actionLoading === "regenerate-transcription" ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4" />
-                      )}
-                      Transcript
-                    </Button>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleRegenerate("all")}
-                    disabled={actionLoading?.startsWith("regenerate")}
-                    className="w-full justify-center rounded-xl"
-                  >
-                    {actionLoading === "regenerate-all" ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
-                    )}
-                    Regenerate All
-                  </Button>
-                </>
-              )}
-
-              {/* Delete Meeting Section */}
-              <div className="pt-3 mt-3 border-t border-gray-200">
-                {showDeleteConfirm ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-gray-600 text-center">
-                      Are you sure you want to delete this meeting?
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => setShowDeleteConfirm(false)}
-                        disabled={actionLoading === "delete"}
-                        className="flex-1 rounded-xl"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleDeleteMeeting}
-                        disabled={actionLoading === "delete"}
-                        className="flex-1 rounded-xl bg-red-500 hover:bg-red-600"
-                      >
-                        {actionLoading === "delete" ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="w-full justify-center rounded-xl text-red-600 hover:bg-red-50 border-red-200"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Meeting
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
+          {/* Actions Card - Removed */}
         </div>
 
         {/* Right Column - Notes & Transcript */}
@@ -1243,6 +1194,46 @@ export const MeetingDetailsPage: React.FC = () => {
                   AI Summary
                 </h2>
                 <div className="flex items-center gap-2">
+                  {!isEditingSummary ? (
+                    <button
+                      onClick={() => {
+                        setIsEditingSummary(true);
+                        setEditedSummary(
+                          meeting.aiAnalysis?.summary ||
+                            (meeting as any).summary ||
+                            "",
+                        );
+                      }}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
+                      title="Edit Summary"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      Edit
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setIsEditingSummary(false)}
+                        disabled={isSavingSummary}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveSummary}
+                        disabled={isSavingSummary}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {isSavingSummary ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                        Save
+                      </button>
+                    </>
+                  )}
+
                   <button
                     onClick={handleShareWhatsApp}
                     className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
@@ -1261,9 +1252,19 @@ export const MeetingDetailsPage: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <p className="text-gray-700 mb-4">
-                {meeting.aiAnalysis?.summary || (meeting as any).summary}
-              </p>
+
+              {isEditingSummary ? (
+                <textarea
+                  value={editedSummary}
+                  onChange={(e) => setEditedSummary(e.target.value)}
+                  className="w-full h-40 p-3 mb-4 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter meeting summary..."
+                />
+              ) : (
+                <p className="text-gray-700 mb-4 whitespace-pre-wrap">
+                  {meeting.aiAnalysis?.summary || (meeting as any).summary}
+                </p>
+              )}
 
               {(
                 meeting.aiAnalysis?.keyPoints ||

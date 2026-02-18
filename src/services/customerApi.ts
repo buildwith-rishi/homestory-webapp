@@ -5,9 +5,10 @@ import type {
   CustomerStatus,
   SearchCustomerResponse,
   SearchCustomerParams,
-} from '../types/customer';
+} from "../types/customer";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
 
 // Re-export types for backwards compatibility
 export type {
@@ -20,7 +21,7 @@ export type {
   CustomerFamilyMember,
   CustomerImportantDate,
   ConvertedFromLead,
-} from '../types/customer';
+} from "../types/customer";
 
 // Helper function to get auth headers
 const getAuthHeaders = (): HeadersInit => {
@@ -108,9 +109,14 @@ export async function convertLeadToCustomer(
       body: JSON.stringify(payload),
     });
 
-    const data = await handleResponse<{ customer: Customer } | Customer>(response);
+    const data = await handleResponse<{ customer: Customer } | Customer>(
+      response,
+    );
     // Handle both wrapped and unwrapped response formats
-    const customer = 'customer' in data ? (data as { customer: Customer }).customer : data as Customer;
+    const customer =
+      "customer" in data
+        ? (data as { customer: Customer }).customer
+        : (data as Customer);
     console.log("Lead converted successfully:", customer);
     return customer;
   } catch (error) {
@@ -129,6 +135,7 @@ export async function listCustomers(params?: {
   page?: number;
   limit?: number;
   search?: string;
+  includeContacts?: boolean;
 }): Promise<{
   customers: Customer[];
   total: number;
@@ -144,6 +151,7 @@ export async function listCustomers(params?: {
       if (params.page) queryParams.append("page", params.page.toString());
       if (params.limit) queryParams.append("limit", params.limit.toString());
       if (params.search) queryParams.append("search", params.search);
+      if (params.includeContacts) queryParams.append("includeContacts", "true");
     }
 
     const url = `${API_BASE_URL}/api/customers${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
@@ -196,7 +204,7 @@ export async function getCustomerById(id: string): Promise<Customer> {
   try {
     console.log("Fetching customer by ID:", id);
     console.log("API URL:", `${API_BASE_URL}/api/customers/${id}`);
-    
+
     const response = await fetch(`${API_BASE_URL}/api/customers/${id}`, {
       method: "GET",
       headers: getAuthHeaders(),
@@ -228,9 +236,14 @@ export async function updateCustomer(
       body: JSON.stringify(updates),
     });
 
-    const data = await handleResponse<{ customer: Customer } | Customer>(response);
+    const data = await handleResponse<{ customer: Customer } | Customer>(
+      response,
+    );
     // Handle both wrapped and unwrapped response formats
-    const updatedCustomer = 'customer' in data ? (data as { customer: Customer }).customer : data as Customer;
+    const updatedCustomer =
+      "customer" in data
+        ? (data as { customer: Customer }).customer
+        : (data as Customer);
     console.log("Customer updated successfully:", updatedCustomer);
     return updatedCustomer;
   } catch (error) {
@@ -269,12 +282,108 @@ export async function deleteCustomer(id: string): Promise<void> {
 }
 
 /**
+ * Get family relationship types
+ * GET /api/family/relationship-types
+ */
+export async function getFamilyRelationshipTypes(): Promise<
+  { value: string; label: string }[]
+> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/family/relationship-types`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      },
+    );
+    const data = await handleResponse<{
+      relationshipTypes: { value: string; label: string }[];
+    }>(response);
+    return data.relationshipTypes || [];
+  } catch (error) {
+    console.error("Error fetching relationship types:", error);
+    // Fallback list so the UI doesn't break if the endpoint is unreachable
+    return [
+      { value: "SPOUSE", label: "Spouse" },
+      { value: "CHILD", label: "Child" },
+      { value: "PARENT", label: "Parent" },
+      { value: "SIBLING", label: "Sibling" },
+      { value: "GRANDPARENT", label: "Grandparent" },
+      { value: "GRANDCHILD", label: "Grandchild" },
+      { value: "IN_LAW", label: "In-Law" },
+      { value: "OTHER", label: "Other" },
+    ];
+  }
+}
+
+export interface AddFamilyMemberPayload {
+  firstName: string;
+  lastName?: string;
+  relationship: string;
+  dateOfBirth?: string;
+  phone?: string;
+  email?: string;
+  occupation?: string;
+  notes?: string;
+}
+
+export type UpdateFamilyMemberPayload = Partial<AddFamilyMemberPayload>;
+
+/**
+ * Update a family member
+ * PUT /api/family/:familyMemberId
+ */
+export async function updateFamilyMember(
+  familyMemberId: string,
+  payload: UpdateFamilyMemberPayload,
+): Promise<any> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/family/${familyMemberId}`,
+      {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      },
+    );
+    return await handleResponse<any>(response);
+  } catch (error) {
+    console.error("Error updating family member:", error);
+    throw error;
+  }
+}
+
+/**
+ * Add a family member to a customer
+ * POST /api/customers/:customerId/family
+ */
+export async function addFamilyMember(
+  customerId: string,
+  payload: AddFamilyMemberPayload,
+): Promise<any> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/customers/${customerId}/family`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      },
+    );
+    return await handleResponse<any>(response);
+  } catch (error) {
+    console.error("Error adding family member:", error);
+    throw error;
+  }
+}
+
+/**
  * Search for an existing customer by contact information (email or phone)
  * GET /api/leads/search-customer?email=EMAIL or ?phone=PHONE
  * Returns: { found: boolean, lead: {...}, account: {...} }
  */
 export async function searchCustomerByContact(
-  params: SearchCustomerParams
+  params: SearchCustomerParams,
 ): Promise<SearchCustomerResponse> {
   try {
     const queryParams = new URLSearchParams();
@@ -304,6 +413,69 @@ export async function searchCustomerByContact(
   }
 }
 
+// Add Important Date
+export async function addImportantDate(
+  customerId: string,
+  dateData: {
+    dateType: string;
+    date: string;
+    isRecurring?: boolean;
+    reminderDays?: number;
+    notes?: string;
+  },
+): Promise<CustomerImportantDate> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/customers/${customerId}/important-dates`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(dateData),
+      },
+    );
+
+    const data = await handleResponse<
+      { importantDate: CustomerImportantDate } | CustomerImportantDate
+    >(response);
+
+    return "importantDate" in data
+      ? (data as { importantDate: CustomerImportantDate }).importantDate
+      : (data as CustomerImportantDate);
+  } catch (error) {
+    console.error("Error adding important date:", error);
+    throw error;
+  }
+}
+
+// Get Important Dates
+export async function getImportantDates(
+  customerId: string,
+): Promise<CustomerImportantDate[]> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/customers/${customerId}/important-dates`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      },
+    );
+
+    const data = await handleResponse<
+      { importantDates: CustomerImportantDate[] } | CustomerImportantDate[]
+    >(response);
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+    return (
+      (data as { importantDates: CustomerImportantDate[] }).importantDates || []
+    );
+  } catch (error) {
+    console.error("Error fetching important dates:", error);
+    throw error;
+  }
+}
+
 // Default export with all functions
 const CustomerAPI = {
   getCustomerTypes,
@@ -315,6 +487,12 @@ const CustomerAPI = {
   updateCustomer,
   deleteCustomer,
   searchCustomerByContact,
+  getFamilyRelationshipTypes,
+  addImportantDate,
+  getImportantDates,
+
+  addFamilyMember,
+  updateFamilyMember,
 };
 
 export default CustomerAPI;

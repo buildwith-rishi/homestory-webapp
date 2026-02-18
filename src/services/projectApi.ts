@@ -451,6 +451,31 @@ export async function updateProjectPayment(
 }
 
 /**
+ * Create a project payment milestone
+ * POST /api/projects/:id/payments
+ */
+export async function createProjectPayment(
+  projectId: string,
+  data: CreatePaymentRequest,
+): Promise<ProjectPayment> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/projects/${projectId}/payments`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+
+    return handleResponse<ProjectPayment>(response);
+  } catch (error) {
+    console.error("Error creating project payment:", error);
+    throw error;
+  }
+}
+
+/**
  * Get project tasks
  * GET /api/projects/:id/tasks
  */

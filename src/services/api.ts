@@ -1,6 +1,9 @@
 // API Configuration
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+// In development, use empty string so requests go through Vite proxy (avoids CORS)
+// In production, use the full URL from env var
+const API_BASE_URL = import.meta.env.DEV
+  ? ""
+  : (import.meta.env.VITE_API_BASE_URL || "");
 
 // API Response Types
 interface LoginResponse {
@@ -34,7 +37,7 @@ export class ApiError extends Error {
 }
 
 // Base fetch wrapper with error handling and auto token refresh
-async function fetchAPI<T>(
+export async function fetchAPI<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {

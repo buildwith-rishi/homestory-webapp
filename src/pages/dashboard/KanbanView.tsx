@@ -188,21 +188,41 @@ const KanbanView: React.FC = () => {
       const btn = bdrButtonRefs.current[leadId];
       if (btn) {
         const rect = btn.getBoundingClientRect();
-        setBdrDropdownPos({ top: rect.bottom + 4, left: rect.left });
+        const scrollY = window.scrollY || document.documentElement.scrollTop;
+        const scrollX = window.scrollX || document.documentElement.scrollLeft;
+        setBdrDropdownPos({
+          top: rect.bottom + scrollY + 4,
+          left: rect.left + scrollX,
+        });
       }
       setBdrDropdownOpen(leadId);
     },
     [bdrDropdownOpen],
   );
 
+  // Close dropdown on scroll to prevent detachment issues
+  useEffect(() => {
+    const handleScroll = () => {
+      if (bdrDropdownOpen) {
+        setBdrDropdownOpen(null);
+        setBdrDropdownPos(null);
+      }
+    };
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [bdrDropdownOpen]);
+
   // ─── Assignee Panel Handlers ──────────────────────────────────────────────
 
   const openAssigneePanel = useCallback(
     async (leadId: string, anchorEl: HTMLElement) => {
       const rect = anchorEl.getBoundingClientRect();
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+
       setAssigneePanelPos({
-        top: rect.bottom + 4,
-        left: Math.min(rect.left, window.innerWidth - 280),
+        top: rect.bottom + scrollY + 4,
+        left: Math.min(rect.left + scrollX, window.innerWidth + scrollX - 280),
       });
       setAssigneePanelOpen(leadId);
       setAssigneesLoading(true);
@@ -1053,7 +1073,7 @@ const KanbanView: React.FC = () => {
             />
             {/* Dropdown */}
             <div
-              className="fixed w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1"
+              className="absolute w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1"
               style={{
                 zIndex: 99999,
                 top: bdrDropdownPos.top,
@@ -1139,7 +1159,7 @@ const KanbanView: React.FC = () => {
             {/* Panel */}
             <div
               ref={assigneePanelRef}
-              className="fixed w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden"
+              className="absolute w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden"
               style={{
                 zIndex: 99997,
                 top: assigneePanelPos.top,

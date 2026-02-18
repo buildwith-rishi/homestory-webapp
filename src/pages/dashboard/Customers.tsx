@@ -34,7 +34,9 @@ import {
 import { Card, Button } from "../../components/ui";
 import toast from "react-hot-toast";
 import ContactAPI, { type Contact } from "../../services/contactApi";
-import CustomerAPI, { Customer as APICustomer } from "../../services/customerApi";
+import CustomerAPI, {
+  Customer as APICustomer,
+} from "../../services/customerApi";
 import { ContactRoleBadge, PrimaryBadge } from "../../components/customers";
 
 interface FamilyMember {
@@ -45,9 +47,10 @@ interface FamilyMember {
 }
 
 interface ImportantDate {
-  title: string;
+  dateType: string;
   date: string;
-  type: "birthday" | "anniversary" | "other";
+  isRecurring?: boolean;
+  notes?: string;
 }
 
 interface Referral {
@@ -203,12 +206,12 @@ const AddCustomerModal: React.FC<{
 
     if (!formData.name.trim()) newErrors.name = "Name is required";
     if (!formData.type) newErrors.type = "Customer type is required";
-    
+
     // Email validation (optional but validate format if provided)
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Invalid email format";
     }
-    
+
     // Phone validation (optional but validate format if provided)
     if (formData.phone && formData.phone.length < 10) {
       newErrors.phone = "Phone must be at least 10 digits";
@@ -249,8 +252,9 @@ const AddCustomerModal: React.FC<{
           if (email) searchParams.email = email;
           if (phone) searchParams.phone = phone;
 
-          const result = await CustomerAPI.searchCustomerByContact(searchParams);
-          
+          const result =
+            await CustomerAPI.searchCustomerByContact(searchParams);
+
           setDuplicateCheckResult(result);
           setShowDuplicateWarning(result.found);
           setAcknowledgeDuplicate(false); // Reset acknowledge flag
@@ -288,21 +292,29 @@ const AddCustomerModal: React.FC<{
       // Copy shipping from billing if checkbox is selected
       const customerData = {
         ...formData,
-        shippingAddress: sameAsBilling ? formData.billingAddress : formData.shippingAddress,
-        shippingCity: sameAsBilling ? formData.billingCity : formData.shippingCity,
-        shippingState: sameAsBilling ? formData.billingState : formData.shippingState,
-        shippingPincode: sameAsBilling ? formData.billingPincode : formData.shippingPincode,
+        shippingAddress: sameAsBilling
+          ? formData.billingAddress
+          : formData.shippingAddress,
+        shippingCity: sameAsBilling
+          ? formData.billingCity
+          : formData.shippingCity,
+        shippingState: sameAsBilling
+          ? formData.billingState
+          : formData.shippingState,
+        shippingPincode: sameAsBilling
+          ? formData.billingPincode
+          : formData.shippingPincode,
       };
 
       // Remove empty optional fields
-      Object.keys(customerData).forEach(key => {
+      Object.keys(customerData).forEach((key) => {
         if (customerData[key] === "" || customerData[key] === null) {
           delete customerData[key];
         }
       });
 
       await onSave(customerData);
-      
+
       // Reset form on success
       setFormData({
         name: "",
@@ -372,7 +384,7 @@ const AddCustomerModal: React.FC<{
       setDuplicateCheckResult(null);
       setShowDuplicateWarning(false);
       setAcknowledgeDuplicate(false);
-      
+
       // Clear any pending debounce timer
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -573,7 +585,8 @@ const AddCustomerModal: React.FC<{
           {/* Tax ID (Optional) */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">
-              Tax ID (GSTIN) <span className="text-xs text-gray-500">(Optional)</span>
+              Tax ID (GSTIN){" "}
+              <span className="text-xs text-gray-500">(Optional)</span>
             </label>
             <input
               type="text"
@@ -600,13 +613,16 @@ const AddCustomerModal: React.FC<{
             >
               <span className="font-semibold text-gray-700 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-600" />
-                Billing Address <span className="text-xs text-gray-500">(Optional)</span>
+                Billing Address{" "}
+                <span className="text-xs text-gray-500">(Optional)</span>
               </span>
-              <div className={`transform transition-transform ${showBillingSection ? 'rotate-180' : ''}`}>
+              <div
+                className={`transform transition-transform ${showBillingSection ? "rotate-180" : ""}`}
+              >
                 ▼
               </div>
             </button>
-            
+
             {showBillingSection && (
               <div className="space-y-3 p-4 bg-blue-50/50 rounded-xl border border-blue-100 animate-fade-in">
                 <div>
@@ -617,7 +633,10 @@ const AddCustomerModal: React.FC<{
                     type="text"
                     value={formData.billingAddress}
                     onChange={(e) =>
-                      setFormData({ ...formData, billingAddress: e.target.value })
+                      setFormData({
+                        ...formData,
+                        billingAddress: e.target.value,
+                      })
                     }
                     placeholder="Street address, building name"
                     disabled={isCreating}
@@ -633,7 +652,10 @@ const AddCustomerModal: React.FC<{
                       type="text"
                       value={formData.billingCity}
                       onChange={(e) =>
-                        setFormData({ ...formData, billingCity: e.target.value })
+                        setFormData({
+                          ...formData,
+                          billingCity: e.target.value,
+                        })
                       }
                       placeholder="City"
                       disabled={isCreating}
@@ -648,7 +670,10 @@ const AddCustomerModal: React.FC<{
                       type="text"
                       value={formData.billingState}
                       onChange={(e) =>
-                        setFormData({ ...formData, billingState: e.target.value })
+                        setFormData({
+                          ...formData,
+                          billingState: e.target.value,
+                        })
                       }
                       placeholder="State"
                       disabled={isCreating}
@@ -664,17 +689,23 @@ const AddCustomerModal: React.FC<{
                     type="text"
                     value={formData.billingPincode}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      const value = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 6);
                       setFormData({ ...formData, billingPincode: value });
                     }}
                     placeholder="6-digit pincode"
                     disabled={isCreating}
                     className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
-                      errors.billingPincode ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      errors.billingPincode
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   />
                   {errors.billingPincode && (
-                    <p className="text-xs text-red-600 mt-1">{errors.billingPincode}</p>
+                    <p className="text-xs text-red-600 mt-1">
+                      {errors.billingPincode}
+                    </p>
                   )}
                 </div>
               </div>
@@ -691,13 +722,16 @@ const AddCustomerModal: React.FC<{
             >
               <span className="font-semibold text-gray-700 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-green-600" />
-                Shipping Address <span className="text-xs text-gray-500">(Optional)</span>
+                Shipping Address{" "}
+                <span className="text-xs text-gray-500">(Optional)</span>
               </span>
-              <div className={`transform transition-transform ${showShippingSection ? 'rotate-180' : ''}`}>
+              <div
+                className={`transform transition-transform ${showShippingSection ? "rotate-180" : ""}`}
+              >
                 ▼
               </div>
             </button>
-            
+
             {showShippingSection && (
               <div className="space-y-3 p-4 bg-green-50/50 rounded-xl border border-green-100 animate-fade-in">
                 <div className="flex items-center gap-2 mb-3">
@@ -709,11 +743,14 @@ const AddCustomerModal: React.FC<{
                     disabled={isCreating}
                     className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                   />
-                  <label htmlFor="sameAsBilling" className="text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="sameAsBilling"
+                    className="text-sm font-medium text-gray-700"
+                  >
                     Same as billing address
                   </label>
                 </div>
-                
+
                 {!sameAsBilling && (
                   <>
                     <div>
@@ -724,7 +761,10 @@ const AddCustomerModal: React.FC<{
                         type="text"
                         value={formData.shippingAddress}
                         onChange={(e) =>
-                          setFormData({ ...formData, shippingAddress: e.target.value })
+                          setFormData({
+                            ...formData,
+                            shippingAddress: e.target.value,
+                          })
                         }
                         placeholder="Street address, building name"
                         disabled={isCreating}
@@ -740,7 +780,10 @@ const AddCustomerModal: React.FC<{
                           type="text"
                           value={formData.shippingCity}
                           onChange={(e) =>
-                            setFormData({ ...formData, shippingCity: e.target.value })
+                            setFormData({
+                              ...formData,
+                              shippingCity: e.target.value,
+                            })
                           }
                           placeholder="City"
                           disabled={isCreating}
@@ -755,7 +798,10 @@ const AddCustomerModal: React.FC<{
                           type="text"
                           value={formData.shippingState}
                           onChange={(e) =>
-                            setFormData({ ...formData, shippingState: e.target.value })
+                            setFormData({
+                              ...formData,
+                              shippingState: e.target.value,
+                            })
                           }
                           placeholder="State"
                           disabled={isCreating}
@@ -771,17 +817,23 @@ const AddCustomerModal: React.FC<{
                         type="text"
                         value={formData.shippingPincode}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          const value = e.target.value
+                            .replace(/\D/g, "")
+                            .slice(0, 6);
                           setFormData({ ...formData, shippingPincode: value });
                         }}
                         placeholder="6-digit pincode"
                         disabled={isCreating}
                         className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 ${
-                          errors.shippingPincode ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          errors.shippingPincode
+                            ? "border-red-300 bg-red-50"
+                            : "border-gray-300"
                         }`}
                       />
                       {errors.shippingPincode && (
-                        <p className="text-xs text-red-600 mt-1">{errors.shippingPincode}</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {errors.shippingPincode}
+                        </p>
                       )}
                     </div>
                   </>
@@ -820,21 +872,28 @@ const AddCustomerModal: React.FC<{
                       Duplicate Customer Found!
                     </h4>
                     <p className="text-sm text-amber-800 mb-3">
-                      A customer with this {formData.email ? "email" : "phone"} already exists in the system
+                      A customer with this {formData.email ? "email" : "phone"}{" "}
+                      already exists in the system
                     </p>
-                    
+
                     {/* Existing Customer Details */}
                     <div className="bg-white rounded-xl p-4 border border-amber-200 mb-3">
                       <div className="flex items-center justify-between mb-2">
                         <p className="font-semibold text-gray-900">
-                          {duplicateCheckResult.lead?.name || duplicateCheckResult.account?.name || "Unknown"}
+                          {duplicateCheckResult.lead?.name ||
+                            duplicateCheckResult.account?.name ||
+                            "Unknown"}
                         </p>
-                        <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
-                          duplicateCheckResult.lead?.status === "CONVERTED"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-blue-100 text-blue-700"
-                        }`}>
-                          {duplicateCheckResult.lead?.status || duplicateCheckResult.account?.status || "Unknown"}
+                        <span
+                          className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+                            duplicateCheckResult.lead?.status === "CONVERTED"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {duplicateCheckResult.lead?.status ||
+                            duplicateCheckResult.account?.status ||
+                            "Unknown"}
                         </span>
                       </div>
                       <div className="space-y-1 text-sm text-gray-600">
@@ -853,7 +912,9 @@ const AddCustomerModal: React.FC<{
                         {duplicateCheckResult.account && (
                           <div className="flex items-center gap-2">
                             <User className="w-3.5 h-3.5 text-gray-400" />
-                            <span>Customer Type: {duplicateCheckResult.account.type}</span>
+                            <span>
+                              Customer Type: {duplicateCheckResult.account.type}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -870,7 +931,7 @@ const AddCustomerModal: React.FC<{
                         <User className="w-4 h-4" />
                         <span>View Existing Customer</span>
                       </button>
-                      
+
                       {!acknowledgeDuplicate && (
                         <button
                           type="button"
@@ -912,7 +973,9 @@ const AddCustomerModal: React.FC<{
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isCreating || (showDuplicateWarning && !acknowledgeDuplicate)}
+            disabled={
+              isCreating || (showDuplicateWarning && !acknowledgeDuplicate)
+            }
             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700 text-white font-semibold rounded-2xl hover:from-orange-600 hover:via-orange-700 hover:to-orange-800 transition-all shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 disabled:hover:scale-100"
             title={
               showDuplicateWarning && !acknowledgeDuplicate
@@ -1134,7 +1197,9 @@ const ViewCustomerModal: React.FC<{
             {loadingContacts ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
-                <span className="ml-2 text-sm text-gray-500">Loading contacts...</span>
+                <span className="ml-2 text-sm text-gray-500">
+                  Loading contacts...
+                </span>
               </div>
             ) : contacts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1288,34 +1353,48 @@ const ViewCustomerModal: React.FC<{
                 Important Dates
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {customer.importantDates.map((date, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-3 p-3 bg-white rounded-xl"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center">
-                      {date.type === "birthday" ? (
-                        <Gift className="w-6 h-6 text-rose-500" />
-                      ) : date.type === "anniversary" ? (
-                        <Heart className="w-6 h-6 text-rose-500" />
-                      ) : (
-                        <Calendar className="w-6 h-6 text-rose-500" />
-                      )}
+                {customer.importantDates.map((date, index) => {
+                  const dateType = date.dateType?.toUpperCase() || "OTHER";
+                  const label = date.dateType
+                    ? date.dateType.charAt(0).toUpperCase() +
+                      date.dateType.slice(1).toLowerCase().replace("_", " ")
+                    : "Date";
+
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center gap-3 p-3 bg-white rounded-xl"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center">
+                        {dateType === "BIRTHDAY" ? (
+                          <Gift className="w-6 h-6 text-rose-500" />
+                        ) : dateType === "ANNIVERSARY" ? (
+                          <Heart className="w-6 h-6 text-rose-500" />
+                        ) : (
+                          <Calendar className="w-6 h-6 text-rose-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">{label}</p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(date.date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </p>
+                        {date.notes && (
+                          <p
+                            className="text-xs text-gray-500 truncate max-w-[150px]"
+                            title={date.notes}
+                          >
+                            {date.notes}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {date.title}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(date.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2422,7 +2501,7 @@ export const Customers: React.FC = () => {
   >([]);
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
-  
+
   // Ref for debounce timer
   const searchDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -2448,51 +2527,163 @@ export const Customers: React.FC = () => {
 
   const fetchCustomers = async (searchTerm?: string) => {
     const isInitialLoad = searchTerm === undefined;
-    
+
     if (isInitialLoad) {
       setLoading(true);
     } else {
       setIsSearching(true);
     }
-    
-    try {
-      const params = searchTerm ? { search: searchTerm } : {};
-      const response = await CustomerAPI.listCustomers(params);
-      
-      // Map API customers to UI Customer format
-      const mappedCustomers: Customer[] = response.customers.map((apiCustomer, index) => {
-        const initials = apiCustomer.name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .toUpperCase()
-          .slice(0, 2);
 
-        return {
-          id: apiCustomer.id, // Keep UUID as string
-          name: apiCustomer.name,
-          initials,
-          email: apiCustomer._count?.contacts > 0 ? "View details for contact info" : "No contacts",
-          phone: apiCustomer._count?.contacts > 0 ? "View details" : "N/A",
-          location: apiCustomer.billingCity || apiCustomer.shippingCity || apiCustomer.billingAddress || apiCustomer.shippingAddress || "N/A",
-          projects: apiCustomer._count?.projects || 0,
-          totalValue: 0,
-          status: (apiCustomer.status?.toLowerCase() as "active" | "completed" | "inactive") || "active",
-          rating: 0,
-          lastContact: apiCustomer.updatedAt ? new Date(apiCustomer.updatedAt).toLocaleDateString() : "N/A",
-          photoUrl: undefined,
-          alternatePhone: undefined,
-          address: apiCustomer.billingAddress || apiCustomer.shippingAddress || undefined,
-          familyMembers: [],
-          importantDates: [],
-          referrals: [],
-          clientRanking: undefined,
-          communicationPreference: undefined,
-          notes: [],
-          occupation: undefined,
-          companyName: undefined,
-        };
-      });
+    try {
+      const params = searchTerm
+        ? { search: searchTerm, includeContacts: true }
+        : { includeContacts: true };
+      const response = await CustomerAPI.listCustomers(params);
+
+      // Fetch all contacts with a high limit to cover all customers,
+      // then map them by leadId -> customer via convertedFromLeadId
+      let contactsByLeadId: Map<string, any[]> = new Map();
+      let contactsByAccountId: Map<string, any[]> = new Map();
+
+      try {
+        const contactsData = await ContactAPI.listContacts({ limit: 1000 });
+        const allContacts = contactsData.contacts || [];
+        console.log(
+          `All contacts fetched: ${allContacts.length} (total in DB: ${contactsData.total})`,
+          allContacts,
+        );
+
+        allContacts.forEach((contact: any) => {
+          // Index by leadId
+          if (contact.leadId) {
+            if (!contactsByLeadId.has(contact.leadId)) {
+              contactsByLeadId.set(contact.leadId, []);
+            }
+            contactsByLeadId.get(contact.leadId)!.push(contact);
+          }
+          // Index by accountId as fallback
+          if (contact.accountId) {
+            if (!contactsByAccountId.has(contact.accountId)) {
+              contactsByAccountId.set(contact.accountId, []);
+            }
+            contactsByAccountId.get(contact.accountId)!.push(contact);
+          }
+        });
+
+        console.log("Contacts indexed by leadId:", contactsByLeadId);
+        console.log("Contacts indexed by accountId:", contactsByAccountId);
+      } catch (err) {
+        console.warn("Could not fetch contacts separately:", err);
+      }
+
+      // Map API customers to UI Customer format
+      const mappedCustomers: Customer[] = response.customers.map(
+        (apiCustomer, index) => {
+          const initials = apiCustomer.name
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+
+          // Extract contact info from available sources
+          // 1. contacts included in list response (if backend supports includeContacts)
+          // 2. contacts fetched separately, matched by convertedFromLeadId
+          // 3. contacts fetched separately, matched by accountId (customer id)
+          // 4. convertedFromLead data (lead had email/phone before conversion)
+          const embeddedContacts = apiCustomer.contacts || [];
+          const leadId = apiCustomer.convertedFromLeadId;
+          const contactsFromLead = leadId
+            ? contactsByLeadId.get(leadId) || []
+            : [];
+          const contactsFromAccount =
+            contactsByAccountId.get(apiCustomer.id) || [];
+          const contacts =
+            embeddedContacts.length > 0
+              ? embeddedContacts
+              : contactsFromLead.length > 0
+                ? contactsFromLead
+                : contactsFromAccount;
+          const primaryContact =
+            contacts.find((c: any) => c.isPrimary) || contacts[0];
+          const leadInfo = apiCustomer.convertedFromLead;
+
+          console.log(`Customer ${apiCustomer.name}:`, {
+            id: apiCustomer.id,
+            convertedFromLeadId: apiCustomer.convertedFromLeadId,
+            embeddedContacts: embeddedContacts.length,
+            contactsFromLead: contactsFromLead.length,
+            contactsFromAccount: contactsFromAccount.length,
+            resolvedContacts: contacts.length,
+            primaryContact,
+          });
+
+          // Get email from contacts first, then fall back to lead info
+          let customerEmail = "No email";
+          if (primaryContact?.email) {
+            customerEmail = primaryContact.email;
+          } else {
+            const contactWithEmail = contacts.find((c: any) => c.email);
+            if (contactWithEmail?.email) {
+              customerEmail = contactWithEmail.email;
+            } else if (leadInfo?.email) {
+              customerEmail = leadInfo.email;
+            }
+          }
+
+          // Get phone from contacts first, then fall back to lead info
+          let customerPhone = "No phone";
+          if (primaryContact?.phone) {
+            customerPhone = primaryContact.phone;
+          } else {
+            const contactWithPhone = contacts.find((c: any) => c.phone);
+            if (contactWithPhone?.phone) {
+              customerPhone = contactWithPhone.phone;
+            } else if (leadInfo?.phone) {
+              customerPhone = leadInfo.phone;
+            }
+          }
+
+          return {
+            id: apiCustomer.id, // Keep UUID as string
+            name: apiCustomer.name,
+            initials,
+            email: customerEmail,
+            phone: customerPhone,
+            location:
+              apiCustomer.billingCity ||
+              apiCustomer.shippingCity ||
+              apiCustomer.billingAddress ||
+              apiCustomer.shippingAddress ||
+              "N/A",
+            projects: apiCustomer._count?.projects || 0,
+            totalValue: 0,
+            status:
+              (apiCustomer.status?.toLowerCase() as
+                | "active"
+                | "completed"
+                | "inactive") || "active",
+            rating: 0,
+            lastContact: apiCustomer.updatedAt
+              ? new Date(apiCustomer.updatedAt).toLocaleDateString()
+              : "N/A",
+            photoUrl: undefined,
+            alternatePhone: undefined,
+            address:
+              apiCustomer.billingAddress ||
+              apiCustomer.shippingAddress ||
+              undefined,
+            familyMembers: [],
+            importantDates: [],
+            referrals: [],
+            clientRanking: undefined,
+            communicationPreference: undefined,
+            notes: [],
+            occupation: undefined,
+            companyName: undefined,
+          };
+        },
+      );
 
       setCustomers(mappedCustomers);
     } catch (error) {
@@ -2546,22 +2737,22 @@ export const Customers: React.FC = () => {
       const response = await CustomerAPI.createCustomer(customerData as any);
 
       console.log("Customer created successfully:", response);
-      
+
       // Show success toast
       toast.success(`Customer "${customerData.name}" created successfully!`);
-      
+
       // Close the modal
       setShowAddModal(false);
-      
+
       // Refresh the customer list to show the new customer
       await fetchCustomers();
     } catch (error: any) {
       console.error("Error creating customer:", error);
-      
+
       // Show error toast with specific error message
       const errorMessage = error?.message || "Failed to create customer";
       toast.error(errorMessage);
-      
+
       // Don't close the modal on error so user can retry
       throw error;
     } finally {
@@ -2573,43 +2764,44 @@ export const Customers: React.FC = () => {
     if (isUpdatingCustomer) return; // Prevent concurrent updates
 
     setIsUpdatingCustomer(true);
-    
+
     // Store previous state for rollback
     const previousCustomers = [...customers];
-    
+
     // Optimistic update - update UI immediately
     setCustomers(
       customers.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c)),
     );
-    
+
     try {
       // Call backend API to persist changes
       const customerToUpdate: Partial<APICustomer> = {
         name: updatedCustomer.name,
         status: updatedCustomer.status.toUpperCase(),
-        notes: updatedCustomer.notes && updatedCustomer.notes.length > 0 
-          ? updatedCustomer.notes.map(n => n.content).join('\n') 
-          : undefined,
+        notes:
+          updatedCustomer.notes && updatedCustomer.notes.length > 0
+            ? updatedCustomer.notes.map((n) => n.content).join("\n")
+            : undefined,
       };
 
       await CustomerAPI.updateCustomer(
         String(updatedCustomer.id),
-        customerToUpdate as any
+        customerToUpdate as any,
       );
-      
+
       // Success! Show success message
-      toast.success('Customer updated successfully!');
+      toast.success("Customer updated successfully!");
       // Modal will be closed by the caller
     } catch (error: any) {
-      console.error('Failed to update customer:', error);
-      
+      console.error("Failed to update customer:", error);
+
       // Rollback optimistic update on error
       setCustomers(previousCustomers);
-      
+
       // Show error message
-      const errorMessage = error?.message || 'Failed to update customer';
+      const errorMessage = error?.message || "Failed to update customer";
       toast.error(errorMessage);
-      
+
       // Re-throw error so modal knows to stay open
       throw error;
     } finally {
@@ -2624,29 +2816,31 @@ export const Customers: React.FC = () => {
     if (!customerToDelete) return;
 
     setIsDeletingCustomer(true);
-    
+
     // Store previous state for rollback
     const previousCustomers = [...customers];
 
     try {
       // Call API to delete customer
       await CustomerAPI.deleteCustomer(String(deleteCustomerId));
-      
+
       // Remove customer from local state on success
       setCustomers(customers.filter((c) => c.id !== deleteCustomerId));
-      
+
       // Show success toast
-      toast.success(`Customer "${customerToDelete.name}" deleted successfully!`);
-      
+      toast.success(
+        `Customer "${customerToDelete.name}" deleted successfully!`,
+      );
+
       // Close confirmation dialog
       setDeleteCustomerId(null);
     } catch (error: any) {
-      console.error('Failed to delete customer:', error);
-      
+      console.error("Failed to delete customer:", error);
+
       // Show error toast with specific message
-      const errorMessage = error?.message || 'Failed to delete customer';
+      const errorMessage = error?.message || "Failed to delete customer";
       toast.error(errorMessage);
-      
+
       // Don't close dialog on error so user can retry or cancel
     } finally {
       setIsDeletingCustomer(false);
@@ -2677,7 +2871,7 @@ export const Customers: React.FC = () => {
             onClick={fetchCustomers}
             disabled={loading}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
           <Button className="rounded-xl" onClick={() => setShowAddModal(true)}>
@@ -2771,100 +2965,106 @@ export const Customers: React.FC = () => {
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-600 font-medium mb-2">No customers found</p>
             <p className="text-sm text-gray-500">
-              {searchQuery ? "Try adjusting your search" : "Get started by adding your first customer"}
+              {searchQuery
+                ? "Try adjusting your search"
+                : "Get started by adding your first customer"}
             </p>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {customers.map((customer) => {
-          const statusColor = statusColors[customer.status];
-          return (
-            <Card
-              key={customer.id}
-              className="p-5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
-              onClick={() => {
-                navigate(`/dashboard/customers/${customer.id}`);
-              }}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold">
-                    {customer.initials}
+            const statusColor = statusColors[customer.status];
+            return (
+              <Card
+                key={customer.id}
+                className="p-5 rounded-xl hover:shadow-lg transition-all group cursor-pointer"
+                onClick={() => {
+                  navigate(`/dashboard/customers/${customer.id}`);
+                }}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold">
+                      {customer.initials}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                        {customer.name}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {customer.location}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteCustomerId(customer.id.toString());
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    title="Delete customer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${statusColor.bg} ${statusColor.text} mb-4`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${statusColor.dot}`} />
+                  <span className="text-xs font-medium">{customer.status}</span>
+                </div>
+
+                <div className="space-y-2.5 mb-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Mail className="w-4 h-4 text-gray-400" />
+                    <span className="truncate">
+                      {customer.email || "No email"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Phone className="w-4 h-4 text-gray-400" />
+                    <span>{customer.phone || "No phone"}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4 pt-4 border-t border-gray-200">
+                  <div>
+                    <p className="text-xs text-gray-600">Projects</p>
+                    <p className="text-lg font-bold text-gray-900 mt-0.5">
+                      {customer.projects}
+                    </p>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
-                      {customer.name}
-                    </h3>
-                    <p className="text-sm text-gray-600">{customer.location}</p>
+                    <p className="text-xs text-gray-600">Total Value</p>
+                    <p className="text-lg font-bold text-gray-900 mt-0.5">
+                      ₹{(customer.totalValue / 100000).toFixed(1)}L
+                    </p>
                   </div>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteCustomerId(customer.id.toString());
-                  }}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                  title="Delete customer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
 
-              <div
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${statusColor.bg} ${statusColor.text} mb-4`}
-              >
-                <div className={`w-2 h-2 rounded-full ${statusColor.dot}`} />
-                <span className="text-xs font-medium">{customer.status}</span>
-              </div>
-
-              <div className="space-y-2.5 mb-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Mail className="w-4 h-4 text-gray-400" />
-                  <span className="truncate">{customer.email || "No email"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Phone className="w-4 h-4 text-gray-400" />
-                  <span>{customer.phone || "No phone"}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-4 pt-4 border-t border-gray-200">
-                <div>
-                  <p className="text-xs text-gray-600">Projects</p>
-                  <p className="text-lg font-bold text-gray-900 mt-0.5">
-                    {customer.projects}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Total Value</p>
-                  <p className="text-lg font-bold text-gray-900 mt-0.5">
-                    ₹{(customer.totalValue / 100000).toFixed(1)}L
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <span
-                      key={star}
-                      className={`text-sm ${star <= Math.floor(customer.rating) ? "text-yellow-400" : "text-gray-300"}`}
-                    >
-                      ★
+                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className={`text-sm ${star <= Math.floor(customer.rating) ? "text-yellow-400" : "text-gray-300"}`}
+                      >
+                        ★
+                      </span>
+                    ))}
+                    <span className="text-sm text-gray-600 ml-1">
+                      {customer.rating}
                     </span>
-                  ))}
-                  <span className="text-sm text-gray-600 ml-1">
-                    {customer.rating}
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {customer.lastContact}
                   </span>
                 </div>
-                <span className="text-xs text-gray-500">
-                  {customer.lastContact}
-                </span>
-              </div>
-            </Card>
-          );
-        })}
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -2878,91 +3078,95 @@ export const Customers: React.FC = () => {
       />
 
       {/* Delete Confirmation Modal */}
-      {deleteCustomerId && (() => {
-        const customerToDelete = customers.find((c) => c.id === deleteCustomerId);
-        if (!customerToDelete) return null;
-        
-        return ReactDOM.createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fade-in">
-            <div
-              className="absolute inset-0 bg-black/60 backdrop-blur-md"
-              onClick={() => !isDeletingCustomer && setDeleteCustomerId(null)}
-            />
-            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
-              {/* Header */}
-              <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-red-50 via-red-50 to-orange-50">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 via-red-600 to-red-700 flex items-center justify-center shadow-lg shadow-red-500/30 ring-4 ring-red-100">
-                    <AlertCircle className="w-6 h-6 text-white" />
+      {deleteCustomerId &&
+        (() => {
+          const customerToDelete = customers.find(
+            (c) => c.id === deleteCustomerId,
+          );
+          if (!customerToDelete) return null;
+
+          return ReactDOM.createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fade-in">
+              <div
+                className="absolute inset-0 bg-black/60 backdrop-blur-md"
+                onClick={() => !isDeletingCustomer && setDeleteCustomerId(null)}
+              />
+              <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                {/* Header */}
+                <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-red-50 via-red-50 to-orange-50">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 via-red-600 to-red-700 flex items-center justify-center shadow-lg shadow-red-500/30 ring-4 ring-red-100">
+                      <AlertCircle className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">
+                        Delete Customer?
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        This action cannot be undone
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">
-                      Delete Customer?
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      This action cannot be undone
+                  {!isDeletingCustomer && (
+                    <button
+                      onClick={() => setDeleteCustomerId(null)}
+                      className="p-2.5 hover:bg-white/60 rounded-xl transition-all hover:scale-110 active:scale-95"
+                    >
+                      <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="p-8 bg-gradient-to-b from-white to-gray-50">
+                  <p className="text-gray-700 leading-relaxed">
+                    Are you sure you want to delete{" "}
+                    <span className="font-semibold text-gray-900">
+                      {customerToDelete.name}
+                    </span>
+                    ? This will permanently remove the customer and all
+                    associated data.
+                  </p>
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-2xl">
+                    <p className="text-sm text-red-700 font-medium">
+                      ⚠️ Warning: This action cannot be undone
                     </p>
                   </div>
                 </div>
-                {!isDeletingCustomer && (
-                  <button
-                    onClick={() => setDeleteCustomerId(null)}
-                    className="p-2.5 hover:bg-white/60 rounded-xl transition-all hover:scale-110 active:scale-95"
-                  >
-                    <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
-                  </button>
-                )}
-              </div>
 
-              {/* Content */}
-              <div className="p-8 bg-gradient-to-b from-white to-gray-50">
-                <p className="text-gray-700 leading-relaxed">
-                  Are you sure you want to delete{" "}
-                  <span className="font-semibold text-gray-900">
-                    {customerToDelete.name}
-                  </span>
-                  ? This will permanently remove the customer and all associated data.
-                </p>
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-2xl">
-                  <p className="text-sm text-red-700 font-medium">
-                    ⚠️ Warning: This action cannot be undone
-                  </p>
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-3 px-8 py-6 border-t border-gray-100 bg-gray-50/50">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteCustomerId(null)}
+                    disabled={isDeletingCustomer}
+                    className="px-6 py-3 text-gray-700 font-medium hover:bg-white rounded-2xl transition-all disabled:opacity-50 border-2 border-gray-200 hover:border-gray-300 hover:shadow-sm active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteCustomer}
+                    disabled={isDeletingCustomer}
+                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white font-semibold rounded-2xl hover:from-red-600 hover:via-red-700 hover:to-red-800 transition-all shadow-lg shadow-red-500/30 hover:shadow-xl hover:shadow-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 disabled:hover:scale-100"
+                  >
+                    {isDeletingCustomer ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-5 h-5" />
+                        <span>Delete Customer</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-end gap-3 px-8 py-6 border-t border-gray-100 bg-gray-50/50">
-                <button
-                  type="button"
-                  onClick={() => setDeleteCustomerId(null)}
-                  disabled={isDeletingCustomer}
-                  className="px-6 py-3 text-gray-700 font-medium hover:bg-white rounded-2xl transition-all disabled:opacity-50 border-2 border-gray-200 hover:border-gray-300 hover:shadow-sm active:scale-95"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteCustomer}
-                  disabled={isDeletingCustomer}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white font-semibold rounded-2xl hover:from-red-600 hover:via-red-700 hover:to-red-800 transition-all shadow-lg shadow-red-500/30 hover:shadow-xl hover:shadow-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 disabled:hover:scale-100"
-                >
-                  {isDeletingCustomer ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-5 h-5" />
-                      <span>Delete Customer</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        );
-      })()}
+            </div>,
+            document.body,
+          );
+        })()}
 
       {/* View Customer Modal */}
       {selectedCustomer && (

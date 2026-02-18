@@ -397,6 +397,19 @@ export interface UpdatePaymentRequest {
   notes?: string;
 }
 
+export interface CreatePaymentRequest {
+  phaseType: string;
+  paymentStage: number;
+  percentage: number;
+  expectedAmount: number | string;
+  actualAmount?: number | string;
+  status?: string;
+  dueDate?: string;
+  collectedAt?: string;
+  invoiceNumber?: string;
+  notes?: string;
+}
+
 // Project Filters Interface
 export interface ProjectFilters {
   status?: string;

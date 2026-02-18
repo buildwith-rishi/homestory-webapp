@@ -1,9 +1,6 @@
 // Email Template API Service
-// Base URL should match your API documentation
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
-
-console.log("Email Template API Base URL:", API_BASE_URL);
+// Uses shared fetchAPI from api.ts for consistent base URL, auth, and token refresh
+import { fetchAPI } from "./api";
 
 // ─── TypeScript Interfaces ────────────────────────────────────────
 
@@ -53,28 +50,6 @@ export interface ListTemplatesResponse {
   limit?: number;
 }
 
-// ─── Helper Functions ─────────────────────────────────────────────
-
-// Helper function to get auth headers
-const getAuthHeaders = (): HeadersInit => {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-};
-
-// Helper function to handle API responses
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
-  }
-  return response.json();
-}
-
 // ─── API Functions ────────────────────────────────────────────────
 
 /**
@@ -82,13 +57,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * GET /api/emails/templates
  */
 export async function listTemplates(): Promise<EmailTemplate[]> {
-  const response = await fetch(`${API_BASE_URL}/api/emails/templates`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  const data = await handleResponse<ListTemplatesResponse | EmailTemplate[]>(
-    response,
+  const data = await fetchAPI<ListTemplatesResponse | EmailTemplate[]>(
+    "/api/emails/templates",
+    { method: "GET" },
   );
 
   // Handle both response formats: { templates: [...] } or [...]
@@ -103,12 +74,9 @@ export async function listTemplates(): Promise<EmailTemplate[]> {
  * GET /api/emails/templates/:id
  */
 export async function getTemplateById(id: string): Promise<EmailTemplate> {
-  const response = await fetch(`${API_BASE_URL}/api/emails/templates/${id}`, {
+  return fetchAPI<EmailTemplate>(`/api/emails/templates/${encodeURIComponent(id)}`, {
     method: "GET",
-    headers: getAuthHeaders(),
   });
-
-  return handleResponse<EmailTemplate>(response);
 }
 
 /**
@@ -118,13 +86,10 @@ export async function getTemplateById(id: string): Promise<EmailTemplate> {
 export async function createTemplate(
   data: CreateTemplateRequest,
 ): Promise<EmailTemplate> {
-  const response = await fetch(`${API_BASE_URL}/api/emails/templates`, {
+  return fetchAPI<EmailTemplate>("/api/emails/templates", {
     method: "POST",
-    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-
-  return handleResponse<EmailTemplate>(response);
 }
 
 /**
@@ -135,13 +100,10 @@ export async function updateTemplate(
   id: string,
   data: UpdateTemplateRequest,
 ): Promise<EmailTemplate> {
-  const response = await fetch(`${API_BASE_URL}/api/emails/templates/${id}`, {
+  return fetchAPI<EmailTemplate>(`/api/emails/templates/${encodeURIComponent(id)}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-
-  return handleResponse<EmailTemplate>(response);
 }
 
 /**
@@ -149,12 +111,10 @@ export async function updateTemplate(
  * DELETE /api/emails/templates/:id
  */
 export async function deleteTemplate(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/emails/templates/${id}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
-
-  await handleResponse<{ success: boolean; message?: string }>(response);
+  await fetchAPI<{ success: boolean; message?: string }>(
+    `/api/emails/templates/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
 }
 
 // ─── Default Export ───────────────────────────────────────────────

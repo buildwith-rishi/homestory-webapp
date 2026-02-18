@@ -8,7 +8,6 @@ import {
   Calendar,
   Ban,
   CalendarDays,
-  ArrowRight,
   CalendarCheck,
 } from "lucide-react";
 import { Card, Badge } from "../../ui";
@@ -83,10 +82,12 @@ export const ProjectStagesTableView: React.FC<Props> = ({
   const [editForm, setEditForm] = useState<{
     status: string;
     tentativeEndDate: string;
+    completedDate: string;
     remarks: string;
   }>({
     status: "",
     tentativeEndDate: "",
+    completedDate: "",
     remarks: "",
   });
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
@@ -98,6 +99,9 @@ export const ProjectStagesTableView: React.FC<Props> = ({
       status: stage.status,
       tentativeEndDate: stage.tentativeEndDate
         ? stage.tentativeEndDate.split("T")[0]
+        : "",
+      completedDate: stage.endDate
+        ? stage.endDate.split("T")[0]
         : "",
       remarks: stage.remarks || "",
     });
@@ -116,10 +120,12 @@ export const ProjectStagesTableView: React.FC<Props> = ({
       };
       if (editForm.tentativeEndDate)
         data.tentativeEndDate = editForm.tentativeEndDate;
+      if (editForm.completedDate)
+        data.endDate = editForm.completedDate;
       if (editForm.remarks) data.remarks = editForm.remarks;
 
-      // Auto-set endDate to today when marking as COMPLETED
-      if (editForm.status === "COMPLETED" && stage.status !== "COMPLETED") {
+      // Auto-set endDate to today when marking as COMPLETED and no date entered
+      if (editForm.status === "COMPLETED" && stage.status !== "COMPLETED" && !editForm.completedDate) {
         data.endDate = new Date().toISOString().split("T")[0];
       }
 
@@ -161,7 +167,10 @@ export const ProjectStagesTableView: React.FC<Props> = ({
                 Status
               </th>
               <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Timeline
+                Tentative Date
+              </th>
+              <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Completed Date
               </th>
               <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
                 Actions
@@ -247,7 +256,7 @@ export const ProjectStagesTableView: React.FC<Props> = ({
                     )}
                   </td>
 
-                  {/* Timeline */}
+                  {/* Tentative Date */}
                   <td className="py-3 px-4">
                     {isEditing ? (
                       <input
@@ -262,85 +271,40 @@ export const ProjectStagesTableView: React.FC<Props> = ({
                         className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-orange-400"
                       />
                     ) : (
-                      <div className="space-y-1">
-                        {/* Completed stage: show actual start → end */}
-                        {stage.status === "COMPLETED" ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex items-center gap-1 text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">
-                              <CalendarCheck className="w-3 h-3" />
-                              {formatDate(stage.endDate)}
-                            </div>
-                            {stage.startDate && (
-                              <span className="text-[10px] text-gray-400">
-                                from {formatDate(stage.startDate)}
-                              </span>
-                            )}
-                          </div>
-                        ) : stage.status === "ONGOING" ? (
-                          /* Ongoing stage: show start date + expected end */
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <div className="flex items-center gap-1 text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-full">
-                              <Clock className="w-3 h-3" />
-                              {stage.startDate
-                                ? formatDate(stage.startDate)
-                                : "Started"}
-                            </div>
-                            {stage.tentativeEndDate && (
-                              <>
-                                <ArrowRight className="w-3 h-3 text-gray-300" />
-                                <span className="text-gray-500">
-                                  {formatDate(stage.tentativeEndDate)}
-                                </span>
-                              </>
-                            )}
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Calendar className="w-3 h-3 text-gray-400" />
+                        {stage.tentativeEndDate ? (
+                          <span>{formatDate(stage.tentativeEndDate)}</span>
+                        ) : (
+                          <span className="text-gray-400">{"\u2014"}</span>
+                        )}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Completed Date */}
+                  <td className="py-3 px-4">
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        value={editForm.completedDate}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            completedDate: e.target.value,
+                          })
+                        }
+                        className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-1 text-xs">
+                        {stage.endDate ? (
+                          <div className="flex items-center gap-1 text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">
+                            <CalendarCheck className="w-3 h-3" />
+                            {formatDate(stage.endDate)}
                           </div>
                         ) : (
-                          /* Pending / N/A: show tentative end if available */
-                          <div className="flex items-center gap-1 text-xs text-gray-400">
-                            <Calendar className="w-3 h-3" />
-                            {stage.tentativeEndDate ? (
-                              <span>
-                                Est. {formatDate(stage.tentativeEndDate)}
-                              </span>
-                            ) : (
-                              <span>{"\u2014"}</span>
-                            )}
-                          </div>
-                        )}
-                        {/* Duration indicator for completed or ongoing */}
-                        {stage.status === "COMPLETED" &&
-                          stage.startDate &&
-                          stage.endDate && (
-                            <span className="text-[10px] text-gray-400">
-                              {(() => {
-                                const days = Math.ceil(
-                                  (new Date(stage.endDate).getTime() -
-                                    new Date(stage.startDate).getTime()) /
-                                    86400000,
-                                );
-                                return days === 0
-                                  ? "Same day"
-                                  : days === 1
-                                    ? "1 day"
-                                    : `${days} days`;
-                              })()}
-                            </span>
-                          )}
-                        {stage.status === "ONGOING" && stage.startDate && (
-                          <span className="text-[10px] text-gray-400">
-                            {(() => {
-                              const days = Math.ceil(
-                                (new Date().getTime() -
-                                  new Date(stage.startDate).getTime()) /
-                                  86400000,
-                              );
-                              return days === 0
-                                ? "Started today"
-                                : days === 1
-                                  ? "1 day ago"
-                                  : `${days} days in`;
-                            })()}
-                          </span>
+                          <span className="text-gray-400">{"\u2014"}</span>
                         )}
                       </div>
                     )}
