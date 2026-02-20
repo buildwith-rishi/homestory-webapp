@@ -120,6 +120,9 @@ const KanbanView: React.FC = () => {
 
   // Assignment loading state
   const [isAssigning, setIsAssigning] = useState(false);
+  
+  // Filter for already converted leads
+  const [showAlreadyConverted, setShowAlreadyConverted] = useState(false);
 
   // Fetch BDR users on mount
   useEffect(() => {
@@ -359,7 +362,7 @@ const KanbanView: React.FC = () => {
       },
       "col-converted": {
         id: "col-converted",
-        title: "Converted",
+        title: "Converted (Ready to Onboard)",
         taskIds: [],
         color: "#059669", // Green
       },
@@ -438,16 +441,41 @@ const KanbanView: React.FC = () => {
 
   // Fetch data on mount
   useEffect(() => {
+    console.log("KanbanView: Fetching leads and projects...");
     fetchLeads();
     fetchProjects();
   }, [fetchLeads, fetchProjects]);
 
   // Update Leads Kanban when leads change - using API status
   useEffect(() => {
-    if (leads.length === 0) return;
-
+    console.log("KanbanView: Leads changed:", leads.length, "leads");
+    
+    // Deduplicate leads by ID first
+    const uniqueLeadsMap = new Map<string, Lead>();
+    let duplicatesFound = 0;
+    
+    leads.forEach((lead: Lead) => {
+      if (uniqueLeadsMap.has(lead.id)) {
+        duplicatesFound++;
+        console.warn(`Duplicate lead found and removed: ${lead.name} (${lead.id})`);
+      } else {
+        uniqueLeadsMap.set(lead.id, lead);
+      }
+    });
+    
+    const uniqueLeads = Array.from(uniqueLeadsMap.values());
+    
+    if (duplicatesFound > 0) {
+      console.warn(`⚠️ Removed ${duplicatesFound} duplicate leads. Original: ${leads.length}, Unique: ${uniqueLeads.length}`);
+    }
+    
+    console.log("Unique leads data:", uniqueLeads);
+    
     const tasks: Record<string, KanbanTask> = {};
     const columns = { ...leadsKanbanData.columns };
+    
+    let alreadyConvertedCount = 0;
+    const seenLeadIds = new Set<string>();
 
     // Reset taskIds
     Object.keys(columns).forEach((colId) => {
@@ -455,7 +483,24 @@ const KanbanView: React.FC = () => {
     });
 
     // Convert leads to kanban tasks based on API status
-    leads.forEach((lead: Lead) => {
+    uniqueLeads.forEach((lead: Lead) => {
+      // Skip if we've already processed this lead (extra safety check)
+      if (seenLeadIds.has(lead.id)) {
+        console.warn(`Skipping duplicate lead in processing: ${lead.name} (${lead.id})`);
+        return;
+      }
+      seenLeadIds.add(lead.id);
+      
+      // Skip leads that have already been converted to customers (unless filter is on)
+      // These are in the system as customers now, no need to show in Kanban by default
+      const leadMetadata = lead as any;
+      const isAlreadyConverted = !!(leadMetadata.convertedToAccount || leadMetadata.convertedToAccountId);
+      
+      if (isAlreadyConverted && !showAlreadyConverted) {
+        alreadyConvertedCount++;
+        return;
+      }
+      
       // Use API status field, fallback to NEW if not set
       const apiStatus = lead.status || "NEW";
       const columnId = statusToColumn[apiStatus] || "col-new";
@@ -467,7 +512,16 @@ const KanbanView: React.FC = () => {
         metadata: lead as unknown as Record<string, unknown>,
       };
 
-      columns[columnId].taskIds.push(lead.id);
+      // Only add if not already in the column (extra safety)
+      if (!columns[columnId].taskIds.includes(lead.id)) {
+        columns[columnId].taskIds.push(lead.id);
+      }
+    });
+
+    console.log("KanbanView: Lead columns after processing:");
+    console.log(`  Filtered out ${alreadyConvertedCount} leads that are already converted to customers`);
+    Object.keys(columns).forEach((colId) => {
+      console.log(`  ${colId} (${columns[colId].title}): ${columns[colId].taskIds.length} leads`);
     });
 
     setLeadsKanbanData((prev) => ({
@@ -475,14 +529,36 @@ const KanbanView: React.FC = () => {
       columns,
       tasks,
     }));
-  }, [leads]);
+  }, [leads, showAlreadyConverted]);
 
   // Update Projects Kanban when projects change
   useEffect(() => {
-    if (projects.length === 0) return;
-
+    console.log("KanbanView: Projects changed:", projects.length, "projects");
+    
+    // Deduplicate projects by ID first
+    const uniqueProjectsMap = new Map<string, Project>();
+    let duplicatesFound = 0;
+    
+    projects.forEach((project: Project) => {
+      if (uniqueProjectsMap.has(project.id)) {
+        duplicatesFound++;
+        console.warn(`Duplicate project found and removed: ${project.projectName || project.name} (${project.id})`);
+      } else {
+        uniqueProjectsMap.set(project.id, project);
+      }
+    });
+    
+    const uniqueProjects = Array.from(uniqueProjectsMap.values());
+    
+    if (duplicatesFound > 0) {
+      console.warn(`⚠️ Removed ${duplicatesFound} duplicate projects. Original: ${projects.length}, Unique: ${uniqueProjects.length}`);
+    }
+    
+    console.log("Unique projects data:", uniqueProjects);
+    
     const tasks: Record<string, KanbanTask> = {};
     const columns = { ...projectsKanbanData.columns };
+    const seenProjectIds = new Set<string>();
 
     // Reset taskIds
     Object.keys(columns).forEach((colId) => {
@@ -490,7 +566,14 @@ const KanbanView: React.FC = () => {
     });
 
     // Convert projects to kanban tasks
-    projects.forEach((project: Project) => {
+    uniqueProjects.forEach((project: Project) => {
+      // Skip if we've already processed this project (extra safety check)
+      if (seenProjectIds.has(project.id)) {
+        console.warn(`Skipping duplicate project in processing: ${project.projectName || project.name} (${project.id})`);
+        return;
+      }
+      seenProjectIds.add(project.id);
+      
       const columnId = mapProjectStageToColumn(project.currentStageCode);
       if (!columns[columnId]) return;
 
@@ -500,7 +583,15 @@ const KanbanView: React.FC = () => {
         metadata: project as any,
       };
 
-      columns[columnId].taskIds.push(project.id);
+      // Only add if not already in the column (extra safety)
+      if (!columns[columnId].taskIds.includes(project.id)) {
+        columns[columnId].taskIds.push(project.id);
+      }
+    });
+
+    console.log("KanbanView: Project columns after processing:");
+    Object.keys(columns).forEach((colId) => {
+      console.log(`  ${colId} (${columns[colId].title}): ${columns[colId].taskIds.length} projects`);
     });
 
     setProjectsKanbanData((prev) => ({
@@ -735,7 +826,7 @@ const KanbanView: React.FC = () => {
       placeholder: "Choose a project...",
       options: projects.map((project) => ({
         value: project.id,
-        label: project.projectName || project.name,
+        label: project.projectName || project.name || "Untitled Project",
       })),
       required: true,
     }),
@@ -1405,54 +1496,71 @@ const KanbanView: React.FC = () => {
         </div>
 
         {/* View Toggle */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          <button
-            onClick={() => {
-              setActiveView("leads");
-              setSelectedKanbanLeads(new Set());
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all ${
-              activeView === "leads"
-                ? "bg-white text-purple-700 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <Users2 className="w-4 h-4" />
-            Leads
-            <span
-              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => {
+                setActiveView("leads");
+                setSelectedKanbanLeads(new Set());
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all ${
                 activeView === "leads"
-                  ? "bg-purple-100 text-purple-700"
-                  : "bg-gray-200 text-gray-600"
+                  ? "bg-white text-purple-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              {leads.length}
-            </span>
-          </button>
+              <Users2 className="w-4 h-4" />
+              Leads
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  activeView === "leads"
+                    ? "bg-purple-100 text-purple-700"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                {leads.length}
+              </span>
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveView("projects");
-              setSelectedKanbanLeads(new Set());
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all ${
-              activeView === "projects"
-                ? "bg-white text-orange-700 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <FolderKanban className="w-4 h-4" />
-            Projects
-            <span
-              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+            <button
+              onClick={() => {
+                setActiveView("projects");
+                setSelectedKanbanLeads(new Set());
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all ${
                 activeView === "projects"
-                  ? "bg-orange-100 text-orange-700"
-                  : "bg-gray-200 text-gray-600"
+                  ? "bg-white text-orange-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              {projects.length}
-            </span>
-          </button>
+              <FolderKanban className="w-4 h-4" />
+              Projects
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  activeView === "projects"
+                    ? "bg-orange-100 text-orange-700"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                {projects.length}
+              </span>
+            </button>
+          </div>
+          
+          {/* Filter: Show Already Converted Leads */}
+          {activeView === "leads" && (
+            <label className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showAlreadyConverted}
+                onChange={(e) => setShowAlreadyConverted(e.target.checked)}
+                className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+              />
+              <span className="text-xs font-medium text-gray-700">
+                Show Already Onboarded
+              </span>
+            </label>
+          )}
         </div>
       </div>
 

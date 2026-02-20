@@ -121,7 +121,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await projectAPI.listProjects(params);
-      set({ projects: response.projects, isLoading: false });
+      
+      // Deduplicate projects by ID
+      const uniqueProjectsMap = new Map<string, Project>();
+      (response.projects || []).forEach((project) => {
+        uniqueProjectsMap.set(project.id, project);
+      });
+      const uniqueProjects = Array.from(uniqueProjectsMap.values());
+      
+      // Log if duplicates were removed
+      if (uniqueProjects.length < (response.projects || []).length) {
+        console.warn(
+          `Removed ${(response.projects || []).length - uniqueProjects.length} duplicate projects from API response`
+        );
+      }
+      
+      set({ projects: uniqueProjects, isLoading: false });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to fetch projects";
@@ -165,9 +180,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       const response = await projectAPI.getProjectPayments(projectId);
       set({
-        projectPayments: response.payments,
-        totalPaymentValue: response.totalValue,
-        totalPaidAmount: response.paidAmount,
+        projectPayments: response.payments || [],
+        totalPaymentValue: response.totalValue || "0",
+        totalPaidAmount: response.paidAmount || "0",
         isLoading: false,
       });
     } catch (error) {
@@ -324,9 +339,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // Re-fetch payments to get updated data
       const response = await projectAPI.getProjectPayments(projectId);
       set({
-        projectPayments: response.payments,
-        totalPaymentValue: response.totalValue,
-        totalPaidAmount: response.paidAmount,
+        projectPayments: response.payments || [],
+        totalPaymentValue: response.totalValue || "0",
+        totalPaidAmount: response.paidAmount || "0",
         isLoading: false,
       });
     } catch (error) {
@@ -347,9 +362,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       await projectAPI.createProjectPayment(projectId, data);
       const response = await projectAPI.getProjectPayments(projectId);
       set({
-        projectPayments: response.payments,
-        totalPaymentValue: response.totalValue,
-        totalPaidAmount: response.paidAmount,
+        projectPayments: response.payments || [],
+        totalPaymentValue: response.totalValue || "0",
+        totalPaidAmount: response.paidAmount || "0",
         isLoading: false,
       });
     } catch (error) {

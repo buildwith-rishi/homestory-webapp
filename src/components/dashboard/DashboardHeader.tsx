@@ -5,6 +5,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useProjectStore } from "../../stores/projectStore";
 import { useMeetingStore } from "../../stores/meetingStore";
 import { useCustomerStore } from "../../stores/customerStore";
+import { useLeadStore } from "../../stores/leadStore";
 
 interface DashboardHeaderProps {
   sidebarCollapsed?: boolean;
@@ -18,6 +19,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const { currentProject } = useProjectStore();
   const { currentMeeting } = useMeetingStore();
   const { currentCustomer } = useCustomerStore();
+  const { currentLead } = useLeadStore();
 
   // Get breadcrumb from current path
   const getBreadcrumb = () => {
@@ -57,6 +59,19 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     }
     if (isCustomerDetailsPage) {
       return "Customer Details";
+    }
+
+    // If we're on a lead details page, show the lead name instead of UUID
+    const isLeadDetailsPage =
+      path.length >= 3 &&
+      path[1] === "leads" &&
+      path[2] &&
+      path[2].length > 20; // UUIDs are long
+    if (isLeadDetailsPage && currentLead) {
+      return currentLead.name || "Lead Details";
+    }
+    if (isLeadDetailsPage) {
+      return "Lead Details";
     }
 
     // Capitalize and format the path segment

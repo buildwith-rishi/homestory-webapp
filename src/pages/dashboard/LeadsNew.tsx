@@ -62,7 +62,6 @@ const LeadModal: React.FC<{
   onSave: (lead: Omit<Lead, "id">) => Promise<void>;
   sources: LeadSource[];
 }> = ({ isOpen, onClose, lead, onSave, sources }) => {
-  // Default sources if API doesn't return any
   const defaultSources = [
     { value: "WEBSITE", label: "Website" },
     { value: "REFERRAL", label: "Referral" },
@@ -80,15 +79,46 @@ const LeadModal: React.FC<{
 
   const availableSources = sources.length > 0 ? sources : defaultSources;
 
-  const [formData, setFormData] = useState<Omit<Lead, "id">>({
+  const [activeTab, setActiveTab] = useState<"basic" | "property" | "referral">("basic");
+
+  const emptyForm: Omit<Lead, "id"> = {
     name: "",
     email: "",
     phone: "",
     source: availableSources[0]?.value || "WEBSITE",
-  });
+    companyName: "",
+    householdOrCompany: "HOUSEHOLD",
+    status: "NEW",
+    score: 0,
+    serviceInterest: "",
+    propertyType: "",
+    area: "",
+    city: "",
+    location: "",
+    message: "",
+    requirements: "",
+    projectType: "",
+    homeType: "",
+    projectStage: "",
+    startTimeline: "",
+    budgetComfort: "",
+    projectScope: "",
+    floorPlanUrl: "",
+    wantsExperienceCenterVisit: false,
+    canWhatsApp: false,
+    referrerName: "",
+    referrerPhone: "",
+    referrerProjectNumber: "",
+    agentAgencyName: "",
+    agentAgencyDetails: "",
+  };
 
+  const [formData, setFormData] = useState<Omit<Lead, "id">>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const f = (field: keyof Omit<Lead, "id">, value: unknown) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
   useEffect(() => {
     if (lead) {
@@ -97,50 +127,59 @@ const LeadModal: React.FC<{
         email: lead.email || "",
         phone: lead.phone || "",
         source: lead.source || availableSources[0]?.value || "WEBSITE",
+        companyName: lead.companyName || "",
+        householdOrCompany: lead.householdOrCompany || "HOUSEHOLD",
+        status: lead.status || "NEW",
+        score: lead.score || 0,
+        serviceInterest: lead.serviceInterest || "",
+        propertyType: lead.propertyType || "",
+        area: lead.area || "",
+        city: lead.city || "",
+        location: lead.location || "",
+        message: lead.message || "",
+        requirements: lead.requirements || "",
+        projectType: lead.projectType || "",
+        homeType: lead.homeType || "",
+        projectStage: lead.projectStage || "",
+        startTimeline: lead.startTimeline || "",
+        budgetComfort: lead.budgetComfort || "",
+        projectScope: lead.projectScope || "",
+        floorPlanUrl: lead.floorPlanUrl || "",
+        wantsExperienceCenterVisit: lead.wantsExperienceCenterVisit || false,
+        canWhatsApp: lead.canWhatsApp || false,
+        referrerName: lead.referrerName || "",
+        referrerPhone: lead.referrerPhone || "",
+        referrerProjectNumber: lead.referrerProjectNumber || "",
+        agentAgencyName: lead.agentAgencyName || "",
+        agentAgencyDetails: lead.agentAgencyDetails || "",
       });
     } else {
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        source: availableSources[0]?.value || "WEBSITE",
-      });
+      setFormData(emptyForm);
     }
     setErrors({});
+    setActiveTab("basic");
   }, [lead, isOpen]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Invalid email format";
-    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
+    if (!formData.name?.trim()) newErrors.name = "Name is required";
+    if (!formData.phone?.trim()) newErrors.phone = "Phone is required";
     else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone))
       newErrors.phone = "Invalid phone format";
-
+    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email))
+      newErrors.email = "Invalid email format";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validate()) return;
-
-    console.log("Submitting lead data:", formData);
-
+    if (!validate()) { setActiveTab("basic"); return; }
     setIsSubmitting(true);
     try {
       await onSave(formData);
-      onClose();
-      toast.success(
-        lead ? "Lead updated successfully!" : "Lead created successfully!",
-      );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to save lead";
+      const errorMessage = error instanceof Error ? error.message : "Failed to save lead";
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -149,15 +188,26 @@ const LeadModal: React.FC<{
 
   if (!isOpen) return null;
 
+  const inputClass = (err?: string) =>
+    `w-full px-4 py-2.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all ${
+      err ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"
+    }`;
+
+  const selectClass =
+    "w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer hover:border-gray-300 transition-all";
+
+  const tabs: { key: "basic" | "property" | "referral"; label: string }[] = [
+    { key: "basic", label: "Basic Info" },
+    { key: "property", label: "Property & Project" },
+    { key: "referral", label: "Referral & Agent" },
+  ];
+
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-orange-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-orange-100 rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
               <User className="w-5 h-5 text-white" />
@@ -167,207 +217,517 @@ const LeadModal: React.FC<{
                 {lead ? "Edit Lead" : "Add New Lead"}
               </h2>
               <p className="text-sm text-gray-600">
-                {lead ? "Update lead information" : "Fill in the lead details"}
+                {lead ? "Update all lead information" : "Fill in the lead details"}
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/50 rounded-lg transition-colors"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-white/50 rounded-lg transition-colors">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 px-6 bg-white">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                activeTab === tab.key
+                  ? "border-orange-500 text-orange-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="p-6 space-y-5 overflow-y-auto max-h-[calc(90vh-140px)]"
-        >
-          {/* Info Banner */}
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-orange-600" />
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-orange-900 mb-1">
-                  Quick Lead Entry
-                </h4>
-                <p className="text-xs text-orange-700">
-                  Enter the basic contact information to create a new lead. You
-                  can add more details later.
-                </p>
-              </div>
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
 
-          <div className="grid grid-cols-1 gap-5">
-            {/* Name */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Full Name <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
+          {/* ── Tab 1: Basic Info ── */}
+          {activeTab === "basic" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Name */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name || ""}
+                    onChange={(e) => f("name", e.target.value)}
+                    placeholder="e.g., Rahul Sharma"
+                    className={inputClass(errors.name)}
+                  />
+                  {errors.name && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.name}
+                    </p>
+                  )}
                 </div>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="e.g., Rahul Sharma"
-                  className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all ${
-                    errors.name
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                />
-              </div>
-              {errors.name && (
-                <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.name}
-                </p>
-              )}
-            </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Email Address <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
+                  <input
+                    type="email"
+                    value={formData.email || ""}
+                    onChange={(e) => f("email", e.target.value)}
+                    placeholder="rahul@example.com"
+                    className={inputClass(errors.email)}
+                  />
+                  {errors.email && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.email}
+                    </p>
+                  )}
                 </div>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  placeholder="rahul@example.com"
-                  className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all ${
-                    errors.email
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                />
-              </div>
-              {errors.email && (
-                <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.email}
-                </p>
-              )}
-            </div>
 
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Phone Number <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-gray-400" />
+                {/* Phone */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Phone <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.phone || ""}
+                    onChange={(e) => f("phone", e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className={inputClass(errors.phone)}
+                  />
+                  {errors.phone && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.phone}
+                    </p>
+                  )}
                 </div>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  placeholder="+91 98765 43210"
-                  className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all ${
-                    errors.phone
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                />
-              </div>
-              {errors.phone && (
-                <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.phone}
-                </p>
-              )}
-              <p className="mt-1.5 text-xs text-gray-500">
-                Include country code for international numbers
-              </p>
-            </div>
 
-            {/* Source */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Lead Source <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <TrendingUp className="h-5 w-5 text-gray-400" />
+                {/* Company Name */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Name</label>
+                  <input
+                    type="text"
+                    value={formData.companyName || ""}
+                    onChange={(e) => f("companyName", e.target.value)}
+                    placeholder="e.g., Acme Corp"
+                    className={inputClass()}
+                  />
                 </div>
-                <select
-                  value={formData.source}
-                  onChange={(e) =>
-                    setFormData({ ...formData, source: e.target.value })
-                  }
-                  className="w-full pl-10 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer hover:border-gray-300 transition-all"
-                >
-                  {availableSources.map((source) => (
-                    <option key={source.value} value={source.value}>
-                      {source.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    className="w-5 h-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+
+                {/* Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Lead Type</label>
+                  <select
+                    value={formData.householdOrCompany || "HOUSEHOLD"}
+                    onChange={(e) => f("householdOrCompany", e.target.value)}
+                    className={selectClass}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                    <option value="HOUSEHOLD">Household / Residential</option>
+                    <option value="COMPANY">Company / Commercial</option>
+                  </select>
+                </div>
+
+                {/* Source */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Lead Source</label>
+                  <select
+                    value={formData.source || "WEBSITE"}
+                    onChange={(e) => f("source", e.target.value)}
+                    className={selectClass}
+                  >
+                    {availableSources.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Status</label>
+                  <select
+                    value={formData.status || "NEW"}
+                    onChange={(e) => f("status", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="NEW">New</option>
+                    <option value="WORKING">Working</option>
+                    <option value="QUALIFIED">Qualified</option>
+                    <option value="DISQUALIFIED">Disqualified</option>
+                    <option value="CONVERTED">Converted</option>
+                  </select>
+                </div>
+
+                {/* Score */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Lead Score <span className="text-gray-400 font-normal">(0–100)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={formData.score ?? 0}
+                    onChange={(e) => f("score", parseInt(e.target.value) || 0)}
+                    className={inputClass()}
+                  />
                 </div>
               </div>
-              <p className="mt-1.5 text-xs text-gray-500">
-                How did this lead find you?
-              </p>
+
+              {/* Toggle row */}
+              <div className="flex gap-6 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.canWhatsApp || false}
+                    onChange={(e) => f("canWhatsApp", e.target.checked)}
+                    className="w-4 h-4 rounded text-orange-500 border-gray-300 focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-700">Can WhatsApp</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.wantsExperienceCenterVisit || false}
+                    onChange={(e) => f("wantsExperienceCenterVisit", e.target.checked)}
+                    className="w-4 h-4 rounded text-orange-500 border-gray-300 focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-700">Wants Experience Center Visit</span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* ── Tab 2: Property & Project ── */}
+          {activeTab === "property" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+
+                {/* Service Interest */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Service Interest</label>
+                  <select
+                    value={formData.serviceInterest || ""}
+                    onChange={(e) => f("serviceInterest", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="INTERIORS">Interiors</option>
+                    <option value="ARCHITECTURE">Architecture</option>
+                    <option value="RENOVATION">Renovation</option>
+                    <option value="LANDSCAPING">Landscaping</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                {/* Property Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Property Type</label>
+                  <select
+                    value={formData.propertyType || ""}
+                    onChange={(e) => f("propertyType", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="APARTMENT">Apartment</option>
+                    <option value="VILLA">Villa</option>
+                    <option value="INDEPENDENT_HOUSE">Independent House</option>
+                    <option value="COMMERCIAL">Commercial</option>
+                    <option value="OFFICE">Office</option>
+                    <option value="RETAIL">Retail</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                {/* Home Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Home Type</label>
+                  <select
+                    value={formData.homeType || ""}
+                    onChange={(e) => f("homeType", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="APARTMENT">Apartment</option>
+                    <option value="VILLA">Villa</option>
+                    <option value="BUNGALOW">Bungalow</option>
+                    <option value="PENTHOUSE">Penthouse</option>
+                    <option value="ROW_HOUSE">Row House</option>
+                  </select>
+                </div>
+
+                {/* Project Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Project Type</label>
+                  <select
+                    value={formData.projectType || ""}
+                    onChange={(e) => f("projectType", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="RESIDENTIAL">Residential</option>
+                    <option value="COMMERCIAL">Commercial</option>
+                    <option value="MIXED_USE">Mixed Use</option>
+                  </select>
+                </div>
+
+                {/* Area */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Area (sqft)</label>
+                  <input
+                    type="text"
+                    value={formData.area || ""}
+                    onChange={(e) => f("area", e.target.value)}
+                    placeholder="e.g., 1500"
+                    className={inputClass()}
+                  />
+                </div>
+
+                {/* City */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">City</label>
+                  <input
+                    type="text"
+                    value={formData.city || ""}
+                    onChange={(e) => f("city", e.target.value)}
+                    placeholder="e.g., Bangalore"
+                    className={inputClass()}
+                  />
+                </div>
+
+                {/* Location */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Location / Address</label>
+                  <input
+                    type="text"
+                    value={formData.location || ""}
+                    onChange={(e) => f("location", e.target.value)}
+                    placeholder="e.g., Whitefield, Bangalore"
+                    className={inputClass()}
+                  />
+                </div>
+
+                {/* Project Stage */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Project Stage</label>
+                  <select
+                    value={formData.projectStage || ""}
+                    onChange={(e) => f("projectStage", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="PLANNING">Planning</option>
+                    <option value="DESIGN">Design</option>
+                    <option value="EXECUTION">Execution</option>
+                    <option value="COMPLETED">Completed</option>
+                  </select>
+                </div>
+
+                {/* Start Timeline */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Timeline</label>
+                  <select
+                    value={formData.startTimeline || ""}
+                    onChange={(e) => f("startTimeline", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="IMMEDIATELY">Immediately</option>
+                    <option value="WITHIN_1_MONTH">Within 1 Month</option>
+                    <option value="1_3_MONTHS">1–3 Months</option>
+                    <option value="3_6_MONTHS">3–6 Months</option>
+                    <option value="6_PLUS_MONTHS">6+ Months</option>
+                  </select>
+                </div>
+
+                {/* Budget Comfort */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Budget Comfort</label>
+                  <select
+                    value={formData.budgetComfort || ""}
+                    onChange={(e) => f("budgetComfort", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="COMFORTABLE">Comfortable</option>
+                    <option value="MODERATE">Moderate</option>
+                    <option value="TIGHT">Tight</option>
+                  </select>
+                </div>
+
+                {/* Project Scope */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Project Scope</label>
+                  <select
+                    value={formData.projectScope || ""}
+                    onChange={(e) => f("projectScope", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="FULL_HOME">Full Home</option>
+                    <option value="PARTIAL">Partial Rooms</option>
+                    <option value="SINGLE_ROOM">Single Room</option>
+                    <option value="KITCHEN_BATH">Kitchen & Bath</option>
+                  </select>
+                </div>
+
+                {/* Floor Plan URL */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Floor Plan URL</label>
+                  <input
+                    type="url"
+                    value={formData.floorPlanUrl || ""}
+                    onChange={(e) => f("floorPlanUrl", e.target.value)}
+                    placeholder="https://example.com/floorplan.pdf"
+                    className={inputClass()}
+                  />
+                </div>
+
+                {/* Message */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Message</label>
+                  <textarea
+                    rows={2}
+                    value={formData.message || ""}
+                    onChange={(e) => f("message", e.target.value)}
+                    placeholder="e.g., Looking for modern interiors"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all resize-none"
+                  />
+                </div>
+
+                {/* Requirements */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Requirements</label>
+                  <textarea
+                    rows={2}
+                    value={formData.requirements || ""}
+                    onChange={(e) => f("requirements", e.target.value)}
+                    placeholder="e.g., 3BHK full interior design"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Tab 3: Referral & Agent ── */}
+          {activeTab === "referral" && (
+            <div className="space-y-4">
+              {/* Referrer section */}
+              <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl">
+                <h4 className="text-sm font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                  <Users className="w-4 h-4" /> Referrer Details
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Referrer Name</label>
+                    <input
+                      type="text"
+                      value={formData.referrerName || ""}
+                      onChange={(e) => f("referrerName", e.target.value)}
+                      placeholder="e.g., Referrer Name"
+                      className={inputClass()}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Referrer Phone</label>
+                    <input
+                      type="tel"
+                      value={formData.referrerPhone || ""}
+                      onChange={(e) => f("referrerPhone", e.target.value)}
+                      placeholder="+91 98765 43211"
+                      className={inputClass()}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Referrer Project Number</label>
+                    <input
+                      type="text"
+                      value={formData.referrerProjectNumber || ""}
+                      onChange={(e) => f("referrerProjectNumber", e.target.value)}
+                      placeholder="e.g., GHS-24-0001"
+                      className={inputClass()}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent / Agency section */}
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                  <Building2 className="w-4 h-4" /> Agent / Agency Details
+                </h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Agency Name</label>
+                    <input
+                      type="text"
+                      value={formData.agentAgencyName || ""}
+                      onChange={(e) => f("agentAgencyName", e.target.value)}
+                      placeholder="e.g., Agency Name"
+                      className={inputClass()}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Agency Details</label>
+                    <textarea
+                      rows={3}
+                      value={formData.agentAgencyDetails || ""}
+                      onChange={(e) => f("agentAgencyDetails", e.target.value)}
+                      placeholder="Agency details here"
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-500/25 disabled:opacity-50"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4" />
-                {lead ? "Update Lead" : "Create Lead"}
-              </>
-            )}
-          </button>
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+          <div className="flex gap-1">
+            {tabs.map((tab) => (
+              <div
+                key={tab.key}
+                className={`w-2 h-2 rounded-full transition-colors ${
+                  activeTab === tab.key ? "bg-orange-500" : "bg-gray-300"
+                }`}
+                onClick={() => setActiveTab(tab.key)}
+                style={{ cursor: "pointer" }}
+              />
+            ))}
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-500/25 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  {lead ? "Update Lead" : "Create Lead"}
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>,
@@ -803,14 +1163,18 @@ export const LeadsPage: React.FC = () => {
   // Update Lead
   const handleUpdateLead = async (leadData: Omit<Lead, "id">) => {
     if (!leadToEdit?.id) return;
-
-    const updatedLead = await LeadAPI.updateLead(leadToEdit.id, leadData);
-    setLeads(leads.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
-    setShowEditModal(false);
-    setLeadToEdit(null);
-
-    if (selectedLead?.id === updatedLead.id) {
-      setSelectedLead(updatedLead);
+    try {
+      const updatedLead = await LeadAPI.updateLead(leadToEdit.id, leadData);
+      setLeads(leads.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
+      setShowEditModal(false);
+      setLeadToEdit(null);
+      if (selectedLead?.id === updatedLead.id) {
+        setSelectedLead(updatedLead);
+      }
+      toast.success("Lead updated successfully!");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update lead";
+      toast.error(errorMessage);
     }
   };
 

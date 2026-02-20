@@ -384,29 +384,28 @@ export interface UpdateStageRequest {
   completedById?: string;
 }
 
-// Update Payment Request Interface
+// Update Payment Request Interface  (PUT /api/payments/:id)
 export interface UpdatePaymentRequest {
   status?: string;
   actualAmount?: number | string;
-  invoiceNumber?: string;
-  dueDate?: string;
-  collectedAt?: string;
-  collectedById?: string;
-  receiptUrl?: string;
-  receiptFileName?: string;
+  paymentMethod?: string;
+  transactionRef?: string;
   notes?: string;
 }
 
+// Create Payment Request Interface (POST /api/payments)
 export interface CreatePaymentRequest {
+  projectId: string;
+  title: string;
+  description?: string;
+  stageCode?: string;
   phaseType: string;
   paymentStage: number;
   percentage: number;
   expectedAmount: number | string;
-  actualAmount?: number | string;
+  taxPercentage?: number;
   status?: string;
   dueDate?: string;
-  collectedAt?: string;
-  invoiceNumber?: string;
   notes?: string;
 }
 
@@ -1072,11 +1071,24 @@ export enum StageStatus {
 
 export enum PaymentStatus {
   PENDING = "PENDING",
-  PAID = "PAID",
   COLLECTED = "COLLECTED",
-  INVOICED = "INVOICED",
   OVERDUE = "OVERDUE",
-  PARTIAL = "PARTIAL",
+  WAIVED = "WAIVED",
+  PARTIALLY_PAID = "PARTIALLY_PAID",
+  // Legacy aliases kept for backward compatibility
+  PAID = "COLLECTED",
+  INVOICED = "PENDING",
+  PARTIAL = "PARTIALLY_PAID",
+}
+
+export enum PaymentMethod {
+  UPI = "UPI",
+  BANK_TRANSFER = "BANK_TRANSFER",
+  CHEQUE = "CHEQUE",
+  CASH = "CASH",
+  CREDIT_CARD = "CREDIT_CARD",
+  DEBIT_CARD = "DEBIT_CARD",
+  OTHER = "OTHER",
 }
 
 export enum ProjectTaskStatus {
@@ -1109,18 +1121,21 @@ export interface ProjectStageData {
 export interface ProjectPayment {
   id: string;
   projectId: string;
+  title?: string;
+  description?: string;
+  stageCode?: string | null;
   paymentStage: number;
   phaseType: string; // e.g. "DESIGN" or "EXECUTION"
   percentage: number;
   expectedAmount: string | number;
   actualAmount?: string | number | null;
+  taxPercentage?: number | null;
   status: PaymentStatus | string;
+  paymentMethod?: PaymentMethod | string | null;
+  transactionRef?: string | null;
   dueDate?: string | null;
   collectedAt?: string | null;
   collectedById?: string | null;
-  receiptUrl?: string | null;
-  receiptFileName?: string | null;
-  invoiceNumber?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;

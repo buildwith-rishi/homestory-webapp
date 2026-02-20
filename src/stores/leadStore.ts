@@ -139,7 +139,22 @@ export const useLeadStore = create<LeadState>((set, get) => ({
       // Convert API leads to frontend Lead type
       const convertedLeads = (response.leads || []).map(convertAPILeadToLead);
 
-      set({ leads: convertedLeads, isLoading: false });
+      // Deduplicate leads by ID (in case API returns duplicates)
+      const uniqueLeadsMap = new Map<string, Lead>();
+      convertedLeads.forEach((lead) => {
+        if (!uniqueLeadsMap.has(lead.id)) {
+          uniqueLeadsMap.set(lead.id, lead);
+        }
+      });
+      const uniqueLeads = Array.from(uniqueLeadsMap.values());
+
+      if (uniqueLeads.length !== convertedLeads.length) {
+        console.warn(
+          `⚠️ Removed ${convertedLeads.length - uniqueLeads.length} duplicate leads from API response`,
+        );
+      }
+
+      set({ leads: uniqueLeads, isLoading: false });
       get().calculatePipelineStats();
     } catch (error) {
       console.error("Failed to fetch leads:", error);
@@ -182,15 +197,61 @@ export const useLeadStore = create<LeadState>((set, get) => ({
 
   updateLead: async (id: string, updates: Partial<Lead>) => {
     try {
-      // Update lead via API
+      // Forward all supported API fields
       const apiUpdates: Partial<APILead> = {};
-      if (updates.name) apiUpdates.name = updates.name;
-      if (updates.email) apiUpdates.email = updates.email;
-      if (updates.phone) apiUpdates.phone = updates.phone;
-      if (updates.status) apiUpdates.status = updates.status;
-      if (updates.notes) apiUpdates.notes = updates.notes;
+      if (updates.name !== undefined) apiUpdates.name = updates.name;
+      if (updates.email !== undefined) apiUpdates.email = updates.email;
+      if (updates.phone !== undefined) apiUpdates.phone = updates.phone;
+      if (updates.status !== undefined) apiUpdates.status = updates.status;
+      if (updates.notes !== undefined) apiUpdates.notes = updates.notes;
+      if (updates.source !== undefined) apiUpdates.source = updates.source;
       if ("assignedToId" in updates)
         apiUpdates.assignedToId = updates.assignedToId;
+      if (updates.companyName !== undefined)
+        apiUpdates.companyName = updates.companyName;
+      if (updates.householdOrCompany !== undefined)
+        apiUpdates.householdOrCompany = updates.householdOrCompany;
+      if (updates.score !== undefined) apiUpdates.score = updates.score;
+      if (updates.serviceInterest !== undefined)
+        apiUpdates.serviceInterest = updates.serviceInterest;
+      if (updates.propertyType !== undefined)
+        apiUpdates.propertyType = updates.propertyType;
+      if (updates.area !== undefined) apiUpdates.area = updates.area;
+      if (updates.city !== undefined) apiUpdates.city = updates.city;
+      if (updates.location !== undefined)
+        apiUpdates.location = updates.location;
+      if (updates.message !== undefined) apiUpdates.message = updates.message;
+      if (updates.requirements !== undefined)
+        apiUpdates.requirements = updates.requirements;
+      if (updates.projectType !== undefined)
+        apiUpdates.projectType = updates.projectType;
+      if (updates.homeType !== undefined)
+        apiUpdates.homeType = updates.homeType;
+      if (updates.projectStage !== undefined)
+        apiUpdates.projectStage = updates.projectStage;
+      if (updates.startTimeline !== undefined)
+        apiUpdates.startTimeline = updates.startTimeline;
+      if (updates.budgetComfort !== undefined)
+        apiUpdates.budgetComfort = updates.budgetComfort;
+      if (updates.projectScope !== undefined)
+        apiUpdates.projectScope = updates.projectScope;
+      if (updates.floorPlanUrl !== undefined)
+        apiUpdates.floorPlanUrl = updates.floorPlanUrl;
+      if (updates.wantsExperienceCenterVisit !== undefined)
+        apiUpdates.wantsExperienceCenterVisit =
+          updates.wantsExperienceCenterVisit;
+      if (updates.canWhatsApp !== undefined)
+        apiUpdates.canWhatsApp = updates.canWhatsApp;
+      if (updates.referrerName !== undefined)
+        apiUpdates.referrerName = updates.referrerName;
+      if (updates.referrerPhone !== undefined)
+        apiUpdates.referrerPhone = updates.referrerPhone;
+      if (updates.referrerProjectNumber !== undefined)
+        apiUpdates.referrerProjectNumber = updates.referrerProjectNumber;
+      if (updates.agentAgencyName !== undefined)
+        apiUpdates.agentAgencyName = updates.agentAgencyName;
+      if (updates.agentAgencyDetails !== undefined)
+        apiUpdates.agentAgencyDetails = updates.agentAgencyDetails;
 
       console.log("Updating lead via API:", id, apiUpdates);
       const updatedApiLead = await LeadAPI.updateLead(id, apiUpdates);

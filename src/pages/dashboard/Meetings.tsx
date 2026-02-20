@@ -534,7 +534,7 @@ export const MeetingsPage: React.FC = () => {
           />
         </div>
         <div className="flex gap-2">
-          {["all", "scheduled", "completed", "in_progress"].map((status) => (
+          {["all", "scheduled", "completed"].map((status) => (
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
@@ -592,7 +592,7 @@ export const MeetingsPage: React.FC = () => {
               <Card
                 key={meeting.id}
                 className="p-5 rounded-xl hover:shadow-lg transition-all cursor-pointer group"
-                onClick={() => setSelectedMeeting(meeting)}
+                onClick={() => navigate(`/dashboard/meetings/${meeting.id}`)}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -628,7 +628,6 @@ export const MeetingsPage: React.FC = () => {
                 {/* Details */}
                 <div className="space-y-2.5 mb-4">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Calendar className="w-4 h-4 text-gray-400" />
                     <span>
                       {new Date(meeting.date).toLocaleDateString("en-US", {
                         weekday: "short",
@@ -637,13 +636,11 @@ export const MeetingsPage: React.FC = () => {
                       })}
                     </span>
                     <span className="text-gray-400">•</span>
-                    <Clock className="w-4 h-4 text-gray-400" />
                     <span>{meeting.time}</span>
                     <span className="text-gray-400">({meeting.duration})</span>
                   </div>
                   {meeting.location && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <MapPin className="w-4 h-4 text-gray-400" />
                       <span>{meeting.location}</span>
                     </div>
                   )}

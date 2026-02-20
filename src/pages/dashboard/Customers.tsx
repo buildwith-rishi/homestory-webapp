@@ -30,6 +30,7 @@ import {
   Contact2,
   Loader2,
   RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import { Card, Button } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -79,6 +80,7 @@ interface Customer {
   status: "active" | "completed" | "inactive";
   rating: number;
   lastContact: string;
+  type?: string; // HOUSEHOLD, COMPANY, etc.
   // Extended fields
   photoUrl?: string;
   alternatePhone?: string;
@@ -2501,6 +2503,10 @@ export const Customers: React.FC = () => {
   >([]);
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
+  
+  // Filter states
+  const [activeTypeFilter, setActiveTypeFilter] = useState<string>("all");
+  const [activeStatusFilter, setActiveStatusFilter] = useState<string>("all");
 
   // Ref for debounce timer
   const searchDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -2667,6 +2673,7 @@ export const Customers: React.FC = () => {
             lastContact: apiCustomer.updatedAt
               ? new Date(apiCustomer.updatedAt).toLocaleDateString()
               : "N/A",
+            type: apiCustomer.type,
             photoUrl: undefined,
             alternatePhone: undefined,
             address:
@@ -2855,6 +2862,21 @@ export const Customers: React.FC = () => {
       ? customers.reduce((sum, c) => sum + c.rating, 0) / customers.length
       : 0;
 
+  // Filter customers based on active filters
+  const filteredCustomers = customers.filter((customer) => {
+    // Type filter
+    if (activeTypeFilter !== "all" && customer.type !== activeTypeFilter) {
+      return false;
+    }
+    
+    // Status filter
+    if (activeStatusFilter !== "all" && customer.status !== activeStatusFilter) {
+      return false;
+    }
+    
+    return true;
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -2868,7 +2890,7 @@ export const Customers: React.FC = () => {
           <Button
             variant="secondary"
             className="rounded-xl"
-            onClick={fetchCustomers}
+            onClick={() => fetchCustomers()}
             disabled={loading}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -2908,32 +2930,120 @@ export const Customers: React.FC = () => {
             </div>
           </div>
         </Card>
-        <Card className="p-4 rounded-xl hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Revenue</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                ₹{(totalRevenue / 10000000).toFixed(1)}Cr
+        
+        
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        {/* Type Filters */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Customer Type</h3>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveTypeFilter("all")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeTypeFilter === "all"
+                  ? "bg-orange-500 text-white shadow-md"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              All Types
+            </button>
+            <button
+              onClick={() => setActiveTypeFilter("HOUSEHOLD")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeTypeFilter === "HOUSEHOLD"
+                  ? "bg-orange-500 text-white shadow-md"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              <Briefcase className="w-4 h-4 inline-block mr-1" />
+              Residential
+            </button>
+            <button
+              onClick={() => setActiveTypeFilter("COMPANY")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeTypeFilter === "COMPANY"
+                  ? "bg-orange-500 text-white shadow-md"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              <Briefcase className="w-4 h-4 inline-block mr-1" />
+              Commercial
+            </button>
+          </div>
+        </div>
+
+        {/* Status Filters */}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Status</h3>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveStatusFilter("all")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeStatusFilter === "all"
+                  ? "bg-orange-500 text-white shadow-md"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              All Status
+            </button>
+            <button
+              onClick={() => setActiveStatusFilter("active")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeStatusFilter === "active"
+                  ? "bg-emerald-500 text-white shadow-md"
+                  : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 inline-block mr-1" />
+              Active
+            </button>
+            <button
+              onClick={() => setActiveStatusFilter("inactive")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeStatusFilter === "inactive"
+                  ? "bg-gray-500 text-white shadow-md"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              <Clock className="w-4 h-4 inline-block mr-1" />
+              Inactive
+            </button>
+            <button
+              onClick={() => setActiveStatusFilter("completed")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeStatusFilter === "completed"
+                  ? "bg-blue-500 text-white shadow-md"
+                  : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4 inline-block mr-1" />
+              Completed
+            </button>
+          </div>
+        </div>
+        
+        {/* Active Filters Summary */}
+        {(activeTypeFilter !== "all" || activeStatusFilter !== "all") && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600">
+                Showing <span className="font-bold text-gray-900">{filteredCustomers.length}</span> of {customers.length} customers
               </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-orange-600" />
+              <button
+                onClick={() => {
+                  setActiveTypeFilter("all");
+                  setActiveStatusFilter("all");
+                }}
+                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+              >
+                Clear Filters
+              </button>
             </div>
           </div>
-        </Card>
-        <Card className="p-4 rounded-xl hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Avg Rating</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {avgRating.toFixed(1)}
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center">
-              <Star className="w-5 h-5 text-yellow-600" />
-            </div>
-          </div>
-        </Card>
+        )}
       </div>
 
       <div className="relative">
@@ -2959,7 +3069,7 @@ export const Customers: React.FC = () => {
             <p className="text-gray-600">Loading customers...</p>
           </div>
         </div>
-      ) : customers.length === 0 ? (
+      ) : filteredCustomers.length === 0 ? (
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -2967,13 +3077,15 @@ export const Customers: React.FC = () => {
             <p className="text-sm text-gray-500">
               {searchQuery
                 ? "Try adjusting your search"
+                : (activeTypeFilter !== "all" || activeStatusFilter !== "all")
+                ? "No customers match the selected filters"
                 : "Get started by adding your first customer"}
             </p>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {customers.map((customer) => {
+          {filteredCustomers.map((customer) => {
             const statusColor = statusColors[customer.status];
             return (
               <Card

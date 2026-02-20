@@ -428,11 +428,6 @@ export const MeetingDetailsPage: React.FC = () => {
   const [isPollingTranscript, setIsPollingTranscript] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Summary editing state
-  const [isEditingSummary, setIsEditingSummary] = useState(false);
-  const [editedSummary, setEditedSummary] = useState("");
-  const [isSavingSummary, setIsSavingSummary] = useState(false);
-
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -824,58 +819,6 @@ export const MeetingDetailsPage: React.FC = () => {
     // TODO: Persist to API
   };
 
-  // Save edited summary
-  const handleSaveSummary = async () => {
-    if (!meeting || !editedSummary.trim()) return;
-
-    setIsSavingSummary(true);
-    try {
-      const updatedAiAnalysis = meeting.aiAnalysis
-        ? { ...meeting.aiAnalysis, summary: editedSummary }
-        : {
-            summary: editedSummary,
-            actionItems: [],
-            keyPoints: [],
-            sentiment: "neutral",
-            concerns: [],
-            decisions: [],
-          };
-
-      // Depending on API structure, update meeting object
-      // If backend supports partial update via updateMeeting:
-      const updatedMeeting = await meetingAPI.updateMeeting(meeting.id, {
-        aiAnalysis: updatedAiAnalysis,
-        summary: editedSummary, // Fallback for legacy fields
-      });
-
-      setMeeting(updatedMeeting);
-      setIsEditingSummary(false);
-    } catch (err) {
-      console.error("Error saving summary:", err);
-      // Fallback: update local state if API fails (for demo purposes)
-      // In production, show error toast
-      if (meeting) {
-        setMeeting({
-          ...meeting,
-          aiAnalysis: {
-            ...(meeting.aiAnalysis || {
-              actionItems: [],
-              keyPoints: [],
-              sentiment: "neutral",
-              concerns: [],
-              decisions: [],
-            }),
-            summary: editedSummary,
-          } as any,
-          summary: editedSummary,
-        });
-        setIsEditingSummary(false);
-      }
-    } finally {
-      setIsSavingSummary(false);
-    }
-  };
-
   // Share AI Summary via WhatsApp
   const handleShareWhatsApp = () => {
     if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
@@ -1194,46 +1137,6 @@ export const MeetingDetailsPage: React.FC = () => {
                   AI Summary
                 </h2>
                 <div className="flex items-center gap-2">
-                  {!isEditingSummary ? (
-                    <button
-                      onClick={() => {
-                        setIsEditingSummary(true);
-                        setEditedSummary(
-                          meeting.aiAnalysis?.summary ||
-                            (meeting as any).summary ||
-                            "",
-                        );
-                      }}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
-                      title="Edit Summary"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                      Edit
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => setIsEditingSummary(false)}
-                        disabled={isSavingSummary}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSaveSummary}
-                        disabled={isSavingSummary}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {isSavingSummary ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Check className="w-4 h-4" />
-                        )}
-                        Save
-                      </button>
-                    </>
-                  )}
-
                   <button
                     onClick={handleShareWhatsApp}
                     className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
@@ -1252,19 +1155,9 @@ export const MeetingDetailsPage: React.FC = () => {
                   </button>
                 </div>
               </div>
-
-              {isEditingSummary ? (
-                <textarea
-                  value={editedSummary}
-                  onChange={(e) => setEditedSummary(e.target.value)}
-                  className="w-full h-40 p-3 mb-4 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Enter meeting summary..."
-                />
-              ) : (
-                <p className="text-gray-700 mb-4 whitespace-pre-wrap">
-                  {meeting.aiAnalysis?.summary || (meeting as any).summary}
-                </p>
-              )}
+              <p className="text-gray-700 mb-4">
+                {meeting.aiAnalysis?.summary || (meeting as any).summary}
+              </p>
 
               {(
                 meeting.aiAnalysis?.keyPoints ||

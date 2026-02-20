@@ -24,8 +24,8 @@ import {
   Upload,
   X,
   Plus,
-  Contact2,
   AlertCircle,
+  StickyNote,
 } from "lucide-react";
 import { Button, Badge, Card } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -36,6 +36,8 @@ import CustomerAPI, {
   type CustomerContact,
 } from "../../services/customerApi";
 import { useCustomerStore } from "../../stores/customerStore";
+import { listProjects } from "../../services/projectApi";
+import type { Project } from "../../types";
 
 interface FamilyMember {
   id?: string;
@@ -382,6 +384,10 @@ export const CustomerDetails: React.FC = () => {
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [loadingCustomer, setLoadingCustomer] = useState(true);
 
+  // Customer projects state
+  const [customerProjects, setCustomerProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
   // Initialize customer data from API
   useEffect(() => {
     const fetchCustomerData = async () => {
@@ -462,6 +468,10 @@ export const CustomerDetails: React.FC = () => {
             progress: p.progress || 0,
           }),
         );
+
+        console.log("Raw API projects:", apiCustomer.projects);
+        console.log("Mapped projects:", apiProjects);
+        console.log("Projects count:", apiCustomer._count?.projects);
 
         // Build location from available address fields
         const locationParts = [
@@ -545,6 +555,10 @@ export const CustomerDetails: React.FC = () => {
           name: mappedCustomer.name,
         });
         console.log("Customer data mapped successfully:", mappedCustomer);
+        console.log(
+          "Assigned projects in customer:",
+          mappedCustomer.assignedProjects,
+        );
       } catch (error) {
         console.error("Failed to fetch customer. Error details:", error);
         console.error("Customer ID attempted:", customerId);
@@ -617,6 +631,36 @@ export const CustomerDetails: React.FC = () => {
       fetchContacts();
     }
   }, [customerData?.id, customerData?.leadId, fetchContacts]);
+
+  // Fetch projects for this customer
+  useEffect(() => {
+    const fetchCustomerProjects = async () => {
+      if (!customerData?.leadId) return;
+
+      setProjectsLoading(true);
+      try {
+        const response = await listProjects();
+        // Filter projects by this customer's leadId
+        const filtered = response.projects.filter(
+          (project) => project.leadId === customerData.leadId,
+        );
+        setCustomerProjects(filtered);
+        console.log(
+          `Found ${filtered.length} projects for customer:`,
+          filtered,
+        );
+      } catch (error) {
+        console.error("Error fetching customer projects:", error);
+        toast.error("Failed to load customer projects");
+      } finally {
+        setProjectsLoading(false);
+      }
+    };
+
+    if (customerData?.leadId) {
+      fetchCustomerProjects();
+    }
+  }, [customerData?.leadId]);
 
   const customer = customerData;
 
@@ -1052,8 +1096,9 @@ export const CustomerDetails: React.FC = () => {
   };
 
   // Get available projects (not already assigned)
+  // Note: For now, we show all projects that could potentially be assigned
   const availableProjects = mockProjectsList.filter(
-    (p) => !customer?.assignedProjects?.some((ap) => ap.id === p.id),
+    (p) => !customerProjects?.some((cp) => cp.id === p.id),
   );
 
   // Find customer by ID
@@ -1251,7 +1296,7 @@ export const CustomerDetails: React.FC = () => {
           <div className="flex items-center gap-0 mt-8 pt-6 border-t border-gray-100">
             <div className="flex-1 text-center">
               <p className="text-2xl font-bold text-gray-900">
-                {customer.projectsCount || customer.projects}
+                {customerProjects.length}
               </p>
               <p className="text-xs font-medium text-gray-400 mt-0.5 uppercase tracking-wider">
                 Projects
@@ -1418,7 +1463,6 @@ export const CustomerDetails: React.FC = () => {
       <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl overflow-x-auto">
         {[
           { key: "overview", label: "Overview", icon: FileText },
-          { key: "contacts", label: "Contacts", icon: Contact2 },
           { key: "family", label: "Family", icon: Users },
           { key: "dates", label: "Dates", icon: Calendar },
           { key: "referrals", label: "Referrals", icon: UserPlus },
@@ -1596,55 +1640,53 @@ export const CustomerDetails: React.FC = () => {
                   </div>
                 </div>
               )}
-            </>
-          )}
 
-          {/* Contacts Tab */}
-          {activeTab === "contacts" && (
-            <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                  Contacts
-                  {contacts.length > 0 && (
-                    <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-orange-100 text-orange-700 rounded-full">
-                      {contacts.length}
-                    </span>
-                  )}
-                </h3>
-                <button
-                  onClick={() => {
-                    if (editingTab === "contacts") {
-                      setEditingTab(null);
-                      toast.success("Changes saved!");
-                    } else {
-                      setEditingTab("contacts");
-                    }
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                    editingTab === "contacts"
-                      ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {editingTab === "contacts" ? (
-                    <Save className="w-3 h-3" />
-                  ) : (
-                    <Edit2 className="w-3 h-3" />
-                  )}
-                  {editingTab === "contacts" ? "Save" : "Edit"}
-                </button>
+              {/* Contacts — embedded in Overview */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    Contacts
+                    {contacts.length > 0 && (
+                      <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-orange-100 text-orange-700 rounded-full">
+                        {contacts.length}
+                      </span>
+                    )}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      if (editingTab === "contacts") {
+                        setEditingTab(null);
+                        toast.success("Changes saved!");
+                      } else {
+                        setEditingTab("contacts");
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                      editingTab === "contacts"
+                        ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {editingTab === "contacts" ? (
+                      <Save className="w-3 h-3" />
+                    ) : (
+                      <Edit2 className="w-3 h-3" />
+                    )}
+                    {editingTab === "contacts" ? "Save" : "Edit"}
+                  </button>
+                </div>
+                <ContactsList
+                  leadId={
+                    customerData?.leadId ||
+                    String(customerData?.id || customerId || "")
+                  }
+                  contacts={contacts}
+                  isLoading={loadingContacts}
+                  isEditable={editingTab === "contacts"}
+                  onContactsChanged={fetchContacts}
+                />
               </div>
-              <ContactsList
-                leadId={
-                  customerData?.leadId ||
-                  String(customerData?.id || customerId || "")
-                }
-                contacts={contacts}
-                isLoading={loadingContacts}
-                isEditable={editingTab === "contacts"}
-                onContactsChanged={fetchContacts}
-              />
-            </div>
+            </>
           )}
 
           {activeTab === "family" && (
@@ -2060,7 +2102,7 @@ export const CustomerDetails: React.FC = () => {
           {activeTab === "ranking" && (
             <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                <h3 className="text-base font-bold text-gray-800 uppercase tracking-wider">
                   Client Ranking
                 </h3>
                 <button
@@ -2108,7 +2150,7 @@ export const CustomerDetails: React.FC = () => {
                       },
                       "one-time": {
                         color: "gray",
-                        label: "One-time",
+                        label: "One-Time",
                         desc: "Single project",
                       },
                     };
@@ -2125,21 +2167,23 @@ export const CustomerDetails: React.FC = () => {
                         disabled={editingTab !== "ranking" || isSaving}
                         className={`p-4 rounded-xl border-2 transition-all text-left ${
                           isSelected
-                            ? "border-orange-400 bg-orange-50/50"
-                            : "border-gray-100 hover:border-gray-200"
-                        } ${editingTab !== "ranking" || isSaving ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                            ? "border-orange-400 bg-orange-50"
+                            : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
+                        } ${editingTab !== "ranking" || isSaving ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
                       >
-                        <p className="text-sm font-semibold text-gray-900 capitalize mb-0.5">
+                        <p className="text-sm font-bold text-gray-900 capitalize mb-0.5">
                           {c.label}
                         </p>
-                        <p className="text-xs text-gray-400">{c.desc}</p>
+                        <p className="text-xs font-medium text-gray-500">
+                          {c.desc}
+                        </p>
                       </button>
                     );
                   },
                 )}
               </div>
               {editingTab !== "ranking" && (
-                <p className="text-xs text-gray-400 mt-4 text-center">
+                <p className="text-xs font-medium text-gray-500 mt-4 text-center">
                   Click "Edit" to change ranking
                 </p>
               )}
@@ -2236,13 +2280,22 @@ export const CustomerDetails: React.FC = () => {
               )}
 
               {/* Assigned Projects List */}
-              {customer.assignedProjects &&
-              customer.assignedProjects.length > 0 ? (
+              {projectsLoading ? (
+                <div className="text-center py-12">
+                  <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-3">
+                    <div className="w-6 h-6 border-3 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                  <p className="text-gray-500">Loading projects...</p>
+                </div>
+              ) : customerProjects && customerProjects.length > 0 ? (
                 <div className="space-y-3">
-                  {customer.assignedProjects.map((project) => (
+                  {customerProjects.map((project) => (
                     <div
                       key={project.id}
-                      className="p-4 bg-gray-50 rounded-xl flex items-center justify-between hover:bg-gray-100 transition-colors"
+                      className="p-4 bg-gray-50 rounded-xl flex items-center justify-between hover:bg-gray-100 transition-colors cursor-pointer"
+                      onClick={() =>
+                        navigate(`/dashboard/projects/${project.id}`)
+                      }
                     >
                       <div className="flex items-center gap-4 flex-1">
                         <div
@@ -2251,14 +2304,18 @@ export const CustomerDetails: React.FC = () => {
                               ? "bg-blue-100 text-blue-600"
                               : project.status === "completed"
                                 ? "bg-green-100 text-green-600"
-                                : "bg-yellow-100 text-yellow-600"
+                                : project.status === "paused"
+                                  ? "bg-yellow-100 text-yellow-600"
+                                  : "bg-gray-100 text-gray-600"
                           }`}
                         >
                           <FolderOpen className="w-5 h-5" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 truncate">
-                            {project.name}
+                            {project.projectName ||
+                              project.name ||
+                              "Unnamed Project"}
                           </p>
                           <div className="flex items-center gap-3 mt-1">
                             <Badge
@@ -2267,41 +2324,29 @@ export const CustomerDetails: React.FC = () => {
                                   ? "bg-blue-100 text-blue-700"
                                   : project.status === "completed"
                                     ? "bg-green-100 text-green-700"
-                                    : "bg-yellow-100 text-yellow-700"
+                                    : project.status === "paused"
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-gray-100 text-gray-700"
                               }`}
                             >
                               {project.status}
                             </Badge>
-                            <span className="text-sm text-gray-500">
-                              {project.progress}% complete
-                            </span>
-                          </div>
-                        </div>
-                        {/* Progress Bar */}
-                        <div className="w-24 hidden sm:block">
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                project.progress >= 100
-                                  ? "bg-green-500"
-                                  : project.progress >= 50
-                                    ? "bg-blue-500"
-                                    : "bg-orange-500"
-                              }`}
-                              style={{ width: `${project.progress}%` }}
-                            />
+                            {project.currentStageCode && (
+                              <span className="text-sm text-gray-500">
+                                {project.currentStageCode}
+                              </span>
+                            )}
+                            {project.totalValue && (
+                              <span className="text-sm font-medium text-gray-700">
+                                ₹
+                                {typeof project.totalValue === "number"
+                                  ? project.totalValue.toLocaleString("en-IN")
+                                  : project.totalValue}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
-                      {editingTab === "projects" && (
-                        <button
-                          onClick={() => handleRemoveProject(project.id)}
-                          className="ml-3 p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                          title="Remove project"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -2309,7 +2354,7 @@ export const CustomerDetails: React.FC = () => {
                 <div className="text-center py-12">
                   <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">
-                    No projects assigned to this customer
+                    No projects found for this customer
                   </p>
                   {editingTab === "projects" && (
                     <Button
@@ -2354,42 +2399,6 @@ export const CustomerDetails: React.FC = () => {
                 <MessageCircle className="w-4 h-4" />
                 WhatsApp
               </button>
-            </div>
-          </div>
-
-          {/* Activity Timeline */}
-          <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-              Recent Activity
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-orange-400 mt-1.5 ring-4 ring-orange-50" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900 font-medium">
-                    Project milestone completed
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">2 days ago</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 ring-4 ring-blue-50" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900 font-medium">
-                    Payment received
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">5 days ago</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-green-400 mt-1.5 ring-4 ring-green-50" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900 font-medium">
-                    Meeting scheduled
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">1 week ago</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>

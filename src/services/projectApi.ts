@@ -11,6 +11,7 @@ import type {
   UpdateProjectRequest,
   UpdateStageRequest,
   UpdatePaymentRequest,
+  CreatePaymentRequest,
   StageTemplate,
   StageTemplatePhaseType,
   CreateStageTemplateRequest,
@@ -106,8 +107,11 @@ export interface ProjectStagesResponse {
 
 export interface ProjectPaymentsResponse {
   payments: ProjectPayment[];
-  totalValue: string;
-  paidAmount: string;
+  totalValue?: string;
+  paidAmount?: string;
+  total?: number;
+  limit?: number;
+  offset?: number;
 }
 
 export interface AvailableStagesResponse {
@@ -402,15 +406,20 @@ export async function getAvailableStages(
 }
 
 /**
- * Get project payments
- * GET /api/projects/:id/payments
+ * Get payments (filtered by project)
+ * GET /api/payments?projectId=...
  */
 export async function getProjectPayments(
   projectId: string,
 ): Promise<ProjectPaymentsResponse> {
   try {
+    const params = new URLSearchParams({
+      projectId,
+      limit: "100",
+      offset: "0",
+    });
     const response = await fetch(
-      `${API_BASE_URL}/api/projects/${projectId}/payments`,
+      `${API_BASE_URL}/api/payments?${params.toString()}`,
       {
         method: "GET",
         headers: getAuthHeaders(),
@@ -425,52 +434,206 @@ export async function getProjectPayments(
 }
 
 /**
- * Update a project payment
- * PUT /api/projects/:id/payments/:paymentId
+ * Update a payment
+ * PUT /api/payments/:paymentId
  */
 export async function updateProjectPayment(
-  projectId: string,
+  _projectId: string,
   paymentId: string,
   data: UpdatePaymentRequest,
 ): Promise<ProjectPayment> {
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/projects/${projectId}/payments/${paymentId}`,
-      {
-        method: "PUT",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data),
-      },
-    );
+    const response = await fetch(`${API_BASE_URL}/api/payments/${paymentId}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
 
     return handleResponse<ProjectPayment>(response);
   } catch (error) {
-    console.error("Error updating project payment:", error);
+    console.error("Error updating payment:", error);
     throw error;
   }
 }
 
 /**
- * Create a project payment milestone
- * POST /api/projects/:id/payments
+ * Create a payment milestone
+ * POST /api/payments  (projectId included in request body)
  */
 export async function createProjectPayment(
-  projectId: string,
+  _projectId: string,
   data: CreatePaymentRequest,
 ): Promise<ProjectPayment> {
   try {
+    const response = await fetch(`${API_BASE_URL}/api/payments`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    return handleResponse<ProjectPayment>(response);
+  } catch (error) {
+    console.error("Error creating payment:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get payment options (statuses, methods, phaseTypes)
+ * GET /api/payments/options
+ */
+export interface PaymentOptionsResponse {
+  statuses: string[];
+  methods: string[];
+  phaseTypes: string[];
+}
+
+export async function getPaymentOptions(): Promise<PaymentOptionsResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/payments/options`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<PaymentOptionsResponse>(response);
+  } catch (error) {
+    console.error("Error fetching payment options:", error);
+    // Return defaults if the endpoint fails
+    return {
+      statuses: ["PENDING", "COLLECTED", "OVERDUE", "WAIVED", "PARTIALLY_PAID"],
+      methods: [
+        "UPI",
+        "BANK_TRANSFER",
+        "CHEQUE",
+        "CASH",
+        "CREDIT_CARD",
+        "DEBIT_CARD",
+        "OTHER",
+      ],
+      phaseTypes: ["DESIGN", "EXECUTION"],
+    };
+  }
+}
+
+// ==========================================
+// Payment Action Endpoints
+// ==========================================
+
+export interface SendInvoiceRequest {
+  toEmail: string;
+  toName: string;
+  bankDetails: {
+    accountName: string;
+    accountNumber: string;
+    ifscCode: string;
+    bankName: string;
+    upiId?: string;
+  };
+  customMessage?: string;
+}
+
+export interface UploadPaymentDocumentRequest {
+  fileName: string;
+  fileType: string;
+  fileBase64: string;
+  documentType: "receipt" | "invoice" | "other";
+}
+
+export interface SendReminderRequest {
+  toEmail: string;
+  toName: string;
+  customMessage?: string;
+}
+
+/**
+ * Send invoice email for a payment
+ * POST /api/payments/:paymentId/send-invoice
+ */
+export async function sendPaymentInvoice(
+  paymentId: string,
+  data: SendInvoiceRequest,
+): Promise<{ success: boolean; message?: string }> {
+  try {
     const response = await fetch(
-      `${API_BASE_URL}/api/projects/${projectId}/payments`,
+      `${API_BASE_URL}/api/payments/${paymentId}/send-invoice`,
       {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
       },
     );
-
-    return handleResponse<ProjectPayment>(response);
+    return handleResponse<{ success: boolean; message?: string }>(response);
   } catch (error) {
-    console.error("Error creating project payment:", error);
+    console.error("Error sending payment invoice:", error);
+    throw error;
+  }
+}
+
+/**
+ * Upload a document (receipt/invoice) for a payment
+ * POST /api/payments/:paymentId/upload-document
+ */
+export async function uploadPaymentDocument(
+  paymentId: string,
+  data: UploadPaymentDocumentRequest,
+): Promise<{ success: boolean; url?: string }> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/payments/${paymentId}/upload-document`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    return handleResponse<{ success: boolean; url?: string }>(response);
+  } catch (error) {
+    console.error("Error uploading payment document:", error);
+    throw error;
+  }
+}
+
+/**
+ * Send a payment reminder email
+ * POST /api/payments/:paymentId/send-reminder
+ */
+export async function sendPaymentReminder(
+  paymentId: string,
+  data: SendReminderRequest,
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/payments/${paymentId}/send-reminder`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    return handleResponse<{ success: boolean; message?: string }>(response);
+  } catch (error) {
+    console.error("Error sending payment reminder:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get all overdue payments
+ * GET /api/payments/overdue
+ */
+export async function getOverduePayments(): Promise<{
+  payments: ProjectPayment[];
+  total?: number;
+}> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/payments/overdue`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<{ payments: ProjectPayment[]; total?: number }>(
+      response,
+    );
+  } catch (error) {
+    console.error("Error fetching overdue payments:", error);
     throw error;
   }
 }
@@ -2246,6 +2409,12 @@ const ProjectAPI = {
   getAvailableStages,
   getProjectPayments,
   updateProjectPayment,
+  createProjectPayment,
+  getPaymentOptions,
+  sendPaymentInvoice,
+  uploadPaymentDocument,
+  sendPaymentReminder,
+  getOverduePayments,
   getProjectTasks,
   startProject,
   pauseProject,

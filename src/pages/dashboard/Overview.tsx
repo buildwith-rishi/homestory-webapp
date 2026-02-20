@@ -27,8 +27,8 @@ import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuth } from "../../contexts/AuthContext";
 import { getRoleDisplayName } from "../../config/rbac";
-import { listProjects } from "../../services/projectApi";
-import type { Project } from "../../types";
+import { listProjects, getProjectStages } from "../../services/projectApi";
+import type { Project, ProjectStageData } from "../../types";
 
 export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
@@ -37,14 +37,40 @@ export const DashboardOverview: React.FC = () => {
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
   const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectStagesMap, setProjectStagesMap] = useState<
+    Record<string, ProjectStageData[]>
+  >({});
+  const [showAllDeadlines, setShowAllDeadlines] = useState(false);
 
   useEffect(() => {
     const fetchProjects = async () => {
       try {
         const data = await listProjects({ limit: 100 });
         // @ts-ignore - Handle potential API response structure variations
-        const projectsData = Array.isArray(data) ? data : data.projects || [];
+        const projectsData: Project[] = Array.isArray(data)
+          ? data
+          : (data as any).projects || [];
         setProjects(projectsData);
+
+        // Fetch stages for all projects in parallel to get tentative dates
+        const stageResults = await Promise.allSettled(
+          projectsData.map((p) =>
+            getProjectStages(p.id).then((res) => ({
+              projectId: p.id,
+              // @ts-ignore - API may return stages in different shapes
+              stages: (Array.isArray(res)
+                ? res
+                : (res as any)?.stages || []) as ProjectStageData[],
+            })),
+          ),
+        );
+        const stagesMap: Record<string, ProjectStageData[]> = {};
+        stageResults.forEach((result) => {
+          if (result.status === "fulfilled") {
+            stagesMap[result.value.projectId] = result.value.stages;
+          }
+        });
+        setProjectStagesMap(stagesMap);
       } catch (error) {
         console.error("Failed to fetch projects", error);
         setProjects([]);
@@ -139,12 +165,54 @@ export const DashboardOverview: React.FC = () => {
         return true;
       })
       .map((project) => {
-        let deadlineDate = null;
+        let deadlineDate: Date | null = null;
         let daysLeft = 9999; // Sort to bottom if no deadline
         let deadlineStr = "Schedule Pending";
+        let deadlineLabel = "Project Deadline";
 
+        // 1. Prefer the project-level tentative handover date
         if (project.tentativeHandoverDate) {
           deadlineDate = parseISO(project.tentativeHandoverDate);
+          deadlineLabel = "Handover Deadline";
+        }
+
+        // 2. Fallback: derive from stages — use the current active/ongoing stage first,
+        //    then the earliest pending stage that has a tentativeEndDate
+        if (!deadlineDate) {
+          const stages = projectStagesMap[project.id] || [];
+          // Find current ongoing stage
+          const ongoingStage = stages.find(
+            (s) =>
+              (s.status === "ONGOING" ||
+                s.status === "IN_PROGRESS" ||
+                s.status === "CURRENT") &&
+              s.tentativeEndDate,
+          );
+          // Find earliest pending stage with a tentative date
+          const pendingStages = stages
+            .filter(
+              (s) =>
+                (s.status === "PENDING" || s.status === "NOT_STARTED") &&
+                s.tentativeEndDate,
+            )
+            .sort((a, b) => {
+              const da = a.tentativeEndDate
+                ? new Date(a.tentativeEndDate).getTime()
+                : Infinity;
+              const db = b.tentativeEndDate
+                ? new Date(b.tentativeEndDate).getTime()
+                : Infinity;
+              return da - db;
+            });
+
+          const targetStage = ongoingStage || pendingStages[0];
+          if (targetStage?.tentativeEndDate) {
+            deadlineDate = parseISO(targetStage.tentativeEndDate);
+            deadlineLabel = targetStage.stageName || "Stage";
+          }
+        }
+
+        if (deadlineDate) {
           daysLeft = differenceInDays(deadlineDate, new Date());
           deadlineStr = deadlineDate.toLocaleDateString("en-US", {
             month: "short",
@@ -174,6 +242,7 @@ export const DashboardOverview: React.FC = () => {
           id: project.id,
           name: project.projectName || project.name || "Untitled Project",
           deadline: deadlineStr,
+          deadlineLabel,
           daysLeft,
           status,
           stage: formattedStage,
@@ -182,7 +251,7 @@ export const DashboardOverview: React.FC = () => {
         };
       })
       .sort((a, b) => a.daysLeft - b.daysLeft);
-  }, [projects]);
+  }, [projects, projectStagesMap]);
 
   // Filter deadlines based on selection
   const filteredDeadlines = useMemo(() => {
@@ -463,8 +532,12 @@ export const DashboardOverview: React.FC = () => {
                           : "Projects"}
                       </Badge>
                     </div>
-                    <Button variant="ghost" size="sm">
-                      View All →
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllDeadlines((prev) => !prev)}
+                    >
+                      {showAllDeadlines ? "Show Less ↑" : "View All →"}
                     </Button>
                   </div>
 
@@ -482,7 +555,10 @@ export const DashboardOverview: React.FC = () => {
                       return (
                         <button
                           key={option.value}
-                          onClick={() => setPipelineTypeFilter(option.value)}
+                          onClick={() => {
+                            setPipelineTypeFilter(option.value);
+                            setShowAllDeadlines(false);
+                          }}
                           className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
                             isActive
                               ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-200"
@@ -507,7 +583,10 @@ export const DashboardOverview: React.FC = () => {
                   </div>
                 </div>
                 <div className="p-4 space-y-3">
-                  {filteredDeadlines.map((project, i) => (
+                  {(showAllDeadlines
+                    ? filteredDeadlines
+                    : filteredDeadlines.slice(0, 5)
+                  ).map((project, i) => (
                     <div
                       key={i}
                       className={`flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-all cursor-pointer ${
@@ -594,32 +673,62 @@ export const DashboardOverview: React.FC = () => {
 
                       {/* Deadline Info */}
                       <div className="text-right flex-shrink-0">
-                        <p
-                          className={`text-sm font-semibold ${
-                            project.status === "critical" ||
-                            project.status === "overdue"
-                              ? "text-red-700"
-                              : project.status === "urgent"
-                                ? "text-orange-600"
-                                : project.status === "warning"
-                                  ? "text-yellow-600"
-                                  : project.status === "no-deadline"
-                                    ? "text-gray-500"
-                                    : "text-gray-700"
-                          }`}
-                        >
-                          {project.status === "overdue"
-                            ? `${Math.abs(project.daysLeft)} days overdue`
-                            : project.status === "no-deadline"
-                              ? "No deadline set"
-                              : `${project.daysLeft} days left`}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {project.deadline}
-                        </p>
+                        {project.status === "no-deadline" ? (
+                          <>
+                            <p className="text-sm font-semibold text-gray-500">
+                              No deadline set
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              Schedule Pending
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p
+                              className={`text-sm font-semibold ${
+                                project.status === "critical" ||
+                                project.status === "overdue"
+                                  ? "text-red-700"
+                                  : project.status === "urgent"
+                                    ? "text-orange-600"
+                                    : project.status === "warning"
+                                      ? "text-yellow-600"
+                                      : "text-gray-700"
+                              }`}
+                            >
+                              {project.deadline}
+                            </p>
+                            <p
+                              className={`text-xs font-medium ${
+                                project.status === "overdue"
+                                  ? "text-red-500"
+                                  : project.status === "critical" ||
+                                      project.status === "urgent"
+                                    ? "text-orange-500"
+                                    : project.status === "warning"
+                                      ? "text-yellow-500"
+                                      : "text-gray-400"
+                              }`}
+                            >
+                              {project.status === "overdue"
+                                ? `${Math.abs(project.daysLeft)}d overdue`
+                                : `${project.daysLeft}d left`}{" "}
+                              · {project.deadlineLabel}
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
+                  {!showAllDeadlines && filteredDeadlines.length > 5 && (
+                    <button
+                      onClick={() => setShowAllDeadlines(true)}
+                      className="w-full py-2.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-dashed border-orange-200 hover:border-orange-300"
+                    >
+                      + {filteredDeadlines.length - 5} more project
+                      {filteredDeadlines.length - 5 !== 1 ? "s" : ""} — View All
+                    </button>
+                  )}
                   {filteredDeadlines.length === 0 && (
                     <div className="text-center py-12">
                       <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">

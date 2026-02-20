@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   FileText,
   CreditCard,
-  Package,
   Edit3,
   Trash2,
   Upload,
@@ -23,22 +22,20 @@ import {
   DollarSign,
   Mail,
   TrendingUp,
-  Target,
-  Flag,
   MessageSquare,
+  Send,
+  BellRing,
+  FileUp,
   Play,
   Pause,
   StopCircle,
-  XCircle,
   Ban,
   Image,
   Gift,
   ClipboardList,
   Plus,
-  Filter,
-  CheckSquare,
 } from "lucide-react";
-import { Button, Progress, Badge, Card } from "../../components/ui";
+import { Button, Badge, Card } from "../../components/ui";
 import { ProjectStagesSection } from "../../components/dashboard/stages";
 import { TestimonialsTab } from "../../components/dashboard/testimonials";
 import { ProjectReferencesTab } from "../../components/dashboard/references";
@@ -50,14 +47,14 @@ import {
   Project,
   ProjectPayment,
   PaymentStatus,
-  ProjectTaskStatus,
   UpdateProjectRequest,
-  PauseProjectRequest,
-  Task,
-  TaskStatus,
   CreatePaymentRequest,
 } from "../../types";
-import { uploadFileReference } from "../../services/projectApi";
+import {
+  sendPaymentInvoice,
+  uploadPaymentDocument,
+  sendPaymentReminder,
+} from "../../services/projectApi";
 import {
   createActivity,
   getActivitiesByEntity,
@@ -120,26 +117,6 @@ const getStageLabel = (code: string): string => {
   );
 };
 
-// Calculate progress based on current stage code
-const calculateProgress = (project: Project): number => {
-  const stageProgress: Record<string, number> = {
-    ENQUIRY: 10,
-    DESIGN_SIGNUP: 20,
-    DESIGN: 35,
-    FIRST_PRESENTATION: 45,
-    FINAL_DESIGN: 55,
-    COSTING: 65,
-    EXECUTION: 80,
-    HANDOVER: 95,
-    TESTIMONIAL: 100,
-  };
-  const code = project.currentStageCode || (project.currentStage as string);
-  if (code) {
-    return stageProgress[code] || 0;
-  }
-  return 0;
-};
-
 // Get status display — handles API uppercase values
 const getStatusDisplay = (
   project: Project,
@@ -188,18 +165,13 @@ export const ProjectDetails: React.FC = () => {
   // Store
   const {
     currentProject,
-    projectStages,
     projectPayments,
-    projectTasks,
     isLoading,
     error,
-    tasksLoading,
-    tasksError,
     pauseStatus,
     fetchProjectById,
     fetchProjectStages,
     fetchProjectPayments,
-    fetchProjectTasks,
     updateProjectPayment,
     createProjectPayment,
     updateProject,
@@ -211,10 +183,6 @@ export const ProjectDetails: React.FC = () => {
     completeProject,
     cancelProject,
     fetchPauseStatus,
-    createTask,
-    updateTask,
-    deleteTask,
-    completeTask,
   } = useProjectStore();
 
   // Project options from API
@@ -229,7 +197,6 @@ export const ProjectDetails: React.FC = () => {
     | "overview"
     | "stages"
     | "payments"
-    | "tasks"
     | "references"
     | "testimonials"
     | "handover"
@@ -240,27 +207,69 @@ export const ProjectDetails: React.FC = () => {
   const [editingPayment, setEditingPayment] = useState<ProjectPayment | null>(
     null,
   );
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
-    status: "" as PaymentStatus,
+    status: "COLLECTED" as string,
     actualAmount: "",
-    invoiceNumber: "",
-    paymentDate: new Date().toISOString().split("T")[0],
-    invoiceFile: null as File | null,
+    paymentMethod: "" as string,
+    transactionRef: "",
+    notes: "",
   });
 
   // Add payment milestone modal
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [isSavingNewPayment, setIsSavingNewPayment] = useState(false);
   const [newPaymentForm, setNewPaymentForm] = useState({
+    title: "",
+    description: "",
+    stageCode: "",
     phaseType: "DESIGN" as string,
     paymentStage: 1,
     percentage: 0,
     expectedAmount: "",
-    actualAmount: "",
+    taxPercentage: "",
     dueDate: "",
-    invoiceNumber: "",
     notes: "",
-    status: PaymentStatus.PENDING as PaymentStatus,
+    status: PaymentStatus.PENDING as string,
+  });
+
+  // Send Invoice modal state
+  const [showSendInvoiceModal, setShowSendInvoiceModal] = useState(false);
+  const [invoiceTargetPayment, setInvoiceTargetPayment] =
+    useState<ProjectPayment | null>(null);
+  const [isSendingInvoice, setIsSendingInvoice] = useState(false);
+  const [sendInvoiceForm, setSendInvoiceForm] = useState({
+    toEmail: "",
+    toName: "",
+    accountName: "GoodHomeStory Interiors Pvt Ltd",
+    accountNumber: "",
+    ifscCode: "",
+    bankName: "",
+    upiId: "",
+    customMessage: "",
+  });
+
+  // Upload Document modal state
+  const [showUploadDocModal, setShowUploadDocModal] = useState(false);
+  const [docTargetPayment, setDocTargetPayment] =
+    useState<ProjectPayment | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [uploadDocForm, setUploadDocForm] = useState({
+    documentType: "receipt" as "receipt" | "invoice" | "other",
+    fileName: "",
+    fileType: "",
+    fileBase64: "",
+  });
+
+  // Send Reminder modal state
+  const [showSendReminderModal, setShowSendReminderModal] = useState(false);
+  const [reminderTargetPayment, setReminderTargetPayment] =
+    useState<ProjectPayment | null>(null);
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
+  const [sendReminderForm, setSendReminderForm] = useState({
+    toEmail: "",
+    toName: "",
+    customMessage: "",
   });
 
   // Delete confirmation
@@ -298,26 +307,6 @@ export const ProjectDetails: React.FC = () => {
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
 
-  // Task modal state
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [taskFilter, setTaskFilter] = useState<string>("all");
-  const [taskLoading, setTaskLoading] = useState<string | null>(null);
-  const [isSavingTask, setIsSavingTask] = useState(false);
-  const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState<
-    string | null
-  >(null);
-
-  // Task form state
-  const [taskForm, setTaskForm] = useState({
-    title: "",
-    taskType: "OTHER" as string,
-    dueDate: "",
-    priority: "MEDIUM" as string,
-    status: "TODO" as string,
-    notes: "",
-  });
-
   // Fetch recent activities for the project
   const fetchRecentActivities = async (projectId: string) => {
     try {
@@ -352,16 +341,9 @@ export const ProjectDetails: React.FC = () => {
       fetchProjectById(projectId);
       fetchProjectStages(projectId);
       fetchProjectPayments(projectId);
-      fetchProjectTasks(projectId);
       fetchRecentActivities(projectId);
     }
-  }, [
-    projectId,
-    fetchProjectById,
-    fetchProjectStages,
-    fetchProjectPayments,
-    fetchProjectTasks,
-  ]);
+  }, [projectId, fetchProjectById, fetchProjectStages, fetchProjectPayments]);
 
   // Handle create payment milestone
   const handleCreatePayment = async () => {
@@ -373,29 +355,36 @@ export const ProjectDetails: React.FC = () => {
     setIsSavingNewPayment(true);
     try {
       const data: CreatePaymentRequest = {
+        projectId,
+        title:
+          newPaymentForm.title ||
+          `${newPaymentForm.phaseType} Payment ${newPaymentForm.paymentStage}`,
+        description: newPaymentForm.description || undefined,
+        stageCode: newPaymentForm.stageCode || undefined,
         phaseType: newPaymentForm.phaseType,
         paymentStage: newPaymentForm.paymentStage,
         percentage: newPaymentForm.percentage,
         expectedAmount: parseFloat(newPaymentForm.expectedAmount),
-        actualAmount: newPaymentForm.actualAmount
-          ? parseFloat(newPaymentForm.actualAmount)
+        taxPercentage: newPaymentForm.taxPercentage
+          ? parseFloat(newPaymentForm.taxPercentage)
           : undefined,
         status: newPaymentForm.status,
         dueDate: newPaymentForm.dueDate || undefined,
-        invoiceNumber: newPaymentForm.invoiceNumber || undefined,
         notes: newPaymentForm.notes || undefined,
       };
       await createProjectPayment(projectId, data);
       toast.success("Payment milestone created!");
       setShowAddPaymentModal(false);
       setNewPaymentForm({
+        title: "",
+        description: "",
+        stageCode: "",
         phaseType: "DESIGN",
         paymentStage: 1,
         percentage: 0,
         expectedAmount: "",
-        actualAmount: "",
+        taxPercentage: "",
         dueDate: "",
-        invoiceNumber: "",
         notes: "",
         status: PaymentStatus.PENDING,
       });
@@ -406,60 +395,174 @@ export const ProjectDetails: React.FC = () => {
     }
   };
 
+  // Handle Send Invoice
+  const handleOpenSendInvoice = (payment: ProjectPayment) => {
+    setInvoiceTargetPayment(payment);
+    setSendInvoiceForm((prev) => ({
+      ...prev,
+      toEmail: project?.lead?.email || "",
+      toName: project?.lead?.name || "",
+      customMessage: `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${payment.expectedAmount}.`,
+    }));
+    setShowSendInvoiceModal(true);
+  };
+
+  const handleSendInvoice = async () => {
+    if (!invoiceTargetPayment) return;
+    if (!sendInvoiceForm.toEmail || !sendInvoiceForm.toName) {
+      toast.error("Please fill in recipient email and name");
+      return;
+    }
+    if (
+      !sendInvoiceForm.accountNumber ||
+      !sendInvoiceForm.ifscCode ||
+      !sendInvoiceForm.bankName
+    ) {
+      toast.error("Please fill in bank details");
+      return;
+    }
+    setIsSendingInvoice(true);
+    try {
+      await sendPaymentInvoice(invoiceTargetPayment.id, {
+        toEmail: sendInvoiceForm.toEmail,
+        toName: sendInvoiceForm.toName,
+        bankDetails: {
+          accountName: sendInvoiceForm.accountName,
+          accountNumber: sendInvoiceForm.accountNumber,
+          ifscCode: sendInvoiceForm.ifscCode,
+          bankName: sendInvoiceForm.bankName,
+          upiId: sendInvoiceForm.upiId || undefined,
+        },
+        customMessage: sendInvoiceForm.customMessage || undefined,
+      });
+      toast.success("Invoice sent successfully!");
+      setShowSendInvoiceModal(false);
+    } catch {
+      toast.error("Failed to send invoice");
+    } finally {
+      setIsSendingInvoice(false);
+    }
+  };
+
+  // Handle Upload Document
+  const handleOpenUploadDoc = (payment: ProjectPayment) => {
+    setDocTargetPayment(payment);
+    setUploadDocForm({
+      documentType: "receipt",
+      fileName: "",
+      fileType: "",
+      fileBase64: "",
+    });
+    setShowUploadDocModal(true);
+  };
+
+  const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      setUploadDocForm((prev) => ({
+        ...prev,
+        fileName: file.name,
+        fileType: file.type,
+        fileBase64: base64,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadDoc = async () => {
+    if (!docTargetPayment) return;
+    if (!uploadDocForm.fileBase64) {
+      toast.error("Please select a file to upload");
+      return;
+    }
+    setIsUploadingDoc(true);
+    try {
+      await uploadPaymentDocument(docTargetPayment.id, {
+        fileName: uploadDocForm.fileName,
+        fileType: uploadDocForm.fileType,
+        fileBase64: uploadDocForm.fileBase64,
+        documentType: uploadDocForm.documentType,
+      });
+      toast.success("Document uploaded successfully!");
+      setShowUploadDocModal(false);
+    } catch {
+      toast.error("Failed to upload document");
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
+
+  // Handle Send Reminder
+  const handleOpenSendReminder = (payment: ProjectPayment) => {
+    setReminderTargetPayment(payment);
+    setSendReminderForm({
+      toEmail: project?.lead?.email || "",
+      toName: project?.lead?.name || "",
+      customMessage: `Gentle reminder: Payment of ₹${payment.expectedAmount} for "${payment.title || `Stage ${payment.paymentStage}`}" is pending. Kindly complete the payment at your earliest convenience.`,
+    });
+    setShowSendReminderModal(true);
+  };
+
+  const handleSendReminder = async () => {
+    if (!reminderTargetPayment) return;
+    if (!sendReminderForm.toEmail || !sendReminderForm.toName) {
+      toast.error("Please fill in recipient email and name");
+      return;
+    }
+    setIsSendingReminder(true);
+    try {
+      await sendPaymentReminder(reminderTargetPayment.id, {
+        toEmail: sendReminderForm.toEmail,
+        toName: sendReminderForm.toName,
+        customMessage: sendReminderForm.customMessage || undefined,
+      });
+      toast.success("Reminder sent successfully!");
+      setShowSendReminderModal(false);
+    } catch {
+      toast.error("Failed to send reminder");
+    } finally {
+      setIsSendingReminder(false);
+    }
+  };
+
   // Handle payment update
   const handleEditPayment = (payment: ProjectPayment) => {
     setEditingPayment(payment);
     setPaymentForm({
-      status: payment.status,
+      status: payment.status || "COLLECTED",
       actualAmount: payment.actualAmount?.toString() || "",
-      invoiceNumber: payment.invoiceNumber || "",
-      paymentDate: payment.collectedAt
-        ? new Date(payment.collectedAt).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0],
-      invoiceFile: null,
+      paymentMethod: payment.paymentMethod || "",
+      transactionRef: payment.transactionRef || "",
+      notes: payment.notes || "",
     });
     setShowPaymentModal(true);
   };
 
   const handleSavePayment = async () => {
     if (!projectId || !editingPayment) return;
-
+    setIsSavingPayment(true);
     try {
-      let receiptUrl = undefined;
-
-      // Upload invoice file if present
-      if (paymentForm.invoiceFile) {
-        const uploadedRef = await uploadFileReference(
-          projectId,
-          paymentForm.invoiceFile,
-          "INVOICE",
-          `Invoice for payment stage ${editingPayment.paymentStage}`,
-        );
-        // Use the storageUrl from the uploaded reference
-        if (uploadedRef && uploadedRef.storageUrl) {
-          receiptUrl = uploadedRef.storageUrl;
-        }
-      }
-
       await updateProjectPayment(projectId, editingPayment.id, {
         status: paymentForm.status,
         actualAmount: paymentForm.actualAmount
           ? parseFloat(paymentForm.actualAmount)
           : undefined,
-        invoiceNumber: paymentForm.invoiceNumber || undefined,
-        collectedAt: paymentForm.paymentDate
-          ? new Date(paymentForm.paymentDate).toISOString()
-          : undefined,
-        receiptUrl: receiptUrl,
+        paymentMethod: paymentForm.paymentMethod || undefined,
+        transactionRef: paymentForm.transactionRef || undefined,
+        notes: paymentForm.notes || undefined,
       });
       toast.success("Payment updated successfully!");
       setShowPaymentModal(false);
       setEditingPayment(null);
-      // Refresh payments
       fetchProjectPayments(projectId);
     } catch (error) {
       console.error("Payment update error:", error);
       toast.error("Failed to update payment");
+    } finally {
+      setIsSavingPayment(false);
     }
   };
 
@@ -808,172 +911,6 @@ export const ProjectDetails: React.FC = () => {
     return actions;
   };
 
-  // Task management handlers
-  const resetTaskForm = () => {
-    setTaskForm({
-      title: "",
-      taskType: "OTHER",
-      dueDate: "",
-      priority: "MEDIUM",
-      status: "TODO",
-      notes: "",
-    });
-    setEditingTask(null);
-  };
-
-  const handleOpenTaskModal = (task?: Task) => {
-    if (task) {
-      setEditingTask(task);
-      setTaskForm({
-        title: task.title || "",
-        taskType: task.taskType || "OTHER",
-        dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
-        priority: task.priority || "MEDIUM",
-        status: task.status || "TODO",
-        notes: task.notes || "",
-      });
-    } else {
-      resetTaskForm();
-    }
-    setShowTaskModal(true);
-  };
-
-  const handleSaveTask = async () => {
-    if (!projectId || !taskForm.title.trim()) {
-      toast.error("Task title is required");
-      return;
-    }
-
-    setIsSavingTask(true);
-    try {
-      if (editingTask) {
-        // Update existing task
-        await updateTask(editingTask.id, {
-          title: taskForm.title.trim(),
-          taskType: taskForm.taskType,
-          dueDate: taskForm.dueDate || undefined,
-          priority: taskForm.priority,
-          status: taskForm.status,
-          notes: taskForm.notes || undefined,
-        });
-        toast.success("Task updated successfully!");
-      } else {
-        // Create new task
-        await createTask({
-          title: taskForm.title.trim(),
-          taskType: taskForm.taskType,
-          projectId: projectId,
-          dueDate: taskForm.dueDate || new Date().toISOString().split("T")[0],
-          priority: taskForm.priority,
-          status: taskForm.status,
-          notes: taskForm.notes || undefined,
-        });
-        toast.success("Task created successfully!");
-      }
-      setShowTaskModal(false);
-      resetTaskForm();
-      fetchProjectTasks(projectId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to save task";
-      toast.error(msg);
-    } finally {
-      setIsSavingTask(false);
-    }
-  };
-
-  const handleDeleteTask = async (taskId: string) => {
-    if (!projectId) return;
-
-    setTaskLoading(taskId);
-    try {
-      await deleteTask(taskId);
-      toast.success("Task deleted successfully!");
-      setShowDeleteTaskConfirm(null);
-      fetchProjectTasks(projectId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to delete task";
-      toast.error(msg);
-    } finally {
-      setTaskLoading(null);
-    }
-  };
-
-  const handleCompleteTask = async (task: Task) => {
-    if (!projectId) return;
-
-    setTaskLoading(task.id);
-    try {
-      if (task.completed || task.status === TaskStatus.COMPLETED) {
-        // Mark as incomplete by updating status to TODO
-        await updateTask(task.id, {
-          status: TaskStatus.TODO,
-          completed: false,
-        });
-        toast.success("Task marked as incomplete");
-      } else {
-        // Mark as complete
-        await completeTask(task.id);
-        toast.success("Task marked as complete!");
-      }
-      fetchProjectTasks(projectId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to update task";
-      toast.error(msg);
-    } finally {
-      setTaskLoading(null);
-    }
-  };
-
-  // Filter tasks based on selected filter
-  const tasksArray = Array.isArray(projectTasks) ? projectTasks : [];
-  const filteredTasks = tasksArray.filter((task) => {
-    if (taskFilter === "all") return true;
-    if (taskFilter === "todo")
-      return task.status === TaskStatus.TODO || task.status === "TODO";
-    if (taskFilter === "in_progress")
-      return (
-        task.status === TaskStatus.IN_PROGRESS || task.status === "IN_PROGRESS"
-      );
-    if (taskFilter === "completed")
-      return (
-        task.status === TaskStatus.COMPLETED ||
-        task.status === "COMPLETED" ||
-        task.completed
-      );
-    return true;
-  });
-
-  // Get priority badge styling
-  const getPriorityBadge = (priority: string) => {
-    const styles: Record<string, string> = {
-      LOW: "bg-gray-100 text-gray-700",
-      MEDIUM: "bg-blue-100 text-blue-700",
-      HIGH: "bg-orange-100 text-orange-700",
-      URGENT: "bg-red-100 text-red-700",
-    };
-    return styles[priority] || styles.MEDIUM;
-  };
-
-  // Get task type label
-  const getTaskTypeLabel = (taskType: string) => {
-    const labels: Record<string, string> = {
-      CALL: "Call",
-      MEETING: "Meeting",
-      PRESENTATION: "Presentation",
-      SURVEY: "Survey",
-      INTERVIEW: "Interview",
-      SITE_VISIT: "Site Visit",
-      FOLLOW_UP: "Follow Up",
-      DOCUMENT_UPLOAD: "Document Upload",
-      APPROVAL_PENDING: "Approval Pending",
-      DESIGN_REVIEW: "Design Review",
-      PAYMENT_COLLECTION: "Payment Collection",
-      HANDOVER: "Handover",
-      OTHER: "Other",
-    };
-    return labels[taskType] || taskType;
-  };
-
   // Calculate payment totals
   const calculatePaymentTotals = () => {
     let totalPaid = 0;
@@ -982,12 +919,16 @@ export const ProjectDetails: React.FC = () => {
 
     projectPayments.forEach((payment) => {
       const expected = parseFloat(String(payment.expectedAmount)) || 0;
-      if (
-        payment.status === "COLLECTED" ||
-        payment.status === PaymentStatus.COLLECTED
-      ) {
-        totalPaid += parseFloat(String(payment.actualAmount)) || expected;
+      const actual = parseFloat(String(payment.actualAmount)) || 0;
+      if (payment.status === "COLLECTED") {
+        totalPaid += actual > 0 ? actual : expected;
+      } else if (payment.status === "PARTIALLY_PAID") {
+        totalPaid += actual;
+        totalPending += expected - actual;
+      } else if (payment.status === "WAIVED") {
+        // Waived — don't count in pending
       } else {
+        // PENDING, OVERDUE
         totalPending += expected;
       }
     });
@@ -1061,7 +1002,6 @@ export const ProjectDetails: React.FC = () => {
   const project = currentProject;
   const projectName = project.projectName || project.name || "Untitled Project";
   const statusDisplay = getStatusDisplay(project);
-  const progress = calculateProgress(project);
   const paymentTotals = calculatePaymentTotals();
 
   return (
@@ -1143,21 +1083,7 @@ export const ProjectDetails: React.FC = () => {
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
-                PROGRESS
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <Progress value={progress} className="h-2.5" />
-                </div>
-                <p className="text-2xl font-bold text-orange-600">
-                  {progress}%
-                </p>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
               <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
                 CURRENT STAGE
@@ -1275,7 +1201,6 @@ export const ProjectDetails: React.FC = () => {
               { id: "overview", label: "Overview", icon: FileText },
               { id: "stages", label: "Stages", icon: CheckCircle2 },
               { id: "payments", label: "Payments", icon: CreditCard },
-              { id: "tasks", label: "Tasks", icon: Package },
               { id: "references", label: "References", icon: Image },
               {
                 id: "testimonials",
@@ -1833,13 +1758,7 @@ export const ProjectDetails: React.FC = () => {
                       );
                     })}
 
-                    {/* View All Link */}
-                    <button
-                      onClick={() => setActiveTab("activities")}
-                      className="w-full text-center text-xs text-indigo-600 hover:text-indigo-700 py-2 hover:bg-indigo-50 rounded-lg transition-colors"
-                    >
-                      View all activities →
-                    </button>
+                    {/* View All Link removed — Tasks tab is hidden */}
                   </div>
                 ) : (
                   <div className="text-center py-4">
@@ -1921,7 +1840,19 @@ export const ProjectDetails: React.FC = () => {
                   Payment Milestones
                 </h2>
                 <Button
-                  onClick={() => setShowAddPaymentModal(true)}
+                  onClick={() => {
+                    const defaultPhase = "DESIGN";
+                    const nextStage =
+                      projectPayments.filter(
+                        (p) => p.phaseType === defaultPhase,
+                      ).length + 1;
+                    setNewPaymentForm((prev) => ({
+                      ...prev,
+                      phaseType: defaultPhase,
+                      paymentStage: nextStage,
+                    }));
+                    setShowAddPaymentModal(true);
+                  }}
                   className="bg-orange-500 hover:bg-orange-600 text-white text-sm px-4 py-2"
                 >
                   <Plus className="w-4 h-4 mr-1.5" />
@@ -1938,326 +1869,162 @@ export const ProjectDetails: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {projectPayments.map((payment) => (
-                    <div
-                      key={payment.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-md transition-all"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${
-                            payment.status === PaymentStatus.COLLECTED
-                              ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
-                              : payment.status === PaymentStatus.PENDING
-                                ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white"
-                                : "bg-gradient-to-br from-gray-400 to-gray-500 text-white"
-                          }`}
-                        >
-                          {payment.status === PaymentStatus.COLLECTED ? (
-                            <CheckCircle2 className="w-5 h-5" />
-                          ) : (
-                            <Clock className="w-5 h-5" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900">
-                            {payment.phaseType} Payment {payment.paymentStage} (
-                            {payment.percentage}%)
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Expected:{" "}
-                            {formatCurrency(
-                              parseFloat(String(payment.expectedAmount)) || 0,
-                            )}
-                            {payment.collectedAt &&
-                              ` • Collected: ${formatDate(payment.collectedAt)}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-xl font-bold text-gray-900">
-                            {formatCurrency(
-                              parseFloat(String(payment.expectedAmount)) || 0,
-                            )}
-                          </p>
-                          <Badge
-                            className={`text-xs font-semibold ${
-                              payment.status === PaymentStatus.COLLECTED
-                                ? "bg-green-100 text-green-700"
-                                : payment.status === PaymentStatus.PENDING
-                                  ? "bg-orange-100 text-orange-700"
-                                  : "bg-gray-100 text-gray-700"
-                            }`}
+                  {projectPayments.map((payment) => {
+                    const isCollected = payment.status === "COLLECTED";
+                    const isOverdue = payment.status === "OVERDUE";
+                    const isPartial = payment.status === "PARTIALLY_PAID";
+
+                    const statusBgMap: Record<string, string> = {
+                      COLLECTED:
+                        "bg-gradient-to-br from-green-500 to-green-600 text-white",
+                      OVERDUE:
+                        "bg-gradient-to-br from-red-500 to-red-600 text-white",
+                      PARTIALLY_PAID:
+                        "bg-gradient-to-br from-yellow-500 to-yellow-600 text-white",
+                      WAIVED:
+                        "bg-gradient-to-br from-gray-400 to-gray-500 text-white",
+                      PENDING:
+                        "bg-gradient-to-br from-orange-500 to-orange-600 text-white",
+                    };
+                    const badgeBgMap: Record<string, string> = {
+                      COLLECTED: "bg-green-100 text-green-700",
+                      OVERDUE: "bg-red-100 text-red-700",
+                      PARTIALLY_PAID: "bg-yellow-100 text-yellow-700",
+                      WAIVED: "bg-gray-100 text-gray-700",
+                      PENDING: "bg-orange-100 text-orange-700",
+                    };
+                    const statusIcon = isCollected ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : isOverdue ? (
+                      <AlertCircle className="w-5 h-5" />
+                    ) : (
+                      <Clock className="w-5 h-5" />
+                    );
+                    const displayTitle =
+                      payment.title ||
+                      `${payment.phaseType} Payment ${payment.paymentStage} (${payment.percentage}%)`;
+                    const expected =
+                      parseFloat(String(payment.expectedAmount)) || 0;
+                    const actual =
+                      parseFloat(String(payment.actualAmount)) || 0;
+
+                    return (
+                      <div
+                        key={payment.id}
+                        className="flex items-start justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-md transition-all gap-4"
+                      >
+                        <div className="flex items-start gap-4 flex-1 min-w-0">
+                          <div
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 ${statusBgMap[payment.status] || statusBgMap["PENDING"]}`}
                           >
-                            {payment.status}
-                          </Badge>
+                            {statusIcon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-900 truncate">
+                              {displayTitle}
+                            </p>
+                            {payment.description && (
+                              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                {payment.description}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-600">
+                              <span>Expected: {formatCurrency(expected)}</span>
+                              {isCollected && actual > 0 && (
+                                <span className="text-green-700 font-medium">
+                                  Collected: {formatCurrency(actual)}
+                                </span>
+                              )}
+                              {isPartial && actual > 0 && (
+                                <span className="text-yellow-700 font-medium">
+                                  Paid: {formatCurrency(actual)}
+                                </span>
+                              )}
+                              {payment.dueDate && (
+                                <span className="text-gray-500">
+                                  Due: {formatDate(payment.dueDate)}
+                                </span>
+                              )}
+                            </div>
+                            {(payment.paymentMethod ||
+                              payment.transactionRef) && (
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
+                                {payment.paymentMethod && (
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="font-medium">Method:</span>{" "}
+                                    {payment.paymentMethod.replace(/_/g, " ")}
+                                  </span>
+                                )}
+                                {payment.transactionRef && (
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="font-medium">Ref:</span>{" "}
+                                    {payment.transactionRef}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {payment.notes && (
+                              <p className="text-xs text-gray-400 mt-1 line-clamp-1 italic">
+                                {payment.notes}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <button
-                          onClick={() => handleEditPayment(payment)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Update payment"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-gray-900">
+                              {isCollected && actual > 0
+                                ? formatCurrency(actual)
+                                : formatCurrency(expected)}
+                            </p>
+                            <Badge
+                              className={`text-xs font-semibold ${badgeBgMap[payment.status] || badgeBgMap["PENDING"]}`}
+                            >
+                              {payment.status.replace(/_/g, " ")}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => handleEditPayment(payment)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Update payment status"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenSendInvoice(payment)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="Send invoice"
+                            >
+                              <Send className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenUploadDoc(payment)}
+                              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                              title="Upload receipt/document"
+                            >
+                              <FileUp className="w-4 h-4" />
+                            </button>
+                            {(payment.status === "PENDING" ||
+                              payment.status === "OVERDUE" ||
+                              payment.status === "PARTIALLY_PAID") && (
+                              <button
+                                onClick={() => handleOpenSendReminder(payment)}
+                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                title="Send reminder"
+                              >
+                                <BellRing className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </Card>
           </div>
-        )}
-
-        {/* Tasks Tab */}
-        {activeTab === "tasks" && (
-          <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-            {/* Header with Add Button and Filter */}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                  <Package className="w-4 h-4 text-white" />
-                </div>
-                Project Tasks
-                {!tasksLoading && !tasksError && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    ({filteredTasks.length}{" "}
-                    {taskFilter !== "all" ? `of ${tasksArray.length}` : ""})
-                  </span>
-                )}
-              </h2>
-              <div className="flex items-center gap-3">
-                {/* Refresh Button */}
-                {tasksError && (
-                  <Button
-                    onClick={() => projectId && fetchProjectTasks(projectId)}
-                    variant="secondary"
-                    className="text-sm px-3 py-1.5"
-                    disabled={tasksLoading}
-                  >
-                    <RefreshCw
-                      className={`w-4 h-4 mr-1.5 ${tasksLoading ? "animate-spin" : ""}`}
-                    />
-                    Retry
-                  </Button>
-                )}
-                {/* Status Filter */}
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-gray-400" />
-                  <select
-                    value={taskFilter}
-                    onChange={(e) => setTaskFilter(e.target.value)}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                    disabled={tasksLoading}
-                  >
-                    <option value="all">All Tasks</option>
-                    <option value="todo">To Do</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
-                {/* Add Task Button */}
-                <Button
-                  onClick={() => handleOpenTaskModal()}
-                  className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1.5"
-                  disabled={tasksLoading}
-                >
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Add Task
-                </Button>
-              </div>
-            </div>
-
-            {/* Loading Skeleton State */}
-            {tasksLoading && (
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50 animate-pulse"
-                  >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="w-6 h-6 rounded bg-gray-200" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-4 bg-gray-200 rounded w-1/3" />
-                        <div className="h-3 bg-gray-200 rounded w-1/4" />
-                        <div className="h-3 bg-gray-200 rounded w-1/5" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-6 w-16 bg-gray-200 rounded" />
-                      <div className="h-8 w-8 bg-gray-200 rounded" />
-                      <div className="h-8 w-8 bg-gray-200 rounded" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Error State */}
-            {!tasksLoading && tasksError && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="w-8 h-8 text-red-500" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  Failed to Load Tasks
-                </h3>
-                <p className="text-gray-500 mb-4 max-w-sm mx-auto">
-                  {tasksError}
-                </p>
-                <Button
-                  onClick={() => projectId && fetchProjectTasks(projectId)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  <RefreshCw className="w-4 h-4 mr-1.5" />
-                  Try Again
-                </Button>
-              </div>
-            )}
-
-            {/* Empty State */}
-            {!tasksLoading && !tasksError && filteredTasks.length === 0 && (
-              <div className="text-center py-8">
-                <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">
-                  {taskFilter !== "all"
-                    ? `No ${taskFilter.replace("_", " ")} tasks found.`
-                    : "No tasks found for this project."}
-                </p>
-                {taskFilter === "all" && (
-                  <Button
-                    onClick={() => handleOpenTaskModal()}
-                    className="mt-4 bg-blue-500 hover:bg-blue-600 text-white"
-                  >
-                    <Plus className="w-4 h-4 mr-1.5" />
-                    Create First Task
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* Task List */}
-            {!tasksLoading && !tasksError && filteredTasks.length > 0 && (
-              <div className="space-y-3">
-                {filteredTasks.map((task) => {
-                  const isCompleted =
-                    task.completed ||
-                    task.status === TaskStatus.COMPLETED ||
-                    task.status === "COMPLETED";
-                  const isLoadingTask = taskLoading === task.id;
-
-                  return (
-                    <div
-                      key={task.id}
-                      className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-                        isCompleted
-                          ? "bg-green-50/50 border-green-100"
-                          : "bg-gray-50 border-gray-100 hover:shadow-md"
-                      } ${isLoadingTask ? "opacity-60" : ""}`}
-                    >
-                      <div className="flex items-center gap-4 flex-1">
-                        {/* Completion Checkbox */}
-                        <button
-                          onClick={() => handleCompleteTask(task)}
-                          disabled={isLoadingTask}
-                          className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                            isCompleted
-                              ? "bg-green-500 text-white"
-                              : "border-2 border-gray-300 hover:border-blue-500"
-                          } ${isLoadingTask ? "cursor-wait" : "cursor-pointer"}`}
-                        >
-                          {isLoadingTask ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : isCompleted ? (
-                            <CheckSquare className="w-4 h-4" />
-                          ) : null}
-                        </button>
-
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p
-                              className={`font-bold ${isCompleted ? "text-gray-500 line-through" : "text-gray-900"}`}
-                            >
-                              {task.title}
-                            </p>
-                            {/* Task Type Badge */}
-                            <span className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-600">
-                              {getTaskTypeLabel(task.taskType)}
-                            </span>
-                            {/* Priority Badge */}
-                            <Badge
-                              className={`text-xs font-semibold ${getPriorityBadge(task.priority)}`}
-                            >
-                              {task.priority}
-                            </Badge>
-                          </div>
-                          {task.notes && (
-                            <p className="text-sm text-gray-600 mt-1">
-                              {task.notes}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
-                            {task.dueDate && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                Due: {formatDate(task.dueDate)}
-                              </span>
-                            )}
-                            {task.assignedToId && (
-                              <span className="flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                Assigned
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {/* Status Badge */}
-                        <Badge
-                          className={`text-xs font-semibold ${
-                            isCompleted
-                              ? "bg-green-100 text-green-700"
-                              : task.status === TaskStatus.IN_PROGRESS ||
-                                  task.status === "IN_PROGRESS"
-                                ? "bg-orange-100 text-orange-700"
-                                : task.status === TaskStatus.BLOCKED ||
-                                    task.status === "BLOCKED"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {(task.status || "TODO").replace(/_/g, " ")}
-                        </Badge>
-
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => handleOpenTaskModal(task)}
-                          disabled={isLoadingTask}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit task"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => setShowDeleteTaskConfirm(task.id)}
-                          disabled={isLoadingTask}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete task"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
         )}
 
         {/* References Tab */}
@@ -2298,6 +2065,51 @@ export const ProjectDetails: React.FC = () => {
               </div>
 
               <div className="space-y-4">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Title
+                    <span className="text-gray-400 font-normal ml-1">
+                      (optional — auto-generated if blank)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newPaymentForm.title}
+                    onChange={(e) =>
+                      setNewPaymentForm({
+                        ...newPaymentForm,
+                        title: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    placeholder="e.g. Design Phase - Advance Payment"
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                    <span className="text-gray-400 font-normal ml-1">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newPaymentForm.description}
+                    onChange={(e) =>
+                      setNewPaymentForm({
+                        ...newPaymentForm,
+                        description: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    placeholder="e.g. Initial design milestone payment"
+                  />
+                </div>
+
+                {/* Phase Type + Stage Code row */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2305,12 +2117,17 @@ export const ProjectDetails: React.FC = () => {
                     </label>
                     <select
                       value={newPaymentForm.phaseType}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const phase = e.target.value;
+                        const nextStage =
+                          projectPayments.filter((p) => p.phaseType === phase)
+                            .length + 1;
                         setNewPaymentForm({
                           ...newPaymentForm,
-                          phaseType: e.target.value,
-                        })
-                      }
+                          phaseType: phase,
+                          paymentStage: nextStage,
+                        });
+                      }}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
                     >
                       <option value="DESIGN">Design</option>
@@ -2319,24 +2136,61 @@ export const ProjectDetails: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Payment Stage *
+                      Stage Code
+                      <span className="text-gray-400 font-normal ml-1">
+                        (optional)
+                      </span>
                     </label>
                     <input
-                      type="number"
-                      min={1}
-                      value={newPaymentForm.paymentStage}
+                      type="text"
+                      value={newPaymentForm.stageCode}
                       onChange={(e) =>
                         setNewPaymentForm({
                           ...newPaymentForm,
-                          paymentStage: parseInt(e.target.value) || 1,
+                          stageCode: e.target.value,
                         })
                       }
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
-                      placeholder="Stage number"
+                      placeholder="e.g. DESIGN_SIGNUP"
                     />
                   </div>
                 </div>
 
+                {/* Payment Stage + Percentage row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Payment Stage
+                      <span className="text-gray-400 font-normal ml-1">
+                        (auto-assigned)
+                      </span>
+                    </label>
+                    <div className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 font-medium">
+                      Stage {newPaymentForm.paymentStage}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Percentage (%) *
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={newPaymentForm.percentage || ""}
+                      onChange={(e) =>
+                        setNewPaymentForm({
+                          ...newPaymentForm,
+                          percentage: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                      placeholder="50"
+                    />
+                  </div>
+                </div>
+
+                {/* Expected Amount + Tax row */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2352,11 +2206,34 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
-                      placeholder="Expected amount"
+                      placeholder="50000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tax (%)
+                      <span className="text-gray-400 font-normal ml-1">
+                        (optional)
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={newPaymentForm.taxPercentage}
+                      onChange={(e) =>
+                        setNewPaymentForm({
+                          ...newPaymentForm,
+                          taxPercentage: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                      placeholder="18"
                     />
                   </div>
                 </div>
 
+                {/* Status */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Status
@@ -2366,22 +2243,23 @@ export const ProjectDetails: React.FC = () => {
                     onChange={(e) =>
                       setNewPaymentForm({
                         ...newPaymentForm,
-                        status: e.target.value as PaymentStatus,
+                        status: e.target.value,
                       })
                     }
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
                   >
-                    <option value={PaymentStatus.PENDING}>Pending</option>
-                    <option value={PaymentStatus.INVOICED}>Invoiced</option>
-                    <option value={PaymentStatus.COLLECTED}>Collected</option>
-                    <option value={PaymentStatus.OVERDUE}>Overdue</option>
-                    <option value={PaymentStatus.PARTIAL}>Partial</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="COLLECTED">Collected</option>
+                    <option value="OVERDUE">Overdue</option>
+                    <option value="WAIVED">Waived</option>
+                    <option value="PARTIALLY_PAID">Partially Paid</option>
                   </select>
                 </div>
 
+                {/* Due Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tentative Date
+                    Due Date
                     <span className="text-gray-400 font-normal ml-1">
                       (optional)
                     </span>
@@ -2399,27 +2277,7 @@ export const ProjectDetails: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Invoice Number
-                    <span className="text-gray-400 font-normal ml-1">
-                      (optional)
-                    </span>
-                  </label>
-                  <input
-                    type="text"
-                    value={newPaymentForm.invoiceNumber}
-                    onChange={(e) =>
-                      setNewPaymentForm({
-                        ...newPaymentForm,
-                        invoiceNumber: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
-                    placeholder="Enter invoice number"
-                  />
-                </div>
-
+                {/* Notes */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Notes
@@ -2437,7 +2295,7 @@ export const ProjectDetails: React.FC = () => {
                     }
                     rows={3}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none resize-none"
-                    placeholder="Additional notes..."
+                    placeholder="e.g. Due before design kickoff"
                   />
                 </div>
               </div>
@@ -2471,13 +2329,22 @@ export const ProjectDetails: React.FC = () => {
       {/* Payment Update Modal */}
       {showPaymentModal && editingPayment && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">
-                  Update Payment: {editingPayment.phaseType} Stage{" "}
-                  {editingPayment.paymentStage}
-                </h3>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    Update Payment
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {editingPayment.title ||
+                      `${editingPayment.phaseType} Payment ${editingPayment.paymentStage}`}
+                    {" · "}Expected:{" "}
+                    {formatCurrency(
+                      parseFloat(String(editingPayment.expectedAmount)) || 0,
+                    )}
+                  </p>
+                </div>
                 <button
                   onClick={() => setShowPaymentModal(false)}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -2487,6 +2354,7 @@ export const ProjectDetails: React.FC = () => {
               </div>
 
               <div className="space-y-4">
+                {/* Status */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Status *
@@ -2494,23 +2362,25 @@ export const ProjectDetails: React.FC = () => {
                   <select
                     value={paymentForm.status}
                     onChange={(e) =>
-                      setPaymentForm({
-                        ...paymentForm,
-                        status: e.target.value as PaymentStatus,
-                      })
+                      setPaymentForm({ ...paymentForm, status: e.target.value })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
                   >
-                    <option value={PaymentStatus.PENDING}>Pending</option>
-                    <option value={PaymentStatus.INVOICED}>Invoiced</option>
-                    <option value={PaymentStatus.COLLECTED}>Collected</option>
-                    <option value={PaymentStatus.OVERDUE}>Overdue</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="COLLECTED">Collected</option>
+                    <option value="OVERDUE">Overdue</option>
+                    <option value="WAIVED">Waived</option>
+                    <option value="PARTIALLY_PAID">Partially Paid</option>
                   </select>
                 </div>
 
+                {/* Actual Amount */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Amount Collected
+                    Actual Amount Collected (₹)
+                    <span className="text-gray-400 font-normal ml-1">
+                      (optional)
+                    </span>
                   </label>
                   <input
                     type="number"
@@ -2521,78 +2391,79 @@ export const ProjectDetails: React.FC = () => {
                         actualAmount: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Enter actual amount collected"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    placeholder="e.g. 59000"
                   />
                 </div>
 
+                {/* Payment Method */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Invoice Number
+                    Payment Method
+                    <span className="text-gray-400 font-normal ml-1">
+                      (optional)
+                    </span>
+                  </label>
+                  <select
+                    value={paymentForm.paymentMethod}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        paymentMethod: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                  >
+                    <option value="">Select method...</option>
+                    <option value="UPI">UPI</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="CASH">Cash</option>
+                    <option value="CREDIT_CARD">Credit Card</option>
+                    <option value="DEBIT_CARD">Debit Card</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                {/* Transaction Reference */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Transaction Reference
+                    <span className="text-gray-400 font-normal ml-1">
+                      (optional)
+                    </span>
                   </label>
                   <input
                     type="text"
-                    value={paymentForm.invoiceNumber}
+                    value={paymentForm.transactionRef}
                     onChange={(e) =>
                       setPaymentForm({
                         ...paymentForm,
-                        invoiceNumber: e.target.value,
+                        transactionRef: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Enter invoice number"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    placeholder="e.g. UTR123456789"
                   />
                 </div>
 
+                {/* Notes */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Date
+                    Notes
+                    <span className="text-gray-400 font-normal ml-1">
+                      (optional)
+                    </span>
                   </label>
-                  <input
-                    type="date"
-                    value={paymentForm.paymentDate}
+                  <textarea
+                    value={paymentForm.notes}
                     onChange={(e) =>
-                      setPaymentForm({
-                        ...paymentForm,
-                        paymentDate: e.target.value,
-                      })
+                      setPaymentForm({ ...paymentForm, notes: e.target.value })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none resize-none"
+                    placeholder="e.g. Payment received via NEFT"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Upload Invoice
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      id="invoice-upload"
-                      className="hidden"
-                      accept=".pdf,image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setPaymentForm({
-                            ...paymentForm,
-                            invoiceFile: file,
-                          });
-                        }
-                      }}
-                    />
-                    <label
-                      htmlFor="invoice-upload"
-                      className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-orange-500 hover:bg-orange-50 transition-colors"
-                    >
-                      <Upload className="w-5 h-5 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-600 truncate max-w-[200px]">
-                        {paymentForm.invoiceFile
-                          ? paymentForm.invoiceFile.name
-                          : "Click to upload invoice (PDF/Image)"}
-                      </span>
-                    </label>
-                  </div>
                 </div>
               </div>
 
@@ -2607,9 +2478,435 @@ export const ProjectDetails: React.FC = () => {
                 <Button
                   className="flex-1 bg-orange-500 hover:bg-orange-600"
                   onClick={handleSavePayment}
+                  disabled={isSavingPayment}
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  Update Payment
+                  {isSavingPayment ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  {isSavingPayment ? "Saving..." : "Update Payment"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Invoice Modal */}
+      {showSendInvoiceModal && invoiceTargetPayment && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Send className="w-5 h-5 text-green-600" />
+                    Send Invoice
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {invoiceTargetPayment.title ||
+                      `Stage ${invoiceTargetPayment.paymentStage}`}{" "}
+                    — ₹{invoiceTargetPayment.expectedAmount}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowSendInvoiceModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Recipient
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={sendInvoiceForm.toEmail}
+                      onChange={(e) =>
+                        setSendInvoiceForm({
+                          ...sendInvoiceForm,
+                          toEmail: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                      placeholder="client@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={sendInvoiceForm.toName}
+                      onChange={(e) =>
+                        setSendInvoiceForm({
+                          ...sendInvoiceForm,
+                          toName: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                      placeholder="Client Name"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">
+                  Bank Details
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Account Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={sendInvoiceForm.accountName}
+                    onChange={(e) =>
+                      setSendInvoiceForm({
+                        ...sendInvoiceForm,
+                        accountName: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                    placeholder="GoodHomeStory Interiors Pvt Ltd"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Account Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={sendInvoiceForm.accountNumber}
+                      onChange={(e) =>
+                        setSendInvoiceForm({
+                          ...sendInvoiceForm,
+                          accountNumber: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                      placeholder="1234567890"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      IFSC Code *
+                    </label>
+                    <input
+                      type="text"
+                      value={sendInvoiceForm.ifscCode}
+                      onChange={(e) =>
+                        setSendInvoiceForm({
+                          ...sendInvoiceForm,
+                          ifscCode: e.target.value.toUpperCase(),
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                      placeholder="HDFC0001234"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Bank Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={sendInvoiceForm.bankName}
+                      onChange={(e) =>
+                        setSendInvoiceForm({
+                          ...sendInvoiceForm,
+                          bankName: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                      placeholder="HDFC Bank"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      UPI ID{" "}
+                      <span className="text-gray-400 font-normal">
+                        (optional)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={sendInvoiceForm.upiId}
+                      onChange={(e) =>
+                        setSendInvoiceForm({
+                          ...sendInvoiceForm,
+                          upiId: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                      placeholder="goodhomestory@upi"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Custom Message{" "}
+                    <span className="text-gray-400 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <textarea
+                    value={sendInvoiceForm.customMessage}
+                    onChange={(e) =>
+                      setSendInvoiceForm({
+                        ...sendInvoiceForm,
+                        customMessage: e.target.value,
+                      })
+                    }
+                    rows={3}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none resize-none text-sm"
+                    placeholder="Thank you for choosing GoodHomeStory!..."
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowSendInvoiceModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  onClick={handleSendInvoice}
+                  disabled={isSendingInvoice}
+                >
+                  {isSendingInvoice ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 mr-2" />
+                  )}
+                  {isSendingInvoice ? "Sending..." : "Send Invoice"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Document Modal */}
+      {showUploadDocModal && docTargetPayment && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <FileUp className="w-5 h-5 text-purple-600" />
+                    Upload Document
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {docTargetPayment.title ||
+                      `Stage ${docTargetPayment.paymentStage}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowUploadDocModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Document Type
+                  </label>
+                  <select
+                    value={uploadDocForm.documentType}
+                    onChange={(e) =>
+                      setUploadDocForm({
+                        ...uploadDocForm,
+                        documentType: e.target.value as
+                          | "receipt"
+                          | "invoice"
+                          | "other",
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus-visible:outline-none"
+                  >
+                    <option value="receipt">Receipt</option>
+                    <option value="invoice">Invoice</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    File *
+                  </label>
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-purple-300 rounded-xl cursor-pointer hover:bg-purple-50 transition-colors">
+                    {uploadDocForm.fileName ? (
+                      <div className="text-center">
+                        <FileText className="w-8 h-8 text-purple-500 mx-auto mb-1" />
+                        <p className="text-sm font-medium text-purple-700">
+                          {uploadDocForm.fileName}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {uploadDocForm.fileType}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">
+                          Click to select file
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          PDF, JPG, PNG supported
+                        </p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={handleDocFileChange}
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowUploadDocModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  onClick={handleUploadDoc}
+                  disabled={isUploadingDoc || !uploadDocForm.fileBase64}
+                >
+                  {isUploadingDoc ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileUp className="w-4 h-4 mr-2" />
+                  )}
+                  {isUploadingDoc ? "Uploading..." : "Upload Document"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Reminder Modal */}
+      {showSendReminderModal && reminderTargetPayment && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <BellRing className="w-5 h-5 text-orange-500" />
+                    Send Payment Reminder
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {reminderTargetPayment.title ||
+                      `Stage ${reminderTargetPayment.paymentStage}`}{" "}
+                    — ₹{reminderTargetPayment.expectedAmount}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowSendReminderModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={sendReminderForm.toEmail}
+                      onChange={(e) =>
+                        setSendReminderForm({
+                          ...sendReminderForm,
+                          toEmail: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none text-sm"
+                      placeholder="client@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={sendReminderForm.toName}
+                      onChange={(e) =>
+                        setSendReminderForm({
+                          ...sendReminderForm,
+                          toName: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none text-sm"
+                      placeholder="Client Name"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Custom Message{" "}
+                    <span className="text-gray-400 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <textarea
+                    value={sendReminderForm.customMessage}
+                    onChange={(e) =>
+                      setSendReminderForm({
+                        ...sendReminderForm,
+                        customMessage: e.target.value,
+                      })
+                    }
+                    rows={4}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none resize-none text-sm"
+                    placeholder="Gentle reminder to complete the payment..."
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowSendReminderModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-orange-500 hover:bg-orange-600"
+                  onClick={handleSendReminder}
+                  disabled={isSendingReminder}
+                >
+                  {isSendingReminder ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <BellRing className="w-4 h-4 mr-2" />
+                  )}
+                  {isSendingReminder ? "Sending..." : "Send Reminder"}
                 </Button>
               </div>
             </div>
@@ -3117,224 +3414,6 @@ export const ProjectDetails: React.FC = () => {
                   </>
                 );
               })()}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Task Form Modal */}
-      {showTaskModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">
-                  {editingTask ? "Edit Task" : "Create New Task"}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowTaskModal(false);
-                    resetTaskForm();
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              {/* Form */}
-              <div className="space-y-4">
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Task Title <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={taskForm.title}
-                    onChange={(e) =>
-                      setTaskForm({ ...taskForm, title: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter task title..."
-                  />
-                </div>
-
-                {/* Task Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Task Type
-                  </label>
-                  <select
-                    value={taskForm.taskType}
-                    onChange={(e) =>
-                      setTaskForm({ ...taskForm, taskType: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="CALL">Call</option>
-                    <option value="MEETING">Meeting</option>
-                    <option value="PRESENTATION">Presentation</option>
-                    <option value="SURVEY">Survey</option>
-                    <option value="INTERVIEW">Interview</option>
-                    <option value="SITE_VISIT">Site Visit</option>
-                    <option value="FOLLOW_UP">Follow Up</option>
-                    <option value="DOCUMENT_UPLOAD">Document Upload</option>
-                    <option value="APPROVAL_PENDING">Approval Pending</option>
-                    <option value="DESIGN_REVIEW">Design Review</option>
-                    <option value="PAYMENT_COLLECTION">
-                      Payment Collection
-                    </option>
-                    <option value="HANDOVER">Handover</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
-
-                {/* Priority and Status Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Priority */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Priority
-                    </label>
-                    <select
-                      value={taskForm.priority}
-                      onChange={(e) =>
-                        setTaskForm({ ...taskForm, priority: e.target.value })
-                      }
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="URGENT">Urgent</option>
-                    </select>
-                  </div>
-
-                  {/* Status */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Status
-                    </label>
-                    <select
-                      value={taskForm.status}
-                      onChange={(e) =>
-                        setTaskForm({ ...taskForm, status: e.target.value })
-                      }
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="TODO">To Do</option>
-                      <option value="IN_PROGRESS">In Progress</option>
-                      <option value="COMPLETED">Completed</option>
-                      <option value="BLOCKED">Blocked</option>
-                      <option value="CANCELLED">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Due Date */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Due Date
-                  </label>
-                  <input
-                    type="date"
-                    value={taskForm.dueDate}
-                    onChange={(e) =>
-                      setTaskForm({ ...taskForm, dueDate: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Notes
-                  </label>
-                  <textarea
-                    value={taskForm.notes}
-                    onChange={(e) =>
-                      setTaskForm({ ...taskForm, notes: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                    placeholder="Additional notes or description..."
-                  />
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowTaskModal(false);
-                    resetTaskForm();
-                  }}
-                  disabled={isSavingTask}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
-                  onClick={handleSaveTask}
-                  disabled={isSavingTask || !taskForm.title.trim()}
-                >
-                  {isSavingTask ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
-                  )}
-                  {editingTask ? "Update Task" : "Create Task"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Task Confirmation Modal */}
-      {showDeleteTaskConfirm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
-                  <Trash2 className="w-8 h-8 text-red-600" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
-                Delete Task?
-              </h3>
-              <p className="text-gray-600 text-center mb-6">
-                Are you sure you want to delete this task? This action cannot be
-                undone.
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setShowDeleteTaskConfirm(null)}
-                  disabled={taskLoading === showDeleteTaskConfirm}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
-                  onClick={() => handleDeleteTask(showDeleteTaskConfirm)}
-                  disabled={taskLoading === showDeleteTaskConfirm}
-                >
-                  {taskLoading === showDeleteTaskConfirm ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Trash2 className="w-4 h-4 mr-2" />
-                  )}
-                  Delete
-                </Button>
-              </div>
             </div>
           </div>
         </div>
