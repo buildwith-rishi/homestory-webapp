@@ -5,6 +5,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -31,9 +32,15 @@ import {
   Mic,
   Play,
   Share2,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import * as meetingAPI from "../../services/meetingApi";
+import {
+  getAllTeamMembers,
+  type TeamMember,
+} from "../../services/teamApi";
 import type {
   Meeting,
   MeetingNote,
@@ -97,20 +104,81 @@ const ParticipantModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: {
-    name: string;
-    email: string;
-    phone: string;
+    userId?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    contactId?: string;
   }) => Promise<void>;
   isLoading: boolean;
 }> = ({ isOpen, onClose, onSubmit, isLoading }) => {
+  const [participantType, setParticipantType] = useState<"team" | "external">(
+    "team",
+  );
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [selectedTeamMember, setSelectedTeamMember] =
+    useState<TeamMember | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Fetch team members when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    setTeamLoading(true);
+    getAllTeamMembers()
+      .then((members) =>
+        setTeamMembers(members.filter((m) => m.isActive !== false)),
+      )
+      .catch(console.error)
+      .finally(() => setTeamLoading(false));
+  }, [isOpen]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target as Node) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const filteredMembers = teamMembers.filter(
+    (m) =>
+      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.email.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const resetForm = () => {
+    setParticipantType("team");
+    setSelectedTeamMember(null);
+    setDropdownOpen(false);
+    setDropdownRect(null);
+    setSearchQuery("");
+    setFormData({ name: "", email: "", phone: "" });
+    setErrors({});
+  };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
+    if (participantType === "team" && !selectedTeamMember) {
+      newErrors.userId = "Please select a team member";
+    }
+    if (participantType === "external" && !formData.name.trim()) {
+      newErrors.name = "Name is required";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -118,8 +186,16 @@ const ParticipantModal: React.FC<{
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    await onSubmit(formData);
-    setFormData({ name: "", email: "", phone: "" });
+    if (participantType === "team" && selectedTeamMember) {
+      await onSubmit({ userId: selectedTeamMember.id });
+    } else {
+      await onSubmit({
+        name: formData.name.trim(),
+        email: formData.email.trim() || undefined,
+        phone: formData.phone.trim() || undefined,
+      });
+    }
+    resetForm();
     onClose();
   };
 
@@ -127,111 +203,283 @@ const ParticipantModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      {/* Backdrop — covers every pixel */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+        style={{ WebkitBackdropFilter: "blur(4px)" }}
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-orange-100">
+
+      {/* Modal card */}
+      <div className="relative z-[61] bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-sm">
               <Users className="w-5 h-5 text-white" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              Add Participant
-            </h2>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Add Participant
+              </h2>
+              <p className="text-xs text-gray-500">Add a team member or external guest</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Name *
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                placeholder="John Doe"
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                  errors.name ? "border-red-300" : "border-gray-300"
-                }`}
-              />
-            </div>
-            {errors.name && (
-              <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-            )}
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="flex-1 p-6 space-y-5">
+          {/* Type Toggle */}
+          <div className="flex rounded-lg bg-gray-100 p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setParticipantType("team");
+                setErrors({});
+                setSelectedTeamMember(null);
+              }}
+              className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all ${
+                participantType === "team"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Team Member
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setParticipantType("external");
+                setErrors({});
+              }}
+              className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all ${
+                participantType === "external"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              External Participant
+            </button>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Email *
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                placeholder="john@example.com"
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                  errors.email ? "border-red-300" : "border-gray-300"
-                }`}
-              />
-            </div>
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-            )}
-          </div>
+          {participantType === "team" ? (
+            <div className="space-y-4">
+              {/* Team Member Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Select Team Member *
+                </label>
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    ref={triggerRef}
+                    type="button"
+                    onClick={() => {
+                      if (triggerRef.current) {
+                        setDropdownRect(triggerRef.current.getBoundingClientRect());
+                      }
+                      setDropdownOpen(!dropdownOpen);
+                    }}
+                    className={`w-full flex items-center justify-between px-4 py-3 border rounded-xl bg-white text-left focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
+                      errors.userId ? "border-red-300" : "border-gray-300 hover:border-gray-400"
+                    }`}
+                  >
+                    {selectedTeamMember ? (
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
+                          <User className="w-3.5 h-3.5 text-orange-600" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-900">
+                            {selectedTeamMember.name}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {selectedTeamMember.role || selectedTeamMember.email}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className={`text-sm ${teamLoading ? "text-gray-400" : "text-gray-500"}`}>
+                        {teamLoading ? "Loading team members..." : "Choose a team member..."}
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={`w-4 h-4 text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Phone *
-            </label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-                placeholder="+919876543210"
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                  errors.phone ? "border-red-300" : "border-gray-300"
-                }`}
-              />
-            </div>
-            {errors.phone && (
-              <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
-            )}
-          </div>
+                  {dropdownOpen && dropdownRect && createPortal(
+                    <div
+                      style={{
+                        position: "fixed",
+                        top: dropdownRect.bottom + 4,
+                        left: dropdownRect.left,
+                        width: dropdownRect.width,
+                        zIndex: 9999,
+                      }}
+                      className="bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden"
+                    >
+                      <div className="p-2 border-b border-gray-100">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search team members..."
+                            className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-52 overflow-y-auto">
+                        {filteredMembers.length === 0 ? (
+                          <p className="text-sm text-gray-500 text-center py-4">
+                            No team members found
+                          </p>
+                        ) : (
+                          filteredMembers.map((member) => (
+                            <button
+                              key={member.id}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setSelectedTeamMember(member);
+                                setDropdownOpen(false);
+                                setSearchQuery("");
+                                setErrors({});
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-orange-50 text-left transition-colors"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                <User className="w-4 h-4 text-orange-600" />
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {member.name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {member.email}
+                                  {member.role ? ` · ${member.role}` : ""}
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>,
+                    document.body
+                  )}
+                </div>
+                {errors.userId && (
+                  <p className="mt-1 text-sm text-red-600">{errors.userId}</p>
+                )}
+              </div>
 
-          <div className="flex gap-3 pt-4">
+              {/* Auto-filled info preview */}
+              {selectedTeamMember && (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2.5">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Auto-filled from profile
+                  </p>
+                  <div className="flex items-center gap-2.5 text-sm text-gray-700">
+                    <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span>{selectedTeamMember.email || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-sm text-gray-700">
+                    <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span>{selectedTeamMember.phone || "—"}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Name *
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    placeholder="John Doe"
+                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
+                      errors.name ? "border-red-300" : "border-gray-300 hover:border-gray-400"
+                    }`}
+                  />
+                </div>
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Email{" "}
+                  <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    placeholder="participant@example.com"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-400 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Phone{" "}
+                  <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    placeholder="+919876543210"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-400 transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer buttons */}
+          <div className="flex gap-3 pt-2">
             <Button
               type="button"
               variant="secondary"
               onClick={onClose}
-              className="flex-1 rounded-xl"
+              className="flex-1 rounded-xl py-2.5"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={isLoading}
-              className="flex-1 rounded-xl"
+              className="flex-1 rounded-xl py-2.5"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -622,9 +870,11 @@ export const MeetingDetailsPage: React.FC = () => {
 
   // Action handlers
   const handleAddParticipant = async (data: {
-    name: string;
-    email: string;
-    phone: string;
+    userId?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    contactId?: string;
   }) => {
     if (!meetingId) return;
 

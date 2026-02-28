@@ -1,5 +1,5 @@
-import { ReactNode, useState } from "react";
-import { Home, CheckSquare, AlertCircle, User } from "lucide-react";
+import { ReactNode } from "react";
+import { Home, CheckSquare, User } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 interface Tab {
@@ -10,42 +10,25 @@ interface Tab {
 }
 
 const tabs: Tab[] = [
-  { id: "home", label: "Home", icon: Home, path: "/app" },
-  { id: "tasks", label: "Tasks", icon: CheckSquare, path: "/app/tasks" },
-  { id: "issues", label: "Issues", icon: AlertCircle, path: "/app/issues" },
-  { id: "profile", label: "Profile", icon: User, path: "/app/profile" },
+  { id: "home", label: "Home", icon: Home, path: "/bdr" },
+  { id: "tasks", label: "Tasks", icon: CheckSquare, path: "/bdr/tasks" },
+  { id: "profile", label: "Profile", icon: User, path: "/bdr/profile" },
 ];
 
-interface MobileAppShellProps {
+interface BDRAppShellProps {
   children: ReactNode;
 }
 
-export function MobileAppShell({ children }: MobileAppShellProps) {
+export function BDRAppShell({ children }: BDRAppShellProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [refreshing, setRefreshing] = useState(false);
 
   const activeTab =
     tabs.find((tab) => location.pathname === tab.path)?.id || "home";
 
-  const handleTabClick = (tab: Tab) => {
-    navigate(tab.path);
-  };
-
-  const handlePullToRefresh = async () => {
-    setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setRefreshing(false);
-  };
-
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      <main className="flex-1 overflow-y-auto pb-20">
-        {refreshing && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-orange-500 animate-pulse z-50"></div>
-        )}
-        {children}
-      </main>
+      <main className="flex-1 overflow-y-auto pb-20">{children}</main>
 
       <nav
         className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 flex items-center justify-around z-40 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
@@ -57,7 +40,7 @@ export function MobileAppShell({ children }: MobileAppShellProps) {
           return (
             <button
               key={tab.id}
-              onClick={() => handleTabClick(tab)}
+              onClick={() => navigate(tab.path)}
               className={`flex flex-col items-center justify-center min-w-[60px] py-1.5 transition-all ${isActive ? "scale-105" : ""}`}
             >
               <div className={`relative ${isActive ? "mb-0.5" : ""}`}>

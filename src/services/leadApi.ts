@@ -65,12 +65,13 @@ export interface Lead {
   // Additional fields from API
   householdOrCompany?: string;
   companyName?: string | null;
-  sourceDetails?: string | null;
+  sourceDetails?: Record<string, string> | null;
   serviceInterest?: string | null;
-  area?: string | null;
+  area?: number | null;
   message?: string | null;
   requirements?: string | null;
   projectType?: string | null;
+  propertyProjectType?: string | null;
   homeType?: string | null;
   projectStage?: string | null;
   startTimeline?: string | null;
@@ -86,6 +87,7 @@ export interface Lead {
   referrerProjectNumber?: string | null;
   agentAgencyName?: string | null;
   agentAgencyDetails?: string | null;
+  metadata?: Record<string, unknown> | null;
   references?: any[];
 }
 

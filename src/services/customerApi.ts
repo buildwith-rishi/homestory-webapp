@@ -121,6 +121,16 @@ export async function convertLeadToCustomer(
     return customer;
   } catch (error) {
     console.error("Error converting lead to customer:", error);
+    if (
+      error instanceof Error &&
+      (error.message.toLowerCase().includes("unique constraint") ||
+        error.message.toLowerCase().includes("convertedFromLeadId") ||
+        error.message.toLowerCase().includes("already been converted"))
+    ) {
+      throw new Error(
+        "This lead has already been converted to a customer. Refresh the page to see the existing customer.",
+      );
+    }
     throw error;
   }
 }

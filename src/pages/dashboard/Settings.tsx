@@ -1,11 +1,66 @@
 import React, { useState } from 'react';
-import { User, Building2, Bell, Zap, CreditCard, Shield, Save, Camera, Mail, Phone, MapPin, Globe } from 'lucide-react';
+import { User, Building2, Bell, Zap, CreditCard, Shield, Save, Camera, Mail, Phone, MapPin, Globe, Eye, EyeOff, Lock, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, Button, Input, Toggle } from '../../components/ui';
+import { useAuth } from '../../contexts/AuthContext';
+import { resetPassword } from '../../services/passwordApi';
+import toast from 'react-hot-toast';
 
 type SettingsTab = 'profile' | 'company' | 'notifications' | 'integrations' | 'billing' | 'security';
 
 export const SettingsPage: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+
+  // ── Change Password state ───────────────────────────────────────────────
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdSuccess, setPwdSuccess] = useState(false);
+  const [pwdError, setPwdError] = useState('');
+
+  const passwordRules = [
+    { label: 'At least 8 characters', ok: newPassword.length >= 8 },
+    { label: 'One uppercase letter', ok: /[A-Z]/.test(newPassword) },
+    { label: 'One number', ok: /[0-9]/.test(newPassword) },
+    { label: 'One special character', ok: /[^a-zA-Z0-9]/.test(newPassword) },
+  ];
+  const passwordStrong = passwordRules.every((r) => r.ok);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError('');
+    setPwdSuccess(false);
+
+    if (!passwordStrong) {
+      setPwdError('Password does not meet the requirements above.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwdError('Passwords do not match.');
+      return;
+    }
+    if (!user?.id) {
+      setPwdError('User session not found. Please log in again.');
+      return;
+    }
+
+    setPwdLoading(true);
+    try {
+      await resetPassword(user.id, newPassword);
+      setPwdSuccess(true);
+      setNewPassword('');
+      setConfirmPassword('');
+      toast.success('Password updated successfully!');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to update password. Please try again.';
+      setPwdError(msg);
+      toast.error(msg);
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   const tabs = [
     { id: 'profile' as SettingsTab, label: 'Profile', icon: User },
@@ -293,22 +348,113 @@ export const SettingsPage: React.FC = () => {
           {activeTab === 'security' && (
             <>
               <Card className="p-6 rounded-xl">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                    <Input type="password" className="rounded-xl" />
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                    <Lock className="w-5 h-5 text-orange-500" />
                   </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Change Password</h2>
+                    <p className="text-sm text-gray-500">Set a new secure password for your account</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                  {/* New Password */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-                    <Input type="password" className="rounded-xl" />
+                    <div className="relative">
+                      <input
+                        type={showNew ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => { setNewPassword(e.target.value); setPwdSuccess(false); setPwdError(''); }}
+                        placeholder="Enter new password"
+                        className="w-full h-11 pl-4 pr-11 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNew((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Password strength rules */}
+                  {newPassword.length > 0 && (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {passwordRules.map((rule) => (
+                        <div key={rule.label} className={`flex items-center gap-1.5 text-xs ${rule.ok ? 'text-green-600' : 'text-gray-400'}`}>
+                          {rule.ok
+                            ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                            : <XCircle className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />}
+                          {rule.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Confirm Password */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-                    <Input type="password" className="rounded-xl" />
+                    <div className="relative">
+                      <input
+                        type={showConfirm ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => { setConfirmPassword(e.target.value); setPwdSuccess(false); setPwdError(''); }}
+                        placeholder="Re-enter new password"
+                        className={`w-full h-11 pl-4 pr-11 border rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all ${
+                          confirmPassword && confirmPassword !== newPassword ? 'border-red-400' : 'border-gray-300'
+                        }`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirm((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {confirmPassword && confirmPassword !== newPassword && (
+                      <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                    )}
                   </div>
-                  <Button className="rounded-xl">Update Password</Button>
-                </div>
+
+                  {/* Error / Success */}
+                  {pwdError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                      <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <p className="text-sm text-red-600">{pwdError}</p>
+                    </div>
+                  )}
+                  {pwdSuccess && (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+                      <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      <p className="text-sm text-green-600">Password updated successfully!</p>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={pwdLoading || !newPassword || !confirmPassword}
+                    className={`flex items-center gap-2 px-5 h-11 rounded-xl text-sm font-semibold transition-all ${
+                      pwdLoading || !newPassword || !confirmPassword
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-orange-500 text-white hover:bg-orange-600 shadow-sm hover:shadow-md'
+                    }`}
+                  >
+                    {pwdLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Updating…
+                      </>
+                    ) : (
+                      'Update Password'
+                    )}
+                  </button>
+                </form>
               </Card>
 
               <Card className="p-6 rounded-xl">

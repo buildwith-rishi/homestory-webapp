@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import ReactDOM from "react-dom";
 import {
   X,
@@ -14,22 +14,21 @@ import {
   FileText,
   Image as ImageIcon,
   Video,
-  Send,
-  MessageSquare,
   ExternalLink,
   File,
   Edit3,
   Save,
-  Mail,
+  UserCheck,
 } from "lucide-react";
 import { Button } from "../../ui";
 import type {
   MatrixTask,
   TaskAttachment,
   UpdateTaskStatusRequest,
-  NotifyCustomerRequest,
   UpdateMatrixTaskRequest,
+  AdminUser,
 } from "../../../types";
+import { adminAPI } from "../../../services/api";
 import {
   getMatrixTaskDetails,
   getTaskAttachments,
@@ -37,7 +36,6 @@ import {
   deleteTaskAttachment,
   updateMatrixTaskStatus,
   updateMatrixTask,
-  notifyCustomerTaskComplete,
 } from "../../../services/projectApi";
 import toast from "react-hot-toast";
 
@@ -146,9 +144,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [task, setTask] = useState<MatrixTask | null>(null);
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<
-    "details" | "attachments" | "notify"
-  >("details");
+  const [activeTab, setActiveTab] = useState<"details" | "attachments">("details");
 
   // Status update
   const [newStatus, setNewStatus] = useState("");
@@ -162,18 +158,19 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   >(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Notify customer
-  const [notifyMessage, setNotifyMessage] = useState("");
-  const [includeAttachments, setIncludeAttachments] = useState(true);
-  const [notifying, setNotifying] = useState(false);
-  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
-  const [loadingCustomerEmail, setLoadingCustomerEmail] = useState(false);
+  // Users list for assignee dropdown
+  const [users, setUsers] = useState<AdminUser[]>([]);
+
+  // Assignee
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>("");
+  const [savingAssignee, setSavingAssignee] = useState(false);
 
   // Task editing
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
+  const [editAssigneeId, setEditAssigneeId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   const startEditing = () => {
@@ -181,6 +178,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setEditTitle(task.title || "");
     setEditDescription(task.description || "");
     setEditCategoryId(task.categoryId || task.category?.id || "");
+    setEditAssigneeId(task.assignedToId || "");
     setIsEditing(true);
   };
 
@@ -205,6 +203,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         dayNumber: task.dayNumber,
         taskDate: task.taskDate || undefined,
         status: task.status,
+        assignedToId: editAssigneeId || null,
       };
 
       await updateMatrixTask(taskId, payload);
@@ -218,6 +217,29 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setSavingEdit(false);
     }
   };
+
+  // Fetch users for assignee dropdown
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await adminAPI.getAllUsers();
+        let usersList: AdminUser[] = [];
+        if (response && typeof response === "object") {
+          if ("users" in response && Array.isArray(response.users)) {
+            usersList = response.users;
+          } else if (Array.isArray(response)) {
+            usersList = response;
+          }
+        }
+        // Deduplicate
+        const seen = new Set<string>();
+        setUsers(usersList.filter((u) => { if (seen.has(u.id)) return false; seen.add(u.id); return true; }));
+      } catch {
+        // Non-critical, silently fail
+      }
+    };
+    fetchUsers();
+  }, []);
 
   useEffect(() => {
     fetchTaskDetails();
@@ -263,6 +285,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setTask(taskData);
       setNewStatus(taskData.status);
       setCompletionNotes(taskData.completionNotes || "");
+      setSelectedAssigneeId(taskData.assignedToId || "");
     } else {
       toast.error("Failed to load task details");
     }
@@ -330,59 +353,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
-  const fetchCustomerEmail = async () => {
-    if (customerEmail || loadingCustomerEmail) return;
-    setLoadingCustomerEmail(true);
-    try {
-      // Fetch task to get project/customer info
-      // The backend will resolve customer email from task -> project -> customer
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com"}/api/tasks/${taskId}/customer-email`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setCustomerEmail(data.customerEmail || data.email || "Customer");
-      } else {
-        // Fallback: use a placeholder
-        setCustomerEmail("Customer (email not found)");
-      }
-    } catch {
-      setCustomerEmail("Customer");
-    } finally {
-      setLoadingCustomerEmail(false);
-    }
-  };
-
-  const handleNotifyCustomer = async () => {
-    setNotifying(true);
-    try {
-      const data: NotifyCustomerRequest = {
-        includeAttachments,
-      };
-      if (notifyMessage.trim()) data.customMessage = notifyMessage.trim();
-      const result = await notifyCustomerTaskComplete(taskId, data);
-      if (result.sent) {
-        toast.success(`Notification sent to ${result.customerEmail}`);
-        setNotifyMessage("");
-        // Update local state with returned email
-        if (!customerEmail) setCustomerEmail(result.customerEmail);
-      } else {
-        toast.error("Notification could not be sent");
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to notify");
-    } finally {
-      setNotifying(false);
-    }
-  };
-
   const cfg = statusConfig[task?.status || "PENDING"] || statusConfig.PENDING;
   const catColor =
     categories.find(
@@ -427,22 +397,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     key: "attachments" as const,
                     label: `Attachments (${attachments.length})`,
                   },
-                  { key: "notify" as const, label: "Notify Customer" },
                 ] as const
               ).map((tab) => (
                 <button
                   key={tab.key}
-                  onClick={() => {
-                    setActiveTab(tab.key);
-                    // Lazy load customer email when notify tab is clicked
-                    if (
-                      tab.key === "notify" &&
-                      !customerEmail &&
-                      !loadingCustomerEmail
-                    ) {
-                      fetchCustomerEmail();
-                    }
-                  }}
+                  onClick={() => setActiveTab(tab.key)}
                   className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.key
                       ? "border-orange-500 text-orange-600"
@@ -534,6 +493,23 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           ))}
                         </select>
                       </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                          Assigned To
+                        </label>
+                        <select
+                          value={editAssigneeId}
+                          onChange={(e) => setEditAssigneeId(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white"
+                        >
+                          <option value="">Unassigned</option>
+                          {users.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.role.replace(/_/g, " ")})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="flex items-center gap-2 pt-1">
                         <Button
                           size="sm"
@@ -615,6 +591,70 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           {formatDateTime(task.taskDate)}
                         </p>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Assigned To */}
+                  <div className="border border-gray-100 rounded-xl p-4 bg-gray-50/50">
+                    <p className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      Assigned To
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedAssigneeId}
+                        onChange={(e) => setSelectedAssigneeId(e.target.value)}
+                        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+                      >
+                        <option value="">— Unassigned —</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.role.replace(/_/g, " ")})
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        disabled={savingAssignee || selectedAssigneeId === (task.assignedToId || "")}
+                        onClick={async () => {
+                          setSavingAssignee(true);
+                          try {
+                            const payload: UpdateMatrixTaskRequest = {
+                              title: task.title,
+                              description: task.description,
+                              categoryId: task.categoryId || task.category?.id,
+                              dayNumber: task.dayNumber,
+                              taskDate: task.taskDate || undefined,
+                              status: task.status,
+                              assignedToId: selectedAssigneeId || null,
+                            };
+                            await updateMatrixTask(taskId, payload);
+                            toast.success(
+                              selectedAssigneeId
+                                ? `Assigned to ${users.find((u) => u.id === selectedAssigneeId)?.name || "user"}`
+                                : "Assignee removed"
+                            );
+                            await fetchTaskDetails();
+                            onStatusChanged();
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to assign");
+                          } finally {
+                            setSavingAssignee(false);
+                          }
+                        }}
+                        className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+                      >
+                        {savingAssignee ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          "Assign"
+                        )}
+                      </Button>
+                    </div>
+                    {task.assignedTo && (
+                      <p className="text-xs text-gray-400 mt-1.5">
+                        Currently: <span className="font-medium text-gray-600">{task.assignedTo.name}</span>
+                      </p>
                     )}
                   </div>
 
@@ -778,106 +818,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       })}
                     </div>
                   )}
-                </div>
-              )}
-
-              {activeTab === "notify" && (
-                <div className="space-y-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-start gap-2">
-                      <Send className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-blue-800">
-                          Notify Customer
-                        </p>
-                        <p className="text-xs text-blue-600 mt-0.5">
-                          Send an email notification to the customer about this
-                          task&apos;s completion status.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Recipient Email Display */}
-                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                        <Mail className="w-3.5 h-3.5 text-orange-600" />
-                      </div>
-                      <p className="text-xs font-semibold text-orange-900 uppercase tracking-wide">
-                        Recipient
-                      </p>
-                    </div>
-                    {loadingCustomerEmail ? (
-                      <div className="flex items-center gap-2 mt-2 ml-8">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" />
-                        <span className="text-sm text-orange-600">
-                          Loading customer email...
-                        </span>
-                      </div>
-                    ) : customerEmail ? (
-                      <div className="ml-8 mt-2">
-                        <p className="text-sm font-semibold text-orange-900">
-                          {customerEmail}
-                        </p>
-                        <p className="text-xs text-orange-600 mt-0.5">
-                          Email will be sent to this address
-                        </p>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={fetchCustomerEmail}
-                        className="ml-8 mt-2 text-xs text-orange-600 hover:text-orange-800 font-medium underline"
-                      >
-                        Load customer email
-                      </button>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">
-                      Custom Mail (optional)
-                    </label>
-                    <textarea
-                      value={notifyMessage}
-                      onChange={(e) => setNotifyMessage(e.target.value)}
-                      placeholder="Add a personal message for the customer..."
-                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 resize-none"
-                      rows={4}
-                    />
-                  </div>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={includeAttachments}
-                      onChange={(e) => setIncludeAttachments(e.target.checked)}
-                      className="rounded border-gray-300 text-orange-500 focus:ring-orange-400"
-                    />
-                    <span className="text-sm text-gray-700">
-                      Include attachments ({attachments.length} file
-                      {attachments.length !== 1 ? "s" : ""})
-                    </span>
-                  </label>
-
-                  <Button
-                    size="sm"
-                    onClick={handleNotifyCustomer}
-                    disabled={notifying}
-                    className="bg-blue-600 hover:bg-blue-700 text-white w-full"
-                  >
-                    {notifying ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <MessageSquare className="w-4 h-4 mr-1" />
-                        Send Email
-                      </>
-                    )}
-                  </Button>
                 </div>
               )}
             </div>

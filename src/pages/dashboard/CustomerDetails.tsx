@@ -635,19 +635,15 @@ export const CustomerDetails: React.FC = () => {
   // Fetch projects for this customer
   useEffect(() => {
     const fetchCustomerProjects = async () => {
-      if (!customerData?.leadId) return;
+      if (!customerData?.id) return;
 
       setProjectsLoading(true);
       try {
-        const response = await listProjects();
-        // Filter projects by this customer's leadId
-        const filtered = response.projects.filter(
-          (project) => project.leadId === customerData.leadId,
-        );
-        setCustomerProjects(filtered);
+        const response = await listProjects({ accountId: customerData.id });
+        setCustomerProjects(response.projects);
         console.log(
-          `Found ${filtered.length} projects for customer:`,
-          filtered,
+          `Found ${response.projects.length} projects for customer:`,
+          response.projects,
         );
       } catch (error) {
         console.error("Error fetching customer projects:", error);
@@ -657,10 +653,10 @@ export const CustomerDetails: React.FC = () => {
       }
     };
 
-    if (customerData?.leadId) {
+    if (customerData?.id) {
       fetchCustomerProjects();
     }
-  }, [customerData?.leadId]);
+  }, [customerData?.id]);
 
   const customer = customerData;
 

@@ -55,25 +55,27 @@ const stageColors: Record<string, string> = {
 };
 
 // Add/Edit Lead Modal Component
-const LeadModal: React.FC<{
+export const LeadModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   lead?: Lead | null;
   onSave: (lead: Omit<Lead, "id">) => Promise<void>;
   sources: LeadSource[];
-}> = ({ isOpen, onClose, lead, onSave, sources }) => {
+  users?: AdminUser[];
+}> = ({ isOpen, onClose, lead, onSave, sources, users = [] }) => {
   const defaultSources = [
     { value: "WEBSITE", label: "Website" },
-    { value: "REFERRAL", label: "Referral" },
+    { value: "WHATSAPP", label: "WhatsApp" },
+    { value: "PHONE", label: "Phone" },
     { value: "INSTAGRAM", label: "Instagram" },
     { value: "FACEBOOK", label: "Facebook" },
-    { value: "LINKEDIN", label: "LinkedIn" },
-    { value: "GOOGLE_ADS", label: "Google Ads" },
+    { value: "YOUTUBE", label: "YouTube" },
+    { value: "REFERRAL", label: "Referral" },
     { value: "WALK_IN", label: "Walk-in" },
-    { value: "PHONE", label: "Phone Call" },
-    { value: "EMAIL_CAMPAIGN", label: "Email Campaign" },
-    { value: "TRADE_SHOW", label: "Trade Show" },
-    { value: "PARTNER", label: "Partner" },
+    { value: "EXHIBITION", label: "Exhibition" },
+    { value: "EXPO", label: "Expo" },
+    { value: "PAID_LEAD", label: "Paid Lead" },
+    { value: "CONTACT_FORM", label: "Contact Form" },
     { value: "OTHER", label: "Other" },
   ];
 
@@ -92,12 +94,13 @@ const LeadModal: React.FC<{
     score: 0,
     serviceInterest: "",
     propertyType: "",
-    area: "",
+    area: null,
     city: "",
     location: "",
     message: "",
     requirements: "",
     projectType: "",
+    propertyProjectType: "",
     homeType: "",
     projectStage: "",
     startTimeline: "",
@@ -106,6 +109,7 @@ const LeadModal: React.FC<{
     floorPlanUrl: "",
     wantsExperienceCenterVisit: false,
     canWhatsApp: false,
+    assignedToId: "",
     referrerName: "",
     referrerPhone: "",
     referrerProjectNumber: "",
@@ -116,6 +120,11 @@ const LeadModal: React.FC<{
   const [formData, setFormData] = useState<Omit<Lead, "id">>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [floorPlanFile, setFloorPlanFile] = useState<File | null>(null);
+  const floorPlanInputRef = useRef<HTMLInputElement>(null);
+  // sourceDetails sub-fields
+  const [srcCampaign, setSrcCampaign] = useState("");
+  const [srcMedium, setSrcMedium] = useState("");
 
   const f = (field: keyof Omit<Lead, "id">, value: unknown) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -133,12 +142,13 @@ const LeadModal: React.FC<{
         score: lead.score || 0,
         serviceInterest: lead.serviceInterest || "",
         propertyType: lead.propertyType || "",
-        area: lead.area || "",
+        area: lead.area ?? null,
         city: lead.city || "",
         location: lead.location || "",
         message: lead.message || "",
         requirements: lead.requirements || "",
         projectType: lead.projectType || "",
+        propertyProjectType: lead.propertyProjectType || "",
         homeType: lead.homeType || "",
         projectStage: lead.projectStage || "",
         startTimeline: lead.startTimeline || "",
@@ -147,37 +157,100 @@ const LeadModal: React.FC<{
         floorPlanUrl: lead.floorPlanUrl || "",
         wantsExperienceCenterVisit: lead.wantsExperienceCenterVisit || false,
         canWhatsApp: lead.canWhatsApp || false,
+        assignedToId: lead.assignedToId || "",
         referrerName: lead.referrerName || "",
         referrerPhone: lead.referrerPhone || "",
         referrerProjectNumber: lead.referrerProjectNumber || "",
         agentAgencyName: lead.agentAgencyName || "",
         agentAgencyDetails: lead.agentAgencyDetails || "",
       });
+      // Populate sourceDetails sub-fields
+      const sd = lead.sourceDetails as Record<string, string> | null;
+      setSrcCampaign(sd?.campaign || "");
+      setSrcMedium(sd?.medium || "");
     } else {
       setFormData(emptyForm);
+      setSrcCampaign("");
+      setSrcMedium("");
     }
     setErrors({});
+    setFloorPlanFile(null);
     setActiveTab("basic");
   }, [lead, isOpen]);
 
-  const validate = () => {
+  const validate = (): Record<string, string> => {
     const newErrors: Record<string, string> = {};
     if (!formData.name?.trim()) newErrors.name = "Name is required";
     if (!formData.phone?.trim()) newErrors.phone = "Phone is required";
     else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone))
       newErrors.phone = "Invalid phone format";
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email))
+    if (!formData.email?.trim()) newErrors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Invalid email format";
+    if (!formData.serviceInterest) newErrors.serviceInterest = "Service Interest is required";
+    if (!formData.propertyType) newErrors.propertyType = "Property Type is required";
+    if (!formData.homeType) newErrors.homeType = "Home Type is required";
+    if (!formData.city?.trim()) newErrors.city = "City is required";
+    if (!formData.startTimeline) newErrors.startTimeline = "Start Timeline is required";
+    if (!formData.budgetComfort) newErrors.budgetComfort = "Budget Comfort is required";
+    if (!formData.projectScope) newErrors.projectScope = "Project Scope is required";
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) { setActiveTab("basic"); return; }
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      const propertyTabFields = ["serviceInterest", "propertyType", "homeType", "city", "startTimeline", "budgetComfort", "projectScope"];
+      if (propertyTabFields.some((k) => validationErrors[k])) setActiveTab("property");
+      else setActiveTab("basic");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      await onSave(formData);
+      // Build sourceDetails object from sub-fields
+      const sourceDetails: Record<string, string> | null =
+        srcCampaign || srcMedium
+          ? { ...(srcCampaign && { campaign: srcCampaign }), ...(srcMedium && { medium: srcMedium }) }
+          : null;
+      // Build explicit payload — convert empty strings to null so Prisma doesn't receive unexpected values
+      const payload = {
+        name: formData.name,
+        email: formData.email || null,
+        phone: formData.phone,
+        source: formData.source || "WEBSITE",
+        status: formData.status || "NEW",
+        householdOrCompany: formData.householdOrCompany || "HOUSEHOLD",
+        companyName: formData.companyName?.trim() || null,
+        score: formData.score ?? 0,
+        sourceDetails,
+        serviceInterest: formData.serviceInterest || null,
+        propertyType: formData.propertyType || null,
+        homeType: formData.homeType || null,
+        projectType: formData.projectType || null,
+        area: formData.area !== null && formData.area !== undefined && String(formData.area) !== ""
+          ? Number(formData.area)
+          : null,
+        city: formData.city?.trim() || null,
+        location: formData.location?.trim() || null,
+        message: formData.message?.trim() || null,
+        requirements: formData.requirements?.trim() || null,
+        projectStage: formData.projectStage || null,
+        startTimeline: formData.startTimeline || null,
+        budgetComfort: formData.budgetComfort || null,
+        projectScope: formData.projectScope || null,
+        floorPlanUrl: formData.floorPlanUrl?.trim() || null,
+        wantsExperienceCenterVisit: formData.wantsExperienceCenterVisit || false,
+        canWhatsApp: formData.canWhatsApp || false,
+        assignedToId: formData.assignedToId?.trim() || null,
+        referrerName: formData.referrerName?.trim() || null,
+        referrerPhone: formData.referrerPhone?.trim() || null,
+        referrerProjectNumber: formData.referrerProjectNumber?.trim() || null,
+        agentAgencyName: formData.agentAgencyName?.trim() || null,
+        agentAgencyDetails: formData.agentAgencyDetails?.trim() || null,
+      };
+      await onSave(payload as unknown as Omit<Lead, "id">);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to save lead";
       toast.error(errorMessage);
@@ -193,8 +266,10 @@ const LeadModal: React.FC<{
       err ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-gray-300"
     }`;
 
-  const selectClass =
-    "w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer hover:border-gray-300 transition-all";
+  const selectClass = (err?: string) =>
+    `w-full px-4 py-2.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer transition-all ${
+      err ? "border-red-300 bg-red-50 hover:border-red-400" : "border-gray-200 hover:border-gray-300"
+    }`;
 
   const tabs: { key: "basic" | "property" | "referral"; label: string }[] = [
     { key: "basic", label: "Basic Info" },
@@ -272,7 +347,7 @@ const LeadModal: React.FC<{
 
                 {/* Email */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email <span className="text-red-500">*</span></label>
                   <input
                     type="email"
                     value={formData.email || ""}
@@ -324,10 +399,11 @@ const LeadModal: React.FC<{
                   <select
                     value={formData.householdOrCompany || "HOUSEHOLD"}
                     onChange={(e) => f("householdOrCompany", e.target.value)}
-                    className={selectClass}
+                    className={selectClass()}
                   >
-                    <option value="HOUSEHOLD">Household / Residential</option>
-                    <option value="COMPANY">Company / Commercial</option>
+                    <option value="HOUSEHOLD">Household</option>
+                    <option value="COMPANY">Company</option>
+                    <option value="OTHERS">Others</option>
                   </select>
                 </div>
 
@@ -337,7 +413,7 @@ const LeadModal: React.FC<{
                   <select
                     value={formData.source || "WEBSITE"}
                     onChange={(e) => f("source", e.target.value)}
-                    className={selectClass}
+                    className={selectClass()}
                   >
                     {availableSources.map((s) => (
                       <option key={s.value} value={s.value}>{s.label}</option>
@@ -351,7 +427,7 @@ const LeadModal: React.FC<{
                   <select
                     value={formData.status || "NEW"}
                     onChange={(e) => f("status", e.target.value)}
-                    className={selectClass}
+                    className={selectClass()}
                   >
                     <option value="NEW">New</option>
                     <option value="WORKING">Working</option>
@@ -359,6 +435,30 @@ const LeadModal: React.FC<{
                     <option value="DISQUALIFIED">Disqualified</option>
                     <option value="CONVERTED">Converted</option>
                   </select>
+                </div>
+
+                {/* Source Campaign */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Source Campaign</label>
+                  <input
+                    type="text"
+                    value={srcCampaign}
+                    onChange={(e) => setSrcCampaign(e.target.value)}
+                    placeholder="e.g., google_ads"
+                    className={inputClass()}
+                  />
+                </div>
+
+                {/* Source Medium */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Source Medium</label>
+                  <input
+                    type="text"
+                    value={srcMedium}
+                    onChange={(e) => setSrcMedium(e.target.value)}
+                    placeholder="e.g., cpc"
+                    className={inputClass()}
+                  />
                 </div>
 
                 {/* Score */}
@@ -374,6 +474,21 @@ const LeadModal: React.FC<{
                     onChange={(e) => f("score", parseInt(e.target.value) || 0)}
                     className={inputClass()}
                   />
+                </div>
+
+                {/* Assigned To */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Assigned To</label>
+                  <select
+                    value={formData.assignedToId || ""}
+                    onChange={(e) => f("assignedToId", e.target.value || null)}
+                    className={selectClass()}
+                  >
+                    <option value="">— Unassigned —</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -408,55 +523,82 @@ const LeadModal: React.FC<{
 
                 {/* Service Interest */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Service Interest</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Service Interest <span className="text-red-500">*</span></label>
                   <select
                     value={formData.serviceInterest || ""}
                     onChange={(e) => f("serviceInterest", e.target.value)}
-                    className={selectClass}
+                    className={selectClass(errors.serviceInterest)}
                   >
                     <option value="">Select...</option>
-                    <option value="INTERIORS">Interiors</option>
-                    <option value="ARCHITECTURE">Architecture</option>
-                    <option value="RENOVATION">Renovation</option>
-                    <option value="LANDSCAPING">Landscaping</option>
+                    <option value="INTERIOR_DESIGN">Interior Design</option>
+                    <option value="RENOVATION_REMODELING">Renovation & Remodeling</option>
+                    <option value="CONSULTATION_ADVISORY">Consultation & Advisory</option>
+                    <option value="CUSTOM_FURNITURE">Custom Furniture</option>
+                    <option value="FULL_HOME_CONSTRUCTION">Full Home Construction</option>
+                    <option value="MODULAR_KITCHEN">Modular Kitchen</option>
+                    <option value="BATHROOM_RENOVATION">Bathroom Renovation</option>
+                    <option value="LANDSCAPE_DESIGN">Landscape Design</option>
                     <option value="OTHER">Other</option>
                   </select>
+                  {errors.serviceInterest && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.serviceInterest}
+                    </p>
+                  )}
                 </div>
 
                 {/* Property Type */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Property Type</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Property Type <span className="text-red-500">*</span></label>
                   <select
                     value={formData.propertyType || ""}
                     onChange={(e) => f("propertyType", e.target.value)}
-                    className={selectClass}
+                    className={selectClass(errors.propertyType)}
                   >
                     <option value="">Select...</option>
                     <option value="APARTMENT">Apartment</option>
                     <option value="VILLA">Villa</option>
-                    <option value="INDEPENDENT_HOUSE">Independent House</option>
-                    <option value="COMMERCIAL">Commercial</option>
+                    <option value="ROW_HOUSE">Row House</option>
+                    <option value="PENTHOUSE">Penthouse</option>
+                    <option value="DUPLEX">Duplex</option>
+                    <option value="STUDIO">Studio</option>
                     <option value="OFFICE">Office</option>
                     <option value="RETAIL">Retail</option>
+                    <option value="WAREHOUSE">Warehouse</option>
                     <option value="OTHER">Other</option>
                   </select>
+                  {errors.propertyType && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.propertyType}
+                    </p>
+                  )}
                 </div>
 
                 {/* Home Type */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Home Type</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Home Type <span className="text-red-500">*</span></label>
                   <select
                     value={formData.homeType || ""}
                     onChange={(e) => f("homeType", e.target.value)}
-                    className={selectClass}
+                    className={selectClass(errors.homeType)}
                   >
                     <option value="">Select...</option>
-                    <option value="APARTMENT">Apartment</option>
-                    <option value="VILLA">Villa</option>
-                    <option value="BUNGALOW">Bungalow</option>
+                    <option value="NOT_SURE">Not Sure</option>
+                    <option value="ONE_BHK">1 BHK</option>
+                    <option value="TWO_BHK">2 BHK</option>
+                    <option value="THREE_BHK">3 BHK</option>
+                    <option value="FOUR_BHK">4 BHK</option>
+                    <option value="VILLA_ROW_HOUSE">Villa / Row House</option>
+                    <option value="DUPLEX">Duplex</option>
+                    <option value="TRIPLEX">Triplex</option>
                     <option value="PENTHOUSE">Penthouse</option>
-                    <option value="ROW_HOUSE">Row House</option>
+                    <option value="OTHERS">Others</option>
                   </select>
+                  {errors.homeType && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.homeType}
+                    </p>
+                  )}
                 </div>
 
                 {/* Project Type */}
@@ -465,12 +607,33 @@ const LeadModal: React.FC<{
                   <select
                     value={formData.projectType || ""}
                     onChange={(e) => f("projectType", e.target.value)}
-                    className={selectClass}
+                    className={selectClass()}
                   >
                     <option value="">Select...</option>
+                    <option value="HOME">Home</option>
                     <option value="RESIDENTIAL">Residential</option>
                     <option value="COMMERCIAL">Commercial</option>
                     <option value="MIXED_USE">Mixed Use</option>
+                    <option value="OTHERS">Others</option>
+                  </select>
+                </div>
+
+                {/* Property Project Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Property Project Type</label>
+                  <select
+                    value={formData.propertyProjectType || ""}
+                    onChange={(e) => f("propertyProjectType", e.target.value)}
+                    className={selectClass()}
+                  >
+                    <option value="">Select...</option>
+                    <option value="HIGHRISE">Highrise</option>
+                    <option value="LOWRISE">Lowrise</option>
+                    <option value="GATED_COMMUNITY">Gated Community</option>
+                    <option value="VILLA">Villa</option>
+                    <option value="TOWNHOUSE">Townhouse</option>
+                    <option value="PLOTTED">Plotted</option>
+                    <option value="OTHERS">Others</option>
                   </select>
                 </div>
 
@@ -478,9 +641,10 @@ const LeadModal: React.FC<{
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">Area (sqft)</label>
                   <input
-                    type="text"
-                    value={formData.area || ""}
-                    onChange={(e) => f("area", e.target.value)}
+                    type="number"
+                    min={0}
+                    value={formData.area ?? ""}
+                    onChange={(e) => f("area", e.target.value === "" ? null : Number(e.target.value))}
                     placeholder="e.g., 1500"
                     className={inputClass()}
                   />
@@ -488,14 +652,19 @@ const LeadModal: React.FC<{
 
                 {/* City */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">City</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">City <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={formData.city || ""}
                     onChange={(e) => f("city", e.target.value)}
                     placeholder="e.g., Bangalore"
-                    className={inputClass()}
+                    className={inputClass(errors.city)}
                   />
+                  {errors.city && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.city}
+                    </p>
+                  )}
                 </div>
 
                 {/* Location */}
@@ -516,73 +685,125 @@ const LeadModal: React.FC<{
                   <select
                     value={formData.projectStage || ""}
                     onChange={(e) => f("projectStage", e.target.value)}
-                    className={selectClass}
+                    className={selectClass()}
                   >
                     <option value="">Select...</option>
-                    <option value="PLANNING">Planning</option>
-                    <option value="DESIGN">Design</option>
-                    <option value="EXECUTION">Execution</option>
-                    <option value="COMPLETED">Completed</option>
+                    <option value="NOT_SURE">Not Sure</option>
+                    <option value="NEW_HOME_PENDING">New Home (Pending Possession)</option>
+                    <option value="NEW_HOME_RECEIVED">New Home (Received)</option>
+                    <option value="RENOVATION">Renovation</option>
+                    <option value="COMMERCIAL_FITOUT">Commercial Fitout</option>
                   </select>
                 </div>
 
                 {/* Start Timeline */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Timeline</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Timeline <span className="text-red-500">*</span></label>
                   <select
                     value={formData.startTimeline || ""}
                     onChange={(e) => f("startTimeline", e.target.value)}
-                    className={selectClass}
+                    className={selectClass(errors.startTimeline)}
                   >
                     <option value="">Select...</option>
+                    <option value="NOT_SURE">Not Sure</option>
                     <option value="IMMEDIATELY">Immediately</option>
-                    <option value="WITHIN_1_MONTH">Within 1 Month</option>
-                    <option value="1_3_MONTHS">1–3 Months</option>
-                    <option value="3_6_MONTHS">3–6 Months</option>
-                    <option value="6_PLUS_MONTHS">6+ Months</option>
+                    <option value="ONE_TO_THREE_MONTHS">1–3 Months</option>
+                    <option value="THREE_TO_SIX_MONTHS">3–6 Months</option>
+                    <option value="SIX_PLUS_MONTHS">6+ Months</option>
                   </select>
+                  {errors.startTimeline && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.startTimeline}
+                    </p>
+                  )}
                 </div>
 
                 {/* Budget Comfort */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Budget Comfort</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Budget Comfort <span className="text-red-500">*</span></label>
                   <select
                     value={formData.budgetComfort || ""}
                     onChange={(e) => f("budgetComfort", e.target.value)}
-                    className={selectClass}
+                    className={selectClass(errors.budgetComfort)}
                   >
                     <option value="">Select...</option>
-                    <option value="COMFORTABLE">Comfortable</option>
-                    <option value="MODERATE">Moderate</option>
-                    <option value="TIGHT">Tight</option>
+                    <option value="NOT_SURE">Not Sure</option>
+                    <option value="VALUE">Value</option>
+                    <option value="BALANCED">Balanced</option>
+                    <option value="PREMIUM">Premium</option>
+                    <option value="NEED_GUIDANCE">Need Guidance</option>
                   </select>
+                  {errors.budgetComfort && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.budgetComfort}
+                    </p>
+                  )}
                 </div>
 
                 {/* Project Scope */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Project Scope</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Project Scope <span className="text-red-500">*</span></label>
                   <select
                     value={formData.projectScope || ""}
                     onChange={(e) => f("projectScope", e.target.value)}
-                    className={selectClass}
+                    className={selectClass(errors.projectScope)}
                   >
                     <option value="">Select...</option>
-                    <option value="FULL_HOME">Full Home</option>
-                    <option value="PARTIAL">Partial Rooms</option>
-                    <option value="SINGLE_ROOM">Single Room</option>
-                    <option value="KITCHEN_BATH">Kitchen & Bath</option>
+                    <option value="NOT_SURE">Not Sure</option>
+                    <option value="TURNKEY">Turnkey</option>
+                    <option value="DESIGN_ONLY">Design Only</option>
+                    <option value="KITCHEN_WARDROBES">Kitchen &amp; Wardrobes</option>
+                    <option value="INTERIOR_DESIGN_ONLY">Interior Design Only</option>
+                    <option value="INTERIOR_DESIGN_AND_BUILD">Interior Design and Build</option>
+                    <option value="ARCHITECTURE_DESIGN_ONLY">Architecture Design Only</option>
+                    <option value="RENOVATION">Renovation</option>
+                    <option value="SPECIFIC_SPACE">Specific Space</option>
+                    <option value="OTHERS">Others</option>
                   </select>
+                  {errors.projectScope && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.projectScope}
+                    </p>
+                  )}
                 </div>
 
-                {/* Floor Plan URL */}
+                {/* Floor Plan Upload */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Floor Plan URL</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Floor Plan</label>
+                  <div
+                    onClick={() => floorPlanInputRef.current?.click()}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-100 shrink-0">
+                      <Layers className="w-4 h-4 text-orange-500" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {floorPlanFile ? (
+                        <p className="text-sm font-medium text-gray-800 truncate">{floorPlanFile.name}</p>
+                      ) : (
+                        <p className="text-sm text-gray-400">Click to upload floor plan (PDF, PNG, JPG)</p>
+                      )}
+                    </div>
+                    {floorPlanFile && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setFloorPlanFile(null); f("floorPlanUrl", ""); }}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                   <input
-                    type="url"
-                    value={formData.floorPlanUrl || ""}
-                    onChange={(e) => f("floorPlanUrl", e.target.value)}
-                    placeholder="https://example.com/floorplan.pdf"
-                    className={inputClass()}
+                    ref={floorPlanInputRef}
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFloorPlanFile(file);
+                      if (file) f("floorPlanUrl", file.name);
+                    }}
                   />
                 </div>
 
@@ -701,7 +922,7 @@ const LeadModal: React.FC<{
               />
             ))}
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -713,7 +934,7 @@ const LeadModal: React.FC<{
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-500/25 disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             >
               {isSubmitting ? (
                 <>
@@ -1202,6 +1423,15 @@ export const LeadsPage: React.FC = () => {
 
     const customerName = selectedLead.name || "Unknown Customer";
 
+    // Guard: lead has already been converted
+    if ((selectedLead as any).convertedToAccount) {
+      toast.error(
+        `This lead has already been converted to a customer.`,
+      );
+      setShowConvertModal(false);
+      return;
+    }
+
     // Validate customer type
     if (
       !convertAccountType ||
@@ -1406,7 +1636,10 @@ export const LeadsPage: React.FC = () => {
     setBulkBdrDropdownOpen((prev) => !prev);
   };
 
-  const filteredLeads = leads.filter((lead) => {
+  // Non-converted leads (converted leads move to Customers section)
+  const nonConvertedLeads = leads.filter((lead) => lead.status !== "CONVERTED");
+
+  const filteredLeads = nonConvertedLeads.filter((lead) => {
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
       (lead.name?.toLowerCase() || "").includes(searchLower) ||
@@ -1423,11 +1656,11 @@ export const LeadsPage: React.FC = () => {
   const displayLeads =
     selectedStage === "__unassigned__" ? unassignedLeads : filteredLeads;
 
-  // Calculate lead counts by status
+  // Calculate lead counts by status (excluding CONVERTED — they live in Customers)
   const leadCounts = Array.isArray(statuses)
     ? statuses.reduce(
         (acc, status) => {
-          acc[status.value] = leads.filter(
+          acc[status.value] = nonConvertedLeads.filter(
             (l) => l.status === status.value,
           ).length;
           return acc;
@@ -1486,10 +1719,12 @@ export const LeadsPage: React.FC = () => {
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}
         >
-          All ({leads.length})
+          All ({nonConvertedLeads.length})
         </button>
         {Array.isArray(statuses) &&
-          statuses.map((status) => (
+          statuses
+            .filter((status) => status.value !== "CONVERTED")
+            .map((status) => (
             <button
               key={status.value}
               onClick={() => {
@@ -2230,6 +2465,7 @@ export const LeadsPage: React.FC = () => {
         onClose={() => setShowAddModal(false)}
         onSave={handleCreateLead}
         sources={sources}
+        users={bdrUsers}
       />
 
       <LeadModal
@@ -2241,6 +2477,7 @@ export const LeadsPage: React.FC = () => {
         lead={leadToEdit}
         onSave={handleUpdateLead}
         sources={sources}
+        users={bdrUsers}
       />
 
       <PhoneInputModal

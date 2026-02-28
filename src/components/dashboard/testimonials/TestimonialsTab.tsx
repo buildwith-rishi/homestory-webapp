@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Star,
   Plus,
@@ -501,7 +502,7 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
       )}
 
       {/* Delete Confirmation */}
-      {deletingId && (
+      {deletingId && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
             <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center mx-auto mb-4">
@@ -529,8 +530,8 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
     </div>
   );
 };
@@ -858,7 +859,7 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
     e.target.value = "";
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
@@ -1200,8 +1201,8 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+  document.body);
 };
 
 // ==========================================
@@ -1278,7 +1279,7 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
@@ -1504,8 +1505,8 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+  document.body);
 };
 
 // ==========================================
@@ -1526,7 +1527,7 @@ const ViewTestimonialModal: React.FC<ViewTestimonialModalProps> = ({
   const sc = getStatusConfig(testimonial.status);
   const StatusIcon = sc.icon;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
@@ -1829,8 +1830,8 @@ const ViewTestimonialModal: React.FC<ViewTestimonialModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+  document.body);
 };
 
 export default TestimonialsTab;

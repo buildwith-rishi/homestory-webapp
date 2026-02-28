@@ -1,7 +1,7 @@
 // Tasks API Service
 // Handles all task-related API operations
 
-import type { Task, CreateTaskRequest, UpdateTaskRequest } from "../types";
+import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskCategory } from "../types";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -180,4 +180,48 @@ export async function deleteTask(taskId: string): Promise<void> {
 
   // Successfully deleted - return void
   return;
+}
+
+// ── Task Categories ──────────────────────────────────────────────────────────
+
+export async function getTaskCategories(): Promise<TaskCategory[]> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/categories`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+  return handleResponse<TaskCategory[]>(response);
+}
+
+export async function createTaskCategory(data: {
+  name: string;
+  color: string;
+}): Promise<TaskCategory> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/categories`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<TaskCategory>(response);
+}
+
+export async function updateTaskCategory(
+  id: string,
+  data: { name?: string; color?: string },
+): Promise<TaskCategory> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/categories/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<TaskCategory>(response);
+}
+
+export async function deleteTaskCategory(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/categories/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    await handleResponse(response);
+  }
 }

@@ -375,6 +375,15 @@ export const adminAPI = {
       method: "DELETE",
     });
   },
+
+  // Reset a user's password (admin only)
+  // POST /api/users/:id/reset-password
+  resetPassword: async (userId: string, newPassword: string) => {
+    return fetchAPI(`/api/users/${userId}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ newPassword }),
+    });
+  },
 };
 
 export default {

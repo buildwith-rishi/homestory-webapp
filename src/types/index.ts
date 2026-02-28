@@ -6,6 +6,8 @@ export enum UserRole {
   PROJECT_MANAGER = "PROJECT_MANAGER",
   ACCOUNTS = "ACCOUNTS",
   SITE_ENGINEER = "SITE_ENGINEER",
+  DESIGNER = "DESIGNER",
+  DESIGN_HEAD = "DESIGN_HEAD",
   // Legacy aliases (kept for backward compatibility)
   MANAGER = "PROJECT_MANAGER",
   ENGINEER = "SITE_ENGINEER",
@@ -65,6 +67,15 @@ export enum TaskStatus {
   CANCELLED = "CANCELLED",
 }
 
+// Task Category Interface (from /api/tasks/categories)
+export interface TaskCategory {
+  id: string;
+  name: string;
+  color: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // Task Interface (matches API response)
 export interface Task {
   id: string;
@@ -75,6 +86,10 @@ export interface Task {
   priority: string;
   status: string;
   assignedToId?: string;
+  assigneeIds?: string[];
+  assignees?: { id: string; name: string; email?: string }[];
+  categoryId?: string;
+  category?: { id: string; name: string; color: string } | null;
   notes?: string;
   completed: boolean;
   createdAt: string;
@@ -95,6 +110,8 @@ export interface CreateTaskRequest {
   priority: string;
   status: string;
   assignedToId?: string;
+  assigneeIds?: string[];
+  categoryId?: string;
   notes?: string;
 }
 
@@ -105,6 +122,8 @@ export interface UpdateTaskRequest {
   priority?: string;
   status?: string;
   assignedToId?: string;
+  assigneeIds?: string[];
+  categoryId?: string;
   notes?: string;
   completed?: boolean;
 }
@@ -310,12 +329,16 @@ export interface Project {
   actualEndDate?: string;
   siteEngineerId?: string;
   budget?: number;
+  // API passthrough aliases (some backend responses use these names)
+  projectType?: string;
+  propertyType?: string;
 }
 
 // Create Project Request Interface
 export interface CreateProjectRequest {
-  leadId: string;
+  accountId: string;
   projectName: string;
+  leadId?: string;
   pipelineType: PipelineType | string;
   projectCategory: ProjectCategory | string;
   scopeType: ScopeType | string;
@@ -335,24 +358,40 @@ export interface CreateProjectRequest {
   constructionStatus?: string;
   tentativeHandoverDate?: string;
   specialRequirements?: string;
-  totalValue?: number | string;
+  designTeam?: string[];
+  executionTeam?: string[];
+  assignedDesignerId?: string;
+  assignedPMId?: string;
   designPackage?: string;
+  totalValue?: number | string;
+  remarks?: string;
+  numberOfMeetings?: number;
+  moodBoardShared?: boolean;
+  design3DStatus?: string;
+  status?: string;
+  paidAmount?: number;
 }
 
 // Update Project Request Interface
 export interface UpdateProjectRequest {
   projectName?: string;
+  leadId?: string;
   pipelineType?: string;
   projectCategory?: string;
   scopeType?: string;
   budgetTier?: string;
   propertySubtype?: string;
+  propertySizeSqft?: number;
+  propertyBHK?: string;
   currentStageCode?: string;
   assignedDesignerId?: string | null;
   assignedPMId?: string | null;
+  designTeam?: string[];
+  executionTeam?: string[];
   moodBoardShared?: boolean;
   design3DStatus?: string;
   designPackage?: string;
+  numberOfMeetings?: number;
   propertyAddress?: string;
   propertyCity?: string;
   propertyState?: string;
@@ -366,6 +405,7 @@ export interface UpdateProjectRequest {
   tentativeHandoverDate?: string;
   specialRequirements?: string;
   totalValue?: number | string;
+  paidAmount?: number | string;
   status?: ProjectStatus;
   pauseReason?: string;
   pausedUntil?: string;
@@ -391,6 +431,8 @@ export interface UpdatePaymentRequest {
   paymentMethod?: string;
   transactionRef?: string;
   notes?: string;
+  invoiceAmount?: number;
+  projectStageId?: string;
 }
 
 // Create Payment Request Interface (POST /api/payments)
@@ -403,6 +445,8 @@ export interface CreatePaymentRequest {
   paymentStage: number;
   percentage: number;
   expectedAmount: number | string;
+  invoiceAmount?: number;
+  projectStageId?: string;
   taxPercentage?: number;
   status?: string;
   dueDate?: string;
@@ -1014,7 +1058,9 @@ export interface AdminUser {
     | "BDR"
     | "PROJECT_MANAGER"
     | "ACCOUNTS"
-    | "SITE_ENGINEER";
+    | "SITE_ENGINEER"
+    | "DESIGNER"
+    | "DESIGN_HEAD";
   phone?: string;
   avatar?: string;
   isBanned: boolean;
@@ -1035,7 +1081,9 @@ export interface CreateUserRequest {
     | "BDR"
     | "PROJECT_MANAGER"
     | "ACCOUNTS"
-    | "SITE_ENGINEER";
+    | "SITE_ENGINEER"
+    | "DESIGNER"
+    | "DESIGN_HEAD";
   phone?: string;
 }
 
@@ -1124,10 +1172,12 @@ export interface ProjectPayment {
   title?: string;
   description?: string;
   stageCode?: string | null;
+  projectStageId?: string | null;
   paymentStage: number;
   phaseType: string; // e.g. "DESIGN" or "EXECUTION"
   percentage: number;
   expectedAmount: string | number;
+  invoiceAmount?: number | null;
   actualAmount?: string | number | null;
   taxPercentage?: number | null;
   status: PaymentStatus | string;
@@ -1483,6 +1533,8 @@ export interface MatrixTask {
   completionNotes?: string;
   completedAt?: string | null;
   completedBy?: { id?: string; name: string } | null;
+  assignedToId?: string | null;
+  assignedTo?: { id: string; name: string; email?: string } | null;
   category?: { id?: string; name: string; color?: string } | null;
   categoryId?: string;
   _count?: { attachments: number };
@@ -1552,6 +1604,7 @@ export interface UpdateMatrixTaskRequest {
   dayNumber?: number;
   taskDate?: string;
   status?: string;
+  assignedToId?: string | null;
 }
 
 export interface NotifyCustomerRequest {

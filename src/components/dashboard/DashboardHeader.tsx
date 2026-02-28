@@ -1,11 +1,17 @@
-import React from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import { Search, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, X, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useProjectStore } from "../../stores/projectStore";
 import { useMeetingStore } from "../../stores/meetingStore";
 import { useCustomerStore } from "../../stores/customerStore";
 import { useLeadStore } from "../../stores/leadStore";
+import {
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  type Notification,
+} from "../../services/notificationApi";
 
 interface DashboardHeaderProps {
   sidebarCollapsed?: boolean;
@@ -16,10 +22,86 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const { user } = useAuth();
   const location = useLocation();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { currentProject } = useProjectStore();
   const { currentMeeting } = useMeetingStore();
   const { currentCustomer } = useCustomerStore();
   const { currentLead } = useLeadStore();
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getNotifications();
+      setNotifications(data);
+    } catch {
+      // Silently ignore – bell just won't show count if API unavailable
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch on mount and refresh every 60 seconds
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleBellClick = () => {
+    setDropdownOpen((prev) => !prev);
+    if (!dropdownOpen) fetchNotifications();
+  };
+
+  const handleMarkRead = async (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    await markNotificationRead(id);
+  };
+
+  const handleMarkAllRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    await markAllNotificationsRead();
+  };
+
+  const getNotificationIcon = (type: Notification["type"]) => {
+    switch (type) {
+      case "success":
+        return <CheckCircle2 size={16} className="text-green-500" />;
+      case "warning":
+        return <AlertTriangle size={16} className="text-yellow-500" />;
+      case "error":
+        return <AlertCircle size={16} className="text-red-500" />;
+      default:
+        return <Info size={16} className="text-blue-500" />;
+    }
+  };
+
+  const formatTime = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
 
   // Get breadcrumb from current path
   const getBreadcrumb = () => {
@@ -99,19 +181,93 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <span className="text-gray-900 font-semibold">{getBreadcrumb()}</span>
         </div>
 
-        {/* Right: Search, Notifications, and User Profile */}
-        <div className="flex items-center gap-4 flex-shrink-0 ml-auto">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-64 h-10 pl-10 pr-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all"
-            />
+        {/* Right: Bell + User Profile */}
+          <div className="flex items-center gap-4 flex-shrink-0 ml-auto">
+          {/* Bell Icon + Notification Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={handleBellClick}
+              className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <Bell size={20} className="text-gray-600" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[8px] h-2 bg-orange-500 rounded-full" />
+              )}
+            </button>
+
+            {/* Dropdown panel */}
+            {dropdownOpen && (
+              <div className="absolute right-0 top-12 w-96 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-2 py-0.5 rounded-full">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+                      >
+                        <CheckCheck size={13} />
+                        Mark all read
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setDropdownOpen(false)}
+                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notification list */}
+                <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                  {loading && notifications.length === 0 ? (
+                    <div className="flex items-center justify-center py-10">
+                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+                      <Bell size={28} className="opacity-30" />
+                      <p className="text-sm">No notifications yet</p>
+                    </div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => !n.read && handleMarkRead(n.id)}
+                        className={`flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer hover:bg-gray-50 ${
+                          !n.read ? "bg-orange-50/40" : ""
+                        }`}
+                      >
+                        <div className="mt-0.5 flex-shrink-0">
+                          {getNotificationIcon(n.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm leading-snug ${!n.read ? "font-semibold text-gray-900" : "font-medium text-gray-700"}`}>
+                            {n.title}
+                          </p>
+                          {n.message && (
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">{formatTime(n.createdAt)}</p>
+                        </div>
+                        {!n.read && (
+                          <span className="mt-1.5 w-2 h-2 flex-shrink-0 bg-orange-500 rounded-full" />
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* User Profile */}

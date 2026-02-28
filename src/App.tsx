@@ -26,6 +26,7 @@ import {
   KanbanView,
   EmailEditor,
 } from "./pages/dashboard";
+import { EngineerDetails } from "./pages/dashboard/EngineerDetails";
 import LeadDetails from "./pages/dashboard/LeadDetails";
 import { MeetingRoom } from "./pages/dashboard/MeetingRoom";
 import { MeetingsCalendarPage } from "./pages/dashboard/MeetingsCalendar";
@@ -39,6 +40,8 @@ import {
   EngineerProfile,
   EngineerIssues,
 } from "./pages/mobile";
+import { BDRAppShell } from "./components/bdr/BDRAppShell";
+import { BDRHome, BDRTasks, BDRProfile } from "./pages/bdr";
 
 function App() {
   return (
@@ -186,6 +189,14 @@ function App() {
               element={
                 <ProtectedRoute requiredPermission="users.read">
                   <EngineersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="engineers/:id"
+              element={
+                <ProtectedRoute requiredPermission="users.read">
+                  <EngineerDetails />
                 </ProtectedRoute>
               }
             />
@@ -337,6 +348,44 @@ function App() {
                 <MobileAppShell>
                   <EngineerProfile />
                 </MobileAppShell>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* BDR App – Business Development Representative dashboard */}
+          <Route
+            path="/bdr"
+            element={
+              <ProtectedRoute
+                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+              >
+                <BDRAppShell>
+                  <BDRHome />
+                </BDRAppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bdr/tasks"
+            element={
+              <ProtectedRoute
+                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+              >
+                <BDRAppShell>
+                  <BDRTasks />
+                </BDRAppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bdr/profile"
+            element={
+              <ProtectedRoute
+                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+              >
+                <BDRAppShell>
+                  <BDRProfile />
+                </BDRAppShell>
               </ProtectedRoute>
             }
           />

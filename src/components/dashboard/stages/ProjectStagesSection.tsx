@@ -43,41 +43,46 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
 
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const [phaseTab, setPhaseTab] = useState<"all" | "DESIGN" | "EXECUTION">("all");
   const [showAddStageModal, setShowAddStageModal] = useState(false);
   const [matrixStage, setMatrixStage] = useState<ProjectStageData | null>(null);
 
-  const filteredStages = useMemo(() => {
+  const phaseFilteredStages = useMemo(() => {
     const sorted = [...projectStages].sort(
       (a, b) => a.orderIndex - b.orderIndex,
     );
+    if (phaseTab !== "all") {
+      return sorted.filter((s) => s.phaseType === phaseTab);
+    }
+    return sorted;
+  }, [projectStages, phaseTab]);
+
+  const filteredStages = useMemo(() => {
     if (filter === "active") {
-      return sorted.filter(
+      return phaseFilteredStages.filter(
         (s) => s.status === "ONGOING" || s.status === "PENDING",
       );
     }
     if (filter === "completed") {
-      return sorted.filter((s) => s.status === "COMPLETED");
+      return phaseFilteredStages.filter((s) => s.status === "COMPLETED");
     }
-    return sorted;
-  }, [projectStages, filter]);
+    return phaseFilteredStages;
+  }, [phaseFilteredStages, filter]);
 
   const stats = useMemo(() => {
-    const total = projectStages.length;
-    const completed = projectStages.filter(
-      (s) => s.status === "COMPLETED",
-    ).length;
-    const active = projectStages.filter((s) => s.status === "ONGOING").length;
-    const notStarted = projectStages.filter(
-      (s) => s.status === "PENDING",
-    ).length;
-    const notApplicable = projectStages.filter(
+    const base = phaseFilteredStages;
+    const total = base.length;
+    const completed = base.filter((s) => s.status === "COMPLETED").length;
+    const active = base.filter((s) => s.status === "ONGOING").length;
+    const notStarted = base.filter((s) => s.status === "PENDING").length;
+    const notApplicable = base.filter(
       (s) => s.status === "NOT_APPLICABLE",
     ).length;
     const applicableTotal = total - notApplicable;
     const progress =
       applicableTotal > 0 ? Math.round((completed / applicableTotal) * 100) : 0;
     return { total, completed, active, notStarted, notApplicable, progress };
-  }, [projectStages]);
+  }, [phaseFilteredStages]);
 
   const handleDeleteStage = async (stageCode: string) => {
     if (
@@ -198,6 +203,27 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
             Add Stage
           </Button>
         </div>
+      </div>
+
+      {/* Phase Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        {([
+          { key: "all" as const, label: "All" },
+          { key: "DESIGN" as const, label: "Interiors" },
+          { key: "EXECUTION" as const, label: "Architecture" },
+        ] as const).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setPhaseTab(tab.key)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              phaseTab === tab.key
+                ? "bg-white text-orange-600 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Filter Tabs */}

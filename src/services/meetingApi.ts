@@ -283,9 +283,11 @@ export interface UpdateMeetingRequest {
 
 // Request payload for adding participants
 export interface AddParticipantRequest {
-  name: string;
-  email: string;
-  phone: string;
+  userId?: string;   // For team members — auto-fills name/email/phone
+  name?: string;     // Required if no userId (external participant)
+  email?: string;
+  phone?: string;
+  contactId?: string; // Optional link to a CRM contact
 }
 
 // Request payload for adding notes

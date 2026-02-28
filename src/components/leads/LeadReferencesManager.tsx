@@ -11,10 +11,30 @@ import {
   Calendar,
   Eye,
   ExternalLink,
+  ChevronDown,
 } from "lucide-react";
 import { Button, Badge, Card } from "../ui";
 import { LeadReference, ReferenceType } from "../../types";
 import toast from "react-hot-toast";
+import {
+  uploadAttachment,
+  deleteAttachment,
+  getAttachment,
+  fileToBase64,
+  mimeToAttachmentType,
+  AttachmentType,
+} from "../../services/attachmentApi";
+
+const ATTACHMENT_TYPES: { label: string; value: AttachmentType }[] = [
+  { label: "Site Photo", value: "SITE_PHOTO" },
+  { label: "Floor Plan", value: "FLOOR_PLAN" },
+  { label: "3D Render", value: "RENDER_3D" },
+  { label: "Quote PDF", value: "QUOTE_PDF" },
+  { label: "BOQ", value: "BOQ" },
+  { label: "Contract", value: "CONTRACT" },
+  { label: "ID Proof", value: "ID_PROOF" },
+  { label: "Other", value: "OTHER" },
+];
 
 interface LeadReferencesManagerProps {
   leadId: string;
@@ -25,6 +45,7 @@ interface LeadReferencesManagerProps {
 }
 
 export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
+  leadId,
   references,
   onAddReference,
   onDeleteReference,
@@ -36,6 +57,38 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
   const [linkDescription, setLinkDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<LeadReference["category"]>("Inspiration");
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedAttachmentType, setSelectedAttachmentType] = useState<AttachmentType>("OTHER");
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [viewingIds, setViewingIds] = useState<Set<string>>(new Set());
+
+  // Open the file in a new tab. If url is already stored use it directly;
+  // otherwise fetch the single attachment to get a fresh signed downloadUrl.
+  const handleView = async (reference: LeadReference) => {
+    if (reference.url) {
+      window.open(reference.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    // No URL stored — fetch on demand (list endpoint may not return downloadUrl)
+    if (reference.id.startsWith("ref-")) return; // temp link id, nothing to fetch
+    setViewingIds((prev) => new Set(prev).add(reference.id));
+    try {
+      const attachment = await getAttachment(reference.id);
+      const url = attachment.downloadUrl || attachment.fileUrl;
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Download URL not available");
+      }
+    } catch {
+      toast.error("Failed to fetch download URL");
+    } finally {
+      setViewingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(reference.id);
+        return next;
+      });
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -43,20 +96,33 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
 
     setIsUploading(true);
 
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        // Validate file size (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error(`${file.name} is too large. Maximum size is 10MB.`);
-          continue;
-        }
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
 
-        // Determine reference type based on file type
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} is too large. Maximum size is 10MB.`);
+        continue;
+      }
+
+      try {
+        const base64 = await fileToBase64(file);
+        const attachmentType =
+          selectedAttachmentType !== "OTHER"
+            ? selectedAttachmentType
+            : mimeToAttachmentType(file.type);
+
+        const attachment = await uploadAttachment({
+          entityType: "LEAD",
+          entityId: leadId,
+          attachmentType,
+          fileName: file.name,
+          fileType: file.type,
+          fileBase64: base64,
+        });
+
+        // Derive ReferenceType from mime
         let refType: ReferenceType;
         let category: LeadReference["category"] = "Reference";
-
         if (file.type.startsWith("image/")) {
           refType = ReferenceType.IMAGE;
           category = "Inspiration";
@@ -71,33 +137,30 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
           category = "Reference";
         }
 
-        // TODO: Upload to actual storage service (S3, Firebase, etc.)
-        // For now, create a mock URL
-        const mockUrl = URL.createObjectURL(file);
-
         onAddReference({
           type: refType,
           title: file.name,
-          description: `Uploaded ${file.type}`,
-          url: mockUrl,
-          thumbnailUrl: file.type.startsWith("image/") ? mockUrl : undefined,
+          description: attachment.notes || `${attachmentType.replace(/_/g, " ")} — ${file.type}`,
+          url: attachment.downloadUrl || attachment.fileUrl || "",
           fileSize: file.size,
           fileName: file.name,
           mimeType: file.type,
-          category: category,
-          uploadedBy: "Current User", // TODO: Get from auth context
-          tags: [],
-        });
+          category,
+          uploadedBy: "Current User",
+          tags: [attachmentType],
+          // Store the real attachment id so we can delete it via API
+          id: attachment.id,
+        } as Omit<LeadReference, "leadId" | "uploadedAt">);
 
         toast.success(`${file.name} uploaded successfully!`);
+      } catch (err) {
+        console.error("Upload error:", err);
+        toast.error(`Failed to upload ${file.name}`);
       }
-    } catch (error) {
-      toast.error("Failed to upload file");
-      console.error(error);
-    } finally {
-      setIsUploading(false);
-      e.target.value = ""; // Reset input
     }
+
+    setIsUploading(false);
+    e.target.value = "";
   };
 
   const handleAddLink = () => {
@@ -107,8 +170,8 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
     }
 
     try {
-      new URL(linkUrl); // Validate URL
-      
+      new URL(linkUrl);
+
       onAddReference({
         type: ReferenceType.LINK,
         title: linkTitle || linkUrl,
@@ -124,8 +187,29 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
       setLinkTitle("");
       setLinkDescription("");
       setIsAddingLink(false);
-    } catch (error) {
+    } catch {
       toast.error("Please enter a valid URL");
+    }
+  };
+
+  const handleDelete = async (referenceId: string) => {
+    setDeletingIds((prev) => new Set(prev).add(referenceId));
+    try {
+      // Only call the API if the id looks like a real UUID (not a temp ref-* id)
+      if (!referenceId.startsWith("ref-")) {
+        await deleteAttachment(referenceId);
+      }
+      onDeleteReference(referenceId);
+      toast.success("Attachment deleted");
+    } catch (err) {
+      console.error("Delete error:", err);
+      toast.error("Failed to delete attachment");
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(referenceId);
+        return next;
+      });
     }
   };
 
@@ -192,7 +276,24 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
       {!readOnly && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* File Upload */}
-          <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 hover:border-orange-400 hover:bg-orange-50/30 transition-all">
+          <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-orange-400 hover:bg-orange-50/30 transition-all">
+            {/* Attachment type picker */}
+            <div className="relative mb-3">
+              <select
+                value={selectedAttachmentType}
+                onChange={(e) =>
+                  setSelectedAttachmentType(e.target.value as AttachmentType)
+                }
+                className="w-full appearance-none pl-3 pr-8 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
+              >
+                {ATTACHMENT_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            </div>
             <input
               type="file"
               id="file-upload"
@@ -206,11 +307,11 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
               htmlFor="file-upload"
               className="cursor-pointer flex flex-col items-center gap-3"
             >
-              <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-orange-50 rounded-full flex items-center justify-center shadow-sm">
+              <div className="w-14 h-14 bg-gradient-to-br from-orange-100 to-orange-50 rounded-full flex items-center justify-center shadow-sm">
                 {isUploading ? (
                   <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <Upload className="w-7 h-7 text-orange-600" />
+                  <Upload className="w-6 h-6 text-orange-600" />
                 )}
               </div>
               <div className="text-center">
@@ -218,7 +319,7 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
                   {isUploading ? "Uploading..." : "Upload Files"}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Images, PDFs, Docs, Videos (Max 10MB)
+                  Images, PDFs, Docs, Videos (Max 1GB)
                 </p>
               </div>
             </label>
@@ -384,20 +485,35 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
                               target="_blank"
                               rel="noopener noreferrer"
                               className="p-1.5 hover:bg-blue-100 rounded text-blue-600"
+                              title="Open link"
                             >
                               <ExternalLink className="w-4 h-4" />
                             </a>
                           ) : (
-                            <button className="p-1.5 hover:bg-gray-100 rounded text-gray-600">
-                              <Eye className="w-4 h-4" />
+                            <button
+                              onClick={() => handleView(reference)}
+                              disabled={viewingIds.has(reference.id)}
+                              className="p-1.5 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-50"
+                              title="View / Download"
+                            >
+                              {viewingIds.has(reference.id) ? (
+                                <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
                             </button>
                           )}
                           {!readOnly && (
                             <button
-                              onClick={() => onDeleteReference(reference.id)}
-                              className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                              onClick={() => handleDelete(reference.id)}
+                              disabled={deletingIds.has(reference.id)}
+                              className="p-1.5 hover:bg-red-100 rounded text-red-600 disabled:opacity-50"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              {deletingIds.has(reference.id) ? (
+                                <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
                             </button>
                           )}
                         </div>

@@ -20,9 +20,9 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Button, Input } from "../ui";
-import { CreateProjectRequest, PipelineType } from "../../types";
-import type { Lead } from "../../types";
-import { listLeads } from "../../services/leadApi";
+import { CreateProjectRequest, PipelineType, ProjectCategory, ScopeType, BudgetTier, PropertySubtype } from "../../types";
+import type { Customer } from "../../types/customer";
+import { listCustomers } from "../../services/customerApi";
 import { useProjectOptions } from "../../hooks/useProjectOptions";
 
 export interface NewProjectModalProps {
@@ -33,7 +33,7 @@ export interface NewProjectModalProps {
 
 interface FormData {
   projectName: string;
-  leadId: string;
+  accountId: string;
   pipelineType: PipelineType | "";
   projectCategory: string;
   propertySubtype: string;
@@ -55,11 +55,14 @@ interface FormData {
   constructionStatus: string;
   tentativeHandoverDate: string;
   specialRequirements: string;
+  designTeam: string;
+  executionTeam: string;
+  remarks: string;
 }
 
 const INITIAL_FORM_DATA: FormData = {
   projectName: "",
-  leadId: "",
+  accountId: "",
   pipelineType: "",
   projectCategory: "",
   propertySubtype: "",
@@ -81,6 +84,9 @@ const INITIAL_FORM_DATA: FormData = {
   constructionStatus: "",
   tentativeHandoverDate: "",
   specialRequirements: "",
+  designTeam: "",
+  executionTeam: "",
+  remarks: "",
 };
 
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({
@@ -107,26 +113,26 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     ? getSubtypesForCategory(formData.projectCategory)
     : [];
 
-  // Lead search state
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [leadsLoading, setLeadsLoading] = useState(false);
-  const [leadsError, setLeadsError] = useState<string | null>(null);
-  const [leadSearch, setLeadSearch] = useState("");
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [showLeadDropdown, setShowLeadDropdown] = useState(false);
-  const leadDropdownRef = useRef<HTMLDivElement>(null);
+  // Customer search state
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customersError, setCustomersError] = useState<string | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch leads on mount
+  // Fetch customers on mount
   useEffect(() => {
     if (isOpen) {
-      fetchLeads();
+      fetchCustomers();
     }
     if (!isOpen) {
       setFormData({ ...INITIAL_FORM_DATA });
       setErrors({});
       setShowMore(false);
-      setSelectedLead(null);
-      setLeadSearch("");
+      setSelectedCustomer(null);
+      setCustomerSearch("");
       setSubmitting(false);
     }
   }, [isOpen]);
@@ -135,38 +141,40 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
-        leadDropdownRef.current &&
-        !leadDropdownRef.current.contains(e.target as Node)
+        customerDropdownRef.current &&
+        !customerDropdownRef.current.contains(e.target as Node)
       ) {
-        setShowLeadDropdown(false);
+        setShowCustomerDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fetchLeads = async () => {
-    setLeadsLoading(true);
-    setLeadsError(null);
+  const fetchCustomers = async () => {
+    setCustomersLoading(true);
+    setCustomersError(null);
     try {
-      const result = await listLeads({ limit: 200 });
-      setLeads(result.leads);
+      const result = await listCustomers({ limit: 200, includeContacts: true });
+      setCustomers(result.customers);
     } catch (err) {
-      setLeadsError(
-        err instanceof Error ? err.message : "Failed to load leads",
+      setCustomersError(
+        err instanceof Error ? err.message : "Failed to load customers",
       );
     } finally {
-      setLeadsLoading(false);
+      setCustomersLoading(false);
     }
   };
 
-  const filteredLeads = leads.filter((lead) => {
-    const q = leadSearch.toLowerCase();
+  const filteredCustomers = customers.filter((customer) => {
+    const q = customerSearch.toLowerCase();
     if (!q) return true;
+    const primaryContact = customer.contacts?.find((c) => c.isPrimary) ?? customer.contacts?.[0];
     return (
-      lead.name?.toLowerCase().includes(q) ||
-      lead.email?.toLowerCase().includes(q) ||
-      lead.phone?.toLowerCase().includes(q)
+      customer.name?.toLowerCase().includes(q) ||
+      primaryContact?.email?.toLowerCase().includes(q) ||
+      primaryContact?.phone?.toLowerCase().includes(q) ||
+      (customer.billingCity ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -181,7 +189,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     if (!formData.projectName.trim())
       newErrors.projectName = "Project name is required";
-    if (!formData.leadId) newErrors.leadId = "Please select a lead";
+    if (!formData.accountId) newErrors.accountId = "Please select a customer";
     if (!formData.pipelineType)
       newErrors.pipelineType = "Please select a pipeline type";
     if (!formData.projectCategory)
@@ -198,7 +206,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     setSubmitting(true);
 
     const request: CreateProjectRequest = {
-      leadId: formData.leadId,
+      accountId: formData.accountId,
       projectName: formData.projectName,
       pipelineType: formData.pipelineType as PipelineType,
       projectCategory: formData.projectCategory as ProjectCategory,
@@ -230,11 +238,24 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     if (formData.constructionStatus)
       request.constructionStatus = formData.constructionStatus;
     if (formData.tentativeHandoverDate)
-      request.tentativeHandoverDate = formData.tentativeHandoverDate;
+      request.tentativeHandoverDate = new Date(formData.tentativeHandoverDate).toISOString();
     if (formData.specialRequirements)
       request.specialRequirements = formData.specialRequirements;
     if (formData.totalValue) request.totalValue = Number(formData.totalValue);
     if (formData.designPackage) request.designPackage = formData.designPackage;
+    if (formData.designTeam.trim()) {
+      request.designTeam = formData.designTeam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    if (formData.executionTeam.trim()) {
+      request.executionTeam = formData.executionTeam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    if (formData.remarks) request.remarks = formData.remarks;
 
     try {
       await onSubmit(request);
@@ -339,22 +360,22 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 )}
               </div>
 
-              {/* Lead Dropdown */}
-              <div ref={leadDropdownRef}>
+              {/* Customer Dropdown */}
+              <div ref={customerDropdownRef}>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-orange-500" />
-                    Select Lead <span className="text-red-400">*</span>
+                    Select Customer <span className="text-red-400">*</span>
                   </div>
                 </label>
 
-                {leadsError ? (
+                {customersError ? (
                   <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                    <span className="flex-1">{leadsError}</span>
+                    <span className="flex-1">{customersError}</span>
                     <button
                       type="button"
-                      onClick={fetchLeads}
+                      onClick={fetchCustomers}
                       className="flex items-center gap-1 text-red-600 hover:text-red-800 font-semibold"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
@@ -367,38 +388,38 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="text"
-                        value={selectedLead ? selectedLead.name : leadSearch}
+                        value={selectedCustomer ? selectedCustomer.name : customerSearch}
                         onChange={(e) => {
-                          setLeadSearch(e.target.value);
-                          if (selectedLead) {
-                            setSelectedLead(null);
-                            handleChange("leadId", "");
+                          setCustomerSearch(e.target.value);
+                          if (selectedCustomer) {
+                            setSelectedCustomer(null);
+                            handleChange("accountId", "");
                           }
-                          setShowLeadDropdown(true);
+                          setShowCustomerDropdown(true);
                         }}
-                        onFocus={() => setShowLeadDropdown(true)}
+                        onFocus={() => setShowCustomerDropdown(true)}
                         placeholder={
-                          leadsLoading
-                            ? "Loading leads..."
+                          customersLoading
+                            ? "Loading customers..."
                             : "Search by name, email, or phone..."
                         }
-                        disabled={leadsLoading}
+                        disabled={customersLoading}
                         className={`w-full pl-10 pr-10 py-2.5 border rounded-xl text-sm transition-all outline-none ${
-                          errors.leadId
+                          errors.accountId
                             ? "border-red-500 ring-2 ring-red-100"
                             : "border-gray-300 focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-                        } ${leadsLoading ? "bg-gray-50 cursor-wait" : "bg-white"}`}
+                        } ${customersLoading ? "bg-gray-50 cursor-wait" : "bg-white"}`}
                       />
-                      {leadsLoading && (
+                      {customersLoading && (
                         <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
                       )}
-                      {selectedLead && !leadsLoading && (
+                      {selectedCustomer && !customersLoading && (
                         <button
                           type="button"
                           onClick={() => {
-                            setSelectedLead(null);
-                            handleChange("leadId", "");
-                            setLeadSearch("");
+                            setSelectedCustomer(null);
+                            handleChange("accountId", "");
+                            setCustomerSearch("");
                           }}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         >
@@ -407,50 +428,60 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       )}
                     </div>
 
-                    {showLeadDropdown && !leadsLoading && !selectedLead && (
+                    {showCustomerDropdown && !customersLoading && !selectedCustomer && (
                       <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
-                        {filteredLeads.length === 0 ? (
+                        {filteredCustomers.length === 0 ? (
                           <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                            No leads found
+                            No customers found
                           </div>
                         ) : (
-                          filteredLeads.slice(0, 30).map((lead) => (
-                            <button
-                              key={lead.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedLead(lead);
-                                handleChange("leadId", lead.id);
-                                setLeadSearch("");
-                                setShowLeadDropdown(false);
-                              }}
-                              className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors border-b border-gray-50 last:border-0"
-                            >
-                              <p className="text-sm font-semibold text-gray-900">
-                                {lead.name}
-                              </p>
-                              <div className="flex items-center gap-3 mt-0.5">
-                                {lead.email && (
-                                  <span className="text-xs text-gray-500">
-                                    {lead.email}
-                                  </span>
-                                )}
-                                {lead.phone && (
-                                  <span className="text-xs text-gray-500">
-                                    {lead.phone}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))
+                          filteredCustomers.slice(0, 30).map((customer) => {
+                            const primaryContact =
+                              customer.contacts?.find((c) => c.isPrimary) ??
+                              customer.contacts?.[0];
+                            return (
+                              <button
+                                key={customer.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCustomer(customer);
+                                  handleChange("accountId", customer.id);
+                                  setCustomerSearch("");
+                                  setShowCustomerDropdown(false);
+                                }}
+                                className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors border-b border-gray-50 last:border-0"
+                              >
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {customer.name}
+                                </p>
+                                <div className="flex items-center gap-3 mt-0.5">
+                                  {primaryContact?.email && (
+                                    <span className="text-xs text-gray-500">
+                                      {primaryContact.email}
+                                    </span>
+                                  )}
+                                  {primaryContact?.phone && (
+                                    <span className="text-xs text-gray-500">
+                                      {primaryContact.phone}
+                                    </span>
+                                  )}
+                                  {customer.billingCity && (
+                                    <span className="text-xs text-gray-400">
+                                      {customer.billingCity}
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })
                         )}
                       </div>
                     )}
                   </div>
                 )}
-                {errors.leadId && (
+                {errors.accountId && (
                   <p className="text-red-500 text-xs mt-1.5 font-medium">
-                    {errors.leadId}
+                    {errors.accountId}
                   </p>
                 )}
               </div>
@@ -875,12 +906,12 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 transition-all"
                         >
                           <option value="">Select status</option>
-                          <option value="Not Started">Not Started</option>
-                          <option value="Under Construction">
+                          <option value="NOT_STARTED">Not Started</option>
+                          <option value="UNDER_CONSTRUCTION">
                             Under Construction
                           </option>
-                          <option value="Ready to Move">Ready to Move</option>
-                          <option value="Renovation">Renovation</option>
+                          <option value="READY_TO_MOVE">Ready to Move</option>
+                          <option value="RENOVATION">Renovation</option>
                         </select>
                       </div>
                     </div>
@@ -904,6 +935,36 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       </div>
                     </div>
 
+                    {/* Design & Execution Teams */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Design Team
+                        </label>
+                        <Input
+                          value={formData.designTeam}
+                          onChange={(e) =>
+                            handleChange("designTeam", e.target.value)
+                          }
+                          placeholder="e.g., Sathish, Thrisha"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Comma-separated names</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Execution Team
+                        </label>
+                        <Input
+                          value={formData.executionTeam}
+                          onChange={(e) =>
+                            handleChange("executionTeam", e.target.value)
+                          }
+                          placeholder="e.g., Dilip, Santhosh"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Comma-separated names</p>
+                      </div>
+                    </div>
+
                     {/* Special Requirements */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -916,6 +977,22 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         }
                         placeholder="Any special requirements or notes..."
                         rows={3}
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 resize-none text-sm transition-all"
+                      />
+                    </div>
+
+                    {/* Remarks */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Remarks
+                      </label>
+                      <textarea
+                        value={formData.remarks}
+                        onChange={(e) =>
+                          handleChange("remarks", e.target.value)
+                        }
+                        placeholder="Internal remarks or notes for this project..."
+                        rows={2}
                         className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 resize-none text-sm transition-all"
                       />
                     </div>

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { differenceInDays, parseISO } from "date-fns";
 import {
   FolderKanban,
@@ -34,8 +35,10 @@ export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const { openWidgetLibrary } = useUIStore();
   const { can, canAny, roleId } = useAuth();
+  const navigate = useNavigate();
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
   const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
+  const [projectCategoryFilter, setProjectCategoryFilter] = useState<string>("all");
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectStagesMap, setProjectStagesMap] = useState<
     Record<string, ProjectStageData[]>
@@ -82,8 +85,15 @@ export const DashboardOverview: React.FC = () => {
   // Pipeline type filter options for deadline filtering
   const pipelineTypeFilterOptions = [
     { value: "all", label: "All Projects" },
-    { value: "DESIGN_ONLY", label: "Design Only" },
-    { value: "DESIGN_AND_EXECUTION", label: "Design & Execution" },
+    { value: "DESIGN_ONLY", label: "Architecture" },
+    { value: "DESIGN_AND_EXECUTION", label: "Interiors" },
+  ];
+
+  // Sub-category options shown when Architecture or Interiors is selected
+  const projectCategoryOptions = [
+    { value: "all", label: "All" },
+    { value: "RESIDENTIAL", label: "Residential" },
+    { value: "COMMERCIAL", label: "Commercial" },
   ];
 
   // Sparkline data for stat cards (last 7 days)
@@ -247,6 +257,7 @@ export const DashboardOverview: React.FC = () => {
           status,
           stage: formattedStage,
           pipelineType: project.pipelineType,
+          projectCategory: project.projectCategory,
           progress: 50, // Default progress as it's not in Project type
         };
       })
@@ -267,8 +278,16 @@ export const DashboardOverview: React.FC = () => {
       filtered = filtered.filter((d) => d.pipelineType === pipelineTypeFilter);
     }
 
+    // Filter by project category (Residential / Commercial)
+    if (projectCategoryFilter !== "all") {
+      filtered = filtered.filter(
+        (d) =>
+          (d as any).projectCategory?.toUpperCase() === projectCategoryFilter,
+      );
+    }
+
     return filtered;
-  }, [allDeadlines, selectedProject, pipelineTypeFilter]);
+  }, [allDeadlines, selectedProject, pipelineTypeFilter, projectCategoryFilter]);
 
   // Show filtered message when a specific project is selected
   const isFiltered = selectedProject !== null;
@@ -541,8 +560,8 @@ export const DashboardOverview: React.FC = () => {
                     </Button>
                   </div>
 
-                  {/* Pipeline Type Filter Pills */}
-                  <div className="flex items-center gap-2">
+                  {/* Pipeline Type Filter Pills (Level 1) */}
+                  <div className="flex items-center gap-2 flex-wrap">
                     {pipelineTypeFilterOptions.map((option) => {
                       const count =
                         option.value === "all"
@@ -557,6 +576,7 @@ export const DashboardOverview: React.FC = () => {
                           key={option.value}
                           onClick={() => {
                             setPipelineTypeFilter(option.value);
+                            setProjectCategoryFilter("all");
                             setShowAllDeadlines(false);
                           }}
                           className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
@@ -581,6 +601,60 @@ export const DashboardOverview: React.FC = () => {
                       );
                     })}
                   </div>
+
+                  {/* Sub-category Filter Pills (Level 2) – shown when Architecture or Interiors selected */}
+                  {pipelineTypeFilter !== "all" && (
+                    <div className="flex items-center gap-2 mt-2 pl-1">
+                      <span className="text-xs text-gray-400 font-medium mr-1">
+                        {pipelineTypeFilter === "DESIGN_ONLY"
+                          ? "Architecture"
+                          : "Interiors"}
+                        :
+                      </span>
+                      {projectCategoryOptions.map((cat) => {
+                        const baseFiltered = allDeadlines.filter(
+                          (d) => d.pipelineType === pipelineTypeFilter,
+                        );
+                        const catCount =
+                          cat.value === "all"
+                            ? baseFiltered.length
+                            : baseFiltered.filter(
+                                (d) =>
+                                  (d as any).projectCategory?.toUpperCase() ===
+                                  cat.value,
+                              ).length;
+                        const isCatActive = projectCategoryFilter === cat.value;
+
+                        return (
+                          <button
+                            key={cat.value}
+                            onClick={() => {
+                              setProjectCategoryFilter(cat.value);
+                              setShowAllDeadlines(false);
+                            }}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                              isCatActive
+                                ? "bg-orange-100 text-orange-700 border border-orange-300"
+                                : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              {cat.label}
+                              <span
+                                className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                                  isCatActive
+                                    ? "bg-orange-200 text-orange-700"
+                                    : "bg-gray-200 text-gray-500"
+                                }`}
+                              >
+                                {catCount}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 space-y-3">
                   {(showAllDeadlines
@@ -722,11 +796,11 @@ export const DashboardOverview: React.FC = () => {
                   ))}
                   {!showAllDeadlines && filteredDeadlines.length > 5 && (
                     <button
-                      onClick={() => setShowAllDeadlines(true)}
+                      onClick={() => navigate("/dashboard/projects")}
                       className="w-full py-2.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-dashed border-orange-200 hover:border-orange-300"
                     >
                       + {filteredDeadlines.length - 5} more project
-                      {filteredDeadlines.length - 5 !== 1 ? "s" : ""} — View All
+                      {filteredDeadlines.length - 5 !== 1 ? "s" : ""} — View All Projects
                     </button>
                   )}
                   {filteredDeadlines.length === 0 && (
@@ -739,7 +813,7 @@ export const DashboardOverview: React.FC = () => {
                       </p>
                       <p className="text-sm text-gray-500">
                         {pipelineTypeFilter !== "all"
-                          ? `No "${pipelineTypeFilterOptions.find((o) => o.value === pipelineTypeFilter)?.label}" projects with upcoming deadlines.`
+                          ? `No ${pipelineTypeFilterOptions.find((o) => o.value === pipelineTypeFilter)?.label}${projectCategoryFilter !== "all" ? ` · ${projectCategoryOptions.find((c) => c.value === projectCategoryFilter)?.label}` : ""} projects with upcoming deadlines.`
                           : "No upcoming deadlines for the selected filter."}
                       </p>
                     </div>

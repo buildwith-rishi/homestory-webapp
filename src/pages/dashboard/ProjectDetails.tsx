@@ -166,6 +166,7 @@ export const ProjectDetails: React.FC = () => {
   const {
     currentProject,
     projectPayments,
+    projectStages,
     isLoading,
     error,
     pauseStatus,
@@ -183,6 +184,7 @@ export const ProjectDetails: React.FC = () => {
     completeProject,
     cancelProject,
     fetchPauseStatus,
+    setCurrentProject,
   } = useProjectStore();
 
   // Project options from API
@@ -216,6 +218,9 @@ export const ProjectDetails: React.FC = () => {
     notes: "",
   });
 
+  // Payment phase sub-tab
+  const [paymentPhaseTab, setPaymentPhaseTab] = useState<"DESIGN" | "EXECUTION">("DESIGN");
+
   // Add payment milestone modal
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [isSavingNewPayment, setIsSavingNewPayment] = useState(false);
@@ -223,10 +228,12 @@ export const ProjectDetails: React.FC = () => {
     title: "",
     description: "",
     stageCode: "",
+    projectStageId: "",
     phaseType: "DESIGN" as string,
     paymentStage: 1,
     percentage: 0,
     expectedAmount: "",
+    invoiceAmount: "",
     taxPercentage: "",
     dueDate: "",
     notes: "",
@@ -280,15 +287,36 @@ export const ProjectDetails: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     projectName: "",
-    propertyAddress: "",
-    propertyCity: "",
-    totalValue: "",
-    moodBoardShared: false,
     pipelineType: "",
     projectCategory: "",
     scopeType: "",
     budgetTier: "",
     propertySubtype: "",
+    propertySizeSqft: "",
+    propertyBHK: "",
+    propertyAddress: "",
+    propertyCity: "",
+    propertyState: "",
+    propertyPincode: "",
+    propertyBuilding: "",
+    propertyUnit: "",
+    propertyLandmarks: "",
+    siteContactName: "",
+    siteContactPhone: "",
+    constructionStatus: "",
+    tentativeHandoverDate: "",
+    specialRequirements: "",
+    designTeam: "",
+    executionTeam: "",
+    assignedDesignerId: "",
+    assignedPMId: "",
+    designPackage: "",
+    design3DStatus: "",
+    moodBoardShared: false,
+    totalValue: "",
+    paidAmount: "",
+    remarks: "",
+    status: "",
   });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
@@ -361,10 +389,14 @@ export const ProjectDetails: React.FC = () => {
           `${newPaymentForm.phaseType} Payment ${newPaymentForm.paymentStage}`,
         description: newPaymentForm.description || undefined,
         stageCode: newPaymentForm.stageCode || undefined,
+        projectStageId: newPaymentForm.projectStageId || undefined,
         phaseType: newPaymentForm.phaseType,
         paymentStage: newPaymentForm.paymentStage,
         percentage: newPaymentForm.percentage,
         expectedAmount: parseFloat(newPaymentForm.expectedAmount),
+        invoiceAmount: newPaymentForm.invoiceAmount
+          ? parseFloat(newPaymentForm.invoiceAmount)
+          : undefined,
         taxPercentage: newPaymentForm.taxPercentage
           ? parseFloat(newPaymentForm.taxPercentage)
           : undefined,
@@ -379,10 +411,12 @@ export const ProjectDetails: React.FC = () => {
         title: "",
         description: "",
         stageCode: "",
+        projectStageId: "",
         phaseType: "DESIGN",
         paymentStage: 1,
         percentage: 0,
         expectedAmount: "",
+        invoiceAmount: "",
         taxPercentage: "",
         dueDate: "",
         notes: "",
@@ -586,15 +620,38 @@ export const ProjectDetails: React.FC = () => {
     if (!currentProject) return;
     setEditForm({
       projectName: currentProject.projectName || "",
-      propertyAddress: currentProject.propertyAddress || "",
-      propertyCity: currentProject.propertyCity || "",
-      totalValue: String(currentProject.totalValue || ""),
-      moodBoardShared: currentProject.moodBoardShared || false,
       pipelineType: currentProject.pipelineType || "",
       projectCategory: currentProject.projectCategory || "",
       scopeType: currentProject.scopeType || "",
       budgetTier: currentProject.budgetTier || "",
       propertySubtype: currentProject.propertySubtype || "",
+      propertySizeSqft: currentProject.propertySizeSqft ? String(currentProject.propertySizeSqft) : "",
+      propertyBHK: currentProject.propertyBHK || "",
+      propertyAddress: currentProject.propertyAddress || "",
+      propertyCity: currentProject.propertyCity || "",
+      propertyState: currentProject.propertyState || "",
+      propertyPincode: currentProject.propertyPincode || "",
+      propertyBuilding: currentProject.propertyBuilding || "",
+      propertyUnit: currentProject.propertyUnit || "",
+      propertyLandmarks: currentProject.propertyLandmarks || "",
+      siteContactName: currentProject.siteContactName || "",
+      siteContactPhone: currentProject.siteContactPhone || "",
+      constructionStatus: currentProject.constructionStatus || "",
+      tentativeHandoverDate: currentProject.tentativeHandoverDate
+        ? new Date(currentProject.tentativeHandoverDate).toISOString().split("T")[0]
+        : "",
+      specialRequirements: currentProject.specialRequirements || "",
+      designTeam: (currentProject.designTeam || []).join(", "),
+      executionTeam: (currentProject.executionTeam || []).join(", "),
+      assignedDesignerId: currentProject.assignedDesignerId || "",
+      assignedPMId: currentProject.assignedPMId || "",
+      designPackage: currentProject.designPackage || "",
+      design3DStatus: currentProject.design3DStatus || "",
+      moodBoardShared: currentProject.moodBoardShared || false,
+      totalValue: currentProject.totalValue ? String(currentProject.totalValue) : "",
+      paidAmount: currentProject.paidAmount ? String(currentProject.paidAmount) : "",
+      remarks: currentProject.remarks || "",
+      status: currentProject.status || "",
     });
     setShowEditModal(true);
   };
@@ -603,21 +660,84 @@ export const ProjectDetails: React.FC = () => {
     if (!projectId) return;
     setIsSavingEdit(true);
     try {
-      const updates: UpdateProjectRequest = {
-        projectName: editForm.projectName || undefined,
-        propertyAddress: editForm.propertyAddress || undefined,
-        propertyCity: editForm.propertyCity || undefined,
-        totalValue: editForm.totalValue
-          ? parseFloat(editForm.totalValue)
-          : undefined,
-        moodBoardShared: editForm.moodBoardShared,
-        pipelineType: editForm.pipelineType || undefined,
-        projectCategory: editForm.projectCategory || undefined,
-        scopeType: editForm.scopeType || undefined,
-        budgetTier: editForm.budgetTier || undefined,
-        propertySubtype: editForm.propertySubtype || undefined,
-      };
+      const updates: UpdateProjectRequest = {};
+      if (editForm.projectName) updates.projectName = editForm.projectName;
+      if (editForm.pipelineType) updates.pipelineType = editForm.pipelineType;
+      if (editForm.projectCategory) updates.projectCategory = editForm.projectCategory;
+      if (editForm.scopeType) updates.scopeType = editForm.scopeType;
+      if (editForm.budgetTier) updates.budgetTier = editForm.budgetTier;
+      if (editForm.propertySubtype) updates.propertySubtype = editForm.propertySubtype;
+      if (editForm.propertySizeSqft) updates.propertySizeSqft = parseFloat(editForm.propertySizeSqft);
+      if (editForm.propertyBHK) updates.propertyBHK = editForm.propertyBHK;
+      if (editForm.propertyAddress) updates.propertyAddress = editForm.propertyAddress;
+      if (editForm.propertyCity) updates.propertyCity = editForm.propertyCity;
+      if (editForm.propertyState) updates.propertyState = editForm.propertyState;
+      if (editForm.propertyPincode) updates.propertyPincode = editForm.propertyPincode;
+      if (editForm.propertyBuilding) updates.propertyBuilding = editForm.propertyBuilding;
+      if (editForm.propertyUnit) updates.propertyUnit = editForm.propertyUnit;
+      if (editForm.propertyLandmarks) updates.propertyLandmarks = editForm.propertyLandmarks;
+      if (editForm.siteContactName) updates.siteContactName = editForm.siteContactName;
+      if (editForm.siteContactPhone) updates.siteContactPhone = editForm.siteContactPhone;
+      if (editForm.constructionStatus) updates.constructionStatus = editForm.constructionStatus;
+      if (editForm.tentativeHandoverDate)
+        updates.tentativeHandoverDate = new Date(editForm.tentativeHandoverDate).toISOString();
+      if (editForm.specialRequirements) updates.specialRequirements = editForm.specialRequirements;
+      if (editForm.designTeam.trim())
+        updates.designTeam = editForm.designTeam.split(",").map((s) => s.trim()).filter(Boolean);
+      if (editForm.executionTeam.trim())
+        updates.executionTeam = editForm.executionTeam.split(",").map((s) => s.trim()).filter(Boolean);
+      if (editForm.assignedDesignerId !== undefined)
+        updates.assignedDesignerId = editForm.assignedDesignerId || null;
+      if (editForm.assignedPMId !== undefined)
+        updates.assignedPMId = editForm.assignedPMId || null;
+      if (editForm.designPackage) updates.designPackage = editForm.designPackage;
+      if (editForm.design3DStatus) updates.design3DStatus = editForm.design3DStatus;
+      updates.moodBoardShared = editForm.moodBoardShared;
+      if (editForm.totalValue) updates.totalValue = parseFloat(editForm.totalValue);
+      if (editForm.paidAmount) updates.paidAmount = parseFloat(editForm.paidAmount);
+      if (editForm.remarks) updates.remarks = editForm.remarks;
+      if (editForm.status) updates.status = editForm.status as any;
+
       await updateProject(projectId, updates);
+
+      // Optimistically merge values into currentProject for immediate UI update
+      if (currentProject) {
+        setCurrentProject({
+          ...currentProject,
+          ...(editForm.projectName && { projectName: editForm.projectName }),
+          pipelineType: (editForm.pipelineType || currentProject.pipelineType) as any,
+          projectCategory: (editForm.projectCategory || currentProject.projectCategory) as any,
+          scopeType: (editForm.scopeType || currentProject.scopeType) as any,
+          budgetTier: (editForm.budgetTier || currentProject.budgetTier) as any,
+          propertySubtype: (editForm.propertySubtype || currentProject.propertySubtype) as any,
+          ...(editForm.propertySizeSqft && { propertySizeSqft: parseFloat(editForm.propertySizeSqft) }),
+          ...(editForm.propertyBHK && { propertyBHK: editForm.propertyBHK }),
+          ...(editForm.propertyAddress && { propertyAddress: editForm.propertyAddress }),
+          ...(editForm.propertyCity && { propertyCity: editForm.propertyCity }),
+          ...(editForm.propertyState && { propertyState: editForm.propertyState }),
+          ...(editForm.propertyPincode && { propertyPincode: editForm.propertyPincode }),
+          ...(editForm.propertyBuilding && { propertyBuilding: editForm.propertyBuilding }),
+          ...(editForm.propertyUnit && { propertyUnit: editForm.propertyUnit }),
+          ...(editForm.propertyLandmarks && { propertyLandmarks: editForm.propertyLandmarks }),
+          ...(editForm.siteContactName && { siteContactName: editForm.siteContactName }),
+          ...(editForm.siteContactPhone && { siteContactPhone: editForm.siteContactPhone }),
+          ...(editForm.constructionStatus && { constructionStatus: editForm.constructionStatus }),
+          ...(editForm.tentativeHandoverDate && { tentativeHandoverDate: new Date(editForm.tentativeHandoverDate).toISOString() }),
+          ...(editForm.specialRequirements && { specialRequirements: editForm.specialRequirements }),
+          ...(editForm.designTeam.trim() && { designTeam: editForm.designTeam.split(",").map((s) => s.trim()).filter(Boolean) }),
+          ...(editForm.executionTeam.trim() && { executionTeam: editForm.executionTeam.split(",").map((s) => s.trim()).filter(Boolean) }),
+          assignedDesignerId: editForm.assignedDesignerId || currentProject.assignedDesignerId,
+          assignedPMId: editForm.assignedPMId || currentProject.assignedPMId,
+          ...(editForm.designPackage && { designPackage: editForm.designPackage }),
+          ...(editForm.design3DStatus && { design3DStatus: editForm.design3DStatus }),
+          moodBoardShared: editForm.moodBoardShared,
+          ...(editForm.totalValue && { totalValue: parseFloat(editForm.totalValue) }),
+          ...(editForm.paidAmount && { paidAmount: parseFloat(editForm.paidAmount) }),
+          ...(editForm.remarks && { remarks: editForm.remarks }),
+          ...(editForm.status && { status: editForm.status as any }),
+        });
+      }
+
       toast.success("Project updated successfully!");
       setShowEditModal(false);
       fetchProjectById(projectId);
@@ -1800,232 +1920,310 @@ export const ProjectDetails: React.FC = () => {
         {activeTab === "stages" && <ProjectStagesSection project={project} />}
 
         {/* Payments Tab */}
-        {activeTab === "payments" && (
-          <div className="space-y-4">
-            {/* Payment Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                <p className="text-sm text-gray-600 mb-2 font-semibold">
-                  Total Value
-                </p>
-                <p className="text-3xl font-bold text-gray-900">
-                  {formatCurrency(parseFloat(String(project.totalValue)) || 0)}
-                </p>
-              </Card>
-              <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50/50 border-green-200/50 shadow-sm">
-                <p className="text-sm text-green-700 mb-2 font-semibold">
-                  Collected
-                </p>
-                <p className="text-3xl font-bold text-green-600">
-                  {formatCurrency(paymentTotals.totalPaid)}
-                </p>
-              </Card>
-              <Card className="p-4 bg-gradient-to-br from-orange-50 to-amber-50/50 border-orange-200/50 shadow-sm">
-                <p className="text-sm text-orange-700 mb-2 font-semibold">
-                  Pending
-                </p>
-                <p className="text-3xl font-bold text-orange-600">
-                  {formatCurrency(paymentTotals.totalPending)}
-                </p>
-              </Card>
-            </div>
+        {activeTab === "payments" && (() => {
+          const designPayments = projectPayments.filter((p) => p.phaseType === "DESIGN");
+          const executionPayments = projectPayments.filter((p) => p.phaseType === "EXECUTION");
+          const activePhasePayments = paymentPhaseTab === "DESIGN" ? designPayments : executionPayments;
 
-            {/* Payment List */}
-            <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
-                    <CreditCard className="w-4 h-4 text-white" />
+          let phasePaid = 0;
+          let phasePending = 0;
+          activePhasePayments.forEach((payment) => {
+            const expected = parseFloat(String(payment.expectedAmount)) || 0;
+            const actual = parseFloat(String(payment.actualAmount)) || 0;
+            if (payment.status === "COLLECTED") {
+              phasePaid += actual > 0 ? actual : expected;
+            } else if (payment.status === "PARTIALLY_PAID") {
+              phasePaid += actual;
+              phasePending += expected - actual;
+            } else if (payment.status !== "WAIVED") {
+              phasePending += expected;
+            }
+          });
+
+          const renderPaymentCard = (payment: typeof projectPayments[0]) => {
+            const isCollected = payment.status === "COLLECTED";
+            const isOverdue = payment.status === "OVERDUE";
+            const isPartial = payment.status === "PARTIALLY_PAID";
+            const statusBgMap: Record<string, string> = {
+              COLLECTED: "bg-gradient-to-br from-green-500 to-green-600 text-white",
+              OVERDUE: "bg-gradient-to-br from-red-500 to-red-600 text-white",
+              PARTIALLY_PAID: "bg-gradient-to-br from-yellow-500 to-yellow-600 text-white",
+              WAIVED: "bg-gradient-to-br from-gray-400 to-gray-500 text-white",
+              PENDING: "bg-gradient-to-br from-orange-500 to-orange-600 text-white",
+            };
+            const badgeBgMap: Record<string, string> = {
+              COLLECTED: "bg-green-100 text-green-700",
+              OVERDUE: "bg-red-100 text-red-700",
+              PARTIALLY_PAID: "bg-yellow-100 text-yellow-700",
+              WAIVED: "bg-gray-100 text-gray-700",
+              PENDING: "bg-orange-100 text-orange-700",
+            };
+            const statusIcon = isCollected ? (
+              <CheckCircle2 className="w-5 h-5" />
+            ) : isOverdue ? (
+              <AlertCircle className="w-5 h-5" />
+            ) : (
+              <Clock className="w-5 h-5" />
+            );
+            const displayTitle =
+              payment.title ||
+              `${payment.phaseType} Payment ${payment.paymentStage} (${payment.percentage}%)`;
+            const expected = parseFloat(String(payment.expectedAmount)) || 0;
+            const actual = parseFloat(String(payment.actualAmount)) || 0;
+            return (
+              <div
+                key={payment.id}
+                className="flex flex-col p-4 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-md transition-all gap-3"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 ${statusBgMap[payment.status] || statusBgMap["PENDING"]}`}
+                    >
+                      {statusIcon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900 truncate">
+                        {displayTitle}
+                      </p>
+                      {payment.description && (
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">
+                          {payment.description}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-600">
+                        <span>Expected: {formatCurrency(expected)}</span>
+                        {isCollected && actual > 0 && (
+                          <span className="text-green-700 font-medium">
+                            Collected: {formatCurrency(actual)}
+                          </span>
+                        )}
+                        {isPartial && actual > 0 && (
+                          <span className="text-yellow-700 font-medium">
+                            Paid: {formatCurrency(actual)}
+                          </span>
+                        )}
+                        {payment.dueDate && (
+                          <span className="text-gray-500">
+                            Due: {formatDate(payment.dueDate)}
+                          </span>
+                        )}
+                      </div>
+                      {(payment.paymentMethod || payment.transactionRef) && (
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
+                          {payment.paymentMethod && (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="font-medium">Method:</span>{" "}
+                              {payment.paymentMethod.replace(/_/g, " ")}
+                            </span>
+                          )}
+                          {payment.transactionRef && (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="font-medium">Ref:</span>{" "}
+                              {payment.transactionRef}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {payment.notes && (
+                        <p className="text-xs text-gray-400 mt-1 line-clamp-1 italic">
+                          {payment.notes}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  Payment Milestones
-                </h2>
-                <Button
-                  onClick={() => {
-                    const defaultPhase = "DESIGN";
-                    const nextStage =
-                      projectPayments.filter(
-                        (p) => p.phaseType === defaultPhase,
-                      ).length + 1;
-                    setNewPaymentForm((prev) => ({
-                      ...prev,
-                      phaseType: defaultPhase,
-                      paymentStage: nextStage,
-                    }));
-                    setShowAddPaymentModal(true);
-                  }}
-                  className="bg-orange-500 hover:bg-orange-600 text-white text-sm px-4 py-2"
-                >
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Add Payment
-                </Button>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xl font-bold text-gray-900">
+                      {isCollected && actual > 0
+                        ? formatCurrency(actual)
+                        : formatCurrency(expected)}
+                    </p>
+                    <Badge
+                      className={`text-xs font-semibold ${badgeBgMap[payment.status] || badgeBgMap["PENDING"]}`}
+                    >
+                      {payment.status.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                  <button
+                    onClick={() => handleEditPayment(payment)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                    title="Update payment status"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Update Status
+                  </button>
+                  <button
+                    onClick={() => handleOpenSendInvoice(payment)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                    title="Send invoice"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Send Invoice
+                  </button>
+                  <button
+                    onClick={() => handleOpenUploadDoc(payment)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors"
+                    title="Upload receipt/document"
+                  >
+                    <FileUp className="w-3.5 h-3.5" />
+                    Upload Receipt
+                  </button>
+                  {(payment.status === "PENDING" ||
+                    payment.status === "OVERDUE" ||
+                    payment.status === "PARTIALLY_PAID") && (
+                    <button
+                      onClick={() => handleOpenSendReminder(payment)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg transition-colors"
+                      title="Send reminder"
+                    >
+                      <BellRing className="w-3.5 h-3.5" />
+                      Send Reminder
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div className="space-y-4">
+              {/* Overall Payment Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50/50 border-green-200/50 shadow-sm">
+                  <p className="text-sm text-green-700 mb-2 font-semibold">Collected</p>
+                  <p className="text-3xl font-bold text-green-600">{formatCurrency(paymentTotals.totalPaid)}</p>
+                </Card>
+                <Card className="p-4 bg-gradient-to-br from-orange-50 to-amber-50/50 border-orange-200/50 shadow-sm">
+                  <p className="text-sm text-orange-700 mb-2 font-semibold">Pending</p>
+                  <p className="text-3xl font-bold text-orange-600">{formatCurrency(paymentTotals.totalPending)}</p>
+                </Card>
               </div>
 
-              {projectPayments.length === 0 ? (
-                <div className="text-center py-8">
-                  <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">
-                    No payments found for this project.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {projectPayments.map((payment) => {
-                    const isCollected = payment.status === "COLLECTED";
-                    const isOverdue = payment.status === "OVERDUE";
-                    const isPartial = payment.status === "PARTIALLY_PAID";
+              {/* Phase Tabs */}
+              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                {/* Tab header */}
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                    <button
+                      onClick={() => setPaymentPhaseTab("DESIGN")}
+                      className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        paymentPhaseTab === "DESIGN"
+                          ? "bg-white text-blue-700 shadow-sm border border-blue-200"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${
+                        paymentPhaseTab === "DESIGN" ? "bg-blue-500" : "bg-gray-400"
+                      }`} />
+                      Design
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                        paymentPhaseTab === "DESIGN"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-200 text-gray-500"
+                      }`}>
+                        {designPayments.length}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setPaymentPhaseTab("EXECUTION")}
+                      className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        paymentPhaseTab === "EXECUTION"
+                          ? "bg-white text-orange-700 shadow-sm border border-orange-200"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${
+                        paymentPhaseTab === "EXECUTION" ? "bg-orange-500" : "bg-gray-400"
+                      }`} />
+                      Execution
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                        paymentPhaseTab === "EXECUTION"
+                          ? "bg-orange-100 text-orange-700"
+                          : "bg-gray-200 text-gray-500"
+                      }`}>
+                        {executionPayments.length}
+                      </span>
+                    </button>
+                  </div>
 
-                    const statusBgMap: Record<string, string> = {
-                      COLLECTED:
-                        "bg-gradient-to-br from-green-500 to-green-600 text-white",
-                      OVERDUE:
-                        "bg-gradient-to-br from-red-500 to-red-600 text-white",
-                      PARTIALLY_PAID:
-                        "bg-gradient-to-br from-yellow-500 to-yellow-600 text-white",
-                      WAIVED:
-                        "bg-gradient-to-br from-gray-400 to-gray-500 text-white",
-                      PENDING:
-                        "bg-gradient-to-br from-orange-500 to-orange-600 text-white",
-                    };
-                    const badgeBgMap: Record<string, string> = {
-                      COLLECTED: "bg-green-100 text-green-700",
-                      OVERDUE: "bg-red-100 text-red-700",
-                      PARTIALLY_PAID: "bg-yellow-100 text-yellow-700",
-                      WAIVED: "bg-gray-100 text-gray-700",
-                      PENDING: "bg-orange-100 text-orange-700",
-                    };
-                    const statusIcon = isCollected ? (
-                      <CheckCircle2 className="w-5 h-5" />
-                    ) : isOverdue ? (
-                      <AlertCircle className="w-5 h-5" />
-                    ) : (
-                      <Clock className="w-5 h-5" />
-                    );
-                    const displayTitle =
-                      payment.title ||
-                      `${payment.phaseType} Payment ${payment.paymentStage} (${payment.percentage}%)`;
-                    const expected =
-                      parseFloat(String(payment.expectedAmount)) || 0;
-                    const actual =
-                      parseFloat(String(payment.actualAmount)) || 0;
-
-                    return (
-                      <div
-                        key={payment.id}
-                        className="flex items-start justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-md transition-all gap-4"
-                      >
-                        <div className="flex items-start gap-4 flex-1 min-w-0">
-                          <div
-                            className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 ${statusBgMap[payment.status] || statusBgMap["PENDING"]}`}
-                          >
-                            {statusIcon}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-gray-900 truncate">
-                              {displayTitle}
-                            </p>
-                            {payment.description && (
-                              <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                {payment.description}
-                              </p>
-                            )}
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-600">
-                              <span>Expected: {formatCurrency(expected)}</span>
-                              {isCollected && actual > 0 && (
-                                <span className="text-green-700 font-medium">
-                                  Collected: {formatCurrency(actual)}
-                                </span>
-                              )}
-                              {isPartial && actual > 0 && (
-                                <span className="text-yellow-700 font-medium">
-                                  Paid: {formatCurrency(actual)}
-                                </span>
-                              )}
-                              {payment.dueDate && (
-                                <span className="text-gray-500">
-                                  Due: {formatDate(payment.dueDate)}
-                                </span>
-                              )}
-                            </div>
-                            {(payment.paymentMethod ||
-                              payment.transactionRef) && (
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
-                                {payment.paymentMethod && (
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className="font-medium">Method:</span>{" "}
-                                    {payment.paymentMethod.replace(/_/g, " ")}
-                                  </span>
-                                )}
-                                {payment.transactionRef && (
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className="font-medium">Ref:</span>{" "}
-                                    {payment.transactionRef}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {payment.notes && (
-                              <p className="text-xs text-gray-400 mt-1 line-clamp-1 italic">
-                                {payment.notes}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <div className="text-right">
-                            <p className="text-xl font-bold text-gray-900">
-                              {isCollected && actual > 0
-                                ? formatCurrency(actual)
-                                : formatCurrency(expected)}
-                            </p>
-                            <Badge
-                              className={`text-xs font-semibold ${badgeBgMap[payment.status] || badgeBgMap["PENDING"]}`}
-                            >
-                              {payment.status.replace(/_/g, " ")}
-                            </Badge>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <button
-                              onClick={() => handleEditPayment(payment)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Update payment status"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenSendInvoice(payment)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Send invoice"
-                            >
-                              <Send className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenUploadDoc(payment)}
-                              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                              title="Upload receipt/document"
-                            >
-                              <FileUp className="w-4 h-4" />
-                            </button>
-                            {(payment.status === "PENDING" ||
-                              payment.status === "OVERDUE" ||
-                              payment.status === "PARTIALLY_PAID") && (
-                              <button
-                                onClick={() => handleOpenSendReminder(payment)}
-                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                                title="Send reminder"
-                              >
-                                <BellRing className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {/* Add Payment for active phase */}
+                  <Button
+                    onClick={() => {
+                      const nextStage =
+                        projectPayments.filter(
+                          (p) => p.phaseType === paymentPhaseTab,
+                        ).length + 1;
+                      setNewPaymentForm((prev) => ({
+                        ...prev,
+                        phaseType: paymentPhaseTab,
+                        paymentStage: nextStage,
+                        title: "",
+                        description: "",
+                        stageCode: "",
+                        projectStageId: "",
+                        percentage: 0,
+                        expectedAmount: "",
+                        invoiceAmount: "",
+                        taxPercentage: "",
+                        dueDate: "",
+                        notes: "",
+                        status: "PENDING",
+                      }));
+                      setShowAddPaymentModal(true);
+                    }}
+                    className={`text-white text-sm px-4 py-2 ${
+                      paymentPhaseTab === "DESIGN"
+                        ? "bg-blue-500 hover:bg-blue-600"
+                        : "bg-orange-500 hover:bg-orange-600"
+                    }`}
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Add {paymentPhaseTab === "DESIGN" ? "Design" : "Execution"} Payment
+                  </Button>
                 </div>
-              )}
-            </Card>
-          </div>
-        )}
+
+                {/* Phase summary mini-stats */}
+                <div className="flex items-center gap-4 mb-4 px-1">
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+                    <span className="text-gray-500">Collected:</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(phasePaid)}</span>
+                  </div>
+                  <div className="text-gray-300">|</div>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" />
+                    <span className="text-gray-500">Pending:</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(phasePending)}</span>
+                  </div>
+                  <div className="text-gray-300">|</div>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="text-gray-500">Milestones:</span>
+                    <span className="font-semibold text-gray-900">{activePhasePayments.length}</span>
+                  </div>
+                </div>
+
+                {/* Payment list for active phase */}
+                {activePhasePayments.length === 0 ? (
+                  <div className="text-center py-10">
+                    <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium">
+                      No {paymentPhaseTab === "DESIGN" ? "Design" : "Execution"} payment milestones yet.
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Click &ldquo;Add {paymentPhaseTab === "DESIGN" ? "Design" : "Execution"} Payment&rdquo; to create one.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {activePhasePayments.map(renderPaymentCard)}
+                  </div>
+                )}
+              </Card>
+            </div>
+          );
+        })()}
 
         {/* References Tab */}
         {activeTab === "references" && project && (
@@ -2125,6 +2323,7 @@ export const ProjectDetails: React.FC = () => {
                         setNewPaymentForm({
                           ...newPaymentForm,
                           phaseType: phase,
+                          stageCode: "",
                           paymentStage: nextStage,
                         });
                       }}
@@ -2136,23 +2335,40 @@ export const ProjectDetails: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Stage Code
-                      <span className="text-gray-400 font-normal ml-1">
-                        (optional)
-                      </span>
+                      Project Stage
+                      <span className="text-gray-400 font-normal ml-1">(optional)</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={newPaymentForm.stageCode}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const code = e.target.value;
+                        const matched = projectStages.find(
+                          (s) => s.stageCode === code
+                        );
                         setNewPaymentForm({
                           ...newPaymentForm,
-                          stageCode: e.target.value,
-                        })
-                      }
+                          stageCode: code,
+                          projectStageId: matched ? matched.id : "",
+                          ...(matched
+                            ? {
+                                phaseType: matched.phaseType,
+                                paymentStage:
+                                  projectPayments.filter(
+                                    (p) => p.phaseType === matched.phaseType
+                                  ).length + 1,
+                              }
+                            : {}),
+                        });
+                      }}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
-                      placeholder="e.g. DESIGN_SIGNUP"
-                    />
+                    >
+                      <option value="">— None —</option>
+                      {projectStages.map((stage) => (
+                        <option key={stage.id} value={stage.stageCode}>
+                          {stage.stageName}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -2199,12 +2415,18 @@ export const ProjectDetails: React.FC = () => {
                     <input
                       type="number"
                       value={newPaymentForm.expectedAmount}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const expected = e.target.value;
+                        const tax = parseFloat(newPaymentForm.taxPercentage || "0");
+                        const auto = expected
+                          ? (parseFloat(expected) * (1 + tax / 100)).toFixed(2)
+                          : "";
                         setNewPaymentForm({
                           ...newPaymentForm,
-                          expectedAmount: e.target.value,
-                        })
-                      }
+                          expectedAmount: expected,
+                          invoiceAmount: auto,
+                        });
+                      }}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
                       placeholder="50000"
                     />
@@ -2221,16 +2443,42 @@ export const ProjectDetails: React.FC = () => {
                       min={0}
                       max={100}
                       value={newPaymentForm.taxPercentage}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const tax = e.target.value;
+                        const expected = parseFloat(newPaymentForm.expectedAmount || "0");
+                        const auto = newPaymentForm.expectedAmount
+                          ? (expected * (1 + parseFloat(tax || "0") / 100)).toFixed(2)
+                          : "";
                         setNewPaymentForm({
                           ...newPaymentForm,
-                          taxPercentage: e.target.value,
-                        })
-                      }
+                          taxPercentage: tax,
+                          invoiceAmount: auto,
+                        });
+                      }}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
                       placeholder="18"
                     />
                   </div>
+                </div>
+
+                {/* Invoice Amount — auto-calculated from expectedAmount × (1 + tax), user can override */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invoice Amount (₹)
+                    <span className="text-gray-400 font-normal ml-1">(auto-calculated, editable)</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={newPaymentForm.invoiceAmount}
+                    onChange={(e) =>
+                      setNewPaymentForm({
+                        ...newPaymentForm,
+                        invoiceAmount: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    placeholder="Auto-filled from expected amount + tax"
+                  />
                 </div>
 
                 {/* Status */}
@@ -2917,249 +3165,376 @@ export const ProjectDetails: React.FC = () => {
       {/* Edit Project Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">
-                  Edit Project
-                </h3>
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-orange-50 to-white rounded-t-2xl">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Edit Project</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Update all project details</p>
+              </div>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
+
+              {/* — Basic Info — */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-orange-500 mb-3">Basic Info</h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Project Name</label>
+                    <input
+                      type="text"
+                      value={editForm.projectName}
+                      onChange={(e) => setEditForm({ ...editForm, projectName: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none text-sm"
+                      placeholder="e.g., Villa Interior Design"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Pipeline Type</label>
+                      <select
+                        value={editForm.pipelineType}
+                        onChange={(e) => setEditForm({ ...editForm, pipelineType: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
+                      >
+                        <option value="">Select</option>
+                        {projectOptions.pipelineTypes.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
+                      <select
+                        value={editForm.projectCategory}
+                        onChange={(e) => setEditForm({ ...editForm, projectCategory: e.target.value, propertySubtype: "" })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
+                      >
+                        <option value="">Select</option>
+                        {projectOptions.categories.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Scope Type</label>
+                      <select
+                        value={editForm.scopeType}
+                        onChange={(e) => setEditForm({ ...editForm, scopeType: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
+                      >
+                        <option value="">Select</option>
+                        {projectOptions.scopeTypes.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Budget Tier</label>
+                      <select
+                        value={editForm.budgetTier}
+                        onChange={(e) => setEditForm({ ...editForm, budgetTier: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
+                      >
+                        <option value="">Select</option>
+                        {projectOptions.budgetTiers.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Type</label>
+                      <select
+                        value={editForm.propertySubtype}
+                        onChange={(e) => setEditForm({ ...editForm, propertySubtype: e.target.value })}
+                        disabled={!editForm.projectCategory}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm disabled:opacity-50"
+                      >
+                        <option value="">Select</option>
+                        {editForm.projectCategory &&
+                          getSubtypesForCategory(editForm.projectCategory).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                      <select
+                        value={editForm.status}
+                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
+                      >
+                        <option value="">Unchanged</option>
+                        <option value="YET_TO_START">Yet to Start</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="ONGOING">Ongoing</option>
+                        <option value="ON_HOLD">On Hold</option>
+                        <option value="PAUSED">Paused</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="CANCELLED">Cancelled</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Project Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.projectName}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, projectName: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-
-                {/* Pipeline Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pipeline Type
-                  </label>
-                  <select
-                    value={editForm.pipelineType}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, pipelineType: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                  >
-                    <option value="">Select Pipeline Type</option>
-                    {projectOptions.pipelineTypes.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Category */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={editForm.projectCategory}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        projectCategory: e.target.value,
-                        propertySubtype: "", // Reset when category changes
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                  >
-                    <option value="">Select Category</option>
-                    {projectOptions.categories.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Scope Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Scope Type
-                  </label>
-                  <select
-                    value={editForm.scopeType}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, scopeType: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                  >
-                    <option value="">Select Scope Type</option>
-                    {projectOptions.scopeTypes.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Budget Tier */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Budget Tier
-                  </label>
-                  <select
-                    value={editForm.budgetTier}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, budgetTier: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                  >
-                    <option value="">Select Budget Tier</option>
-                    {projectOptions.budgetTiers.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Property Subtype (category-dependent) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Property Type
-                  </label>
-                  <select
-                    value={editForm.propertySubtype}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        propertySubtype: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                    disabled={!editForm.projectCategory}
-                  >
-                    <option value="">
-                      {editForm.projectCategory
-                        ? "Select Property Type"
-                        : "Select a category first"}
-                    </option>
-                    {editForm.projectCategory &&
-                      getSubtypesForCategory(editForm.projectCategory).map(
-                        (opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ),
-                      )}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+              {/* — Property Details — */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-orange-500 mb-3">Property Details</h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Size (sq.ft)</label>
+                      <input
+                        type="number"
+                        value={editForm.propertySizeSqft}
+                        onChange={(e) => setEditForm({ ...editForm, propertySizeSqft: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                        placeholder="e.g., 2500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">BHK</label>
+                      <input
+                        type="text"
+                        value={editForm.propertyBHK}
+                        onChange={(e) => setEditForm({ ...editForm, propertyBHK: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                        placeholder="e.g., 3BHK"
+                      />
+                    </div>
+                  </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Property Address
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Street Address</label>
                     <input
                       type="text"
                       value={editForm.propertyAddress}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          propertyAddress: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      onChange={(e) => setEditForm({ ...editForm, propertyAddress: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                      placeholder="Street address"
                     />
                   </div>
-
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Building</label>
+                      <input type="text" value={editForm.propertyBuilding}
+                        onChange={(e) => setEditForm({ ...editForm, propertyBuilding: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="Building name" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Unit / Flat</label>
+                      <input type="text" value={editForm.propertyUnit}
+                        onChange={(e) => setEditForm({ ...editForm, propertyUnit: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="Unit / Flat No." />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
+                      <input type="text" value={editForm.propertyCity}
+                        onChange={(e) => setEditForm({ ...editForm, propertyCity: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="City" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">State</label>
+                      <input type="text" value={editForm.propertyState}
+                        onChange={(e) => setEditForm({ ...editForm, propertyState: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="State" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Pincode</label>
+                      <input type="text" value={editForm.propertyPincode}
+                        onChange={(e) => setEditForm({ ...editForm, propertyPincode: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="560001" />
+                    </div>
+                  </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Property City
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.propertyCity}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          propertyCity: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Landmarks</label>
+                    <input type="text" value={editForm.propertyLandmarks}
+                      onChange={(e) => setEditForm({ ...editForm, propertyLandmarks: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="Nearby landmarks" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Construction Status</label>
+                      <select value={editForm.constructionStatus}
+                        onChange={(e) => setEditForm({ ...editForm, constructionStatus: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none bg-white text-sm">
+                        <option value="">Select</option>
+                        <option value="NOT_STARTED">Not Started</option>
+                        <option value="UNDER_CONSTRUCTION">Under Construction</option>
+                        <option value="READY_TO_MOVE">Ready to Move</option>
+                        <option value="RENOVATION">Renovation</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Tentative Handover Date</label>
+                      <input type="date" value={editForm.tentativeHandoverDate}
+                        onChange={(e) => setEditForm({ ...editForm, tentativeHandoverDate: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" />
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Total Value (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={editForm.totalValue}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, totalValue: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="moodBoardShared"
-                    checked={editForm.moodBoardShared}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        moodBoardShared: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500"
-                  />
-                  <label
-                    htmlFor="moodBoardShared"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Moodboard Shared
-                  </label>
+              {/* — Site Contact — */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-orange-500 mb-3">Site Contact</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact Name</label>
+                    <input type="text" value={editForm.siteContactName}
+                      onChange={(e) => setEditForm({ ...editForm, siteContactName: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="Site supervisor name" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact Phone</label>
+                    <input type="tel" value={editForm.siteContactPhone}
+                      onChange={(e) => setEditForm({ ...editForm, siteContactPhone: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="+91 98765 43210" />
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setShowEditModal(false)}
-                  disabled={isSavingEdit}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-orange-500 hover:bg-orange-600"
-                  onClick={handleSaveEdit}
-                  disabled={isSavingEdit}
-                >
-                  {isSavingEdit ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
-                  )}
-                  Save Changes
-                </Button>
+              {/* — Team & Design — */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-orange-500 mb-3">Team & Design</h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Design Team</label>
+                      <input type="text" value={editForm.designTeam}
+                        onChange={(e) => setEditForm({ ...editForm, designTeam: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="Sathish, Thrisha" />
+                      <p className="text-xs text-gray-400 mt-1">Comma-separated names</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Execution Team</label>
+                      <input type="text" value={editForm.executionTeam}
+                        onChange={(e) => setEditForm({ ...editForm, executionTeam: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="Dilip, Santhosh" />
+                      <p className="text-xs text-gray-400 mt-1">Comma-separated names</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Assigned Designer ID</label>
+                      <input type="text" value={editForm.assignedDesignerId}
+                        onChange={(e) => setEditForm({ ...editForm, assignedDesignerId: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="designer-uuid" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Assigned PM ID</label>
+                      <input type="text" value={editForm.assignedPMId}
+                        onChange={(e) => setEditForm({ ...editForm, assignedPMId: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="pm-uuid" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Design Package</label>
+                      <input type="text" value={editForm.designPackage}
+                        onChange={(e) => setEditForm({ ...editForm, designPackage: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="e.g., PREMIUM" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">3D Design Status</label>
+                      <select value={editForm.design3DStatus}
+                        onChange={(e) => setEditForm({ ...editForm, design3DStatus: e.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none bg-white text-sm">
+                        <option value="">Select</option>
+                        <option value="NOT_STARTED">Not Started</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="COMPLETED">Completed</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 pt-1">
+                    <input type="checkbox" id="editMoodBoard" checked={editForm.moodBoardShared}
+                      onChange={(e) => setEditForm({ ...editForm, moodBoardShared: e.target.checked })}
+                      className="w-4 h-4 text-orange-500 rounded focus:ring-orange-400" />
+                    <label htmlFor="editMoodBoard" className="text-sm font-medium text-gray-700">Moodboard Shared</label>
+                  </div>
+                </div>
               </div>
+
+              {/* — Financials — */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-orange-500 mb-3">Financials</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Total Value (₹)</label>
+                    <input type="number" value={editForm.totalValue}
+                      onChange={(e) => setEditForm({ ...editForm, totalValue: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="e.g., 5000000" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Paid Amount (₹)</label>
+                    <input type="number" value={editForm.paidAmount}
+                      onChange={(e) => setEditForm({ ...editForm, paidAmount: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="e.g., 1500000" />
+                  </div>
+                </div>
+              </div>
+
+              {/* — Notes — */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-orange-500 mb-3">Notes</h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Special Requirements</label>
+                    <textarea value={editForm.specialRequirements}
+                      onChange={(e) => setEditForm({ ...editForm, specialRequirements: e.target.value })}
+                      rows={2}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
+                      placeholder="Vastu-compliant, eco-friendly materials, etc." />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks</label>
+                    <textarea value={editForm.remarks}
+                      onChange={(e) => setEditForm({ ...editForm, remarks: e.target.value })}
+                      rows={2}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
+                      placeholder="Internal remarks or priority notes..." />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-gray-50/50 rounded-b-2xl">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setShowEditModal(false)}
+                disabled={isSavingEdit}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-orange-500 hover:bg-orange-600"
+                onClick={handleSaveEdit}
+                disabled={isSavingEdit}
+              >
+                {isSavingEdit ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                Save Changes
+              </Button>
             </div>
           </div>
         </div>

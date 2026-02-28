@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
-import { X, Loader2, Plus, Trash2, Calendar } from "lucide-react";
+import { X, Loader2, Plus, Trash2, Calendar, User, ListChecks } from "lucide-react";
 import { Button } from "../../ui";
-import type { CreateMatrixRequest } from "../../../types";
+import type { CreateMatrixRequest, AdminUser } from "../../../types";
 import { createTaskMatrix } from "../../../services/projectApi";
+import { adminAPI } from "../../../services/api";
 
 interface CreateMatrixModalProps {
   projectId: string;
@@ -26,16 +27,6 @@ const DEFAULT_COLORS = [
   "#f97316",
 ];
 
-const TEAM_MEMBERS = [
-  { id: "unassigned", name: "Unassigned" },
-  { id: "design-lead", name: "Design Lead" },
-  { id: "project-manager", name: "Project Manager" },
-  { id: "site-supervisor", name: "Site Supervisor" },
-  { id: "civil-contractor", name: "Civil Contractor" },
-  { id: "electrical-contractor", name: "Electrical Contractor" },
-  { id: "plumbing-contractor", name: "Plumbing Contractor" },
-  { id: "operations-team", name: "Operations Team" },
-];
 
 export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   projectId,
@@ -51,97 +42,30 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
     new Date().toISOString().split("T")[0],
   );
   const [categories, setCategories] = useState<
-    { name: string; orderIndex: number; color: string; assignedTo?: string }[]
+    { name: string; orderIndex: number; color: string }[]
   >([
-    {
-      name: "Design",
-      orderIndex: 0,
-      color: "#3b82f6",
-      assignedTo: "unassigned",
-    },
-    {
-      name: "Civil",
-      orderIndex: 1,
-      color: "#22c55e",
-      assignedTo: "unassigned",
-    },
-    {
-      name: "Electrical",
-      orderIndex: 2,
-      color: "#f59e0b",
-      assignedTo: "unassigned",
-    },
-  ]);
-  const [tasks, setTasks] = useState<
-    {
-      dayNumber: number;
-      title: string;
-      description: string;
-      taskDate: string;
-    }[]
-  >([
-    {
-      dayNumber: 1,
-      title: "Site survey",
-      description: "Initial site visit",
-      taskDate: new Date(startDate + "T00:00:00").toISOString(),
-    },
+    { name: "Design", orderIndex: 0, color: "#3b82f6" },
+    { name: "Civil", orderIndex: 1, color: "#22c55e" },
+    { name: "Electrical", orderIndex: 2, color: "#f59e0b" },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
 
-  // Helper to compute task date from day number - returns full ISO-8601 DateTime
-  const getTaskDate = (dayNum: number): string => {
-    const date = new Date(startDate + "T00:00:00");
-    date.setDate(date.getDate() + (dayNum - 1));
-    return date.toISOString();
-  };
+  // Inline tasks
+  const [tasks, setTasks] = useState<
+    { title: string; description: string; dayNumber: number }[]
+  >([]);
 
-  // Helper to format ISO date for display
-  const formatDateForDisplay = (isoDate: string): string => {
-    return new Date(isoDate).toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const addTask = () => {
-    const nextDay =
-      tasks.length > 0
-        ? Math.min(tasks[tasks.length - 1].dayNumber + 1, totalDays)
-        : 1;
-    setTasks((prev) => [
-      ...prev,
-      {
-        dayNumber: nextDay,
-        title: "",
-        description: "",
-        taskDate: getTaskDate(nextDay),
-      },
-    ]);
-  };
-
-  const updateTask = (
-    idx: number,
-    field: keyof (typeof tasks)[0],
-    value: string | number,
-  ) => {
-    setTasks((prev) =>
-      prev.map((t, i) => {
-        if (i !== idx) return t;
-        if (field === "dayNumber") {
-          const dayNum = Number(value);
-          return { ...t, dayNumber: dayNum, taskDate: getTaskDate(dayNum) };
-        }
-        return { ...t, [field]: value };
-      }),
-    );
-  };
-
-  const removeTask = (idx: number) => {
-    setTasks((prev) => prev.filter((_, i) => i !== idx));
-  };
+  useEffect(() => {
+    adminAPI.getAllUsers().then((res: unknown) => {
+      if (res && typeof res === "object" && "users" in res && Array.isArray((res as { users: AdminUser[] }).users)) {
+        setUsers((res as { users: AdminUser[] }).users);
+      } else if (Array.isArray(res)) {
+        setUsers(res as AdminUser[]);
+      }
+    }).catch(() => {});
+  }, []);
 
   const addCategory = () => {
     const nextColor = DEFAULT_COLORS[categories.length % DEFAULT_COLORS.length];
@@ -172,6 +96,29 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
     );
   };
 
+  const addTask = () =>
+    setTasks((prev) => [...prev, { title: "", description: "", dayNumber: 1 }]);
+
+  const updateTask = (
+    idx: number,
+    field: "title" | "description" | "dayNumber",
+    value: string | number,
+  ) => {
+    setTasks((prev) =>
+      prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t)),
+    );
+  };
+
+  const removeTask = (idx: number) =>
+    setTasks((prev) => prev.filter((_, i) => i !== idx));
+
+  // Compute task date from startDate + (dayNumber - 1)
+  const getTaskDate = (dayNum: number): string => {
+    const date = new Date(startDate + "T00:00:00");
+    date.setDate(date.getDate() + (dayNum - 1));
+    return date.toISOString();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -186,21 +133,14 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
       return;
     }
 
-    // Validate tasks
-    const validTasks = tasks.filter((t) => t.title.trim());
-    if (validTasks.length === 0) {
-      setError("Add at least one task with a title");
-      return;
-    }
-
-    // Ensure all tasks have valid day numbers
-    const invalidDayTask = validTasks.find(
-      (t) => t.dayNumber < 1 || t.dayNumber > totalDays,
-    );
-    if (invalidDayTask) {
-      setError(`Task day must be between 1 and ${totalDays}`);
-      return;
-    }
+    const validTasks = tasks
+      .filter((t) => t.title.trim())
+      .map((t) => ({
+        dayNumber: t.dayNumber,
+        title: t.title.trim(),
+        description: t.description.trim() || undefined,
+        taskDate: getTaskDate(t.dayNumber),
+      }));
 
     setSaving(true);
     try {
@@ -208,12 +148,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
         totalDays,
         startDate,
         categories: validCategories,
-        tasks: validTasks.map((t) => ({
-          dayNumber: t.dayNumber,
-          title: t.title,
-          description: t.description || undefined,
-          taskDate: t.taskDate,
-        })),
+        tasks: validTasks,
       };
       // Build candidate list with stageCode FIRST (backend expects stageCode).
       // Falls back to stageId (UUID) and stageTemplateId for robustness.
@@ -401,108 +336,28 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  {/* Assigned Person */}
-                  <div className="ml-10">
-                    <label className="text-xs text-gray-500 block mb-1">
-                      Assigned To
-                    </label>
+
+                  {/* Assigned To */}
+                  <div className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                     <select
-                      value={cat.assignedTo || "unassigned"}
+                      value={cat.assignedTo || ""}
                       onChange={(e) =>
                         updateCategory(idx, "assignedTo", e.target.value)
                       }
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white"
+                      className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
                     >
-                      {TEAM_MEMBERS.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name}
+                      <option value="">Unassigned</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name}
                         </option>
                       ))}
                     </select>
                   </div>
+
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* Tasks */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">
-                Initial Tasks <span className="text-red-500">*</span>
-              </label>
-              <button
-                type="button"
-                onClick={addTask}
-                className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Task
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {tasks.map((task, idx) => (
-                <div key={idx} className="bg-gray-50 rounded-lg p-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-shrink-0">
-                      <label className="text-xs text-gray-500">Day</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={totalDays}
-                        value={task.dayNumber}
-                        onChange={(e) =>
-                          updateTask(idx, "dayNumber", Number(e.target.value))
-                        }
-                        className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-xs text-gray-500">Title</label>
-                      <input
-                        type="text"
-                        value={task.title}
-                        onChange={(e) =>
-                          updateTask(idx, "title", e.target.value)
-                        }
-                        className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                        placeholder="Task title"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeTask(idx)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 transition-colors mt-4"
-                      disabled={tasks.length <= 1}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">
-                      Description (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={task.description}
-                      onChange={(e) =>
-                        updateTask(idx, "description", e.target.value)
-                      }
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                      placeholder="Brief description"
-                    />
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Task Date: {formatDateForDisplay(task.taskDate)}
-                  </div>
-                </div>
-              ))}
-              {tasks.length === 0 && (
-                <div className="text-center py-3 text-sm text-gray-500 bg-gray-50 rounded-lg">
-                  At least one task is required. Click "Add Task" above.
-                </div>
-              )}
             </div>
           </div>
 
@@ -525,14 +380,85 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
               <br />•{" "}
               <strong>
                 {categories.filter((c) => c.name.trim()).length} work categories
-              </strong>{" "}
-              with assigned team members
-              <br />•{" "}
-              <strong>
-                {tasks.filter((t) => t.title.trim()).length} initial tasks
               </strong>
+              {tasks.filter((t) => t.title.trim()).length > 0 && (
+                <>
+                  <br />•{" "}
+                  <strong>{tasks.filter((t) => t.title.trim()).length} initial task{tasks.filter((t) => t.title.trim()).length !== 1 ? "s" : ""}</strong>
+                </>
+              )}
               {totalDays === 1 && " (recommended daily approach)"}
             </p>
+          </div>
+
+          {/* Initial Tasks */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <ListChecks className="w-4 h-4 text-gray-400" />
+                Initial Tasks
+                <span className="text-[10px] font-normal text-gray-400">(optional)</span>
+              </label>
+              <button
+                type="button"
+                onClick={addTask}
+                className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Task
+              </button>
+            </div>
+
+            {tasks.length === 0 ? (
+              <button
+                type="button"
+                onClick={addTask}
+                className="w-full border-2 border-dashed border-gray-200 rounded-lg py-4 text-xs text-gray-400 hover:border-orange-300 hover:text-orange-500 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add tasks to pre-populate this plan
+              </button>
+            ) : (
+              <div className="space-y-2">
+                {tasks.map((task, idx) => (
+                  <div key={idx} className="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={task.title}
+                        onChange={(e) => updateTask(idx, "title", e.target.value)}
+                        className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                        placeholder="Task title..."
+                      />
+                      <div className="flex items-center gap-1">
+                        <label className="text-[10px] text-gray-400">Day</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={totalDays}
+                          value={task.dayNumber}
+                          onChange={(e) => updateTask(idx, "dayNumber", Math.min(totalDays, Math.max(1, Number(e.target.value))))}
+                          className="w-14 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeTask(idx)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={task.description}
+                      onChange={(e) => updateTask(idx, "description", e.target.value)}
+                      className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                      placeholder="Description (optional)..."
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </form>
 

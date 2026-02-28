@@ -92,6 +92,7 @@ export interface ListProjectsResponse {
 }
 
 export interface ListProjectsParams {
+  accountId?: string;
   status?: string;
   pipelineType?: string;
   projectCategory?: string;
@@ -149,6 +150,7 @@ export async function listProjects(
 ): Promise<ListProjectsResponse> {
   try {
     const searchParams = new URLSearchParams();
+    if (params?.accountId) searchParams.append("accountId", params.accountId);
     if (params?.status) searchParams.append("status", params.status);
     if (params?.pipelineType)
       searchParams.append("pipelineType", params.pipelineType);

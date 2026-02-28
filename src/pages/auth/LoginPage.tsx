@@ -2,7 +2,177 @@ import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { Logo } from "../../components/shared";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, X, CheckCircle2, XCircle, KeyRound } from "lucide-react";
+import { resetPassword } from "../../services/passwordApi";
+
+// ── Forgot-Password Modal ───────────────────────────────────────────────────
+function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<"form" | "success">("form");
+  const [userId, setUserId] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const rules = [
+    { label: "At least 8 characters", ok: newPwd.length >= 8 },
+    { label: "One uppercase letter", ok: /[A-Z]/.test(newPwd) },
+    { label: "One number", ok: /[0-9]/.test(newPwd) },
+    { label: "One special character", ok: /[^a-zA-Z0-9]/.test(newPwd) },
+  ];
+  const strong = rules.every((r) => r.ok);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!strong) { setError("Password does not meet the requirements."); return; }
+    if (newPwd !== confirmPwd) { setError("Passwords do not match."); return; }
+    if (!userId.trim()) { setError("Please enter your User ID."); return; }
+
+    setLoading(true);
+    try {
+      await resetPassword(userId.trim(), newPwd);
+      setStep("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Password reset failed. Please contact your administrator.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+              <KeyRound className="w-5 h-5 text-orange-500" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Reset Password</h2>
+              <p className="text-xs text-gray-500">Enter your User ID and a new password</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5">
+          {step === "success" ? (
+            <div className="flex flex-col items-center gap-4 py-4 text-center">
+              <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center">
+                <CheckCircle2 className="w-8 h-8 text-green-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Password Updated!</h3>
+              <p className="text-sm text-gray-500">Your password has been reset successfully. You can now log in with your new password.</p>
+              <button
+                onClick={onClose}
+                className="mt-2 w-full h-11 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition-colors"
+              >
+                Back to Login
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* User ID */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">User ID</label>
+                <input
+                  type="text"
+                  value={userId}
+                  onChange={(e) => { setUserId(e.target.value); setError(""); }}
+                  placeholder="Enter your User ID"
+                  className="w-full h-11 px-4 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+                  required
+                />
+                <p className="text-xs text-gray-400 mt-1">Your User ID is provided by your administrator.</p>
+              </div>
+
+              {/* New Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                <div className="relative">
+                  <input
+                    type={showNew ? "text" : "password"}
+                    value={newPwd}
+                    onChange={(e) => { setNewPwd(e.target.value); setError(""); }}
+                    placeholder="Enter new password"
+                    className="w-full h-11 pl-4 pr-11 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+                    required
+                  />
+                  <button type="button" onClick={() => setShowNew((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {newPwd.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1 mt-2">
+                    {rules.map((r) => (
+                      <div key={r.label} className={`flex items-center gap-1 text-xs ${r.ok ? "text-green-600" : "text-gray-400"}`}>
+                        {r.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} className="text-gray-300" />}
+                        {r.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    value={confirmPwd}
+                    onChange={(e) => { setConfirmPwd(e.target.value); setError(""); }}
+                    placeholder="Re-enter new password"
+                    className={`w-full h-11 pl-4 pr-11 border rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all ${confirmPwd && confirmPwd !== newPwd ? "border-red-400" : "border-gray-300"}`}
+                    required
+                  />
+                  <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {confirmPwd && confirmPwd !== newPwd && (
+                  <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                )}
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !userId || !newPwd || !confirmPwd}
+                className={`w-full h-11 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${
+                  loading || !userId || !newPwd || !confirmPwd
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-orange-500 text-white hover:bg-orange-600 shadow-sm hover:shadow-md"
+                }`}
+              >
+                {loading ? (
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Resetting…</>
+                ) : "Reset Password"}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -12,6 +182,7 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +208,8 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
+      {/* Forgot Password Modal */}
+      {showForgotModal && <ForgotPasswordModal onClose={() => setShowForgotModal(false)} />}
       {/* Left Side - Form */}
       <div className="w-full lg:w-2/5 flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-24 bg-white">
         <div className="w-full max-w-md mx-auto">
@@ -125,6 +298,7 @@ export function LoginPage() {
               </label>
               <button
                 type="button"
+                onClick={() => setShowForgotModal(true)}
                 className="text-sm text-orange-500 hover:text-orange-600 font-medium transition-colors"
               >
                 Forgot password?

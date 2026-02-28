@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   Link2,
@@ -25,6 +26,7 @@ import {
   ChevronDown,
   Eye,
   AlertCircle,
+  Receipt,
 } from "lucide-react";
 import { Button, Badge, Card } from "../../ui";
 import toast from "react-hot-toast";
@@ -36,7 +38,6 @@ import {
   updateProjectReference,
   deleteProjectReference,
   downloadProjectReference,
-  getReferenceCategories,
   getReferenceTypes,
 } from "../../../services/projectApi";
 import type { OptionItemWithDescription } from "../../../types";
@@ -46,7 +47,7 @@ interface ProjectReferencesTabProps {
 }
 
 type ViewMode = "grid" | "list";
-type AddMode = "link" | "upload" | null;
+type AddMode = "link" | "upload" | "quotation" | null;
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Living Room": "bg-blue-100 text-blue-700",
@@ -109,7 +110,11 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [addMode, setAddMode] = useState<AddMode>(null);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories] = useState<string[]>([
+    "References",
+    "Estimation Value",
+    "Design Presentation",
+  ]);
   const [referenceTypes, setReferenceTypes] = useState<
     OptionItemWithDescription[]
   >([]);
@@ -132,6 +137,12 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   });
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Quotation upload
+  const [quotationFile, setQuotationFile] = useState<File | null>(null);
+  const [quotationNotes, setQuotationNotes] = useState("");
+  const [isUploadingQuotation, setIsUploadingQuotation] = useState(false);
+  const quotationFileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit modal
   const [editingRef, setEditingRef] = useState<ProjectReference | null>(null);
@@ -168,14 +179,10 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [cats, types] = await Promise.all([
-          getReferenceCategories().catch(() => []),
-          getReferenceTypes().catch(() => []),
-        ]);
-        setCategories(cats);
+        const types = await getReferenceTypes().catch(() => []);
         setReferenceTypes(types);
       } catch {
-        // Silent fail, use defaults
+        // Silent fail
       }
     };
     fetchOptions();
@@ -277,6 +284,37 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       );
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // ── Upload quotation ──
+  const handleUploadQuotation = async () => {
+    if (!quotationFile) {
+      toast.error("Please select a quotation document");
+      return;
+    }
+    setIsUploadingQuotation(true);
+    try {
+      await uploadFileReference(
+        projectId,
+        quotationFile,
+        "Quotation",
+        quotationNotes || undefined,
+        undefined,
+      );
+      toast.success("Quotation uploaded successfully!");
+      setQuotationFile(null);
+      setQuotationNotes("");
+      setAddMode(null);
+      if (quotationFileInputRef.current)
+        quotationFileInputRef.current.value = "";
+      fetchReferences();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to upload quotation",
+      );
+    } finally {
+      setIsUploadingQuotation(false);
     }
   };
 
@@ -394,8 +432,141 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
             <Upload className="w-4 h-4 mr-1.5" />
             Upload File
           </Button>
+          <Button
+            onClick={() => setAddMode("quotation")}
+            className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-xl"
+          >
+            <Receipt className="w-4 h-4 mr-1.5" />
+            Upload Quotation
+          </Button>
         </div>
       </div>
+
+      {/* ── Upload Quotation Modal ── */}
+      {addMode === "quotation" && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                    <Receipt className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      Upload Quotation
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      PDF, Word, Excel documents
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAddMode(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Drop zone */}
+                <div
+                  onClick={() => quotationFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-all"
+                >
+                  {quotationFile ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                        {quotationFile.type === "application/pdf" ? (
+                          <FileText className="w-5 h-5 text-red-600" />
+                        ) : (
+                          <File className="w-5 h-5 text-green-600" />
+                        )}
+                      </div>
+                      <div className="text-left flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {quotationFile.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(quotationFile.size)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuotationFile(null);
+                          if (quotationFileInputRef.current)
+                            quotationFileInputRef.current.value = "";
+                        }}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg"
+                      >
+                        <X className="w-4 h-4 text-gray-400" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <Receipt className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-gray-700">
+                        Click to select quotation document
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        PDF, DOC, DOCX, XLS, XLSX
+                      </p>
+                    </>
+                  )}
+                  <input
+                    ref={quotationFileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setQuotationFile(file);
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Notes
+                  </label>
+                  <textarea
+                    value={quotationNotes}
+                    onChange={(e) => setQuotationNotes(e.target.value)}
+                    rows={2}
+                    placeholder="e.g., Revised quotation v2, includes GST..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setAddMode(null)}
+                  disabled={isUploadingQuotation}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleUploadQuotation}
+                  disabled={isUploadingQuotation}
+                >
+                  {isUploadingQuotation ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Receipt className="w-4 h-4 mr-2" />
+                  )}
+                  Upload Quotation
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>,
+      document.body)}
 
       {/* ── Category Pills ── */}
       {Object.keys(categoryCounts).length > 0 && (
@@ -567,7 +738,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       )}
 
       {/* ── Add Link Modal ── */}
-      {addMode === "link" && (
+      {addMode === "link" && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-6">
@@ -687,11 +858,11 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
 
       {/* ── Upload File Modal ── */}
-      {addMode === "upload" && (
+      {addMode === "upload" && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-6">
@@ -858,11 +1029,11 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
 
       {/* ── Edit Modal ── */}
-      {editingRef && (
+      {editingRef && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-6">
@@ -952,11 +1123,11 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
 
       {/* ── Delete Confirm ── */}
-      {deletingId && (
+      {deletingId && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full">
             <div className="p-6 text-center">
@@ -993,11 +1164,11 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
 
       {/* ── Preview Modal ── */}
-      {previewRef && (
+      {previewRef && createPortal(
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -1123,8 +1294,8 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
     </div>
   );
 };

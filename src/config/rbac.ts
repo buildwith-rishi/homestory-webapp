@@ -10,7 +10,9 @@ export type RoleId =
   | "BDR"
   | "PROJECT_MANAGER"
   | "ACCOUNTS"
-  | "SITE_ENGINEER";
+  | "SITE_ENGINEER"
+  | "DESIGNER"
+  | "DESIGN_HEAD";
 
 // ─── Role metadata ────────────────────────────────────────────────────────
 export interface RoleMeta {
@@ -83,6 +85,26 @@ export const ROLES: Record<RoleId, RoleMeta> = {
     color: "text-teal-700",
     bgColor: "bg-teal-100",
     defaultRoute: "/app", // Mobile-first experience
+  },
+  DESIGNER: {
+    id: "DESIGNER",
+    name: "Designer",
+    description:
+      "Design module access, mood board and reference management, 3D design uploads, design stage tracking, and client-facing design deliverables.",
+    accessLevel: "Medium",
+    color: "text-pink-700",
+    bgColor: "bg-pink-100",
+    defaultRoute: "/dashboard",
+  },
+  DESIGN_HEAD: {
+    id: "DESIGN_HEAD",
+    name: "Design Head",
+    description:
+      "Full design department oversight, designer management, design pipeline and deliverable approvals, reporting, and cross-team coordination.",
+    accessLevel: "High",
+    color: "text-violet-700",
+    bgColor: "bg-violet-100",
+    defaultRoute: "/dashboard",
   },
 };
 
@@ -193,6 +215,40 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "issues.report",
     "quality.submit",
     "defects.report",
+  ],
+  DESIGNER: [
+    "leads.read",
+    "accounts.read",
+    "contacts.read",
+    "projects.read",
+    "projects.update",
+    "activity.read",
+    "activity.create",
+    "attachments.*",
+    "meetings.read",
+    "meetings.create",
+    "tasks.read",
+    "tasks.create",
+    "tasks.update",
+    "design.*",
+    "references.*",
+    "dashboard.view",
+  ],
+  DESIGN_HEAD: [
+    "users.read",
+    "leads.read",
+    "accounts.read",
+    "contacts.read",
+    "projects.*",
+    "activity.*",
+    "attachments.*",
+    "meetings.*",
+    "tasks.*",
+    "design.*",
+    "references.*",
+    "reports.view",
+    "reports.export",
+    "dashboard.view",
   ],
 };
 
@@ -419,7 +475,8 @@ export function normalizeRole(raw: string): RoleId {
     FOUNDER_ARCHITECT: "SUPER_ADMIN",
     SUPER_ADMIN: "SUPER_ADMIN",
     CUSTOMER: "BDR", // customers shouldn't log into CRM, default to lowest CRM role
-    DESIGNER: "PROJECT_MANAGER", // map legacy designer to PM
+    DESIGNER: "DESIGNER", // now a first-class role
+    DESIGN_HEAD: "DESIGN_HEAD", // now a first-class role
   };
 
   return aliases[upper] || "BDR"; // Default to BDR (lowest CRM access)

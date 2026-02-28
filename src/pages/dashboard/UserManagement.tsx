@@ -11,6 +11,7 @@ import {
   X,
   Edit2,
   Trash2,
+  KeyRound,
 } from "lucide-react";
 import { Card, Badge, Modal } from "../../components/ui";
 import { adminAPI } from "../../services/api";
@@ -39,6 +40,7 @@ export const UserManagement: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showBanModal, setShowBanModal] = useState(false);
   const [showUnbanModal, setShowUnbanModal] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
 
   // Form states
@@ -59,6 +61,7 @@ export const UserManagement: React.FC = () => {
     phone: "",
   });
   const [banReason, setBanReason] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
   // Check if user has admin role
@@ -276,6 +279,27 @@ export const UserManagement: React.FC = () => {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser || !newPassword.trim()) return;
+
+    try {
+      setActionLoading(true);
+      await adminAPI.resetPassword(selectedUser.id, newPassword);
+      setShowResetPasswordModal(false);
+      setNewPassword("");
+      setSelectedUser(null);
+      alert(`Password reset successfully for ${selectedUser.name}!`);
+    } catch (error) {
+      console.error("Failed to reset password:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to reset password";
+      alert(errorMessage);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Filter users
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -431,6 +455,8 @@ export const UserManagement: React.FC = () => {
             <option value="PROJECT_MANAGER">Project Manager</option>
             <option value="ACCOUNTS">Accounts / Finance</option>
             <option value="SITE_ENGINEER">Site Engineer</option>
+            <option value="DESIGNER">Designer</option>
+            <option value="DESIGN_HEAD">Design Head</option>
           </select>
 
           {/* Status Filter */}
@@ -595,6 +621,17 @@ export const UserManagement: React.FC = () => {
                           <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                           Delete
                         </button>
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setNewPassword("");
+                            setShowResetPasswordModal(true);
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all"
+                        >
+                          <KeyRound className="w-3.5 h-3.5 mr-1.5" />
+                          Reset Pwd
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -706,6 +743,8 @@ export const UserManagement: React.FC = () => {
               <option value="SITE_ENGINEER">Site Engineer</option>
               <option value="PROJECT_MANAGER">Project Manager</option>
               <option value="ACCOUNTS">Accounts / Finance</option>
+              <option value="DESIGNER">Designer</option>
+              <option value="DESIGN_HEAD">Design Head</option>
               <option value="ADMIN">Admin</option>
               <option value="SUPER_ADMIN">Super Admin</option>
             </select>
@@ -974,6 +1013,8 @@ export const UserManagement: React.FC = () => {
               <option value="SITE_ENGINEER">Site Engineer</option>
               <option value="PROJECT_MANAGER">Project Manager</option>
               <option value="ACCOUNTS">Accounts / Finance</option>
+              <option value="DESIGNER">Designer</option>
+              <option value="DESIGN_HEAD">Design Head</option>
               <option value="ADMIN">Admin</option>
               <option value="SUPER_ADMIN">Super Admin</option>
             </select>
@@ -1078,6 +1119,85 @@ export const UserManagement: React.FC = () => {
             {actionLoading ? "Deleting..." : "Delete User"}
           </button>
         </div>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        isOpen={showResetPasswordModal}
+        onClose={() => setShowResetPasswordModal(false)}
+        showCloseButton={false}
+      >
+        {/* Modal Header */}
+        <div className="px-6 py-5 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Reset Password
+              </h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Set a new password for {selectedUser?.name}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowResetPasswordModal(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1.5 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal Body */}
+        <form onSubmit={handleResetPassword} className="px-6 py-5 space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+            <div className="p-2 bg-indigo-100 rounded-lg">
+              <KeyRound className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <p className="font-medium text-gray-900 text-sm">
+                {selectedUser?.name}
+              </p>
+              <p className="text-xs text-gray-600 mt-0.5">{selectedUser?.email}</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              New Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Minimum 8 characters"
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Use a strong password with letters, numbers, and symbols.
+            </p>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="flex gap-3 pt-4 border-t border-gray-100 mt-2">
+            <button
+              type="button"
+              onClick={() => setShowResetPasswordModal(false)}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+              disabled={actionLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 transition-all shadow-sm disabled:opacity-50"
+              disabled={actionLoading || newPassword.length < 8}
+            >
+              {actionLoading ? "Resetting..." : "Reset Password"}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

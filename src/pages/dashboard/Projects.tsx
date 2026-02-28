@@ -14,6 +14,8 @@ import {
   AlertCircle,
   RefreshCw,
   Settings2,
+  Tag,
+  Home,
 } from "lucide-react";
 import { Card, Button, Badge, Progress } from "../../components/ui";
 import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
@@ -158,6 +160,72 @@ const getTeamMembers = (
     });
   }
   return members;
+};
+
+const PROJECT_CATEGORY_LABELS: Record<string, string> = {
+  RESIDENTIAL: "Residential",
+  COMMERCIAL: "Commercial",
+  HOSPITALITY: "Hospitality",
+  HEALTHCARE: "Healthcare",
+};
+
+const PROPERTY_SUBTYPE_LABELS: Record<string, string> = {
+  APARTMENT: "Apartment",
+  VILLA: "Villa",
+  INDEPENDENT_HOUSE: "Independent House",
+  PENTHOUSE: "Penthouse",
+  ROW_HOUSE: "Row House",
+  STUDIO: "Studio",
+  RETAIL_SHOP: "Retail Shop",
+  HEALTHCARE_FACILITY: "Healthcare Facility",
+  RESTAURANT: "Restaurant",
+  OFFICE_SPACE: "Office Space",
+};
+
+const PROJECT_CATEGORY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  RESIDENTIAL:  { bg: "bg-violet-50",  text: "text-violet-700",  border: "border-violet-200/60" },
+  COMMERCIAL:   { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200/60"   },
+  HOSPITALITY:  { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200/60"  },
+  HEALTHCARE:   { bg: "bg-rose-50",    text: "text-rose-700",    border: "border-rose-200/60"   },
+};
+
+const PROPERTY_SUBTYPE_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  APARTMENT:          { bg: "bg-sky-50",     text: "text-sky-700",     border: "border-sky-200/60"    },
+  VILLA:              { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/60" },
+  INDEPENDENT_HOUSE:  { bg: "bg-green-50",   text: "text-green-700",   border: "border-green-200/60"  },
+  PENTHOUSE:          { bg: "bg-purple-50",  text: "text-purple-700",  border: "border-purple-200/60" },
+  ROW_HOUSE:          { bg: "bg-teal-50",    text: "text-teal-700",    border: "border-teal-200/60"   },
+  STUDIO:             { bg: "bg-indigo-50",  text: "text-indigo-700",  border: "border-indigo-200/60" },
+  RETAIL_SHOP:        { bg: "bg-orange-50",  text: "text-orange-700",  border: "border-orange-200/60" },
+  HEALTHCARE_FACILITY:{ bg: "bg-pink-50",    text: "text-pink-700",    border: "border-pink-200/60"   },
+  RESTAURANT:         { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200/60"  },
+  OFFICE_SPACE:       { bg: "bg-cyan-50",    text: "text-cyan-700",    border: "border-cyan-200/60"   },
+};
+
+const getProjectTypeDisplay = (project: Project) => {
+  // Use projectCategory (the primary API field) or fall back to projectType alias
+  const raw: string = project.projectCategory ?? project.projectType ?? "";
+  const label = (PROJECT_CATEGORY_LABELS[raw] ??
+    (raw ? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null)) || null;
+  return {
+    label,
+    style: PROJECT_CATEGORY_STYLES[raw] ?? {
+      bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200/60",
+    },
+  };
+};
+
+const getPropertyTypeDisplay = (project: Project) => {
+  // Use propertySubtype (the primary API field) or fall back to propertyType alias
+  const raw: string = project.propertySubtype ?? project.propertyType ?? "";
+  const label = (PROPERTY_SUBTYPE_LABELS[raw] ??
+    (raw ? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null)) || null;
+  return {
+    label,
+    style: PROPERTY_SUBTYPE_STYLES[raw] ?? {
+      bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200/60",
+    },
+  };
 };
 
 // --- Component ---
@@ -565,10 +633,10 @@ export const ProjectsPage: React.FC = () => {
                     Stage
                   </th>
                   <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Progress
+                    Project Type
                   </th>
                   <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Status
+                    Property Type
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Created
@@ -586,11 +654,10 @@ export const ProjectsPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredProjects.map((project, index) => {
-                  const statusInfo = getStatusDisplay(project.status);
-                  const statusColor = statusColors[statusInfo.key];
                   const stageCode = project.currentStageCode || "";
-                  const progress = getProgressFromStage(stageCode);
                   const team = getTeamMembers(project);
+                  const projectTypeInfo = getProjectTypeDisplay(project);
+                  const propertyTypeInfo = getPropertyTypeDisplay(project);
                   const displayName =
                     project.projectName || project.name || "Untitled";
                   const clientName = project.lead?.name || "\u2014";
@@ -633,29 +700,31 @@ export const ProjectsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Progress */}
+                      {/* Project Type */}
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 justify-center">
-                          <div className="w-20">
-                            <Progress value={progress} className="h-2" />
-                          </div>
-                          <span className="text-xs font-bold text-gray-900 min-w-[35px]">
-                            {progress}%
-                          </span>
+                        <div className="flex justify-center">
+                          {projectTypeInfo.label ? (
+                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${projectTypeInfo.style.bg} ${projectTypeInfo.style.text} ${projectTypeInfo.style.border}`}>
+                              <Tag className="w-3 h-3 flex-shrink-0" />
+                              <span>{projectTypeInfo.label}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
                         </div>
                       </td>
 
-                      {/* Status */}
+                      {/* Property Type */}
                       <td className="px-4 py-3">
                         <div className="flex justify-center">
-                          <div
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${statusColor.bg} ${statusColor.text}`}
-                          >
-                            <div
-                              className={`w-1.5 h-1.5 rounded-full ${statusColor.dot}`}
-                            />
-                            <span>{statusInfo.label}</span>
-                          </div>
+                          {propertyTypeInfo.label ? (
+                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${propertyTypeInfo.style.bg} ${propertyTypeInfo.style.text} ${propertyTypeInfo.style.border}`}>
+                              <Home className="w-3 h-3 flex-shrink-0" />
+                              <span>{propertyTypeInfo.label}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
                         </div>
                       </td>
 

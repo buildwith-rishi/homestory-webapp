@@ -25,6 +25,7 @@ import {
   Users,
   X,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   KanbanBoard,
@@ -42,6 +43,7 @@ import { addActivityEntry } from "../../stores/kanbanActivityLog";
 import ProjectAPI from "../../services/projectApi";
 import LeadAPI, { LeadAssignee } from "../../services/leadApi";
 import { adminAPI } from "../../services/api";
+import { convertLeadToCustomer } from "../../services/customerApi";
 import { Lead, LeadStage, LeadSource, Project, AdminUser } from "../../types";
 import toast from "react-hot-toast";
 
@@ -120,7 +122,15 @@ const KanbanView: React.FC = () => {
 
   // Assignment loading state
   const [isAssigning, setIsAssigning] = useState(false);
-  
+
+  // Lead conversion modal state
+  const [pendingConversion, setPendingConversion] = useState<{
+    leadId: string;
+    leadName: string;
+    fromCol: string;
+  } | null>(null);
+  const [isConverting, setIsConverting] = useState(false);
+
   // Filter for already converted leads
   const [showAlreadyConverted, setShowAlreadyConverted] = useState(false);
 
@@ -692,6 +702,14 @@ const KanbanView: React.FC = () => {
         });
       }
 
+      // If dragged to the Converted column, show confirmation modal before
+      // calling the conversion API
+      if (toCol === "col-converted") {
+        const leadName = task?.content || taskId;
+        setPendingConversion({ leadId: taskId, leadName, fromCol });
+        return; // halt here — modal will handle the rest
+      }
+
       try {
         await moveLeadByStatus(taskId, newStatus);
         toast.success(
@@ -707,6 +725,41 @@ const KanbanView: React.FC = () => {
     },
     [moveLeadByStatus, fetchLeads, leadsKanbanData],
   );
+
+  // Called when user confirms lead conversion in the modal
+  const handleConfirmConversion = useCallback(async () => {
+    if (!pendingConversion) return;
+    const { leadId, leadName } = pendingConversion;
+    setIsConverting(true);
+    try {
+      await convertLeadToCustomer(leadId, leadName);
+      toast.success(
+        `"${leadName}" has been converted to a customer successfully!`,
+      );
+      setPendingConversion(null);
+      // fetchLeads will filter out the converted lead since convertedToAccountId is now set
+      fetchLeads();
+    } catch (error) {
+      console.error("Failed to convert lead to customer:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to convert lead. Please try again.",
+      );
+      // Revert the kanban drag by refreshing
+      fetchLeads();
+      setPendingConversion(null);
+    } finally {
+      setIsConverting(false);
+    }
+  }, [pendingConversion, fetchLeads]);
+
+  // Called when user cancels the conversion modal
+  const handleCancelConversion = useCallback(() => {
+    setPendingConversion(null);
+    // Revert the kanban UI by re-fetching the original state
+    fetchLeads();
+  }, [fetchLeads]);
 
   // Handle new lead card creation via API
   const handleLeadCardAdd = useCallback(
@@ -1584,6 +1637,86 @@ const KanbanView: React.FC = () => {
           }
         />
       </div>
+
+      {/* Lead Conversion Confirmation Modal (Portal) */}
+      {pendingConversion &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center gap-3 p-6 border-b border-gray-100">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <UserPlus className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Convert Lead to Customer?
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    This action will create a customer profile
+                  </p>
+                </div>
+                <button
+                  onClick={handleCancelConversion}
+                  disabled={isConverting}
+                  className="ml-auto p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-emerald-800 mb-1">
+                    Lead being converted
+                  </p>
+                  <p className="text-xl font-bold text-emerald-900">
+                    {pendingConversion.leadName}
+                  </p>
+                </div>
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-800">
+                    Converting this lead will create a{" "}
+                    <strong>Customer</strong> profile in the system. The lead
+                    will be removed from your pipeline and will appear in the
+                    Customers section.
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center gap-3 px-6 pb-6">
+                <button
+                  onClick={handleCancelConversion}
+                  disabled={isConverting}
+                  className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmConversion}
+                  disabled={isConverting}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white font-semibold text-sm hover:from-emerald-600 hover:to-green-700 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isConverting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Converting...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      Yes, Convert to Customer
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

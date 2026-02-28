@@ -34,6 +34,11 @@ import {
   Check,
   X,
   Image as ImageIcon,
+  Pencil,
+  Layers,
+  MessageCircle,
+  Wrench,
+  Users,
 } from "lucide-react";
 import { Button } from "../../components/ui";
 import LeadAPI, {
@@ -42,12 +47,21 @@ import LeadAPI, {
   LeadNote,
   LeadContact,
   LeadStageHistory,
+  updateLead,
+  LeadSource,
 } from "../../services/leadApi";
+import { LeadModal } from "./LeadsNew";
+import { adminAPI } from "../../services/api";
+import { AdminUser } from "../../types";
 import CustomerAPI from "../../services/customerApi";
 import toast from "react-hot-toast";
 import { getSourceLabel } from "../../utils/leadHelpers";
 import { LeadReferencesManager } from "../../components/leads";
 import { LeadReference } from "../../types";
+import {
+  listAttachments,
+  Attachment,
+} from "../../services/attachmentApi";
 
 const LeadDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -61,6 +75,11 @@ const LeadDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+
+  // Edit lead modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [leadSources] = useState<LeadSource[]>([]);
+  const [teamUsers, setTeamUsers] = useState<AdminUser[]>([]);
 
   // Convert to Customer state
   const [showConvertModal, setShowConvertModal] = useState(false);
@@ -98,6 +117,28 @@ const LeadDetails: React.FC = () => {
     }
   }, [id]);
 
+  // Fetch users for the edit modal
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await adminAPI.getAllUsers();
+        const usersArray = Array.isArray(response) ? response : (response as any)?.users || [];
+        const seen = new Set<string>();
+        const unique: AdminUser[] = [];
+        for (const u of usersArray) {
+          if (u.id && !seen.has(u.id) && !u.isBanned) {
+            seen.add(u.id);
+            unique.push(u);
+          }
+        }
+        setTeamUsers(unique);
+      } catch {
+        // non-critical, users list just won't populate
+      }
+    };
+    fetchUsers();
+  }, []);
+
   const handleConvertToCustomer = async () => {
     console.log("handleConvertToCustomer called");
     console.log("Lead object:", lead);
@@ -110,6 +151,15 @@ const LeadDetails: React.FC = () => {
     if (!leadId) {
       console.log("No lead ID found, returning early");
       toast.error("No lead ID found");
+      return;
+    }
+
+    // Guard: lead has already been converted
+    if (lead?.convertedToAccount) {
+      toast.error(
+        `This lead has already been converted to customer "${lead.convertedToAccount.name || "Unknown"}".`,
+      );
+      setShowConvertModal(false);
       return;
     }
 
@@ -248,11 +298,37 @@ const LeadDetails: React.FC = () => {
         }
       }
 
-      // Load references if they exist
-      if (leadData.references && Array.isArray(leadData.references)) {
-        setReferences(leadData.references);
-      } else {
-        setReferences([]);
+      // Load references — fetch real attachments from API
+      try {
+        const attachments: Attachment[] = await listAttachments("LEAD", id);
+        const mapped: LeadReference[] = attachments.map((a) => ({
+          id: a.id,
+          leadId: id,
+          type: a.fileType?.startsWith("image/")
+            ? ("IMAGE" as any)
+            : a.fileType === "application/pdf"
+              ? ("PDF" as any)
+              : a.fileType?.startsWith("video/")
+                ? ("VIDEO" as any)
+                : ("DOCUMENT" as any),
+          title: a.fileName,
+          description: a.notes || a.attachmentType?.replace(/_/g, " "),
+          url: a.downloadUrl || a.fileUrl || "",
+          fileName: a.fileName,
+          mimeType: a.fileType,
+          category: "Reference" as const,
+          uploadedBy: "",
+          uploadedAt: a.uploadedAt || a.createdAt || new Date().toISOString(),
+          tags: [a.attachmentType],
+        }));
+        setReferences(mapped);
+      } catch {
+        // Fall back to embedded references if API fails
+        if (leadData.references && Array.isArray(leadData.references)) {
+          setReferences(leadData.references);
+        } else {
+          setReferences([]);
+        }
       }
 
       // Fetch notes for this specific lead (separate endpoint)
@@ -274,6 +350,15 @@ const LeadDetails: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditSave = async (updatedData: Omit<APILead, "id">) => {
+    const leadId = lead?.id || id;
+    if (!leadId) throw new Error("No lead ID found");
+    const updated = await updateLead(leadId, updatedData);
+    setLead({ ...lead!, ...updated });
+    setShowEditModal(false);
+    toast.success("Lead updated successfully");
   };
 
   const handleDeleteLead = async () => {
@@ -370,54 +455,23 @@ const LeadDetails: React.FC = () => {
   };
 
   // References handlers
-  const handleAddReference = async (
+  // Note: actual API upload/delete is handled inside LeadReferencesManager.
+  // These handlers only keep local React state in sync.
+  const handleAddReference = (
     reference: Omit<LeadReference, "id" | "leadId" | "uploadedAt">,
   ) => {
-    if (!lead?.id) {
-      toast.error("No lead ID found");
-      return;
-    }
-
-    try {
-      // Generate a temporary ID for the reference
-      const newReference: LeadReference = {
-        ...reference,
-        id: `ref-${Date.now()}`,
-        leadId: lead.id,
-        uploadedAt: new Date().toISOString(),
-      };
-
-      // Update local state
-      setReferences((prev) => [...prev, newReference]);
-
-      // TODO: Call API to save reference to backend
-      // await LeadAPI.addReference(lead.id, newReference);
-
-      toast.success("Reference added successfully!");
-    } catch (error) {
-      console.error("Error adding reference:", error);
-      toast.error("Failed to add reference");
-    }
+    const newReference: LeadReference = {
+      ...reference,
+      // id may already be set by the manager (to the real attachment uuid)
+      id: (reference as any).id || `ref-${Date.now()}`,
+      leadId: lead?.id || id || "",
+      uploadedAt: new Date().toISOString(),
+    };
+    setReferences((prev) => [...prev, newReference]);
   };
 
-  const handleDeleteReference = async (referenceId: string) => {
-    if (!lead?.id) {
-      toast.error("No lead ID found");
-      return;
-    }
-
-    try {
-      // Update local state
-      setReferences((prev) => prev.filter((ref) => ref.id !== referenceId));
-
-      // TODO: Call API to delete reference from backend
-      // await LeadAPI.deleteReference(lead.id, referenceId);
-
-      toast.success("Reference deleted successfully!");
-    } catch (error) {
-      console.error("Error deleting reference:", error);
-      toast.error("Failed to delete reference");
-    }
+  const handleDeleteReference = (referenceId: string) => {
+    setReferences((prev) => prev.filter((ref) => ref.id !== referenceId));
   };
 
   const getScoreColor = (score: number) => {
@@ -431,6 +485,9 @@ const LeadDetails: React.FC = () => {
     if (score >= 40) return "from-amber-500 to-yellow-500";
     return "from-red-500 to-orange-500";
   };
+
+  const formatEnum = (value: string): string =>
+    value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   if (loading) {
     return (
@@ -592,6 +649,14 @@ const LeadDetails: React.FC = () => {
               </div>
               {/* Action Buttons */}
               <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowEditModal(true)}
+                  className="rounded-xl"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit Lead
+                </Button>
                 <Button
                   variant="secondary"
                   onClick={handleDeleteLead}
@@ -804,7 +869,86 @@ const LeadDetails: React.FC = () => {
                           <p className="text-sm font-semibold text-gray-900">
                             {getSourceLabel(lead.source)}
                           </p>
+                          {lead.sourceDetails &&
+                            Object.values(lead.sourceDetails).some(Boolean) && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {Object.entries(lead.sourceDetails)
+                                  .filter(([, v]) => v)
+                                  .map(([k, v]) => (
+                                    <span
+                                      key={k}
+                                      className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded"
+                                    >
+                                      {k}: {v}
+                                    </span>
+                                  ))}
+                              </div>
+                            )}
                         </div>
+                      </div>
+                    )}
+
+                    {lead.assignedTo && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <User className="w-5 h-5 text-indigo-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">
+                            Assigned To
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {lead.assignedTo.name}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {lead.companyName && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Building2 className="w-5 h-5 text-gray-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">
+                            Company
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {lead.companyName}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {(lead.canWhatsApp !== undefined ||
+                      lead.wantsExperienceCenterVisit !== undefined) && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {lead.canWhatsApp !== undefined && (
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+                              lead.canWhatsApp
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
+                            <MessageCircle className="w-3 h-3" />
+                            WhatsApp:{" "}
+                            {lead.canWhatsApp ? "Yes" : "No"}
+                          </span>
+                        )}
+                        {lead.wantsExperienceCenterVisit !== undefined && (
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+                              lead.wantsExperienceCenterVisit
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            Exp. Center:{" "}
+                            {lead.wantsExperienceCenterVisit ? "Yes" : "No"}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -821,7 +965,15 @@ const LeadDetails: React.FC = () => {
               lead.timeline ||
               (lead.scopeOfWork && lead.scopeOfWork.length > 0) ||
               (lead.servicesInterested &&
-                lead.servicesInterested.length > 0)) && (
+                lead.servicesInterested.length > 0) ||
+              lead.serviceInterest ||
+              lead.homeType ||
+              lead.projectType ||
+              lead.propertyProjectType ||
+              lead.area ||
+              lead.startTimeline ||
+              lead.budgetComfort ||
+              lead.projectScope) && (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
                   <Home className="w-4 h-4 text-amber-500" />
@@ -829,51 +981,97 @@ const LeadDetails: React.FC = () => {
                     Project Requirements
                   </h3>
                 </div>
-                <div className="p-4">
-                  {/* Property Details Grid */}
-                  {(lead.propertyType ||
+                <div className="p-4 space-y-4">
+                  {/* Primary Details Grid */}
+                  {(lead.serviceInterest ||
+                    lead.propertyType ||
+                    lead.homeType ||
                     lead.bhkConfig ||
-                    lead.carpetArea ||
-                    lead.budget ||
-                    lead.budgetRange) && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    lead.projectType) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {lead.serviceInterest && (
+                        <div className="p-3 bg-amber-50 rounded-lg text-center">
+                          <Wrench className="w-5 h-5 text-amber-600 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500 mb-1">
+                            Service Interest
+                          </p>
+                          <p className="text-sm font-bold text-gray-900">
+                            {formatEnum(lead.serviceInterest)}
+                          </p>
+                        </div>
+                      )}
                       {lead.propertyType && (
                         <div className="p-3 bg-orange-50 rounded-lg text-center">
                           <Building2 className="w-5 h-5 text-orange-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">Type</p>
+                          <p className="text-xs text-gray-500 mb-1">
+                            Property Type
+                          </p>
                           <p className="text-sm font-bold text-gray-900">
-                            {lead.propertyType}
+                            {formatEnum(lead.propertyType)}
                           </p>
                         </div>
                       )}
-                      {lead.bhkConfig && (
+                      {(lead.homeType || lead.bhkConfig) && (
                         <div className="p-3 bg-blue-50 rounded-lg text-center">
                           <Home className="w-5 h-5 text-blue-600 mx-auto mb-1.5" />
                           <p className="text-xs text-gray-500 mb-1">
-                            Configuration
+                            Home Type
                           </p>
                           <p className="text-sm font-bold text-gray-900">
-                            {lead.bhkConfig}
+                            {lead.homeType
+                              ? formatEnum(lead.homeType)
+                              : lead.bhkConfig}
                           </p>
                         </div>
                       )}
-                      {lead.carpetArea && (
+                      {lead.projectType && (
                         <div className="p-3 bg-purple-50 rounded-lg text-center">
-                          <Ruler className="w-5 h-5 text-purple-600 mx-auto mb-1.5" />
+                          <Layers className="w-5 h-5 text-purple-600 mx-auto mb-1.5" />
                           <p className="text-xs text-gray-500 mb-1">
-                            Carpet Area
+                            Project Type
                           </p>
                           <p className="text-sm font-bold text-gray-900">
-                            {lead.carpetArea} sqft
+                            {formatEnum(lead.projectType)}
                           </p>
                         </div>
                       )}
-                      {(lead.budgetRange || lead.budget) && (
-                        <div className="p-3 bg-green-50 rounded-lg text-center">
-                          <IndianRupee className="w-5 h-5 text-green-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">Budget</p>
-                          <p className="text-sm font-bold text-green-700">
-                            {lead.budgetRange || lead.budget}
+                    </div>
+                  )}
+
+                  {/* Secondary Details Grid */}
+                  {(lead.propertyProjectType ||
+                    lead.projectStage ||
+                    lead.area ||
+                    lead.carpetArea) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {lead.propertyProjectType && (
+                        <div className="p-3 bg-teal-50 rounded-lg text-center">
+                          <Target className="w-5 h-5 text-teal-600 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500 mb-1">
+                            Property Project
+                          </p>
+                          <p className="text-sm font-bold text-gray-900">
+                            {formatEnum(lead.propertyProjectType)}
+                          </p>
+                        </div>
+                      )}
+                      {lead.projectStage && (
+                        <div className="p-3 bg-indigo-50 rounded-lg text-center">
+                          <ArrowRight className="w-5 h-5 text-indigo-600 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500 mb-1">
+                            Project Stage
+                          </p>
+                          <p className="text-sm font-bold text-gray-900">
+                            {formatEnum(lead.projectStage)}
+                          </p>
+                        </div>
+                      )}
+                      {(lead.area || lead.carpetArea) && (
+                        <div className="p-3 bg-pink-50 rounded-lg text-center">
+                          <Ruler className="w-5 h-5 text-pink-600 mx-auto mb-1.5" />
+                          <p className="text-xs text-gray-500 mb-1">Area</p>
+                          <p className="text-sm font-bold text-gray-900">
+                            {lead.area || lead.carpetArea} sqft
                           </p>
                         </div>
                       )}
@@ -881,35 +1079,64 @@ const LeadDetails: React.FC = () => {
                   )}
 
                   {/* Timeline */}
-                  {lead.timeline && (
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg mb-4">
+                  {(lead.startTimeline || lead.timeline) && (
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
                       <Clock className="w-5 h-5 text-blue-600" />
                       <div>
                         <p className="text-xs text-gray-600 mb-0.5">
-                          Project Timeline
+                          Start Timeline
                         </p>
                         <p className="text-sm font-semibold text-gray-900">
-                          {lead.timeline}
+                          {lead.startTimeline
+                            ? formatEnum(lead.startTimeline)
+                            : lead.timeline}
                         </p>
                       </div>
                     </div>
                   )}
 
-                  {/* Scope of Work */}
-                  {lead.scopeOfWork && lead.scopeOfWork.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-sm font-semibold text-gray-700 mb-2">
-                        Scope of Work
+                  {/* Budget */}
+                  {(lead.budgetComfort ||
+                    lead.budgetRange ||
+                    lead.budget) && (
+                    <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                      <IndianRupee className="w-5 h-5 text-green-600" />
+                      <div>
+                        <p className="text-xs text-gray-600 mb-0.5">
+                          Budget Comfort
+                        </p>
+                        <p className="text-sm font-semibold text-green-700">
+                          {lead.budgetComfort
+                            ? formatEnum(lead.budgetComfort)
+                            : lead.budgetRange || lead.budget}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Project Scope */}
+                  {(lead.projectScope ||
+                    (lead.scopeOfWork &&
+                      lead.scopeOfWork.length > 0)) && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 mb-2">
+                        Project Scope
                       </p>
                       <div className="flex flex-wrap gap-2">
-                        {lead.scopeOfWork.map((scope, idx) => (
-                          <span
-                            key={idx}
-                            className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium"
-                          >
-                            {scope}
+                        {lead.projectScope ? (
+                          <span className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium">
+                            {formatEnum(lead.projectScope)}
                           </span>
-                        ))}
+                        ) : (
+                          lead.scopeOfWork?.map((scope, idx) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium"
+                            >
+                              {scope}
+                            </span>
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
@@ -918,7 +1145,7 @@ const LeadDetails: React.FC = () => {
                   {lead.servicesInterested &&
                     lead.servicesInterested.length > 0 && (
                       <div>
-                        <p className="text-sm font-semibold text-gray-700 mb-2">
+                        <p className="text-xs font-semibold text-gray-600 mb-2">
                           Services Interested
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -933,6 +1160,76 @@ const LeadDetails: React.FC = () => {
                         </div>
                       </div>
                     )}
+                </div>
+              </div>
+            )}
+
+            {/* Referral & Agent - Only show if data exists */}
+            {(lead.referrerName ||
+              lead.referrerPhone ||
+              lead.referrerProjectNumber ||
+              lead.agentAgencyName) && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-indigo-500" />
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    Referral & Agent
+                  </h3>
+                </div>
+                <div className="p-4 space-y-3">
+                  {lead.referrerName && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5 text-indigo-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 mb-0.5">
+                          Referrer Name
+                        </p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {lead.referrerName}
+                        </p>
+                        {lead.referrerPhone && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {lead.referrerPhone}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {lead.referrerProjectNumber && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 text-gray-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 mb-0.5">
+                          Referrer Project No.
+                        </p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {lead.referrerProjectNumber}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {lead.agentAgencyName && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="w-5 h-5 text-gray-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 mb-0.5">Agency</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {lead.agentAgencyName}
+                        </p>
+                        {lead.agentAgencyDetails && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {lead.agentAgencyDetails}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1689,6 +1986,16 @@ const LeadDetails: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Lead Modal */}
+      <LeadModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        lead={lead}
+        onSave={handleEditSave}
+        sources={leadSources}
+        users={teamUsers}
+      />
     </div>
   );
 };
