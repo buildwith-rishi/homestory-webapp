@@ -2,7 +2,6 @@ import React from "react";
 import {
   Sparkles,
   X,
-  Loader2,
   AlertCircle,
   FileText,
   Pen,
@@ -10,6 +9,7 @@ import {
 } from "lucide-react";
 import { EmailTemplate } from "../../types";
 import toast from "react-hot-toast";
+import { SectionLoader } from "../ui";
 
 const CATEGORY_EMOJI: Record<string, string> = {
   ONBOARDING: "👋",
@@ -62,8 +62,7 @@ const TemplatePanel: React.FC<TemplatePanelProps> = ({
 
       {isLoading ? (
         <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
-          <span className="ml-2 text-sm text-gray-500">Loading templates…</span>
+          <SectionLoader size="sm" message="Loading templates…" />
         </div>
       ) : error ? (
         <div className="flex items-center justify-center py-10 text-red-500 text-sm">

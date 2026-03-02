@@ -28,6 +28,7 @@ import {
   AlertCircle,
   Receipt,
 } from "lucide-react";
+import { SectionLoader, Spinner } from "../../ui";
 import { Button, Badge, Card } from "../../ui";
 import toast from "react-hot-toast";
 import type { ProjectReference } from "../../../types";
@@ -390,14 +391,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   // ── Render ──
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-orange-500 mx-auto mb-3" />
-          <p className="text-gray-500">Loading references...</p>
-        </div>
-      </div>
-    );
+    return <SectionLoader message="Loading references..." />;
   }
 
   return (

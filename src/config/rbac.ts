@@ -155,7 +155,6 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "tasks.*",
     "ai.transcripts.read",
     "communications.*",
-    "followups.*",
     "dashboard.view",
   ],
   PROJECT_MANAGER: [
@@ -330,14 +329,6 @@ export const NAV_ITEMS: NavItemConfig[] = [
     icon: "Users2",
     section: "main",
     requiredPermission: "leads.read",
-  },
-  {
-    id: "followups",
-    label: "Follow-Ups",
-    path: "/dashboard/updates",
-    icon: "FileText",
-    section: "main",
-    requiredPermission: "followups.*",
   },
   {
     id: "meetings",

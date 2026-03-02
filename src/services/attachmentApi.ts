@@ -98,6 +98,20 @@ export async function getAttachment(id: string): Promise<Attachment> {
   return handleResponse<Attachment>(response);
 }
 
+/** PUT /api/attachments/:id — Update attachment metadata */
+export async function updateAttachment(
+  id: string,
+  payload: { attachmentType?: AttachmentType; notes?: string },
+): Promise<Attachment> {
+  const response = await fetch(`${API_BASE_URL}/api/attachments/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await handleResponse<Record<string, unknown>>(response);
+  return (data.attachment ?? data) as Attachment;
+}
+
 /** DELETE /api/attachments/:id — Delete an attachment */
 export async function deleteAttachment(id: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/api/attachments/${id}`, {

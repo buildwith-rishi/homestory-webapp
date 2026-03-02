@@ -13,8 +13,6 @@ const Skeleton: React.FC<SkeletonProps> = ({
   height,
   className = '',
 }) => {
-  const baseStyles = 'bg-ash/30 animate-pulse';
-
   const variantStyles = {
     text: 'h-4 rounded',
     circle: 'rounded-full',
@@ -26,7 +24,7 @@ const Skeleton: React.FC<SkeletonProps> = ({
     height: height || (variant === 'circle' ? '40px' : variant === 'rectangle' ? '100px' : '1rem'),
   };
 
-  return <div className={`${baseStyles} ${variantStyles[variant]} ${className}`} style={style} />;
+  return <div className={`skeleton ${variantStyles[variant]} ${className}`} style={style} />;
 };
 
 export default Skeleton;

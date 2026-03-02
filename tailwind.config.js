@@ -44,7 +44,17 @@ export default {
         'brand-lg': '0 8px 24px rgba(50, 19, 0, 0.12)',
         'brand-xl': '0 16px 48px rgba(50, 19, 0, 0.16)',
       },
+      keyframes: {
+        'spin-smooth': {
+          from: { transform: 'rotate(0deg)' },
+          to:   { transform: 'rotate(360deg)' },
+        },
+      },
+      animation: {
+        'spin-smooth': 'spin-smooth 0.9s linear infinite',
+      },
     },
   },
   plugins: [],
 };
+

@@ -706,6 +706,17 @@ const KanbanView: React.FC = () => {
       // calling the conversion API
       if (toCol === "col-converted") {
         const leadName = task?.content || taskId;
+        // Guard: check if lead is already converted before even showing the modal
+        const leadMeta = task?.metadata as any;
+        const alreadyConverted = !!(leadMeta?.convertedToAccount || leadMeta?.convertedToAccountId);
+        if (alreadyConverted) {
+          toast.error(
+            `"${leadName}" has already been converted to a customer.`,
+          );
+          // Revert the drag
+          fetchLeads();
+          return;
+        }
         setPendingConversion({ leadId: taskId, leadName, fromCol });
         return; // halt here — modal will handle the rest
       }
@@ -730,6 +741,17 @@ const KanbanView: React.FC = () => {
   const handleConfirmConversion = useCallback(async () => {
     if (!pendingConversion) return;
     const { leadId, leadName } = pendingConversion;
+
+    // Guard: re-check task metadata in case the lead was already converted
+    const task = leadsKanbanData.tasks[leadId];
+    const leadMeta = task?.metadata as any;
+    if (leadMeta?.convertedToAccount || leadMeta?.convertedToAccountId) {
+      toast.error(`"${leadName}" has already been converted to a customer.`);
+      setPendingConversion(null);
+      fetchLeads();
+      return;
+    }
+
     setIsConverting(true);
     try {
       await convertLeadToCustomer(leadId, leadName);
@@ -752,7 +774,7 @@ const KanbanView: React.FC = () => {
     } finally {
       setIsConverting(false);
     }
-  }, [pendingConversion, fetchLeads]);
+  }, [pendingConversion, fetchLeads, leadsKanbanData.tasks]);
 
   // Called when user cancels the conversion modal
   const handleCancelConversion = useCallback(() => {

@@ -21,6 +21,7 @@ import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAuthStore } from "../../stores/authStore";
 import { ProjectStage, Task } from "../../types";
+import { Spinner } from "../../components/ui";
 
 export function EngineerHome() {
   const navigate = useNavigate();
@@ -282,7 +283,7 @@ export function EngineerHome() {
 
           {tasksLoading || isRefreshing ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-              <Loader2 className="w-6 h-6 text-orange-500 animate-spin mx-auto" />
+              <Spinner size="md" color="brand" className="mx-auto" />
               <p className="text-xs text-gray-500 mt-2">Loading tasks...</p>
             </div>
           ) : tasksError ? (

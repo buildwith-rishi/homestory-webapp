@@ -24,6 +24,7 @@ import { Button, Card } from "../../ui";
 import { CreateMatrixModal } from "./CreateMatrixModal";
 import { EditMatrixModal } from "./EditMatrixModal";
 import { AddDayModal } from "./AddDayModal";
+import { AddCategoryModal } from "./AddCategoryModal";
 import { DayTasksPanel } from "./DayTasksPanel";
 import { TaskDetailModal } from "./TaskDetailModal";
 import { CategoryTasksView } from "./CategoryTasksView";
@@ -129,6 +130,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const [selectedTaskData, setSelectedTaskData] = useState<MatrixTask | null>(
     null,
   );
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [matrixViewMode, setMatrixViewMode] = useState<"days" | "categories">(
     "days",
   );
@@ -367,6 +369,15 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setShowAddCategoryModal(true)}
+            className="text-purple-600 border-purple-300 hover:bg-purple-50"
+          >
+            <Tag className="w-4 h-4 mr-1" />
+            Add Category
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowEditModal(true)}
             className="text-gray-600 border-gray-300 hover:bg-gray-50"
           >
@@ -499,26 +510,28 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
 
       {/* Category Legend (day view only) */}
       {matrixViewMode === "days" && (
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {categories.map((cat) => (
             <div
               key={cat.id}
-              className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg"
+              className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200"
             >
               <div
-                className="w-3 h-3 rounded-sm"
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                 style={{ backgroundColor: cat.color }}
               />
               <span className="text-xs font-medium text-gray-700">
                 {cat.name}
               </span>
-              {cat.assignedTo && cat.assignedTo !== "unassigned" && (
-                <span className="text-[10px] text-gray-500 ml-1">
-                  ({cat.assignedTo.replace(/-/g, " ")})
-                </span>
-              )}
             </div>
           ))}
+          <button
+            onClick={() => setShowAddCategoryModal(true)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-dashed border-purple-300 text-xs font-medium text-purple-500 hover:bg-purple-50 hover:border-purple-400 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Add Category
+          </button>
         </div>
       )}
 
@@ -677,10 +690,24 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
         />
       )}
 
+      {/* Add Category Modal */}
+      {showAddCategoryModal && matrix && (
+        <AddCategoryModal
+          matrixId={matrix.id}
+          currentCategoryCount={categories.length}
+          onClose={() => setShowAddCategoryModal(false)}
+          onSuccess={() => {
+            setShowAddCategoryModal(false);
+            fetchMatrix();
+          }}
+        />
+      )}
+
       {/* Task Detail Modal */}
       {selectedTaskId && (
         <TaskDetailModal
           taskId={selectedTaskId}
+          matrixId={matrix?.id || ""}
           categories={categories.map((c) => ({
             id: c.id,
             name: c.name,

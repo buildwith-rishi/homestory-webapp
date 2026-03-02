@@ -12,7 +12,9 @@ import {
   Eye,
   ExternalLink,
   ChevronDown,
+  Download,
 } from "lucide-react";
+import Spinner from "../ui/Spinner";
 import { Button, Badge, Card } from "../ui";
 import { LeadReference, ReferenceType } from "../../types";
 import toast from "react-hot-toast";
@@ -60,6 +62,7 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
   const [selectedAttachmentType, setSelectedAttachmentType] = useState<AttachmentType>("OTHER");
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [viewingIds, setViewingIds] = useState<Set<string>>(new Set());
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
 
   // Open the file in a new tab. If url is already stored use it directly;
   // otherwise fetch the single attachment to get a fresh signed downloadUrl.
@@ -83,6 +86,51 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
       toast.error("Failed to fetch download URL");
     } finally {
       setViewingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(reference.id);
+        return next;
+      });
+    }
+  };
+
+  // Download the file. Fetches the attachment to get download URL and triggers download.
+  const handleDownload = async (reference: LeadReference) => {
+    if (reference.id.startsWith("ref-")) return; // temp link id, nothing to fetch
+    
+    setDownloadingIds((prev) => new Set(prev).add(reference.id));
+    try {
+      let url: string | undefined;
+      
+      // If URL is already stored, use it
+      if (reference.url && reference.type !== ReferenceType.LINK) {
+        url = reference.url;
+      } else {
+        // Otherwise fetch the attachment to get a fresh signed downloadUrl
+        const attachment = await getAttachment(reference.id);
+        url = attachment.downloadUrl || attachment.fileUrl;
+      }
+      
+      if (!url) {
+        toast.error("Download URL not available");
+        return;
+      }
+      
+      // Create a temporary link element and trigger download
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = reference.fileName || reference.title || "download";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("Download started");
+    } catch (err) {
+      console.error("Download error:", err);
+      toast.error("Failed to download file");
+    } finally {
+      setDownloadingIds((prev) => {
         const next = new Set(prev);
         next.delete(reference.id);
         return next;
@@ -309,7 +357,7 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
             >
               <div className="w-14 h-14 bg-gradient-to-br from-orange-100 to-orange-50 rounded-full flex items-center justify-center shadow-sm">
                 {isUploading ? (
-                  <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
+                  <Spinner size="sm" color="brand" />
                 ) : (
                   <Upload className="w-6 h-6 text-orange-600" />
                 )}
@@ -490,18 +538,32 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
                               <ExternalLink className="w-4 h-4" />
                             </a>
                           ) : (
-                            <button
-                              onClick={() => handleView(reference)}
-                              disabled={viewingIds.has(reference.id)}
-                              className="p-1.5 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-50"
-                              title="View / Download"
-                            >
-                              {viewingIds.has(reference.id) ? (
-                                <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <Eye className="w-4 h-4" />
-                              )}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleView(reference)}
+                                disabled={viewingIds.has(reference.id)}
+                                className="p-1.5 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-50"
+                                title="View"
+                              >
+                                {viewingIds.has(reference.id) ? (
+                                  <Spinner size="xs" color="muted" />
+                                ) : (
+                                  <Eye className="w-4 h-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => handleDownload(reference)}
+                                disabled={downloadingIds.has(reference.id)}
+                                className="p-1.5 hover:bg-green-100 rounded text-green-600 disabled:opacity-50"
+                                title="Download"
+                              >
+                                {downloadingIds.has(reference.id) ? (
+                                  <Spinner size="xs" color="muted" />
+                                ) : (
+                                  <Download className="w-4 h-4" />
+                                )}
+                              </button>
+                            </>
                           )}
                           {!readOnly && (
                             <button
@@ -510,7 +572,7 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
                               className="p-1.5 hover:bg-red-100 rounded text-red-600 disabled:opacity-50"
                             >
                               {deletingIds.has(reference.id) ? (
-                                <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                <Spinner size="xs" color="muted" />
                               ) : (
                                 <Trash2 className="w-4 h-4" />
                               )}

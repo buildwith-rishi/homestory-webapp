@@ -21,7 +21,7 @@ import {
   Filter,
   RefreshCw,
 } from "lucide-react";
-import { Card, Button, Badge } from "../../components/ui";
+import { Card, Button, Badge, SectionLoader } from "../../components/ui";
 import toast from "react-hot-toast";
 import AccountAPI, { Account, AccountType } from "../../services/accountApi";
 import { getAccountTypeLabel, getAllAccountTypes } from "../../utils/accountHelpers";
@@ -600,7 +600,7 @@ export function AccountsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+        <SectionLoader />
       </div>
     );
   }

@@ -1,6 +1,6 @@
 import React, { forwardRef } from "react";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import Spinner from "./Spinner";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost" | "danger";
@@ -57,9 +57,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {loading && (
-          <Loader2
-            className="animate-spin"
-            size={size === "sm" ? 14 : size === "lg" ? 18 : 16}
+          <Spinner
+            color={variant === 'primary' || variant === 'danger' ? 'white' : 'brand'}
+            size={size === 'sm' ? 'xs' : 'sm'}
           />
         )}
         {!loading && leftIcon && (

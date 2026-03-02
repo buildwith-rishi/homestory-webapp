@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import {
   X,
@@ -19,14 +19,17 @@ import {
   Edit3,
   Save,
   UserCheck,
+  ChevronsRight,
+  Mail,
+  Send,
 } from "lucide-react";
 import { Button } from "../../ui";
 import type {
   MatrixTask,
   TaskAttachment,
-  UpdateTaskStatusRequest,
   UpdateMatrixTaskRequest,
   AdminUser,
+  NotifyCustomerRequest,
 } from "../../../types";
 import { adminAPI } from "../../../services/api";
 import {
@@ -34,13 +37,16 @@ import {
   getTaskAttachments,
   uploadTaskAttachment,
   deleteTaskAttachment,
-  updateMatrixTaskStatus,
   updateMatrixTask,
+  pushMatrixTask,
+  pushMatrixDayTasks,
+  notifyCustomerTaskComplete,
 } from "../../../services/projectApi";
 import toast from "react-hot-toast";
 
 interface TaskDetailModalProps {
   taskId: string;
+  matrixId: string;
   categories: { id: string; name: string; color: string }[];
   fallbackTask?: MatrixTask | null;
   onClose: () => void;
@@ -136,6 +142,7 @@ const formatDateTime = (d?: string | null) => {
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   taskId,
+  matrixId,
   categories,
   fallbackTask,
   onClose,
@@ -144,12 +151,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [task, setTask] = useState<MatrixTask | null>(null);
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"details" | "attachments">("details");
-
-  // Status update
-  const [newStatus, setNewStatus] = useState("");
-  const [completionNotes, setCompletionNotes] = useState("");
-  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [activeTab, setActiveTab] = useState<"details" | "attachments">(
+    "details",
+  );
 
   // Attachment upload
   const [uploading, setUploading] = useState(false);
@@ -165,12 +169,36 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>("");
   const [savingAssignee, setSavingAssignee] = useState(false);
 
+  // Push single task to another day
+  const [showPushPanel, setShowPushPanel] = useState(false);
+  const [pushTargetDay, setPushTargetDay] = useState<number>(1);
+  const [pushReason, setPushReason] = useState("");
+  const [pushing, setPushing] = useState(false);
+
+  // Bulk push all tasks from one day to another
+  const [showBulkPushPanel, setShowBulkPushPanel] = useState(false);
+  const [bulkFromDay, setBulkFromDay] = useState<number>(1);
+  const [bulkToDay, setBulkToDay] = useState<number>(2);
+  const [bulkReason, setBulkReason] = useState("");
+  const [bulkPushing, setBulkPushing] = useState(false);
+
+  // Notify customer
+  const [showNotifyPanel, setShowNotifyPanel] = useState(false);
+  const [notifyMessage, setNotifyMessage] = useState("");
+  const [notifyIncludeAttachments, setNotifyIncludeAttachments] =
+    useState(true);
+  const [notifying, setNotifying] = useState(false);
+
   // Task editing
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [editAssigneeId, setEditAssigneeId] = useState("");
+  const [editDayNumber, setEditDayNumber] = useState<number>(1);
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editCompletionNotes, setEditCompletionNotes] = useState("");
+  const [editStatus, setEditStatus] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   const startEditing = () => {
@@ -179,11 +207,89 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setEditDescription(task.description || "");
     setEditCategoryId(task.categoryId || task.category?.id || "");
     setEditAssigneeId(task.assignedToId || "");
+    setEditDayNumber(task.dayNumber || 1);
+    // Normalize startDate to YYYY-MM-DD for date input
+    const sd = task.startDate || "";
+    setEditStartDate(sd ? (sd.includes("T") ? sd.split("T")[0] : sd) : "");
+    setEditCompletionNotes(task.completionNotes || "");
+    setEditStatus(task.status || "PENDING");
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
     setIsEditing(false);
+  };
+
+  const handleNotifyCustomer = async () => {
+    setNotifying(true);
+    try {
+      const payload: NotifyCustomerRequest = {
+        includeAttachments: notifyIncludeAttachments,
+      };
+      if (notifyMessage.trim()) payload.customMessage = notifyMessage.trim();
+      const res = await notifyCustomerTaskComplete(taskId, payload);
+      toast.success(
+        res.sent
+          ? `Email sent to ${res.customerEmail}${
+              res.attachmentsCount > 0
+                ? ` with ${res.attachmentsCount} attachment(s)`
+                : ""
+            }`
+          : "Notification triggered",
+      );
+      setShowNotifyPanel(false);
+      setNotifyMessage("");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to send notification",
+      );
+    } finally {
+      setNotifying(false);
+    }
+  };
+
+  const handleBulkPushTasks = async () => {
+    if (!matrixId || bulkFromDay < 1 || bulkToDay < 1) return;
+    if (bulkFromDay === bulkToDay) {
+      toast.error("From day and To day must be different");
+      return;
+    }
+    setBulkPushing(true);
+    try {
+      await pushMatrixDayTasks(matrixId, bulkFromDay, bulkToDay, bulkReason);
+      toast.success(`All Day ${bulkFromDay} tasks pushed to Day ${bulkToDay}`);
+      setShowBulkPushPanel(false);
+      setBulkReason("");
+      await fetchTaskDetails();
+      onStatusChanged();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to bulk push tasks",
+      );
+    } finally {
+      setBulkPushing(false);
+    }
+  };
+
+  const handlePushTask = async () => {
+    if (!task || pushTargetDay < 1) return;
+    if (pushTargetDay === task.dayNumber) {
+      toast.error("Target day must be different from the current day");
+      return;
+    }
+    setPushing(true);
+    try {
+      await pushMatrixTask(taskId, pushTargetDay, pushReason);
+      toast.success(`Task pushed to Day ${pushTargetDay}`);
+      setShowPushPanel(false);
+      setPushReason("");
+      await fetchTaskDetails();
+      onStatusChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to push task");
+    } finally {
+      setPushing(false);
+    }
   };
 
   const handleSaveTaskEdit = async () => {
@@ -192,18 +298,45 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       toast.error("Task title is required");
       return;
     }
+    if (!editCompletionNotes.trim()) {
+      toast.error("Completion notes are required");
+      return;
+    }
     setSavingEdit(true);
     try {
-      // Send ALL task fields (PUT = full replace) so the backend gets a complete object
+      // Compute taskDate from editStartDate + editDayNumber so it stays in sync
+      const baseDate =
+        editStartDate ||
+        (task.startDate
+          ? task.startDate.includes("T")
+            ? task.startDate.split("T")[0]
+            : task.startDate
+          : "");
+      let computedTaskDate: string | undefined = task.taskDate || undefined;
+      if (baseDate) {
+        const d = new Date(baseDate + "T00:00:00");
+        d.setDate(d.getDate() + ((editDayNumber || 1) - 1));
+        computedTaskDate = d.toISOString();
+      }
+
       const payload: UpdateMatrixTaskRequest = {
         title: editTitle.trim(),
         description: editDescription.trim() || undefined,
         categoryId:
           editCategoryId || task.categoryId || task.category?.id || undefined,
-        dayNumber: task.dayNumber,
-        taskDate: task.taskDate || undefined,
-        status: task.status,
-        assignedToId: editAssigneeId || null,
+        dayNumber: editDayNumber || task.dayNumber,
+        startDate: editStartDate
+          ? new Date(editStartDate + "T00:00:00").toISOString()
+          : task.startDate || undefined,
+        taskDate: computedTaskDate,
+        status: editStatus || task.status,
+        completionNotes: editCompletionNotes.trim(),
+        ...(editAssigneeId
+          ? {
+              assignedToUserId: editAssigneeId,
+              assignedToMemberId: editAssigneeId,
+            }
+          : { assignedToUserId: null, assignedToMemberId: null }),
       };
 
       await updateMatrixTask(taskId, payload);
@@ -233,7 +366,13 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         }
         // Deduplicate
         const seen = new Set<string>();
-        setUsers(usersList.filter((u) => { if (seen.has(u.id)) return false; seen.add(u.id); return true; }));
+        setUsers(
+          usersList.filter((u) => {
+            if (seen.has(u.id)) return false;
+            seen.add(u.id);
+            return true;
+          }),
+        );
       } catch {
         // Non-critical, silently fail
       }
@@ -283,8 +422,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     // 3. Set state
     if (taskData) {
       setTask(taskData);
-      setNewStatus(taskData.status);
-      setCompletionNotes(taskData.completionNotes || "");
       setSelectedAssigneeId(taskData.assignedToId || "");
     } else {
       toast.error("Failed to load task details");
@@ -292,25 +429,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setAttachments(attachData);
 
     setLoading(false);
-  };
-
-  const handleStatusUpdate = async () => {
-    if (!newStatus) return;
-    setUpdatingStatus(true);
-    try {
-      const data: UpdateTaskStatusRequest = { status: newStatus };
-      if (completionNotes.trim()) data.completionNotes = completionNotes.trim();
-      await updateMatrixTaskStatus(taskId, data);
-      toast.success("Task status updated");
-      await fetchTaskDetails();
-      onStatusChanged();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to update status",
-      );
-    } finally {
-      setUpdatingStatus(false);
-    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -493,6 +611,71 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           ))}
                         </select>
                       </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                            Day Number
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={editDayNumber}
+                            onChange={(e) =>
+                              setEditDayNumber(Number(e.target.value))
+                            }
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                            Start Date
+                          </label>
+                          <input
+                            type="date"
+                            value={editStartDate}
+                            onChange={(e) => setEditStartDate(e.target.value)}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                          Status
+                        </label>
+                        <div className="grid grid-cols-5 gap-2">
+                          {Object.entries(statusConfig).map(([key, val]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setEditStatus(key)}
+                              className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all text-xs font-medium ${
+                                editStatus === key
+                                  ? `${val.bg} ${val.text} ${val.border}`
+                                  : "border-gray-200 text-gray-400 hover:border-gray-300"
+                              }`}
+                            >
+                              {val.icon}
+                              <span className="text-[10px]">{val.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                          Completion Notes
+                          <span className="text-red-500 ml-0.5">*</span>
+                        </label>
+                        <textarea
+                          value={editCompletionNotes}
+                          onChange={(e) =>
+                            setEditCompletionNotes(e.target.value)
+                          }
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 resize-none"
+                          rows={3}
+                          placeholder="Completion notes (required)"
+                          required
+                        />
+                      </div>
                       <div>
                         <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
                           Assigned To
@@ -514,7 +697,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <Button
                           size="sm"
                           onClick={handleSaveTaskEdit}
-                          disabled={savingEdit || !editTitle.trim()}
+                          disabled={
+                            savingEdit ||
+                            !editTitle.trim() ||
+                            !editCompletionNotes.trim()
+                          }
                           className="bg-orange-500 hover:bg-orange-600 text-white"
                         >
                           {savingEdit ? (
@@ -563,7 +750,17 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       <p className="text-gray-700">
                         {formatDateTime(task.createdAt)}
                       </p>
-                    </div>
+                    </div>{" "}
+                    {task.startDate && (
+                      <div>
+                        <p className="text-xs text-gray-400 font-medium">
+                          Start Date
+                        </p>
+                        <p className="text-gray-700">
+                          {formatDateTime(task.startDate)}
+                        </p>
+                      </div>
+                    )}{" "}
                     {task.completedAt && (
                       <div>
                         <p className="text-xs text-gray-400 font-medium">
@@ -595,68 +792,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   </div>
 
                   {/* Assigned To */}
-                  <div className="border border-gray-100 rounded-xl p-4 bg-gray-50/50">
-                    <p className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-1.5">
-                      <UserCheck className="w-3.5 h-3.5" />
-                      Assigned To
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={selectedAssigneeId}
-                        onChange={(e) => setSelectedAssigneeId(e.target.value)}
-                        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-                      >
-                        <option value="">— Unassigned —</option>
-                        {users.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name} ({u.role.replace(/_/g, " ")})
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        size="sm"
-                        disabled={savingAssignee || selectedAssigneeId === (task.assignedToId || "")}
-                        onClick={async () => {
-                          setSavingAssignee(true);
-                          try {
-                            const payload: UpdateMatrixTaskRequest = {
-                              title: task.title,
-                              description: task.description,
-                              categoryId: task.categoryId || task.category?.id,
-                              dayNumber: task.dayNumber,
-                              taskDate: task.taskDate || undefined,
-                              status: task.status,
-                              assignedToId: selectedAssigneeId || null,
-                            };
-                            await updateMatrixTask(taskId, payload);
-                            toast.success(
-                              selectedAssigneeId
-                                ? `Assigned to ${users.find((u) => u.id === selectedAssigneeId)?.name || "user"}`
-                                : "Assignee removed"
-                            );
-                            await fetchTaskDetails();
-                            onStatusChanged();
-                          } catch (err) {
-                            toast.error(err instanceof Error ? err.message : "Failed to assign");
-                          } finally {
-                            setSavingAssignee(false);
-                          }
-                        }}
-                        className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
-                      >
-                        {savingAssignee ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          "Assign"
-                        )}
-                      </Button>
-                    </div>
-                    {task.assignedTo && (
-                      <p className="text-xs text-gray-400 mt-1.5">
-                        Currently: <span className="font-medium text-gray-600">{task.assignedTo.name}</span>
-                      </p>
-                    )}
-                  </div>
 
                   {/* Completion notes (read-only if already set) */}
                   {task.completionNotes && (
@@ -670,57 +805,282 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     </div>
                   )}
 
-                  {/* Status update form */}
+                  {/* Push task to another day */}
                   <div className="border-t border-gray-100 pt-5">
-                    <p className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                      Update Status
-                    </p>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-5 gap-2">
-                        {Object.entries(statusConfig).map(([key, val]) => (
-                          <button
-                            key={key}
-                            onClick={() => setNewStatus(key)}
-                            className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all text-xs font-medium ${
-                              newStatus === key
-                                ? `${val.bg} ${val.text} ${val.border}`
-                                : "border-gray-200 text-gray-400 hover:border-gray-300"
-                            }`}
-                          >
-                            {val.icon}
-                            <span className="text-[10px]">{val.label}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      <textarea
-                        placeholder="Completion notes (optional — useful when marking as Completed)"
-                        value={completionNotes}
-                        onChange={(e) => setCompletionNotes(e.target.value)}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 resize-none"
-                        rows={2}
-                      />
-
-                      <Button
-                        size="sm"
-                        onClick={handleStatusUpdate}
-                        disabled={
-                          updatingStatus ||
-                          (newStatus === task.status &&
-                            completionNotes === (task.completionNotes || ""))
-                        }
-                        className="bg-orange-500 hover:bg-orange-600 text-white w-full"
+                    <button
+                      onClick={() => {
+                        setShowPushPanel((p) => !p);
+                        if (!showPushPanel)
+                          setPushTargetDay(task.dayNumber + 1);
+                      }}
+                      className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 uppercase hover:text-orange-600 transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <ChevronsRight className="w-3.5 h-3.5" />
+                        Push to Another Day
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          showPushPanel
+                            ? "bg-orange-100 text-orange-600"
+                            : "bg-gray-100 text-gray-400"
+                        }`}
                       >
-                        {updatingStatus ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                            Updating...
-                          </>
-                        ) : (
-                          "Update Status"
+                        {showPushPanel ? "Hide" : "Show"}
+                      </span>
+                    </button>
+
+                    {showPushPanel && (
+                      <div className="mt-3 space-y-3 bg-amber-50/50 border border-amber-200 rounded-xl p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                              Target Day <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={pushTargetDay}
+                              onChange={(e) =>
+                                setPushTargetDay(Number(e.target.value))
+                              }
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                              placeholder="e.g. 4"
+                            />
+                            {pushTargetDay === task.dayNumber && (
+                              <p className="text-xs text-red-500 mt-1">
+                                Must be different from current Day{" "}
+                                {task.dayNumber}
+                              </p>
+                            )}
+                          </div>
+                          <div className="pt-5 text-xs text-gray-400 whitespace-nowrap">
+                            Currently: Day {task.dayNumber}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                            Reason (optional)
+                          </label>
+                          <textarea
+                            value={pushReason}
+                            onChange={(e) => setPushReason(e.target.value)}
+                            placeholder="e.g. Material not delivered yet, rescheduling to Day 4"
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400/50 resize-none"
+                            rows={2}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={handlePushTask}
+                          disabled={
+                            pushing ||
+                            pushTargetDay < 1 ||
+                            pushTargetDay === task.dayNumber
+                          }
+                          className="bg-amber-500 hover:bg-amber-600 text-white w-full"
+                        >
+                          {pushing ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              Pushing...
+                            </>
+                          ) : (
+                            <>
+                              <ChevronsRight className="w-4 h-4 mr-1" />
+                              Push to Day {pushTargetDay}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bulk push — all tasks from Day X to Day Y */}
+                  <div className="border-t border-gray-100 pt-5">
+                    <button
+                      onClick={() => {
+                        setShowBulkPushPanel((p) => !p);
+                        if (!showBulkPushPanel && task) {
+                          setBulkFromDay(task.dayNumber);
+                          setBulkToDay(task.dayNumber + 1);
+                        }
+                      }}
+                      className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 uppercase hover:text-indigo-600 transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <ChevronsRight className="w-3.5 h-3.5" />
+                        Push All Day Tasks
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          showBulkPushPanel
+                            ? "bg-indigo-100 text-indigo-600"
+                            : "bg-gray-100 text-gray-400"
+                        }`}
+                      >
+                        {showBulkPushPanel ? "Hide" : "Show"}
+                      </span>
+                    </button>
+
+                    {showBulkPushPanel && (
+                      <div className="mt-3 space-y-3 bg-indigo-50/50 border border-indigo-200 rounded-xl p-4">
+                        <p className="text-xs text-indigo-700 bg-indigo-100 rounded-lg px-3 py-2">
+                          Moves <strong>all tasks</strong> from one day to
+                          another across the entire matrix.
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                              From Day <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={bulkFromDay}
+                              onChange={(e) =>
+                                setBulkFromDay(Number(e.target.value))
+                              }
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                              To Day <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={bulkToDay}
+                              onChange={(e) =>
+                                setBulkToDay(Number(e.target.value))
+                              }
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
+                            />
+                          </div>
+                        </div>
+                        {bulkFromDay === bulkToDay && bulkFromDay > 0 && (
+                          <p className="text-xs text-red-500">
+                            From Day and To Day must be different
+                          </p>
                         )}
-                      </Button>
-                    </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                            Reason (optional)
+                          </label>
+                          <textarea
+                            value={bulkReason}
+                            onChange={(e) => setBulkReason(e.target.value)}
+                            placeholder="e.g. Rain delay — all Day 1 remaining work moved to Day 3"
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 resize-none"
+                            rows={2}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={handleBulkPushTasks}
+                          disabled={
+                            bulkPushing ||
+                            bulkFromDay < 1 ||
+                            bulkToDay < 1 ||
+                            bulkFromDay === bulkToDay
+                          }
+                          className="bg-indigo-500 hover:bg-indigo-600 text-white w-full"
+                        >
+                          {bulkPushing ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              Pushing all tasks...
+                            </>
+                          ) : (
+                            <>
+                              <ChevronsRight className="w-4 h-4 mr-1" />
+                              Push Day {bulkFromDay} → Day {bulkToDay}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Notify customer — send task completion email */}
+                  <div className="border-t border-gray-100 pt-5">
+                    <button
+                      onClick={() => setShowNotifyPanel((p) => !p)}
+                      className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 uppercase hover:text-emerald-600 transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5" />
+                        Notify Customer
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          showNotifyPanel
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-gray-100 text-gray-400"
+                        }`}
+                      >
+                        {showNotifyPanel ? "Hide" : "Show"}
+                      </span>
+                    </button>
+
+                    {showNotifyPanel && (
+                      <div className="mt-3 space-y-3 bg-emerald-50/50 border border-emerald-200 rounded-xl p-4">
+                        <p className="text-xs text-emerald-700 bg-emerald-100 rounded-lg px-3 py-2">
+                          Sends a task completion email to the customer.
+                          Optionally attach uploaded files.
+                        </p>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                            Custom Message (optional)
+                          </label>
+                          <textarea
+                            value={notifyMessage}
+                            onChange={(e) => setNotifyMessage(e.target.value)}
+                            placeholder="e.g. We have completed the site survey. Please find the attached photos."
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 resize-none"
+                            rows={3}
+                          />
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={notifyIncludeAttachments}
+                            onChange={(e) =>
+                              setNotifyIncludeAttachments(e.target.checked)
+                            }
+                            className="w-4 h-4 rounded accent-emerald-500"
+                          />
+                          <span className="text-sm text-gray-700">
+                            Include attachments
+                            {attachments.length > 0 && (
+                              <span className="ml-1 text-xs text-gray-400">
+                                ({attachments.length} file
+                                {attachments.length !== 1 ? "s" : ""})
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                        <Button
+                          size="sm"
+                          onClick={handleNotifyCustomer}
+                          disabled={notifying}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white w-full"
+                        >
+                          {notifying ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              Sending email...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4 mr-1" />
+                              Send Completion Email
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

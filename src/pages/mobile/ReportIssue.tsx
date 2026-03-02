@@ -3,6 +3,7 @@ import { Camera, X, Send } from 'lucide-react';
 import { MobileHeader } from '../../components/mobile/MobileHeader';
 import { useProjectStore } from '../../stores/projectStore';
 import { IssueCategory, IssueSeverity } from '../../types';
+import Spinner from '../../components/ui/Spinner';
 
 const categories = [
   { value: IssueCategory.MATERIAL, label: 'Material' },
@@ -257,7 +258,7 @@ export function ReportIssue() {
         >
           {submitting ? (
             <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <Spinner size="sm" color="white" />
               <span>Submitting...</span>
             </>
           ) : (

@@ -19,9 +19,17 @@ import {
   Users,
   Target,
   Phone,
+  Trash2,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import toast from "react-hot-toast";
+import {
+  getBDRTasks,
+  createBDRTask,
+  updateBDRTask,
+  deleteBDRTask,
+  type BDRTaskAPIItem,
+} from "../../services/bdrApi";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface BDRTask {
@@ -41,79 +49,6 @@ interface BDRTask {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TODAY_STR = new Date().toISOString().split("T")[0];
-
-const INITIAL_TASKS: BDRTask[] = [
-  {
-    id: "bdr-1",
-    title: "Follow up with Arjun Sharma — Site Visit",
-    taskType: "Follow-Up",
-    dueDate: TODAY_STR,
-    dueTime: "10:00",
-    priority: "HIGH",
-    status: "TODO",
-    completed: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Call Arjun Sharma regarding the 3BHK proposal sent on Monday. Confirm site visit schedule.",
-  },
-  {
-    id: "bdr-2",
-    title: "Proposal Presentation — Mehra Family",
-    taskType: "Presentation",
-    dueDate: TODAY_STR,
-    dueTime: "12:00",
-    priority: "HIGH",
-    status: "IN_PROGRESS",
-    completed: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Present the full home design proposal to the Mehra family. Bring project portfolio and pricing sheet.",
-  },
-  {
-    id: "bdr-3",
-    title: "Lead Qualification — Patel Referral",
-    taskType: "Lead",
-    dueDate: TODAY_STR,
-    dueTime: "14:30",
-    priority: "MEDIUM",
-    status: "TODO",
-    completed: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Qualify new referral lead from Rajesh Patel. Understand scope, budget, and timeline.",
-  },
-  {
-    id: "bdr-4",
-    title: "Contract Finalisation — Singh Villa",
-    taskType: "Contract",
-    dueDate: TODAY_STR,
-    dueTime: "09:00",
-    priority: "LOW",
-    status: "COMPLETED",
-    completed: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Collect signed contract and advance payment cheque from the Singh family.",
-  },
-  {
-    id: "bdr-5",
-    title: "Client Onboarding — Gupta Residence",
-    taskType: "Onboarding",
-    dueDate: TODAY_STR,
-    dueTime: "16:00",
-    priority: "HIGH",
-    status: "TODO",
-    completed: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Walk the Gupta family through the project onboarding process. Introduce site engineer and share timeline.",
-  },
-];
 
 const STATUS_OPTIONS = [
   {
@@ -167,6 +102,45 @@ const TASK_TYPE_ICONS: Record<string, typeof Briefcase> = {
   Other: Briefcase,
 };
 
+// ── API ↔ UI mapping helpers ──────────────────────────────────────────────────
+/** Convert UI status ("TODO" / "IN_PROGRESS" / "COMPLETED") → API status string */
+const toAPIStatus = (s: string): string => {
+  const m: Record<string, string> = {
+    TODO: "PENDING",
+    IN_PROGRESS: "IN_PROGRESS",
+    COMPLETED: "COMPLETED",
+  };
+  return m[s.toUpperCase()] ?? "PENDING";
+};
+
+/** Convert API status string → UI status enum */
+const fromAPIStatus = (s: string): BDRTask["status"] => {
+  const m: Record<string, BDRTask["status"]> = {
+    todo: "TODO",
+    pending: "TODO", // API stores initial state as PENDING
+    inprogress: "IN_PROGRESS",
+    in_progress: "IN_PROGRESS",
+    completed: "COMPLETED",
+  };
+  return m[s.toLowerCase()] ?? "TODO";
+};
+
+/** Map a raw API task object to the UI BDRTask shape */
+const mapAPITask = (t: BDRTaskAPIItem): BDRTask => ({
+  id: t.id,
+  title: t.title,
+  description: t.description ?? undefined,
+  taskType: t.taskType,
+  // API returns full ISO timestamp like "2026-03-10T00:00:00.000Z" — strip time
+  dueDate: t.dueDate ? t.dueDate.split("T")[0] : t.dueDate,
+  dueTime: t.dueTime ?? undefined,
+  priority: (t.priority as BDRTask["priority"]) ?? "MEDIUM",
+  status: fromAPIStatus(t.status),
+  completed: fromAPIStatus(t.status) === "COMPLETED",
+  createdAt: t.createdAt,
+  updatedAt: t.updatedAt,
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatTime(time?: string) {
   if (!time) return "";
@@ -177,13 +151,11 @@ function formatTime(time?: string) {
   return `${displayHour}:${minutes} ${ampm}`;
 }
 
-function genId() {
-  return `bdr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 export function BDRTasks() {
-  const [tasks, setTasks] = useState<BDRTask[]>(INITIAL_TASKS);
+  const [tasks, setTasks] = useState<BDRTask[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [tasksError, setTasksError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCompleted, setShowCompleted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -209,19 +181,38 @@ export function BDRTasks() {
     dueTime: "",
     status: "TODO" as BDRTask["status"],
   });
-  const [addTaskPhoto, setAddTaskPhoto] = useState<{
-    file: File;
-    previewUrl: string;
-  } | null>(null);
-  const addTaskCameraRef = useRef<HTMLInputElement>(null);
   const [isSavingNewTask, setIsSavingNewTask] = useState(false);
+
+  const loadTasks = useCallback(async () => {
+    setIsLoading(true);
+    setTasksError(null);
+    try {
+      const res = await getBDRTasks(100, 0);
+      setTasks(res.tasks.map(mapAPITask));
+    } catch (err) {
+      setTasksError(
+        err instanceof Error ? err.message : "Failed to load tasks",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setIsRefreshing(false);
-    toast.success("Tasks refreshed");
-  }, []);
+    try {
+      await loadTasks();
+      toast.success("Tasks refreshed");
+    } catch {
+      // error already shown by loadTasks
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadTasks]);
 
   // ── Week navigation ──
   const getWeekDates = () => {
@@ -238,7 +229,7 @@ export function BDRTasks() {
   };
 
   const weekDates = getWeekDates();
-  const selectedDateStr = selectedDate.toISOString().split("T")[0];
+  const selectedDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
 
   // ── Derived data ──
   const tasksForDate = tasks.filter((t) => t.dueDate === selectedDateStr);
@@ -267,23 +258,20 @@ export function BDRTasks() {
   const handleSaveStatus = async () => {
     if (!selectedTask) return;
     setIsSavingStatus(true);
-    await new Promise((r) => setTimeout(r, 500));
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === selectedTask.id
-          ? {
-              ...t,
-              status: editStatus as BDRTask["status"],
-              completed: editStatus === "COMPLETED",
-              completionPhoto: workPhoto?.previewUrl || t.completionPhoto,
-              updatedAt: new Date().toISOString(),
-            }
-          : t,
-      ),
-    );
-    setIsSavingStatus(false);
-    toast.success("Task status updated!");
-    handleCloseTaskDetail();
+    try {
+      const updated = await updateBDRTask(selectedTask.id, {
+        status: toAPIStatus(editStatus),
+      });
+      setTasks((prev) =>
+        prev.map((t) => (t.id === selectedTask.id ? mapAPITask(updated) : t)),
+      );
+      toast.success("Task status updated!");
+      handleCloseTaskDetail();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update task");
+    } finally {
+      setIsSavingStatus(false);
+    }
   };
 
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -297,20 +285,30 @@ export function BDRTasks() {
     e.target.value = "";
   };
 
-  const handleToggleTask = (taskId: string, shouldComplete: boolean) => {
+  const handleToggleTask = async (taskId: string, shouldComplete: boolean) => {
+    const optimisticStatus: BDRTask["status"] = shouldComplete
+      ? "COMPLETED"
+      : "TODO";
+    // optimistic UI update
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
-          ? {
-              ...t,
-              completed: shouldComplete,
-              status: shouldComplete ? "COMPLETED" : "TODO",
-              updatedAt: new Date().toISOString(),
-            }
+          ? { ...t, completed: shouldComplete, status: optimisticStatus }
           : t,
       ),
     );
-    toast.success(shouldComplete ? "Task completed!" : "Task reopened");
+    try {
+      const updated = await updateBDRTask(taskId, {
+        status: toAPIStatus(optimisticStatus),
+      });
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? mapAPITask(updated) : t)),
+      );
+      toast.success(shouldComplete ? "Task completed!" : "Task reopened");
+    } catch (err) {
+      await loadTasks(); // revert to server state
+      toast.error(err instanceof Error ? err.message : "Failed to update task");
+    }
   };
 
   // ── Add Task handlers ──
@@ -324,26 +322,23 @@ export function BDRTasks() {
       dueTime: "",
       status: "TODO",
     });
-    setAddTaskPhoto(null);
     setShowAddTask(true);
   };
 
   const handleCloseAddTask = () => {
     setShowAddTask(false);
-    if (addTaskPhoto?.previewUrl) URL.revokeObjectURL(addTaskPhoto.previewUrl);
-    setAddTaskPhoto(null);
   };
 
-  const handleAddTaskCameraCapture = (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (addTaskPhoto?.previewUrl) URL.revokeObjectURL(addTaskPhoto.previewUrl);
-    const previewUrl = URL.createObjectURL(file);
-    setAddTaskPhoto({ file, previewUrl });
-    toast.success("Photo captured!");
-    e.target.value = "";
+  const handleDeleteTask = async (taskId: string) => {
+    if (!window.confirm("Delete this task? This cannot be undone.")) return;
+    try {
+      await deleteBDRTask(taskId);
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      toast.success("Task deleted");
+      handleCloseTaskDetail();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete task");
+    }
   };
 
   const handleSaveNewTask = async () => {
@@ -352,33 +347,31 @@ export function BDRTasks() {
       return;
     }
     setIsSavingNewTask(true);
-    await new Promise((r) => setTimeout(r, 500));
-    const task: BDRTask = {
-      id: genId(),
-      title: newTask.title.trim(),
-      description: newTask.description.trim() || undefined,
-      taskType: newTask.taskType,
-      dueDate: newTask.dueDate,
-      dueTime: newTask.dueTime || undefined,
-      priority: newTask.priority,
-      status: newTask.status,
-      completed: newTask.status === "COMPLETED",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      completionPhoto: addTaskPhoto?.previewUrl,
-    };
-    setTasks((prev) => [task, ...prev]);
-    setIsSavingNewTask(false);
-    toast.success("Task added!");
-    handleCloseAddTask();
+    try {
+      const created = await createBDRTask({
+        title: newTask.title.trim(),
+        description: newTask.description.trim() || undefined,
+        taskType: newTask.taskType.toUpperCase().replace(/[\s-]/g, "_"),
+        status: toAPIStatus(newTask.status),
+        priority: newTask.priority,
+        dueDate: newTask.dueDate || undefined,
+        dueTime: newTask.dueTime || undefined,
+      });
+      toast.success("Task added!");
+      handleCloseAddTask();
+      // Reload from API so the list is always in sync with server state
+      await loadTasks();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add task");
+    } finally {
+      setIsSavingNewTask(false);
+    }
   };
 
   // ── Cleanup object URLs on unmount ──
   useEffect(() => {
     return () => {
       if (workPhoto?.previewUrl) URL.revokeObjectURL(workPhoto.previewUrl);
-      if (addTaskPhoto?.previewUrl)
-        URL.revokeObjectURL(addTaskPhoto.previewUrl);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -413,7 +406,9 @@ export function BDRTasks() {
             <p className="text-xs text-gray-600">Pending</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-green-600">{completedCount}</p>
+            <p className="text-2xl font-bold text-green-600">
+              {completedCount}
+            </p>
             <p className="text-xs text-gray-600">Done</p>
           </div>
         </div>
@@ -437,11 +432,11 @@ export function BDRTasks() {
       <div className="sticky top-16 bg-white border-b border-gray-200 z-20 shadow-sm">
         <div className="flex gap-2 overflow-x-auto px-4 py-3 scrollbar-hide">
           {weekDates.map((date) => {
-            const isSelected =
-              date.toISOString().split("T")[0] === selectedDateStr;
-            const isToday =
-              date.toISOString().split("T")[0] ===
-              new Date().toISOString().split("T")[0];
+            const toLocalDateStr = (d: Date) =>
+              `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            const isSelected = toLocalDateStr(date) === selectedDateStr;
+            const todayStr = toLocalDateStr(new Date());
+            const isToday = toLocalDateStr(date) === todayStr;
             return (
               <button
                 key={date.toISOString()}
@@ -476,18 +471,44 @@ export function BDRTasks() {
           Add New Task
         </button>
 
-        {/* Empty State */}
-        {pendingTasks.length === 0 && completedTasks.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-24 h-24 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <CheckCircle2 className="w-12 h-12 text-green-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">All Clear!</h3>
-            <p className="text-sm text-gray-600">
-              No tasks scheduled for this day
-            </p>
+        {/* Loading State */}
+        {isLoading && tasks.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Loader2 className="w-10 h-10 text-orange-500 animate-spin" />
+            <p className="text-sm text-gray-500">Loading tasks...</p>
           </div>
         )}
+
+        {/* Error State */}
+        {tasksError && (
+          <div className="text-center py-8">
+            <p className="text-sm text-red-500 mb-3">{tasksError}</p>
+            <button
+              onClick={loadTasks}
+              className="text-sm text-orange-600 font-medium underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoading &&
+          !tasksError &&
+          pendingTasks.length === 0 &&
+          completedTasks.length === 0 && (
+            <div className="text-center py-16">
+              <div className="w-24 h-24 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <CheckCircle2 className="w-12 h-12 text-green-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                All Clear!
+              </h3>
+              <p className="text-sm text-gray-600">
+                No tasks scheduled for this day
+              </p>
+            </div>
+          )}
 
         {/* Pending Tasks */}
         {pendingTasks.length > 0 && (
@@ -859,24 +880,35 @@ export function BDRTasks() {
               </div>
 
               {/* Footer */}
-              <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+              <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 space-y-2">
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleCloseTaskDetail}
+                    className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveStatus}
+                    disabled={isSavingStatus}
+                    className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+                  >
+                    {isSavingStatus ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
+                    Save Status
+                  </button>
+                </div>
                 <button
-                  onClick={handleCloseTaskDetail}
-                  className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+                  onClick={() =>
+                    selectedTask && handleDeleteTask(selectedTask.id)
+                  }
+                  className="w-full py-2.5 rounded-xl border-2 border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveStatus}
-                  disabled={isSavingStatus}
-                  className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
-                >
-                  {isSavingStatus ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Check className="w-4 h-4" />
-                  )}
-                  Save Status
+                  <Trash2 className="w-4 h-4" />
+                  Delete Task
                 </button>
               </div>
             </div>
@@ -978,7 +1010,9 @@ export function BDRTasks() {
                     {(["HIGH", "MEDIUM", "LOW"] as const).map((p) => (
                       <button
                         key={p}
-                        onClick={() => setNewTask((prev) => ({ ...prev, priority: p }))}
+                        onClick={() =>
+                          setNewTask((prev) => ({ ...prev, priority: p }))
+                        }
                         className={`py-2.5 rounded-xl text-xs font-semibold border-2 transition-all ${
                           newTask.priority === p
                             ? p === "HIGH"
@@ -1050,86 +1084,6 @@ export function BDRTasks() {
                     />
                   </div>
                 </div>
-
-                {/* Camera — only enabled when status is COMPLETED */}
-                <div
-                  className={`rounded-2xl border-2 transition-all overflow-hidden ${
-                    newTask.status === "COMPLETED"
-                      ? "border-green-300 bg-green-50"
-                      : "border-dashed border-gray-200 bg-gray-50 opacity-50"
-                  }`}
-                >
-                  <div className="px-4 pt-4 pb-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Camera
-                        className={`w-4 h-4 ${newTask.status === "COMPLETED" ? "text-green-600" : "text-gray-400"}`}
-                      />
-                      <p
-                        className={`text-sm font-bold ${newTask.status === "COMPLETED" ? "text-green-800" : "text-gray-400"}`}
-                      >
-                        Task Completion Photo
-                      </p>
-                    </div>
-                    <p
-                      className={`text-xs ${newTask.status === "COMPLETED" ? "text-green-700" : "text-gray-400"}`}
-                    >
-                      {newTask.status === "COMPLETED"
-                        ? "Capture or upload a photo as proof of task completion."
-                        : "Set the status to Completed to enable photo capture."}
-                    </p>
-                  </div>
-
-                  {newTask.status === "COMPLETED" && (
-                    <div className="px-4 pb-4">
-                      {addTaskPhoto ? (
-                        <div className="relative">
-                          <img
-                            src={addTaskPhoto.previewUrl}
-                            alt="Task completion"
-                            className="w-full h-40 object-cover rounded-xl"
-                          />
-                          <button
-                            onClick={() => {
-                              URL.revokeObjectURL(addTaskPhoto.previewUrl);
-                              setAddTaskPhoto(null);
-                            }}
-                            className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"
-                          >
-                            <X className="w-4 h-4 text-white" />
-                          </button>
-                          <div className="absolute bottom-2 left-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-lg flex items-center gap-1">
-                            <Check className="w-3 h-3" />
-                            Photo Ready
-                          </div>
-                          <button
-                            onClick={() => addTaskCameraRef.current?.click()}
-                            className="absolute bottom-2 right-2 bg-white/90 text-gray-700 text-xs font-semibold px-2 py-1 rounded-lg flex items-center gap-1 border border-gray-200"
-                          >
-                            <Camera className="w-3 h-3" />
-                            Retake
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => addTaskCameraRef.current?.click()}
-                          className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-white border-2 border-dashed border-green-300 rounded-xl hover:bg-green-50 hover:border-green-400 active:scale-95 transition-all"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                            <Camera className="w-5 h-5 text-green-600" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm font-semibold text-green-700">
-                              Capture Photo
-                            </p>
-                            <p className="text-xs text-green-600 mt-0.5">
-                              Tap to open camera or gallery
-                            </p>
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Footer */}
@@ -1159,6 +1113,7 @@ export function BDRTasks() {
         )}
 
       {/* Hidden camera inputs */}
+      {/* Hidden camera input for task detail modal only */}
       <input
         ref={cameraInputRef}
         type="file"
@@ -1166,14 +1121,6 @@ export function BDRTasks() {
         capture="environment"
         className="hidden"
         onChange={handleCameraCapture}
-      />
-      <input
-        ref={addTaskCameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={handleAddTaskCameraCapture}
       />
     </div>
   );

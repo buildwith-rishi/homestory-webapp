@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { Plus, Users, Loader2, Search } from "lucide-react";
+import { Plus, Users, Search } from "lucide-react";
 import type { Contact } from "../../services/contactApi";
 import ContactAPI from "../../services/contactApi";
 import { ContactCard } from "./ContactCard";
 import { AddContactModal } from "./AddContactModal";
 import { EditContactModal } from "./EditContactModal";
 import toast from "react-hot-toast";
+import { SectionLoader } from "../ui";
 
 interface ContactsListProps {
   leadId: string;
@@ -82,12 +83,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
 
   // Loading state
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
-        <span className="ml-3 text-gray-600">Loading contacts...</span>
-      </div>
-    );
+    return <SectionLoader message="Loading contacts..." size="sm" />;
   }
 
   return (

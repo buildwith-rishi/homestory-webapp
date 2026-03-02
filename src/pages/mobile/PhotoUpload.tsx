@@ -3,6 +3,7 @@ import { Camera, Check, AlertTriangle, X, Upload } from 'lucide-react';
 import { MobileHeader } from '../../components/mobile/MobileHeader';
 import { useProjectStore } from '../../stores/projectStore';
 import { ProjectStage, PhotoRequirement } from '../../types';
+import Spinner from '../../components/ui/Spinner';
 
 const photoRequirements: Record<ProjectStage, PhotoRequirement[]> = {
   [ProjectStage.PRE_CONSTRUCTION]: [
@@ -266,7 +267,7 @@ export function PhotoUpload() {
             >
               {uploading ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <Spinner size="sm" color="white" />
                   <span>Uploading...</span>
                 </>
               ) : (

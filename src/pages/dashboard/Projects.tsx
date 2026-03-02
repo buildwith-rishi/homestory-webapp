@@ -13,13 +13,18 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
-  Settings2,
   Tag,
   Home,
 } from "lucide-react";
-import { Card, Button, Badge, Progress } from "../../components/ui";
+import {
+  Card,
+  Button,
+  Badge,
+  Progress,
+  SectionLoader,
+} from "../../components/ui";
 import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
-import { StageTemplatesPanel } from "../../components/dashboard/stages/StageTemplatesPanel";
+
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useProjectStore } from "../../stores/projectStore";
 import type { Project, CreateProjectRequest } from "../../types";
@@ -182,35 +187,103 @@ const PROPERTY_SUBTYPE_LABELS: Record<string, string> = {
   OFFICE_SPACE: "Office Space",
 };
 
-const PROJECT_CATEGORY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  RESIDENTIAL:  { bg: "bg-violet-50",  text: "text-violet-700",  border: "border-violet-200/60" },
-  COMMERCIAL:   { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200/60"   },
-  HOSPITALITY:  { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200/60"  },
-  HEALTHCARE:   { bg: "bg-rose-50",    text: "text-rose-700",    border: "border-rose-200/60"   },
+const PROJECT_CATEGORY_STYLES: Record<
+  string,
+  { bg: string; text: string; border: string }
+> = {
+  RESIDENTIAL: {
+    bg: "bg-violet-50",
+    text: "text-violet-700",
+    border: "border-violet-200/60",
+  },
+  COMMERCIAL: {
+    bg: "bg-blue-50",
+    text: "text-blue-700",
+    border: "border-blue-200/60",
+  },
+  HOSPITALITY: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200/60",
+  },
+  HEALTHCARE: {
+    bg: "bg-rose-50",
+    text: "text-rose-700",
+    border: "border-rose-200/60",
+  },
 };
 
-const PROPERTY_SUBTYPE_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  APARTMENT:          { bg: "bg-sky-50",     text: "text-sky-700",     border: "border-sky-200/60"    },
-  VILLA:              { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/60" },
-  INDEPENDENT_HOUSE:  { bg: "bg-green-50",   text: "text-green-700",   border: "border-green-200/60"  },
-  PENTHOUSE:          { bg: "bg-purple-50",  text: "text-purple-700",  border: "border-purple-200/60" },
-  ROW_HOUSE:          { bg: "bg-teal-50",    text: "text-teal-700",    border: "border-teal-200/60"   },
-  STUDIO:             { bg: "bg-indigo-50",  text: "text-indigo-700",  border: "border-indigo-200/60" },
-  RETAIL_SHOP:        { bg: "bg-orange-50",  text: "text-orange-700",  border: "border-orange-200/60" },
-  HEALTHCARE_FACILITY:{ bg: "bg-pink-50",    text: "text-pink-700",    border: "border-pink-200/60"   },
-  RESTAURANT:         { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200/60"  },
-  OFFICE_SPACE:       { bg: "bg-cyan-50",    text: "text-cyan-700",    border: "border-cyan-200/60"   },
+const PROPERTY_SUBTYPE_STYLES: Record<
+  string,
+  { bg: string; text: string; border: string }
+> = {
+  APARTMENT: {
+    bg: "bg-sky-50",
+    text: "text-sky-700",
+    border: "border-sky-200/60",
+  },
+  VILLA: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    border: "border-emerald-200/60",
+  },
+  INDEPENDENT_HOUSE: {
+    bg: "bg-green-50",
+    text: "text-green-700",
+    border: "border-green-200/60",
+  },
+  PENTHOUSE: {
+    bg: "bg-purple-50",
+    text: "text-purple-700",
+    border: "border-purple-200/60",
+  },
+  ROW_HOUSE: {
+    bg: "bg-teal-50",
+    text: "text-teal-700",
+    border: "border-teal-200/60",
+  },
+  STUDIO: {
+    bg: "bg-indigo-50",
+    text: "text-indigo-700",
+    border: "border-indigo-200/60",
+  },
+  RETAIL_SHOP: {
+    bg: "bg-orange-50",
+    text: "text-orange-700",
+    border: "border-orange-200/60",
+  },
+  HEALTHCARE_FACILITY: {
+    bg: "bg-pink-50",
+    text: "text-pink-700",
+    border: "border-pink-200/60",
+  },
+  RESTAURANT: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200/60",
+  },
+  OFFICE_SPACE: {
+    bg: "bg-cyan-50",
+    text: "text-cyan-700",
+    border: "border-cyan-200/60",
+  },
 };
 
 const getProjectTypeDisplay = (project: Project) => {
   // Use projectCategory (the primary API field) or fall back to projectType alias
   const raw: string = project.projectCategory ?? project.projectType ?? "";
-  const label = (PROJECT_CATEGORY_LABELS[raw] ??
-    (raw ? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null)) || null;
+  const label =
+    (PROJECT_CATEGORY_LABELS[raw] ??
+      (raw
+        ? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        : null)) ||
+    null;
   return {
     label,
     style: PROJECT_CATEGORY_STYLES[raw] ?? {
-      bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200/60",
+      bg: "bg-gray-50",
+      text: "text-gray-600",
+      border: "border-gray-200/60",
     },
   };
 };
@@ -218,12 +291,18 @@ const getProjectTypeDisplay = (project: Project) => {
 const getPropertyTypeDisplay = (project: Project) => {
   // Use propertySubtype (the primary API field) or fall back to propertyType alias
   const raw: string = project.propertySubtype ?? project.propertyType ?? "";
-  const label = (PROPERTY_SUBTYPE_LABELS[raw] ??
-    (raw ? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null)) || null;
+  const label =
+    (PROPERTY_SUBTYPE_LABELS[raw] ??
+      (raw
+        ? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        : null)) ||
+    null;
   return {
     label,
     style: PROPERTY_SUBTYPE_STYLES[raw] ?? {
-      bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200/60",
+      bg: "bg-gray-50",
+      text: "text-gray-600",
+      border: "border-gray-200/60",
     },
   };
 };
@@ -235,7 +314,6 @@ export const ProjectsPage: React.FC = () => {
   const [view, setView] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showTemplatesPanel, setShowTemplatesPanel] = useState(false);
 
   const { projects, isLoading, error, fetchProjects, addProject, clearError } =
     useProjectStore();
@@ -320,9 +398,8 @@ export const ProjectsPage: React.FC = () => {
   // --- Loading State ---
   if (isLoading && projects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 animate-fade-in">
-        <Loader2 className="w-10 h-10 text-orange-500 animate-spin mb-4" />
-        <p className="text-gray-600 font-medium">Loading projects...</p>
+      <div className="animate-fade-in">
+        <SectionLoader size="lg" message="Loading projects..." />
       </div>
     );
   }
@@ -408,14 +485,6 @@ export const ProjectsPage: React.FC = () => {
               <List className="w-4 h-4" />
             </button>
           </div>
-          <Button
-            variant="outline"
-            className="rounded-xl text-gray-600 border-gray-300 hover:bg-gray-50"
-            onClick={() => setShowTemplatesPanel(true)}
-          >
-            <Settings2 className="w-4 h-4 mr-1" />
-            Templates
-          </Button>
           <Button className="rounded-xl" onClick={() => setIsModalOpen(true)}>
             <Plus className="w-4 h-4" />
             New Project
@@ -704,7 +773,9 @@ export const ProjectsPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex justify-center">
                           {projectTypeInfo.label ? (
-                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${projectTypeInfo.style.bg} ${projectTypeInfo.style.text} ${projectTypeInfo.style.border}`}>
+                            <div
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${projectTypeInfo.style.bg} ${projectTypeInfo.style.text} ${projectTypeInfo.style.border}`}
+                            >
                               <Tag className="w-3 h-3 flex-shrink-0" />
                               <span>{projectTypeInfo.label}</span>
                             </div>
@@ -718,7 +789,9 @@ export const ProjectsPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex justify-center">
                           {propertyTypeInfo.label ? (
-                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${propertyTypeInfo.style.bg} ${propertyTypeInfo.style.text} ${propertyTypeInfo.style.border}`}>
+                            <div
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${propertyTypeInfo.style.bg} ${propertyTypeInfo.style.text} ${propertyTypeInfo.style.border}`}
+                            >
                               <Home className="w-3 h-3 flex-shrink-0" />
                               <span>{propertyTypeInfo.label}</span>
                             </div>
@@ -847,15 +920,6 @@ export const ProjectsPage: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateProject}
       />
-
-      {/* Stage Templates Panel (Full-screen overlay) */}
-      {showTemplatesPanel && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-y-auto">
-            <StageTemplatesPanel onBack={() => setShowTemplatesPanel(false)} />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

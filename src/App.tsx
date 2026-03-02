@@ -41,7 +41,13 @@ import {
   EngineerIssues,
 } from "./pages/mobile";
 import { BDRAppShell } from "./components/bdr/BDRAppShell";
-import { BDRHome, BDRTasks, BDRProfile } from "./pages/bdr";
+import {
+  BDRHome,
+  BDRTasks,
+  BDRProfile,
+  BDRLeads,
+  BDRMeetings,
+} from "./pages/bdr";
 
 function App() {
   return (
@@ -356,9 +362,7 @@ function App() {
           <Route
             path="/bdr"
             element={
-              <ProtectedRoute
-                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
-              >
+              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
                 <BDRAppShell>
                   <BDRHome />
                 </BDRAppShell>
@@ -368,9 +372,7 @@ function App() {
           <Route
             path="/bdr/tasks"
             element={
-              <ProtectedRoute
-                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
-              >
+              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
                 <BDRAppShell>
                   <BDRTasks />
                 </BDRAppShell>
@@ -380,11 +382,30 @@ function App() {
           <Route
             path="/bdr/profile"
             element={
-              <ProtectedRoute
-                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
-              >
+              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
                 <BDRAppShell>
                   <BDRProfile />
+                </BDRAppShell>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/bdr/leads"
+            element={
+              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
+                <BDRAppShell>
+                  <BDRLeads />
+                </BDRAppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bdr/meetings"
+            element={
+              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
+                <BDRAppShell>
+                  <BDRMeetings />
                 </BDRAppShell>
               </ProtectedRoute>
             }

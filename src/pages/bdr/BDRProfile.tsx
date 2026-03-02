@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Phone,
@@ -18,12 +18,23 @@ import {
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { useAuthStore } from "../../stores/authStore";
+import { getBDRProfile, BDRProfileUser } from "../../services/bdrApi";
+import { Spinner } from "../../components/ui";
 
 export function BDRProfile() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [apiProfile, setApiProfile] = useState<BDRProfileUser | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    getBDRProfile()
+      .then((res) => setApiProfile(res.user))
+      .catch(() => setApiProfile(null))
+      .finally(() => setProfileLoading(false));
+  }, []);
 
   const handleLogout = () => {
     if (window.confirm("Are you sure you want to logout?")) {
@@ -32,10 +43,37 @@ export function BDRProfile() {
     }
   };
 
+  const displayName = apiProfile?.name || user?.name || "BDR";
+  const displayEmail =
+    apiProfile?.email || user?.email || "bdr@goodhomestory.com";
+  const displayPhone = apiProfile?.phone || user?.phone || null;
+  const joinedDate = apiProfile?.createdAt
+    ? new Date(apiProfile.createdAt).toLocaleDateString("en-IN", {
+        month: "short",
+        year: "numeric",
+      })
+    : "Jan 2025";
+
   const profileStats = [
-    { label: "Leads", value: "14", color: "bg-blue-500" },
-    { label: "Tasks Done", value: "38", color: "bg-green-500" },
-    { label: "Meetings", value: "21", color: "bg-orange-500" },
+    {
+      label: "Leads",
+      value: profileLoading
+        ? "..."
+        : String(apiProfile?._count?.assignedLeads ?? 0),
+      color: "bg-blue-500",
+    },
+    {
+      label: "Activities",
+      value: profileLoading
+        ? "..."
+        : String(apiProfile?._count?.activities ?? 0),
+      color: "bg-green-500",
+    },
+    {
+      label: "Status",
+      value: apiProfile?.isActive ? "Active" : "Inactive",
+      color: "bg-orange-500",
+    },
   ];
 
   const settingsOptions = [
@@ -56,11 +94,19 @@ export function BDRProfile() {
   ];
 
   const menuOptions = [
-    { icon: Target, label: "My Pipeline", action: () => navigate("/dashboard/leads") },
-    { icon: FileText, label: "Work History", action: () => {} },
+    { icon: Target, label: "My Leads", action: () => navigate("/bdr/leads") },
+    {
+      icon: FileText,
+      label: "My Meetings",
+      action: () => navigate("/bdr/meetings"),
+    },
     { icon: HelpCircle, label: "Help & Support", action: () => {} },
     { icon: Shield, label: "Privacy Policy", action: () => {} },
-    { icon: Settings, label: "Settings", action: () => navigate("/dashboard/settings") },
+    {
+      icon: Settings,
+      label: "Settings",
+      action: () => navigate("/dashboard/settings"),
+    },
   ];
 
   return (
@@ -72,19 +118,25 @@ export function BDRProfile() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-md">
-              {user?.name?.charAt(0) || "B"}
+              {profileLoading ? (
+                <Spinner size="sm" color="white" />
+              ) : (
+                displayName.charAt(0).toUpperCase()
+              )}
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold text-gray-900">
-                {user?.name || "BDR"}
-              </h2>
+              <h2 className="text-xl font-bold text-gray-900">{displayName}</h2>
               <p className="text-sm text-gray-600 mt-0.5">
                 Business Development Representative
               </p>
               <div className="flex items-center gap-1 mt-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
-                <span className="text-xs text-green-600 font-medium">
-                  Active
+                <div
+                  className={`w-2 h-2 rounded-full ${apiProfile?.isActive !== false ? "bg-green-500" : "bg-red-400"}`}
+                />
+                <span
+                  className={`text-xs font-medium ${apiProfile?.isActive !== false ? "text-green-600" : "text-red-500"}`}
+                >
+                  {apiProfile?.isActive !== false ? "Active" : "Inactive"}
                 </span>
               </div>
             </div>
@@ -92,21 +144,19 @@ export function BDRProfile() {
 
           {/* Contact Info */}
           <div className="space-y-3 pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-3 text-sm">
-              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                <Phone className="w-4 h-4 text-blue-600" />
+            {displayPhone && (
+              <div className="flex items-center gap-3 text-sm">
+                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                  <Phone className="w-4 h-4 text-blue-600" />
+                </div>
+                <span className="text-gray-700">{displayPhone}</span>
               </div>
-              <span className="text-gray-700">
-                {user?.phone || "+91 98765 43210"}
-              </span>
-            </div>
+            )}
             <div className="flex items-center gap-3 text-sm">
               <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
                 <Mail className="w-4 h-4 text-orange-600" />
               </div>
-              <span className="text-gray-700">
-                {user?.email || "bdr@goodhomestory.com"}
-              </span>
+              <span className="text-gray-700">{displayEmail}</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
               <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
@@ -118,7 +168,7 @@ export function BDRProfile() {
               <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
                 <Calendar className="w-4 h-4 text-purple-600" />
               </div>
-              <span className="text-gray-700">Joined Jan 2025</span>
+              <span className="text-gray-700">Joined {joinedDate}</span>
             </div>
           </div>
         </div>
@@ -133,8 +183,8 @@ export function BDRProfile() {
               <div
                 className={`w-10 h-10 ${stat.color} rounded-full flex items-center justify-center mx-auto mb-2`}
               >
-                <span className="text-white text-lg font-bold">
-                  {stat.value.charAt(0)}
+                <span className="text-white text-sm font-bold">
+                  {stat.value === "..." ? "~" : stat.value.charAt(0)}
                 </span>
               </div>
               <p className="text-xl font-bold text-gray-900">{stat.value}</p>

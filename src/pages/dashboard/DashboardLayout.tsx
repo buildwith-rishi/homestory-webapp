@@ -15,43 +15,47 @@ interface DeadlineNotification {
   progress: number;
 }
 
+const SESSION_KEY = "ghs_deadline_toasts_shown";
+
 export const DashboardLayout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifications, setNotifications] = useState<DeadlineNotification[]>(
     [],
   );
-  const [hasShownInitialNotifications, setHasShownInitialNotifications] =
-    useState(false);
 
   useEffect(() => {
-    // Show notifications only once when dashboard loads
-    if (!hasShownInitialNotifications) {
-      const urgentProjects: DeadlineNotification[] = [
-        {
-          id: "notif-1",
-          projectName: "Penthouse Makeover - Gupta Family",
-          deadline: "Jan 22, 2026",
-          daysLeft: 2,
-          status: "critical",
-          progress: 92,
-        },
-        {
-          id: "notif-2",
-          projectName: "Modern 3BHK - Sharma Family",
-          deadline: "Jan 25, 2026",
-          daysLeft: 5,
-          status: "urgent",
-          progress: 65,
-        },
-      ];
+    // Show deadline toasts only once per browser session
+    if (sessionStorage.getItem(SESSION_KEY)) return;
 
-      // Show notifications after a short delay
-      setTimeout(() => {
-        setNotifications(urgentProjects);
-        setHasShownInitialNotifications(true);
-      }, 1000);
-    }
-  }, [hasShownInitialNotifications]);
+    const urgentProjects: DeadlineNotification[] = [
+      {
+        id: "notif-1",
+        projectName: "Penthouse Makeover - Gupta Family",
+        deadline: "Mar 4, 2026",
+        daysLeft: 2,
+        status: "critical",
+        progress: 92,
+      },
+      {
+        id: "notif-2",
+        projectName: "Modern 3BHK - Sharma Family",
+        deadline: "Mar 7, 2026",
+        daysLeft: 5,
+        status: "urgent",
+        progress: 65,
+      },
+    ];
+
+    // Mark as shown immediately so fast re-renders don't double-fire
+    sessionStorage.setItem(SESSION_KEY, "1");
+
+    // Small delay so the page content loads first
+    const t = setTimeout(() => {
+      setNotifications(urgentProjects);
+    }, 1200);
+
+    return () => clearTimeout(t);
+  }, []);
 
   const handleCloseNotification = (id: string) => {
     setNotifications((prev) => prev.filter((notif) => notif.id !== id));

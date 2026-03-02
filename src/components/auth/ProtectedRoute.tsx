@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { UserRole } from "../../types";
 import type { RoleId } from "../../config/rbac";
+import PageLoader from "../ui/PageLoader";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -26,11 +27,7 @@ export function ProtectedRoute({
   const { isAuthenticated, isLoading, user, roleId, can } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!isAuthenticated) {

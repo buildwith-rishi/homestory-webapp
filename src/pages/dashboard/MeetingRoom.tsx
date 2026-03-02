@@ -27,6 +27,7 @@ import {
 import { useMeetingRoomStore } from "../../stores/meetingRoomStore";
 import { useMeetingRecording } from "../../hooks/useMeetingRecording";
 import Logo from "../../components/shared/Logo";
+import { PageLoader, Spinner } from "../../components/ui";
 
 // Speaker colors matching the website theme
 const speakerColors = [
@@ -322,14 +323,7 @@ export const MeetingRoom: React.FC = () => {
 
   // ─── Loading State ───────────────────────────────────────────────────
   if (storeLoading) {
-    return (
-      <div className="fixed inset-0 bg-gray-50 flex items-center justify-center z-[60]">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading meeting...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader message="Loading meeting..." />;
   }
 
   return (

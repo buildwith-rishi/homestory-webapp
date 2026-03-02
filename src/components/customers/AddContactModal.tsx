@@ -19,6 +19,7 @@ import ContactAPI, {
   DEFAULT_CONTACT_ROLES,
   DEFAULT_PREFERRED_CHANNELS,
 } from "../../services/contactApi";
+import Spinner from "../ui/Spinner";
 
 interface AddContactModalProps {
   isOpen: boolean;
@@ -422,7 +423,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
           >
             {isSubmitting ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Spinner size="sm" color="white" />
                 <span>Adding...</span>
               </>
             ) : (

@@ -32,7 +32,7 @@ import {
   RefreshCw,
   CheckCircle2,
 } from "lucide-react";
-import { Card, Button } from "../../components/ui";
+import { Card, Button, SectionLoader, Spinner } from "../../components/ui";
 import toast from "react-hot-toast";
 import ContactAPI, { type Contact } from "../../services/contactApi";
 import CustomerAPI, {
@@ -532,7 +532,7 @@ const AddCustomerModal: React.FC<{
               />
               {isCheckingDuplicate && formData.email && (
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                  <Spinner size="xs" color="brand" />
                 </div>
               )}
               {errors.email && (
@@ -987,7 +987,7 @@ const AddCustomerModal: React.FC<{
           >
             {isCreating ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Spinner size="sm" color="white" />
                 <span>Creating Customer...</span>
               </>
             ) : (
@@ -1198,7 +1198,7 @@ const ViewCustomerModal: React.FC<{
             </h3>
             {loadingContacts ? (
               <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
+                <Spinner size="sm" color="brand" />
                 <span className="ml-2 text-sm text-gray-500">
                   Loading contacts...
                 </span>
@@ -2467,7 +2467,7 @@ const EditCustomerModal: React.FC<{
           >
             {isSubmitting ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Spinner size="sm" color="white" />
                 <span>Saving...</span>
               </>
             ) : (
@@ -3057,18 +3057,13 @@ export const Customers: React.FC = () => {
         />
         {isSearching && (
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-            <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+            <Spinner size="xs" color="brand" />
           </div>
         )}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-orange-500 mx-auto mb-4" />
-            <p className="text-gray-600">Loading customers...</p>
-          </div>
-        </div>
+        <SectionLoader message="Loading customers..." />
       ) : filteredCustomers.length === 0 ? (
         <div className="flex items-center justify-center py-20">
           <div className="text-center">

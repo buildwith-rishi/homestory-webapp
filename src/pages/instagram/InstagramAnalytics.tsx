@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, Users, Eye, MousePointer, Heart, MessageCircle } from 'lucide-react';
 import { useInstagramStore } from '../../stores/instagramStore';
+import Spinner from '../../components/ui/Spinner';
 
 export function InstagramAnalytics() {
   const { analytics, fetchAnalytics } = useInstagramStore();
@@ -13,7 +14,7 @@ export function InstagramAnalytics() {
   if (!analytics) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+        <Spinner size="lg" color="brand" />
       </div>
     );
   }

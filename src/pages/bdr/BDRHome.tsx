@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CheckSquare,
@@ -12,16 +12,19 @@ import {
   Calendar,
   ListTodo,
   ArrowRight,
-  Loader2,
   RefreshCw,
   Target,
   Users,
   Activity,
+  CalendarClock,
+  AlertCircle,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAuthStore } from "../../stores/authStore";
 import { ProjectStage } from "../../types";
+import { Spinner } from "../../components/ui";
+import { getBDRLeads, getBDRMeetings, BDRMeeting } from "../../services/bdrApi";
 
 export function BDRHome() {
   const navigate = useNavigate();
@@ -41,11 +44,36 @@ export function BDRHome() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // BDR API state
+  const [leadsTotal, setLeadsTotal] = useState(0);
+  const [meetings, setMeetings] = useState<BDRMeeting[]>([]);
+  const [meetingsTotal, setMeetingsTotal] = useState(0);
+  const [bdrLoading, setBdrLoading] = useState(true);
+  const [bdrError, setBdrError] = useState<string | null>(null);
+
+  const loadBDRData = useCallback(async () => {
+    setBdrLoading(true);
+    setBdrError(null);
+    try {
+      const [leadsRes, meetingsRes] = await Promise.all([
+        getBDRLeads(20, 0),
+        getBDRMeetings(5, 0),
+      ]);
+      setLeadsTotal(leadsRes.total);
+      setMeetings(meetingsRes.meetings);
+      setMeetingsTotal(meetingsRes.total);
+    } catch (err) {
+      setBdrError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setBdrLoading(false);
+    }
+  }, []);
+
   const handleRetryTasks = async () => {
     setIsRefreshing(true);
     clearError();
     try {
-      await Promise.all([fetchAllTasks(), fetchUpcomingTasks()]);
+      await Promise.all([fetchAllTasks(), fetchUpcomingTasks(), loadBDRData()]);
     } finally {
       setIsRefreshing(false);
     }
@@ -60,6 +88,7 @@ export function BDRHome() {
     fetchProjects();
     fetchAllTasks();
     fetchUpcomingTasks();
+    loadBDRData();
 
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -70,17 +99,41 @@ export function BDRHome() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [fetchProjects, fetchAllTasks, fetchUpcomingTasks]);
+  }, [fetchProjects, fetchAllTasks, fetchUpcomingTasks, loadBDRData]);
 
   const activeProjects = (projects || []).filter((p) => p.status === "active");
   const todayTasks = (allTasks || []).filter(
     (t) => !t.completed && t.dueDate === new Date().toISOString().split("T")[0],
   );
-  const openLeads = 5;
 
   const displayUpcomingTasks = (upcomingTasks || [])
     .filter((t) => !t.completed)
     .slice(0, 5);
+
+  const upcomingMeetings = meetings
+    .filter((m) => m.status === "SCHEDULED")
+    .slice(0, 3);
+
+  const formatMeetingTime = (isoDate: string | null) => {
+    if (!isoDate) return "—";
+    return new Date(isoDate).toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const getMeetingStatusBadge = (status: string) => {
+    const map: Record<string, string> = {
+      SCHEDULED: "bg-blue-100 text-blue-700",
+      IN_PROGRESS: "bg-yellow-100 text-yellow-700",
+      COMPLETED: "bg-green-100 text-green-700",
+      CANCELLED: "bg-red-100 text-red-700",
+    };
+    return map[status] || "bg-gray-100 text-gray-700";
+  };
 
   const getPriorityBadge = (priority: string) => {
     const styles: Record<string, string> = {
@@ -175,19 +228,37 @@ export function BDRHome() {
             <p className="text-2xl font-bold">{todayTasks.length}</p>
             <p className="text-xs opacity-90 mt-0.5">Pending Tasks</p>
           </div>
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-sm p-3.5 text-white">
+          <div
+            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-sm p-3.5 text-white cursor-pointer active:scale-95 transition-all"
+            onClick={() => navigate("/bdr/leads")}
+          >
             <div className="flex items-center gap-2 mb-1">
               <Users className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-bold">{openLeads}</p>
+            <p className="text-2xl font-bold">
+              {bdrLoading ? (
+                <span className="inline-block w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+              ) : (
+                leadsTotal
+              )}
+            </p>
             <p className="text-xs opacity-90 mt-0.5">Active Leads</p>
           </div>
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-sm p-3.5 text-white">
+          <div
+            className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-sm p-3.5 text-white cursor-pointer active:scale-95 transition-all"
+            onClick={() => navigate("/bdr/meetings")}
+          >
             <div className="flex items-center gap-2 mb-1">
               <Target className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-bold">{activeProjects.length}</p>
-            <p className="text-xs opacity-90 mt-0.5">Projects</p>
+            <p className="text-2xl font-bold">
+              {bdrLoading ? (
+                <span className="inline-block w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+              ) : (
+                meetingsTotal
+              )}
+            </p>
+            <p className="text-xs opacity-90 mt-0.5">Meetings</p>
           </div>
         </div>
 
@@ -210,7 +281,7 @@ export function BDRHome() {
               </span>
             </button>
             <button
-              onClick={() => navigate("/dashboard/leads")}
+              onClick={() => navigate("/bdr/leads")}
               className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
             >
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -221,7 +292,7 @@ export function BDRHome() {
               </span>
             </button>
             <button
-              onClick={() => navigate("/dashboard/meetings")}
+              onClick={() => navigate("/bdr/meetings")}
               className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
             >
               <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
@@ -243,6 +314,97 @@ export function BDRHome() {
               </span>
             </button>
           </div>
+        </div>
+
+        {/* Upcoming Meetings */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-1 h-4 bg-purple-500 rounded-full" />
+              Upcoming Meetings
+            </h2>
+            <button
+              onClick={() => navigate("/bdr/meetings")}
+              className="text-xs text-purple-600 font-medium flex items-center gap-1"
+            >
+              View All <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          {bdrLoading ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+              <Spinner size="md" color="brand" className="mx-auto" />
+              <p className="text-xs text-gray-500 mt-2">Loading meetings...</p>
+            </div>
+          ) : bdrError ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
+              <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-900">
+                Couldn't load meetings
+              </p>
+              <button
+                onClick={loadBDRData}
+                className="inline-flex items-center gap-1.5 bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium mt-2"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Retry
+              </button>
+            </div>
+          ) : upcomingMeetings.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <CalendarClock className="w-6 h-6 text-purple-500" />
+              </div>
+              <p className="text-sm font-medium text-gray-900">
+                No upcoming meetings
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Your scheduled meetings will appear here
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {upcomingMeetings.map((meeting) => (
+                <div
+                  key={meeting.id}
+                  onClick={() => navigate("/bdr/meetings")}
+                  className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3 active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <CalendarClock className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {meeting.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Clock className="w-3 h-3 text-gray-400" />
+                      <span className="text-xs text-gray-500">
+                        {formatMeetingTime(meeting.scheduledAt)}
+                      </span>
+                      {meeting._count.participants > 0 && (
+                        <span className="text-xs text-gray-400">
+                          · {meeting._count.participants} participant
+                          {meeting._count.participants > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${getMeetingStatusBadge(meeting.status)}`}
+                  >
+                    {meeting.status === "SCHEDULED"
+                      ? "Scheduled"
+                      : meeting.status === "IN_PROGRESS"
+                        ? "In Progress"
+                        : meeting.status === "COMPLETED"
+                          ? "Done"
+                          : "Cancelled"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Upcoming Tasks */}
@@ -276,7 +438,7 @@ export function BDRHome() {
 
           {tasksLoading || isRefreshing ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-              <Loader2 className="w-6 h-6 text-orange-500 animate-spin mx-auto" />
+              <Spinner size="md" color="brand" className="mx-auto" />
               <p className="text-xs text-gray-500 mt-2">Loading tasks...</p>
             </div>
           ) : tasksError ? (
@@ -297,7 +459,9 @@ export function BDRHome() {
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                 <CheckSquare className="w-6 h-6 text-green-600" />
               </div>
-              <p className="text-sm font-medium text-gray-900">All caught up!</p>
+              <p className="text-sm font-medium text-gray-900">
+                All caught up!
+              </p>
               <p className="text-xs text-gray-500">No upcoming tasks</p>
             </div>
           ) : (
@@ -369,9 +533,7 @@ export function BDRHome() {
                 <div
                   key={project.id}
                   className="flex-shrink-0 w-80 bg-white rounded-xl shadow-sm border border-gray-200 p-4 cursor-pointer active:scale-[0.98] transition-all hover:shadow-md"
-                  onClick={() =>
-                    navigate(`/dashboard/projects/${project.id}`)
-                  }
+                  onClick={() => navigate(`/dashboard/projects/${project.id}`)}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
@@ -391,7 +553,9 @@ export function BDRHome() {
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5 text-gray-600">
                         <TrendingUp className="w-3.5 h-3.5" />
-                        <span>{project.stage ? getStageLabel(project.stage) : ""}</span>
+                        <span>
+                          {project.stage ? getStageLabel(project.stage) : ""}
+                        </span>
                       </div>
                       <span className="font-bold text-orange-600">
                         {project.progress}%

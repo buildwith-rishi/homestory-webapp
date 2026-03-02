@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { authAPI } from "../../services/api";
 import { Logo } from "../../components/shared";
 import { Mail, Lock, Eye, EyeOff, User, Key } from "lucide-react";
+import Spinner from "../../components/ui/Spinner";
 
 export function SignUpPage() {
   const navigate = useNavigate();
@@ -286,7 +287,7 @@ export function SignUpPage() {
               }`}
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <Spinner size="sm" color="white" />
               ) : (
                 "Create Admin Account"
               )}

@@ -21,7 +21,7 @@ import {
   Eye,
   Undo2,
 } from "lucide-react";
-import { Button, Card } from "../../ui";
+import { Button, Card, SectionLoader, Spinner } from "../../ui";
 import toast from "react-hot-toast";
 import type {
   HandoverActivity,
@@ -361,12 +361,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
   // ==========================================
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-gray-500">
-        <Loader2 className="w-8 h-8 animate-spin mb-3 text-orange-500" />
-        <p className="text-sm font-medium">Loading handover details...</p>
-      </div>
-    );
+    return <SectionLoader message="Loading handover details..." />;
   }
 
   if (error) {
@@ -880,7 +875,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
                 >
                   {uploadingPhoto ? (
                     <>
-                      <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-2" />
+                      <Spinner size="lg" color="brand" className="mb-2" />
                       <span className="text-sm text-orange-600 font-medium">
                         Uploading...
                       </span>
@@ -911,7 +906,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
           {/* Photos Grid */}
           {photosLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+              <Spinner size="md" color="brand" />
             </div>
           ) : photos.length === 0 ? (
             <Card className="p-8 bg-white/80 border-gray-200/50">

@@ -34,8 +34,11 @@ import {
   Gift,
   ClipboardList,
   Plus,
+  Paperclip,
+  Pencil,
+  Eye,
 } from "lucide-react";
-import { Button, Badge, Card } from "../../components/ui";
+import { Button, Badge, Card, PageLoader, SectionLoader, Spinner } from "../../components/ui";
 import { ProjectStagesSection } from "../../components/dashboard/stages";
 import { TestimonialsTab } from "../../components/dashboard/testimonials";
 import { ProjectReferencesTab } from "../../components/dashboard/references";
@@ -59,6 +62,14 @@ import {
   createActivity,
   getActivitiesByEntity,
 } from "../../services/activitiesApi";
+import {
+  listAttachments,
+  uploadAttachment,
+  updateAttachment,
+  deleteAttachment,
+  Attachment,
+  AttachmentType,
+} from "../../services/attachmentApi";
 import type { Activity } from "../../types";
 
 // Helper function to format currency
@@ -283,6 +294,25 @@ export const ProjectDetails: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Project attachments state
+  const [projectAttachments, setProjectAttachments] = useState<Attachment[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [showAttachmentUploadModal, setShowAttachmentUploadModal] = useState(false);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [attachmentUploadForm, setAttachmentUploadForm] = useState({
+    attachmentType: "OTHER" as AttachmentType,
+    fileName: "",
+    fileType: "",
+    fileBase64: "",
+    notes: "",
+  });
+  const [editingAttachment, setEditingAttachment] = useState<Attachment | null>(null);
+  const [isUpdatingAttachment, setIsUpdatingAttachment] = useState(false);
+  const [editAttachmentForm, setEditAttachmentForm] = useState({
+    attachmentType: "OTHER" as AttachmentType,
+    notes: "",
+  });
+
   // Edit project modal
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -370,8 +400,96 @@ export const ProjectDetails: React.FC = () => {
       fetchProjectStages(projectId);
       fetchProjectPayments(projectId);
       fetchRecentActivities(projectId);
+      fetchProjectAttachments(projectId);
     }
   }, [projectId, fetchProjectById, fetchProjectStages, fetchProjectPayments]);
+
+  const fetchProjectAttachments = async (id: string) => {
+    setAttachmentsLoading(true);
+    try {
+      const items = await listAttachments("PROJECT", id);
+      setProjectAttachments(items);
+    } catch (error) {
+      console.error("Failed to fetch attachments:", error);
+    } finally {
+      setAttachmentsLoading(false);
+    }
+  };
+
+  const handleAttachmentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      setAttachmentUploadForm((prev) => ({
+        ...prev,
+        fileName: file.name,
+        fileType: file.type,
+        fileBase64: base64,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadAttachment = async () => {
+    if (!projectId) return;
+    if (!attachmentUploadForm.fileBase64) {
+      toast.error("Please select a file to upload");
+      return;
+    }
+    setIsUploadingAttachment(true);
+    try {
+      const attachment = await uploadAttachment({
+        entityType: "PROJECT",
+        entityId: projectId,
+        attachmentType: attachmentUploadForm.attachmentType,
+        fileName: attachmentUploadForm.fileName,
+        fileType: attachmentUploadForm.fileType,
+        fileBase64: attachmentUploadForm.fileBase64,
+        notes: attachmentUploadForm.notes || undefined,
+      });
+      setProjectAttachments((prev) => [attachment, ...prev]);
+      toast.success("Document uploaded successfully!");
+      setShowAttachmentUploadModal(false);
+      setAttachmentUploadForm({ attachmentType: "OTHER", fileName: "", fileType: "", fileBase64: "", notes: "" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload document");
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
+  const handleUpdateAttachment = async () => {
+    if (!editingAttachment) return;
+    setIsUpdatingAttachment(true);
+    try {
+      const updated = await updateAttachment(editingAttachment.id, {
+        attachmentType: editAttachmentForm.attachmentType,
+        notes: editAttachmentForm.notes || undefined,
+      });
+      setProjectAttachments((prev) =>
+        prev.map((a) => (a.id === updated.id ? updated : a)),
+      );
+      toast.success("Document updated successfully!");
+      setEditingAttachment(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update document");
+    } finally {
+      setIsUpdatingAttachment(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    try {
+      await deleteAttachment(id);
+      setProjectAttachments((prev) => prev.filter((a) => a.id !== id));
+      toast.success("Document deleted successfully!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete document");
+    }
+  };
 
   // Handle create payment milestone
   const handleCreatePayment = async () => {
@@ -1058,14 +1176,7 @@ export const ProjectDetails: React.FC = () => {
 
   // Loading state
   if (isLoading && !currentProject) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-orange-500 mx-auto mb-4" />
-          <p className="text-gray-600">Loading project details...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader message="Loading project details..." />;
   }
 
   // Error state
@@ -1486,6 +1597,7 @@ export const ProjectDetails: React.FC = () => {
                   Team
                 </h2>
                 <div className="space-y-3">
+                  {/* Assigned Designer */}
                   {project.assignedDesigner && (
                     <TeamMember
                       name={project.assignedDesigner.name || "Unknown"}
@@ -1493,6 +1605,8 @@ export const ProjectDetails: React.FC = () => {
                       email={project.assignedDesigner.email}
                     />
                   )}
+
+                  {/* Assigned Project Manager */}
                   {project.assignedPM && (
                     <TeamMember
                       name={project.assignedPM.name || "Unknown"}
@@ -1500,12 +1614,166 @@ export const ProjectDetails: React.FC = () => {
                       email={project.assignedPM.email}
                     />
                   )}
-                  {!project.assignedDesigner && !project.assignedPM && (
-                    <p className="text-gray-500 text-sm">
-                      No team members assigned yet.
-                    </p>
+
+                  {/* Design Team members (string array) */}
+                  {(project.designTeam || []).filter(Boolean).map((member, idx) => (
+                    <TeamMember
+                      key={`design-${idx}`}
+                      name={member}
+                      role="Design Team"
+                      badge="Design"
+                    />
+                  ))}
+
+                  {/* Execution Team members (string array) */}
+                  {(project.executionTeam || []).filter(Boolean).map((member, idx) => (
+                    <TeamMember
+                      key={`exec-${idx}`}
+                      name={member}
+                      role="Execution Team"
+                      badge="Execution"
+                    />
+                  ))}
+
+                  {/* Site Contact */}
+                  {project.siteContactName && (
+                    <TeamMember
+                      name={project.siteContactName}
+                      role="Site Contact"
+                      phone={project.siteContactPhone || undefined}
+                    />
                   )}
+
+                  {/* Linked Account / Client */}
+                  {project.account && (
+                    <TeamMember
+                      name={project.account.name || "Unknown Account"}
+                      role="Client / Account"
+                      email={project.account.email || undefined}
+                      phone={project.account.phone || undefined}
+                    />
+                  )}
+
+                  {/* Empty state */}
+                  {!project.assignedDesigner &&
+                    !project.assignedPM &&
+                    !(project.designTeam || []).filter(Boolean).length &&
+                    !(project.executionTeam || []).filter(Boolean).length &&
+                    !project.siteContactName &&
+                    !project.account && (
+                      <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-xl">
+                        <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No team members assigned yet</p>
+                      </div>
+                    )}
                 </div>
+              </Card>
+
+              {/* Documents Section */}
+              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center">
+                      <Paperclip className="w-4 h-4 text-white" />
+                    </div>
+                    Documents
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setAttachmentUploadForm({ attachmentType: "OTHER", fileName: "", fileType: "", fileBase64: "", notes: "" });
+                      setShowAttachmentUploadModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 text-sm font-medium transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Upload
+                  </button>
+                </div>
+                {attachmentsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                    <span className="ml-2 text-sm text-gray-500">Loading documents...</span>
+                  </div>
+                ) : projectAttachments.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
+                    <Paperclip className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No documents uploaded yet</p>
+                    <button
+                      onClick={() => {
+                        setAttachmentUploadForm({ attachmentType: "OTHER", fileName: "", fileType: "", fileBase64: "", notes: "" });
+                        setShowAttachmentUploadModal(true);
+                      }}
+                      className="mt-3 text-xs text-teal-600 hover:text-teal-700 font-medium"
+                    >
+                      Upload first document
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {projectAttachments.map((attachment) => {
+                      const isImage = attachment.fileType?.startsWith("image/");
+                      const url = attachment.downloadUrl || attachment.storageUrl || attachment.fileUrl;
+                      return (
+                        <div
+                          key={attachment.id}
+                          className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0">
+                            {isImage ? (
+                              <Image className="w-4 h-4 text-teal-600" />
+                            ) : (
+                              <FileText className="w-4 h-4 text-teal-600" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{attachment.fileName}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">
+                                {attachment.attachmentType?.replace(/_/g, " ")}
+                              </span>
+                              {attachment.notes && (
+                                <span className="text-xs text-gray-400 truncate max-w-[120px]">{attachment.notes}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {url && (
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 rounded-lg hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
+                                title="View / Download"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                            <button
+                              onClick={() => {
+                                setEditingAttachment(attachment);
+                                setEditAttachmentForm({
+                                  attachmentType: attachment.attachmentType || "OTHER",
+                                  notes: attachment.notes || "",
+                                });
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-orange-100 text-gray-500 hover:text-orange-600 transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAttachment(attachment.id)}
+                              className="p-1.5 rounded-lg hover:bg-red-100 text-gray-500 hover:text-red-600 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </Card>
             </div>
 
@@ -1888,30 +2156,7 @@ export const ProjectDetails: React.FC = () => {
                 )}
               </Card>
 
-              {/* Quick Actions */}
-              <Card className="p-4 bg-gradient-to-br from-white via-orange-50/20 to-white border-orange-100/50 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-900 mb-4">
-                  Quick Actions
-                </h3>
-                <div className="space-y-2">
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-sm"
-                    size="sm"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Document
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-start bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-sm"
-                    size="sm"
-                  >
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Schedule Meeting
-                  </Button>
-                </div>
-              </Card>
+             
             </div>
           </div>
         )}
@@ -3054,6 +3299,205 @@ export const ProjectDetails: React.FC = () => {
         </div>
       )}
 
+      {/* Project Attachment Upload Modal */}
+      {showAttachmentUploadModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Paperclip className="w-5 h-5 text-teal-600" />
+                  Upload Document
+                </h3>
+                <button
+                  onClick={() => setShowAttachmentUploadModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Document Type
+                  </label>
+                  <select
+                    value={attachmentUploadForm.attachmentType}
+                    onChange={(e) =>
+                      setAttachmentUploadForm((prev) => ({ ...prev, attachmentType: e.target.value as AttachmentType }))
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus-visible:outline-none"
+                  >
+                    <option value="FLOOR_PLAN">Floor Plan</option>
+                    <option value="SITE_PHOTO">Site Photo</option>
+                    <option value="RENDER_3D">3D Render</option>
+                    <option value="BOQ">BOQ</option>
+                    <option value="QUOTE_PDF">Quote PDF</option>
+                    <option value="CONTRACT">Contract</option>
+                    <option value="APPROVAL_DOCUMENT">Approval Document</option>
+                    <option value="SIGN_OFF">Sign Off</option>
+                    <option value="WARRANTY_DOCUMENT">Warranty Document</option>
+                    <option value="INVOICE_PDF">Invoice PDF</option>
+                    <option value="ID_PROOF">ID Proof</option>
+                    <option value="QUICK_ACTION">Quick Action</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    File *
+                  </label>
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-teal-300 rounded-xl cursor-pointer hover:bg-teal-50 transition-colors">
+                    {attachmentUploadForm.fileName ? (
+                      <div className="text-center px-4">
+                        <FileText className="w-8 h-8 text-teal-500 mx-auto mb-1" />
+                        <p className="text-sm font-medium text-teal-700 truncate max-w-full">
+                          {attachmentUploadForm.fileName}
+                        </p>
+                        <p className="text-xs text-gray-500">{attachmentUploadForm.fileType}</p>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">Click to select file</p>
+                        <p className="text-xs text-gray-400">PDF, JPG, PNG, DOCX supported</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.jpg,.jpeg,.png,.docx,.doc,.xlsx,.xls"
+                      onChange={handleAttachmentFileChange}
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes (optional)
+                  </label>
+                  <textarea
+                    value={attachmentUploadForm.notes}
+                    onChange={(e) =>
+                      setAttachmentUploadForm((prev) => ({ ...prev, notes: e.target.value }))
+                    }
+                    placeholder="Add any notes about this document..."
+                    rows={2}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus-visible:outline-none resize-none text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowAttachmentUploadModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-teal-600 hover:bg-teal-700"
+                  onClick={handleUploadAttachment}
+                  disabled={isUploadingAttachment || !attachmentUploadForm.fileBase64}
+                >
+                  {isUploadingAttachment ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-2" />
+                  )}
+                  {isUploadingAttachment ? "Uploading..." : "Upload"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Attachment Modal */}
+      {editingAttachment && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Pencil className="w-5 h-5 text-orange-500" />
+                  Edit Document
+                </h3>
+                <button
+                  onClick={() => setEditingAttachment(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mb-4 truncate">{editingAttachment.fileName}</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Document Type
+                  </label>
+                  <select
+                    value={editAttachmentForm.attachmentType}
+                    onChange={(e) =>
+                      setEditAttachmentForm((prev) => ({ ...prev, attachmentType: e.target.value as AttachmentType }))
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                  >
+                    <option value="FLOOR_PLAN">Floor Plan</option>
+                    <option value="SITE_PHOTO">Site Photo</option>
+                    <option value="RENDER_3D">3D Render</option>
+                    <option value="BOQ">BOQ</option>
+                    <option value="QUOTE_PDF">Quote PDF</option>
+                    <option value="CONTRACT">Contract</option>
+                    <option value="APPROVAL_DOCUMENT">Approval Document</option>
+                    <option value="SIGN_OFF">Sign Off</option>
+                    <option value="WARRANTY_DOCUMENT">Warranty Document</option>
+                    <option value="INVOICE_PDF">Invoice PDF</option>
+                    <option value="ID_PROOF">ID Proof</option>
+                    <option value="QUICK_ACTION">Quick Action</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes
+                  </label>
+                  <textarea
+                    value={editAttachmentForm.notes}
+                    onChange={(e) =>
+                      setEditAttachmentForm((prev) => ({ ...prev, notes: e.target.value }))
+                    }
+                    placeholder="Add notes..."
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none resize-none text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setEditingAttachment(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-orange-500 hover:bg-orange-600"
+                  onClick={handleUpdateAttachment}
+                  disabled={isUpdatingAttachment}
+                >
+                  {isUpdatingAttachment ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  {isUpdatingAttachment ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Send Reminder Modal */}
       {showSendReminderModal && reminderTargetPayment && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
@@ -3811,27 +4255,47 @@ const InfoItem: React.FC<{ label: string; value: string }> = ({
 );
 
 // Helper component for team members
-const TeamMember: React.FC<{ name: string; role: string; email?: string }> = ({
+const TeamMember: React.FC<{ name: string; role: string; email?: string; phone?: string; badge?: string }> = ({
   name,
   role,
   email,
+  phone,
+  badge,
 }) => (
   <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-gray-50 via-white to-orange-50/20 rounded-xl border border-gray-100">
-    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold shadow-md">
+    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold shadow-md flex-shrink-0">
       {name
         .split(" ")
         .map((n) => n[0])
         .join("")
-        .substring(0, 2)}
+        .substring(0, 2)
+        .toUpperCase()}
     </div>
-    <div className="flex-1">
-      <p className="font-bold text-gray-900">{name}</p>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="font-bold text-gray-900 truncate">{name}</p>
+        {badge && (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">
+            {badge}
+          </span>
+        )}
+      </div>
       <p className="text-sm text-gray-600">{role}</p>
+      {phone && (
+        <a
+          href={`tel:${phone}`}
+          className="text-xs text-gray-500 hover:text-orange-600 flex items-center gap-1 mt-0.5"
+        >
+          <Phone className="w-3 h-3" />
+          {phone}
+        </a>
+      )}
     </div>
     {email && (
       <a
         href={`mailto:${email}`}
-        className="w-10 h-10 rounded-lg bg-white border border-orange-200 flex items-center justify-center text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all"
+        className="w-10 h-10 rounded-lg bg-white border border-orange-200 flex items-center justify-center text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all flex-shrink-0"
+        title={email}
       >
         <Mail className="w-4 h-4" />
       </a>

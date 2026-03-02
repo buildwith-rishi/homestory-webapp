@@ -69,7 +69,9 @@
 
 @font-face {
   font-family: "Neue Haas Grotesk Display Pro";
-  src: local("Neue Haas Grotesk Display Pro"), local("NeueHaasDisplayPro"), local("Helvetica Neue"), local("Arial");
+  src:
+    local("Neue Haas Grotesk Display Pro"), local("NeueHaasDisplayPro"),
+    local("Helvetica Neue"), local("Arial");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -77,7 +79,10 @@
 
 @font-face {
   font-family: "Neue Haas Grotesk Display Pro";
-  src: local("Neue Haas Grotesk Display Pro Bold"), local("NeueHaasDisplayPro-Bold"), local("Helvetica Neue Bold"), local("Arial Bold");
+  src:
+    local("Neue Haas Grotesk Display Pro Bold"),
+    local("NeueHaasDisplayPro-Bold"), local("Helvetica Neue Bold"),
+    local("Arial Bold");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -85,7 +90,10 @@
 
 @font-face {
   font-family: "Neue Haas Grotesk Display Pro";
-  src: local("Neue Haas Grotesk Display Pro Medium"), local("NeueHaasDisplayPro-Medium"), local("Helvetica Neue Medium"), local("Arial");
+  src:
+    local("Neue Haas Grotesk Display Pro Medium"),
+    local("NeueHaasDisplayPro-Medium"), local("Helvetica Neue Medium"),
+    local("Arial");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -126,9 +134,15 @@ body {
   color: var(--color-secondary);
 }
 
-*:focus-visible {
+*:focus-visible:not(input):not(textarea):not([class~="outline-none"]) {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+[class~="outline-none"]:focus-visible {
+  outline: none;
 }
 
 ::-webkit-scrollbar {

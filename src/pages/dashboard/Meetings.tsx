@@ -23,7 +23,7 @@ import {
   Briefcase,
   UserCircle,
 } from "lucide-react";
-import { Card, Button, Badge } from "../../components/ui";
+import { Card, Button, Badge, SectionLoader, Spinner } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useMeetingRoomStore } from "../../stores/meetingRoomStore";
 import { useMeetingStore } from "../../stores/meetingStore";
@@ -552,9 +552,8 @@ export const MeetingsPage: React.FC = () => {
 
       {/* Loading State */}
       {isLoading && (
-        <Card className="p-12 rounded-xl text-center">
-          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading meetings...</p>
+        <Card className="rounded-xl">
+          <SectionLoader message="Loading meetings..." />
         </Card>
       )}
 

@@ -1920,7 +1920,7 @@ export async function updateMatrixTaskStatus(
 
 /**
  * Update a matrix task's details (title, description, category, etc.)
- * PUT /api/tasks/:taskId
+ * PUT /api/matrix-tasks/:taskId
  */
 export async function updateMatrixTask(
   taskId: string,
@@ -1931,8 +1931,11 @@ export async function updateMatrixTask(
     const cleanData = Object.fromEntries(
       Object.entries(data).filter(([_, v]) => v !== undefined),
     );
-    console.log("[updateMatrixTask] PUT /api/tasks/" + taskId, cleanData);
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+    console.log(
+      "[updateMatrixTask] PUT /api/matrix-tasks/" + taskId,
+      cleanData,
+    );
+    const response = await fetch(`${API_BASE_URL}/api/matrix-tasks/${taskId}`, {
       method: "PUT",
       headers: getAuthHeaders(),
       body: JSON.stringify(cleanData),
@@ -1941,6 +1944,70 @@ export async function updateMatrixTask(
     return result.task || result;
   } catch (error) {
     console.error("Error updating task:", error);
+    throw error;
+  }
+}
+
+/**
+ * Push a task to a different day
+ * POST /api/matrix-tasks/:taskId/push
+ */
+export async function pushMatrixTask(
+  taskId: string,
+  targetDayNumber: number,
+  reason?: string,
+): Promise<MatrixTask> {
+  try {
+    const body: Record<string, unknown> = { targetDayNumber };
+    if (reason?.trim()) body.reason = reason.trim();
+    console.log(
+      "[pushMatrixTask] POST /api/matrix-tasks/" + taskId + "/push",
+      body,
+    );
+    const response = await fetch(
+      `${API_BASE_URL}/api/matrix-tasks/${taskId}/push`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      },
+    );
+    const result = await handleResponse<any>(response);
+    return result.task || result;
+  } catch (error) {
+    console.error("Error pushing task:", error);
+    throw error;
+  }
+}
+
+/**
+ * Push all tasks from one day to another day within a matrix
+ * POST /api/matrices/:matrixId/push-tasks
+ */
+export async function pushMatrixDayTasks(
+  matrixId: string,
+  fromDayNumber: number,
+  toDayNumber: number,
+  reason?: string,
+): Promise<unknown> {
+  try {
+    const body: Record<string, unknown> = { fromDayNumber, toDayNumber };
+    if (reason?.trim()) body.reason = reason.trim();
+    console.log(
+      "[pushMatrixDayTasks] POST /api/matrices/" + matrixId + "/push-tasks",
+      body,
+    );
+    const response = await fetch(
+      `${API_BASE_URL}/api/matrices/${matrixId}/push-tasks`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      },
+    );
+    return await handleResponse<any>(response);
+  } catch (error) {
+    console.error("Error bulk pushing day tasks:", error);
     throw error;
   }
 }
@@ -2111,15 +2178,21 @@ export async function deleteTaskAttachment(
 
 /**
  * Send completion email to customer
- * POST /api/tasks/:taskId/notify-customer
+ * POST /api/matrix-tasks/:taskId/notify-customer
  */
 export async function notifyCustomerTaskComplete(
   taskId: string,
   data: NotifyCustomerRequest,
 ): Promise<NotifyCustomerResponse> {
   try {
+    console.log(
+      "[notifyCustomerTaskComplete] POST /api/matrix-tasks/" +
+        taskId +
+        "/notify-customer",
+      data,
+    );
     const response = await fetch(
-      `${API_BASE_URL}/api/tasks/${taskId}/notify-customer`,
+      `${API_BASE_URL}/api/matrix-tasks/${taskId}/notify-customer`,
       {
         method: "POST",
         headers: getAuthHeaders(),
@@ -2127,9 +2200,38 @@ export async function notifyCustomerTaskComplete(
       },
     );
     const result = await handleResponse<any>(response);
-    return result.notification || result;
+    return result;
   } catch (error) {
     console.error("Error notifying customer:", error);
+    throw error;
+  }
+}
+
+/**
+ * Add a new category to an existing matrix
+ * POST /api/matrices/:matrixId/categories
+ */
+export async function addMatrixCategory(
+  matrixId: string,
+  data: { name: string; orderIndex: number; color: string },
+): Promise<MatrixCategory> {
+  try {
+    console.log(
+      `[addMatrixCategory] POST /api/matrices/${matrixId}/categories`,
+      data,
+    );
+    const response = await fetch(
+      `${API_BASE_URL}/api/matrices/${matrixId}/categories`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    const result = await handleResponse<any>(response);
+    return result.category || result;
+  } catch (error) {
+    console.error("Error adding matrix category:", error);
     throw error;
   }
 }
@@ -2482,6 +2584,7 @@ const ProjectAPI = {
   notifyCustomerTaskComplete,
   getMatrixTaskStatuses,
   getMatrixAttachmentTypes,
+  addMatrixCategory,
   // Handover & Goodwill
   getHandoverActivities,
   createHandoverActivity,

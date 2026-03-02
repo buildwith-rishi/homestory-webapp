@@ -28,7 +28,7 @@ import {
   Loader2,
   ExternalLink,
 } from "lucide-react";
-import { Button, Card } from "../../components/ui";
+import { Button, Card, SectionLoader, Spinner } from "../../components/ui";
 import { useMeetingStore } from "../../stores/meetingStore";
 
 // Setup date-fns localizer
@@ -1014,11 +1014,10 @@ export const MeetingsCalendarPage: React.FC = () => {
       {/* Calendar */}
       {isLoading ? (
         <Card
-          className="p-12 rounded-xl text-center"
+          className="rounded-xl"
           style={{ minHeight: "600px" }}
         >
-          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading meetings...</p>
+          <SectionLoader size="lg" message="Loading meetings..." />
         </Card>
       ) : (
         <Card

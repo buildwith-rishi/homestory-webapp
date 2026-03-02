@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Home, CheckSquare, User } from "lucide-react";
+import { Home, CheckSquare, User, Users, CalendarClock } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 interface Tab {
@@ -11,6 +11,13 @@ interface Tab {
 
 const tabs: Tab[] = [
   { id: "home", label: "Home", icon: Home, path: "/bdr" },
+  { id: "leads", label: "Leads", icon: Users, path: "/bdr/leads" },
+  {
+    id: "meetings",
+    label: "Meetings",
+    icon: CalendarClock,
+    path: "/bdr/meetings",
+  },
   { id: "tasks", label: "Tasks", icon: CheckSquare, path: "/bdr/tasks" },
   { id: "profile", label: "Profile", icon: User, path: "/bdr/profile" },
 ];

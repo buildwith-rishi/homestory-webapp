@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Logo } from "../../components/shared";
 import { Mail, Lock, Eye, EyeOff, X, CheckCircle2, XCircle, KeyRound } from "lucide-react";
 import { resetPassword } from "../../services/passwordApi";
+import Spinner from "../../components/ui/Spinner";
 
 // ── Forgot-Password Modal ───────────────────────────────────────────────────
 function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
@@ -163,7 +164,7 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
                 }`}
               >
                 {loading ? (
-                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Resetting…</>
+                  <><Spinner size="xs" color="white" />Resetting…</>
                 ) : "Reset Password"}
               </button>
             </form>
@@ -323,7 +324,7 @@ export function LoginPage() {
               }`}
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <Spinner size="sm" color="white" />
               ) : (
                 "Sign in"
               )}

@@ -35,7 +35,7 @@ import {
   ChevronDown,
   Search,
 } from "lucide-react";
-import { Card, Button, Badge } from "../../components/ui";
+import { Card, Button, Badge, SectionLoader, Spinner } from "../../components/ui";
 import * as meetingAPI from "../../services/meetingApi";
 import {
   getAllTeamMembers,
@@ -1151,9 +1151,8 @@ export const MeetingDetailsPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <Card className="p-12 rounded-xl text-center">
-          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading meeting details...</p>
+        <Card className="rounded-xl">
+          <SectionLoader message="Loading meeting details..." />
         </Card>
       </div>
     );
@@ -1316,7 +1315,7 @@ export const MeetingDetailsPage: React.FC = () => {
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                        {participant.name
+                        {(participant.name || participant.email || "?")
                           .split(" ")
                           .map((n) => n[0])
                           .join("")

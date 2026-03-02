@@ -1529,6 +1529,7 @@ export interface MatrixTask {
   title: string;
   description?: string;
   status: MatrixTaskStatus | string;
+  startDate?: string;
   taskDate?: string;
   completionNotes?: string;
   completedAt?: string | null;
@@ -1584,6 +1585,9 @@ export interface CreateMatrixRequest {
     title: string;
     description?: string;
     taskDate: string;
+    startDate?: string;
+    assignedToUserId?: string;
+    assignedToMemberId?: string;
   }[];
 }
 
@@ -1602,9 +1606,12 @@ export interface UpdateMatrixTaskRequest {
   description?: string;
   categoryId?: string;
   dayNumber?: number;
+  startDate?: string;
   taskDate?: string;
   status?: string;
-  assignedToId?: string | null;
+  assignedToUserId?: string | null;
+  assignedToMemberId?: string | null;
+  completionNotes?: string;
 }
 
 export interface NotifyCustomerRequest {

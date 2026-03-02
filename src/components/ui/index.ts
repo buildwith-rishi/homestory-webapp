@@ -11,7 +11,13 @@ export { default as Modal } from './Modal';
 export { default as Tooltip } from './Tooltip';
 export { default as Progress } from './Progress';
 export { default as Skeleton } from './Skeleton';
+export { default as Spinner } from './Spinner';
+export { default as PageLoader } from './PageLoader';
+export { default as SectionLoader } from './SectionLoader';
 
+export type { SpinnerProps, SpinnerSize, SpinnerColor } from './Spinner';
+export type { PageLoaderProps } from './PageLoader';
+export type { SectionLoaderProps } from './SectionLoader';
 export type { ButtonProps } from './Button';
 export type { InputProps } from './Input';
 export type { SelectProps, SelectOption } from './Select';

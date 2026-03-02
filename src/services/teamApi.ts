@@ -4,6 +4,8 @@ const API_BASE_URL =
 
 export interface TeamMember {
   id: string;
+  userId?: string; // references the User table — used for assignedToUserId in tasks
+  isCrmUser?: boolean;
   name: string;
   email: string;
   phone: string;
@@ -92,7 +94,7 @@ export async function getTeamMemberById(id: string): Promise<TeamMember> {
 
 /** POST /api/team – Create a new team member */
 export async function createTeamMember(
-  payload: CreateTeamMemberPayload
+  payload: CreateTeamMemberPayload,
 ): Promise<TeamMember> {
   const response = await fetch(`${API_BASE_URL}/api/team`, {
     method: "POST",
@@ -106,7 +108,7 @@ export async function createTeamMember(
 /** PUT /api/team/:id – Update a team member (supports isActive and all fields) */
 export async function updateTeamMember(
   id: string,
-  payload: UpdateTeamMemberPayload
+  payload: UpdateTeamMemberPayload,
 ): Promise<TeamMember> {
   const response = await fetch(`${API_BASE_URL}/api/team/${id}`, {
     method: "PUT",
@@ -117,42 +119,46 @@ export async function updateTeamMember(
 }
 
 /** DELETE /api/team/:id – Delete (soft-delete) a team member.
- *  Falls back to a PUT with isActive:false if the server returns
- *  a Prisma "record not found" error (meaning it was already inactive). */
+ *  If the server returns a Prisma "record not found" error the record is
+ *  already gone — treat that as a successful delete so the UI can clean up. */
 export async function deleteTeamMember(id: string): Promise<void> {
+  const isNotFoundError = (text: string) =>
+    text.toLowerCase().includes("no record was found") ||
+    text.toLowerCase().includes("record to update not found") ||
+    text.toLowerCase().includes("record not found") ||
+    text.toLowerCase().includes("required but not found");
+
   const response = await fetch(`${API_BASE_URL}/api/team/${id}`, {
-    method: 'DELETE',
+    method: "DELETE",
     headers: getAuthHeaders(),
   });
 
-  if (!response.ok) {
-    let errorBody: Record<string, unknown> = {};
-    try {
-      errorBody = await response.json();
-    } catch {
-      // ignore parse errors
+  // 204 No Content or 200 — success
+  if (response.ok) {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      try {
+        await response.json();
+      } catch {
+        /* ignore */
+      }
     }
-    const errText = String(errorBody.error ?? errorBody.message ?? '');
-    // If Prisma can't find record to soft-delete, fall back to PATCH/PUT
-    if (
-      errText.toLowerCase().includes('no record was found') ||
-      errText.toLowerCase().includes('record to update not found')
-    ) {
-      const fallback = await fetch(`${API_BASE_URL}/api/team/${id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ isActive: false }),
-      });
-      await handleResponse<unknown>(fallback);
-      return;
-    }
-    const message = errText || `HTTP error! status: ${response.status}`;
-    throw new Error(message);
+    return;
   }
 
-  // Response may be 204 No Content — only parse JSON if body exists
-  const contentType = response.headers.get('content-type') ?? '';
-  if (contentType.includes('application/json')) {
-    try { await response.json(); } catch { /* ignore */ }
+  let errorBody: Record<string, unknown> = {};
+  try {
+    errorBody = await response.json();
+  } catch {
+    /* ignore */
   }
+  const errText = String(errorBody.error ?? errorBody.message ?? "");
+
+  // Record doesn't exist → already deleted, resolve silently
+  if (isNotFoundError(errText) || response.status === 404) {
+    return;
+  }
+
+  // Other server error
+  throw new Error(errText || `HTTP error! status: ${response.status}`);
 }

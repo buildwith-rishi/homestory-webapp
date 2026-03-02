@@ -6,6 +6,7 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useMeetingStore } from "../../stores/meetingStore";
 import { useCustomerStore } from "../../stores/customerStore";
 import { useLeadStore } from "../../stores/leadStore";
+import Spinner from "../ui/Spinner";
 import {
   getNotifications,
   markNotificationRead,
@@ -231,7 +232,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
                   {loading && notifications.length === 0 ? (
                     <div className="flex items-center justify-center py-10">
-                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <Spinner size="sm" color="brand" />
                     </div>
                   ) : notifications.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">

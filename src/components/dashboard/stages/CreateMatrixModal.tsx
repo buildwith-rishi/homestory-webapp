@@ -1,10 +1,19 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import ReactDOM from "react-dom";
-import { X, Loader2, Plus, Trash2, Calendar, User, ListChecks } from "lucide-react";
+import {
+  X,
+  Loader2,
+  Plus,
+  Trash2,
+  Calendar,
+  User,
+  ListChecks,
+} from "lucide-react";
 import { Button } from "../../ui";
-import type { CreateMatrixRequest, AdminUser } from "../../../types";
+import type { CreateMatrixRequest } from "../../../types";
+import type { TeamMember } from "../../../services/teamApi";
 import { createTaskMatrix } from "../../../services/projectApi";
-import { adminAPI } from "../../../services/api";
+import { getAllTeamMembers } from "../../../services/teamApi";
 
 interface CreateMatrixModalProps {
   projectId: string;
@@ -26,7 +35,6 @@ const DEFAULT_COLORS = [
   "#06b6d4",
   "#f97316",
 ];
-
 
 export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   projectId,
@@ -50,22 +58,49 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
-  // Inline tasks
+  // Inline tasks — assignedTo stores the TeamMember id
   const [tasks, setTasks] = useState<
-    { title: string; description: string; dayNumber: number }[]
+    {
+      title: string;
+      description: string;
+      dayNumber: number;
+      assignedTo?: string;
+    }[]
   >([]);
+  const [membersLoading, setMembersLoading] = useState(false);
 
   useEffect(() => {
-    adminAPI.getAllUsers().then((res: unknown) => {
-      if (res && typeof res === "object" && "users" in res && Array.isArray((res as { users: AdminUser[] }).users)) {
-        setUsers((res as { users: AdminUser[] }).users);
-      } else if (Array.isArray(res)) {
-        setUsers(res as AdminUser[]);
-      }
-    }).catch(() => {});
+    setMembersLoading(true);
+    getAllTeamMembers()
+      .then((members) => {
+        // Only show active team members to avoid FK constraint issues with deleted/inactive ones
+        const active = members.filter((m) => m.isActive !== false);
+        setTeamMembers(active);
+        console.log(
+          "[CreateMatrix] Loaded",
+          active.length,
+          "active team members",
+        );
+      })
+      .catch((err) => {
+        console.warn("[CreateMatrix] Failed to fetch team members:", err);
+      })
+      .finally(() => setMembersLoading(false));
   }, []);
+
+  // Assignee options — each TeamMember carries both its own id (TeamMember PK)
+  // and userId (User table FK), which map to the two API fields respectively.
+  const assigneeOptions = useMemo(
+    () =>
+      teamMembers.map((m) => ({
+        value: m.id, // TeamMember PK → assignedToMemberId
+        userId: m.userId, // User FK → assignedToUserId
+        label: `${m.name}${m.role ? ` (${m.role})` : ""}${m.department ? ` - ${m.department}` : ""}`,
+      })),
+    [teamMembers],
+  );
 
   const addCategory = () => {
     const nextColor = DEFAULT_COLORS[categories.length % DEFAULT_COLORS.length];
@@ -75,14 +110,13 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
         name: "",
         orderIndex: prev.length,
         color: nextColor,
-        assignedTo: "unassigned",
       },
     ]);
   };
 
   const updateCategory = (
     idx: number,
-    field: "name" | "color" | "assignedTo",
+    field: "name" | "color",
     value: string,
   ) => {
     setCategories((prev) =>
@@ -101,11 +135,20 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
 
   const updateTask = (
     idx: number,
-    field: "title" | "description" | "dayNumber",
+    field: "title" | "description" | "dayNumber" | "assignedTo",
     value: string | number,
   ) => {
     setTasks((prev) =>
-      prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t)),
+      prev.map((t, i) => {
+        if (i !== idx) return t;
+        // Convert empty string to undefined so we don't send empty FK values
+        if (field === "assignedTo" && value === "") {
+          const updated = { ...t };
+          delete updated.assignedTo;
+          return updated;
+        }
+        return { ...t, [field]: value };
+      }),
     );
   };
 
@@ -135,12 +178,37 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
 
     const validTasks = tasks
       .filter((t) => t.title.trim())
-      .map((t) => ({
-        dayNumber: t.dayNumber,
-        title: t.title.trim(),
-        description: t.description.trim() || undefined,
-        taskDate: getTaskDate(t.dayNumber),
-      }));
+      .map((t) => {
+        // API expects full ISO-8601 DateTime strings
+        const taskIso = getTaskDate(t.dayNumber);
+        const task: NonNullable<CreateMatrixRequest["tasks"]>[number] = {
+          dayNumber: t.dayNumber,
+          title: t.title.trim(),
+          description: t.description.trim() || undefined,
+          taskDate: taskIso,
+          startDate: taskIso,
+        };
+        // assignedTo holds the TeamMember id.
+        // Look up the member to get BOTH ids for the API.
+        const selectedMemberId = t.assignedTo?.trim();
+        if (selectedMemberId) {
+          const member = teamMembers.find((m) => m.id === selectedMemberId);
+          if (member) {
+            // assignedToMemberId → TeamMember table PK
+            task.assignedToMemberId = member.id;
+            // assignedToUserId → User table FK stored on the TeamMember row
+            if (member.userId) {
+              task.assignedToUserId = member.userId;
+            }
+          }
+        }
+        return task;
+      });
+
+    console.log(
+      "[CreateMatrix] validTasks payload:",
+      JSON.stringify(validTasks, null, 2),
+    );
 
     setSaving(true);
     try {
@@ -150,15 +218,15 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
         categories: validCategories,
         tasks: validTasks,
       };
-      // Build candidate list with stageCode FIRST (backend expects stageCode).
-      // Falls back to stageId (UUID) and stageTemplateId for robustness.
+      // Prefer stageId (UUID) first — API endpoint is /stages/:uuid/matrix
+      // Falls back to stageCode then stageTemplateId for robustness.
       const stageCandidates: string[] = [];
-      if (stageCode) stageCandidates.push(stageCode);
-      if (stageId && stageId !== stageCode) stageCandidates.push(stageId);
+      if (stageId) stageCandidates.push(stageId);
+      if (stageCode && stageCode !== stageId) stageCandidates.push(stageCode);
       if (
         stageTemplateId &&
-        stageTemplateId !== stageCode &&
-        stageTemplateId !== stageId
+        stageTemplateId !== stageId &&
+        stageTemplateId !== stageCode
       ) {
         stageCandidates.push(stageTemplateId);
       }
@@ -336,26 +404,6 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-
-                  {/* Assigned To */}
-                  <div className="flex items-center gap-2">
-                    <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                    <select
-                      value={cat.assignedTo || ""}
-                      onChange={(e) =>
-                        updateCategory(idx, "assignedTo", e.target.value)
-                      }
-                      className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
-                    >
-                      <option value="">Unassigned</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.name}>
-                          {u.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
                 </div>
               ))}
             </div>
@@ -384,7 +432,12 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
               {tasks.filter((t) => t.title.trim()).length > 0 && (
                 <>
                   <br />•{" "}
-                  <strong>{tasks.filter((t) => t.title.trim()).length} initial task{tasks.filter((t) => t.title.trim()).length !== 1 ? "s" : ""}</strong>
+                  <strong>
+                    {tasks.filter((t) => t.title.trim()).length} initial task
+                    {tasks.filter((t) => t.title.trim()).length !== 1
+                      ? "s"
+                      : ""}
+                  </strong>
                 </>
               )}
               {totalDays === 1 && " (recommended daily approach)"}
@@ -397,7 +450,9 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
               <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
                 <ListChecks className="w-4 h-4 text-gray-400" />
                 Initial Tasks
-                <span className="text-[10px] font-normal text-gray-400">(optional)</span>
+                <span className="text-[10px] font-normal text-gray-400">
+                  (optional)
+                </span>
               </label>
               <button
                 type="button"
@@ -415,17 +470,23 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                 onClick={addTask}
                 className="w-full border-2 border-dashed border-gray-200 rounded-lg py-4 text-xs text-gray-400 hover:border-orange-300 hover:text-orange-500 transition-colors flex items-center justify-center gap-1.5"
               >
-                <Plus className="w-3.5 h-3.5" /> Add tasks to pre-populate this plan
+                <Plus className="w-3.5 h-3.5" /> Add tasks to pre-populate this
+                plan
               </button>
             ) : (
               <div className="space-y-2">
                 {tasks.map((task, idx) => (
-                  <div key={idx} className="bg-gray-50 rounded-lg p-3 space-y-2">
+                  <div
+                    key={idx}
+                    className="bg-gray-50 rounded-lg p-3 space-y-2"
+                  >
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
                         value={task.title}
-                        onChange={(e) => updateTask(idx, "title", e.target.value)}
+                        onChange={(e) =>
+                          updateTask(idx, "title", e.target.value)
+                        }
                         className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                         placeholder="Task title..."
                       />
@@ -436,7 +497,16 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                           min={1}
                           max={totalDays}
                           value={task.dayNumber}
-                          onChange={(e) => updateTask(idx, "dayNumber", Math.min(totalDays, Math.max(1, Number(e.target.value))))}
+                          onChange={(e) =>
+                            updateTask(
+                              idx,
+                              "dayNumber",
+                              Math.min(
+                                totalDays,
+                                Math.max(1, Number(e.target.value)),
+                              ),
+                            )
+                          }
                           className="w-14 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                         />
                       </div>
@@ -451,10 +521,33 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                     <input
                       type="text"
                       value={task.description}
-                      onChange={(e) => updateTask(idx, "description", e.target.value)}
+                      onChange={(e) =>
+                        updateTask(idx, "description", e.target.value)
+                      }
                       className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                       placeholder="Description (optional)..."
                     />
+                    {/* Assign team member — UUID sent to both assignedToUserId & assignedToMemberId */}
+                    <div className="flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <select
+                        value={task.assignedTo || ""}
+                        onChange={(e) =>
+                          updateTask(idx, "assignedTo", e.target.value)
+                        }
+                        className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
+                        disabled={membersLoading}
+                      >
+                        <option value="">
+                          {membersLoading ? "Loading..." : "Assign team member"}
+                        </option>
+                        {assigneeOptions.map((a) => (
+                          <option key={a.value} value={a.value}>
+                            {a.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 ))}
               </div>
