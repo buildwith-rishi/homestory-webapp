@@ -54,7 +54,7 @@ export const ROLES: Record<RoleId, RoleMeta> = {
     accessLevel: "Medium",
     color: "text-orange-700",
     bgColor: "bg-orange-100",
-    defaultRoute: "/dashboard",
+    defaultRoute: "/bdr",
   },
   PROJECT_MANAGER: {
     id: "PROJECT_MANAGER",
@@ -113,7 +113,10 @@ export const ROLES: Record<RoleId, RoleMeta> = {
 // means "all actions" under that module.  `module.*` ⊃ `module.read`, etc.
 
 export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
+  // ── SUPER_ADMIN: full access ─────────────────────────────────────────────
   SUPER_ADMIN: ["*"],
+
+  // ── ADMIN ────────────────────────────────────────────────────────────────
   ADMIN: [
     "users.*",
     "dashboard.*",
@@ -124,6 +127,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "accounts.read",
     "accounts.create",
     "accounts.update",
+    "accounts.delete",
     "contacts.read",
     "contacts.create",
     "contacts.update",
@@ -132,6 +136,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "deals.update",
     "payments.read",
     "payments.update",
+    "payments.create",
     "activity.read",
     "activity.create",
     "meetings.*",
@@ -139,8 +144,43 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "tasks.*",
     "products.*",
     "attachments.*",
+    "emails.*",
     "roles.read",
   ],
+
+  // ── DESIGN_HEAD (admin-level, mirrors ADMIN) ─────────────────────────────
+  DESIGN_HEAD: [
+    "users.*",
+    "dashboard.*",
+    "reports.*",
+    "leads.read",
+    "leads.create",
+    "leads.update",
+    "accounts.read",
+    "accounts.create",
+    "accounts.update",
+    "accounts.delete",
+    "contacts.read",
+    "contacts.create",
+    "contacts.update",
+    "deals.read",
+    "deals.create",
+    "deals.update",
+    "payments.read",
+    "payments.update",
+    "payments.create",
+    "activity.read",
+    "activity.create",
+    "meetings.*",
+    "projects.*",
+    "tasks.*",
+    "products.*",
+    "attachments.*",
+    "emails.*",
+    "roles.read",
+  ],
+
+  // ── BDR ──────────────────────────────────────────────────────────────────
   BDR: [
     "leads.*",
     "accounts.*",
@@ -155,8 +195,13 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "tasks.*",
     "ai.transcripts.read",
     "communications.*",
+    "followups.*",
+    "emails.*",
     "dashboard.view",
+    "payments.read",
   ],
+
+  // ── PROJECT_MANAGER ───────────────────────────────────────────────────────
   PROJECT_MANAGER: [
     "users.read",
     "leads.*",
@@ -170,10 +215,13 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "projects.*",
     "tasks.*",
     "products.*",
+    "emails.*",
     "reports.view",
     "reports.export",
     "dashboard.view",
   ],
+
+  // ── ACCOUNTS / FINANCE ────────────────────────────────────────────────────
   ACCOUNTS: [
     "payments.*",
     "deals.read",
@@ -189,9 +237,33 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "attachments.create",
     "reports.view",
     "reports.export",
+    "emails.read",
     "dashboard.view",
     "meetings.read",
   ],
+
+  // ── DESIGNER ──────────────────────────────────────────────────────────────
+  DESIGNER: [
+    "users.read",
+    "leads.*",
+    "accounts.*",
+    "contacts.*",
+    "deals.*",
+    "payments.*",
+    "activity.*",
+    "attachments.*",
+    "meetings.*",
+    "projects.*",
+    "tasks.read",
+    "tasks.create",
+    "products.*",
+    "emails.*",
+    "reports.view",
+    "reports.export",
+    "dashboard.view",
+  ],
+
+  // ── SITE_ENGINEER ─────────────────────────────────────────────────────────
   SITE_ENGINEER: [
     "leads.read",
     "accounts.read",
@@ -210,44 +282,11 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "tasks.read",
     "tasks.update",
     "tasks.create",
+    "payments.read",
     "images.upload",
     "issues.report",
     "quality.submit",
     "defects.report",
-  ],
-  DESIGNER: [
-    "leads.read",
-    "accounts.read",
-    "contacts.read",
-    "projects.read",
-    "projects.update",
-    "activity.read",
-    "activity.create",
-    "attachments.*",
-    "meetings.read",
-    "meetings.create",
-    "tasks.read",
-    "tasks.create",
-    "tasks.update",
-    "design.*",
-    "references.*",
-    "dashboard.view",
-  ],
-  DESIGN_HEAD: [
-    "users.read",
-    "leads.read",
-    "accounts.read",
-    "contacts.read",
-    "projects.*",
-    "activity.*",
-    "attachments.*",
-    "meetings.*",
-    "tasks.*",
-    "design.*",
-    "references.*",
-    "reports.view",
-    "reports.export",
-    "dashboard.view",
   ],
 };
 
@@ -369,7 +408,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/marketing",
     icon: "TrendingUp",
     section: "business",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN", "BDR"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD", "BDR"],
   },
   {
     id: "analytics",
@@ -385,7 +424,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/email-editor",
     icon: "Mail",
     section: "business",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN", "BDR"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD", "BDR"],
   },
   // ── Account ────────────────────────────────────────────────
   {
@@ -402,7 +441,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/users",
     icon: "Shield",
     section: "account",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD"],
   },
   {
     id: "settings",

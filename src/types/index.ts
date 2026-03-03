@@ -1534,6 +1534,10 @@ export interface MatrixTask {
   completionNotes?: string;
   completedAt?: string | null;
   completedBy?: { id?: string; name: string } | null;
+  /** Reason stored when the task was pushed to a different day */
+  pushReason?: string | null;
+  /** Some API responses use 'reason' directly */
+  reason?: string | null;
   assignedToId?: string | null;
   assignedTo?: { id: string; name: string; email?: string } | null;
   category?: { id?: string; name: string; color?: string } | null;

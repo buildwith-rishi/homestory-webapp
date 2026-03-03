@@ -8,9 +8,9 @@ import { getWidgetById, WidgetRegistryItem } from "./widgets";
 
 // Loading skeleton for widgets
 const WidgetSkeleton: React.FC = () => (
-  <Card className="h-full p-5">
-    <div className="flex items-center gap-3 mb-4">
-      <Skeleton className="w-10 h-10 rounded-xl" />
+  <Card className="h-full !p-4">
+    <div className="flex items-center gap-3 mb-3">
+      <Skeleton className="w-8 h-8 rounded-lg" />
       <div className="flex-1">
         <Skeleton className="h-4 w-24 mb-2" />
         <Skeleton className="h-3 w-32" />
@@ -115,7 +115,7 @@ export const DashboardGrid: React.FC = () => {
   const hasWidgets = dashboardWidgets.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Grid Header */}
       {hasWidgets && (
         <motion.div
@@ -157,7 +157,7 @@ export const DashboardGrid: React.FC = () => {
       )}
 
       {/* Widget Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <AnimatePresence mode="popLayout">
           {hasWidgets ? (
             dashboardWidgets.map((widget: DashboardWidget) => {
@@ -192,10 +192,10 @@ export const DashboardGrid: React.FC = () => {
         >
           <button
             onClick={openWidgetLibrary}
-            className="w-full p-6 border-2 border-dashed border-gray-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/50 transition-all group"
+            className="w-full p-4 border-2 border-dashed border-gray-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/50 transition-all group"
           >
             <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-orange-600 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
                 <Plus className="w-5 h-5" />
               </div>
               <span className="text-sm font-medium">Add More Widgets</span>

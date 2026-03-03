@@ -231,3 +231,24 @@ export const deleteBDRTask = (taskId: string): Promise<{ message?: string }> =>
   fetchAPI<{ message?: string }>(`/api/bdr/tasks/${taskId}`, {
     method: "DELETE",
   });
+
+/**
+ * GET /api/bdr/tasks?userId=:userId
+ * Admin-only: fetch tasks created by a specific BDR user.
+ * Uses the admin's auth token + passes the BDR's userId as a query param
+ * so the backend returns that user's task records.
+ */
+export const getAdminBDRTasksByUserId = (
+  userId: string,
+  limit = 200,
+  offset = 0,
+): Promise<BDRTasksResponse> => {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    userId,
+  });
+  return fetchAPI<BDRTasksResponse>(`/api/bdr/tasks?${params.toString()}`, {
+    method: "GET",
+  });
+};

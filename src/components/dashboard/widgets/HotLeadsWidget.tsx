@@ -61,7 +61,7 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   };
 
   return (
-    <Card className="h-full animate-scale-in group relative">
+    <Card className="h-full animate-scale-in group relative !p-0">
       {/* Remove Button */}
       <button
         onClick={onRemove}
@@ -71,12 +71,12 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
         <X className="w-4 h-4 text-gray-400" />
       </button>
 
-      <div className="p-5">
+      <div className="p-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-              <Target className="w-5 h-5 text-red-600" />
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+              <Target className="w-4 h-4 text-red-600" />
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 text-sm">
@@ -91,14 +91,14 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
         </div>
 
         {/* Lead List */}
-        <div className="space-y-3 max-h-52 overflow-y-auto">
+        <div className="space-y-2 max-h-52 overflow-y-auto">
           {hotLeads.slice(0, 4).map((lead, index) => (
             <motion.div
               key={lead.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
+              className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
             >
               {/* Avatar */}
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">

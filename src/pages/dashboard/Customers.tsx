@@ -2503,7 +2503,7 @@ export const Customers: React.FC = () => {
   >([]);
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
-  
+
   // Filter states
   const [activeTypeFilter, setActiveTypeFilter] = useState<string>("all");
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>("all");
@@ -2868,12 +2868,15 @@ export const Customers: React.FC = () => {
     if (activeTypeFilter !== "all" && customer.type !== activeTypeFilter) {
       return false;
     }
-    
+
     // Status filter
-    if (activeStatusFilter !== "all" && customer.status !== activeStatusFilter) {
+    if (
+      activeStatusFilter !== "all" &&
+      customer.status !== activeStatusFilter
+    ) {
       return false;
     }
-    
+
     return true;
   });
 
@@ -2930,15 +2933,15 @@ export const Customers: React.FC = () => {
             </div>
           </div>
         </Card>
-        
-        
       </div>
 
       {/* Filter Tabs */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6">
         {/* Type Filters */}
         <div className="mb-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Customer Type</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            Customer Type
+          </h3>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setActiveTypeFilter("all")}
@@ -3024,13 +3027,17 @@ export const Customers: React.FC = () => {
             </button>
           </div>
         </div>
-        
+
         {/* Active Filters Summary */}
         {(activeTypeFilter !== "all" || activeStatusFilter !== "all") && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-600">
-                Showing <span className="font-bold text-gray-900">{filteredCustomers.length}</span> of {customers.length} customers
+                Showing{" "}
+                <span className="font-bold text-gray-900">
+                  {filteredCustomers.length}
+                </span>{" "}
+                of {customers.length} customers
               </p>
               <button
                 onClick={() => {
@@ -3072,9 +3079,9 @@ export const Customers: React.FC = () => {
             <p className="text-sm text-gray-500">
               {searchQuery
                 ? "Try adjusting your search"
-                : (activeTypeFilter !== "all" || activeStatusFilter !== "all")
-                ? "No customers match the selected filters"
-                : "Get started by adding your first customer"}
+                : activeTypeFilter !== "all" || activeStatusFilter !== "all"
+                  ? "No customers match the selected filters"
+                  : "Get started by adding your first customer"}
             </p>
           </div>
         </div>
@@ -3151,20 +3158,7 @@ export const Customers: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <span
-                        key={star}
-                        className={`text-sm ${star <= Math.floor(customer.rating) ? "text-yellow-400" : "text-gray-300"}`}
-                      >
-                        ★
-                      </span>
-                    ))}
-                    <span className="text-sm text-gray-600 ml-1">
-                      {customer.rating}
-                    </span>
-                  </div>
+                <div className="flex items-center justify-end pt-3 border-t border-gray-200">
                   <span className="text-xs text-gray-500">
                     {customer.lastContact}
                   </span>

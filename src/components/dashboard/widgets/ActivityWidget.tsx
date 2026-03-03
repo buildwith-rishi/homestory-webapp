@@ -95,7 +95,7 @@ const ActivityWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   };
 
   return (
-    <Card className="h-full animate-scale-in group relative">
+    <Card className="h-full animate-scale-in group relative !p-0">
       {/* Remove Button */}
       <button
         onClick={onRemove}
@@ -105,12 +105,12 @@ const ActivityWidget: React.FC<WidgetProps> = ({ onRemove }) => {
         <X className="w-4 h-4 text-gray-400" />
       </button>
 
-      <div className="p-5">
+      <div className="p-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <Activity className="w-5 h-5 text-indigo-600" />
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+              <Activity className="w-4 h-4 text-indigo-600" />
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 text-sm">
@@ -123,7 +123,7 @@ const ActivityWidget: React.FC<WidgetProps> = ({ onRemove }) => {
         </div>
 
         {/* Activity List */}
-        <div className="space-y-3 max-h-56 overflow-y-auto">
+        <div className="space-y-2 max-h-56 overflow-y-auto">
           {activities.map((activity, index) => {
             const { Icon, color } = getActivityIcon(activity.type);
             return (

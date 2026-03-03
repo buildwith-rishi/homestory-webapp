@@ -80,7 +80,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   return (
     <aside
       className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-200 transition-[width] duration-300 ease-in-out ${
-        collapsed ? "w-20" : "w-72"
+        collapsed ? "w-20" : "w-64 xl:w-72"
       } z-50 flex flex-col shadow-sm`}
     >
       {/* Logo Section */}
@@ -161,7 +161,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                               }`}
                             />
                             {!collapsed && (
-                              <span className="ml-3 text-sm transition-opacity duration-200">
+                              <span className="ml-3 text-sm transition-opacity duration-200 truncate min-w-0 flex-1">
                                 {item.label}
                               </span>
                             )}

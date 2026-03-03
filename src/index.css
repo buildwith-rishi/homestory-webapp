@@ -109,6 +109,10 @@ html {
   overflow-y: scroll;
   scrollbar-width: auto;
   scrollbar-color: #9ca3af #e5e7eb;
+  /* Prevent browser from adjusting font sizes on zoom/orientation changes */
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -465,4 +469,32 @@ a,
 input,
 select {
   transition: all 0.2s ease;
+}
+
+/* ── Zoom & Responsive Stability ──────────────────────────────── */
+
+/* Prevent text overflow where content is in flex/grid containers */
+.min-w-0 {
+  min-width: 0;
+}
+
+/* Responsive overflow control for nested flex children */
+.flex > * {
+  min-width: 0;
+}
+
+/* Ensure header and sidebar transitions use CSS vars so they stay
+   consistent regardless of browser zoom level */
+:root {
+  --sidebar-w: 18rem; /* 288px  – matches w-72  */
+  --sidebar-w-collapsed: 5rem; /* 80px – matches w-20 */
+}
+
+/* At tighter effective viewports (zoom ≥ 125%) the sidebar auto-collapses
+   via JS anyway, but we add clamp guards so layouts never produce
+   horizontal scroll on the main content area */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-w: 5rem;
+  }
 }

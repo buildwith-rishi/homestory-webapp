@@ -1,7 +1,6 @@
 import React from "react";
-import { X, Target } from "lucide-react";
+import { X, Target, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
-import { Card } from "../../ui";
 import { WidgetProps } from "./index";
 
 const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
@@ -9,124 +8,155 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   const targetRevenue = 6000000; // ₹60L
   const percentage = Math.round((currentRevenue / targetRevenue) * 100);
 
-  const getProgressColor = () => {
-    if (percentage >= 90) return "emerald";
-    if (percentage >= 70) return "orange";
-    return "red";
+  // SVG semi-circle gauge
+  const radius = 54;
+  const circumference = Math.PI * radius;
+  const dashOffset = circumference * (1 - percentage / 100);
+
+  const getColorConfig = () => {
+    if (percentage >= 90)
+      return {
+        stroke: "#10B981",
+        text: "text-emerald-600",
+        bg: "bg-emerald-50",
+        border: "border-emerald-100",
+        label: "On Track 🎉",
+      };
+    if (percentage >= 70)
+      return {
+        stroke: "#F59E0B",
+        text: "text-amber-600",
+        bg: "bg-amber-50",
+        border: "border-amber-100",
+        label: `${100 - percentage}% to go`,
+      };
+    return {
+      stroke: "#EF4444",
+      text: "text-red-600",
+      bg: "bg-red-50",
+      border: "border-red-100",
+      label: `${100 - percentage}% to go`,
+    };
   };
 
-  const colorMap = {
-    emerald: {
-      bg: "bg-emerald-100",
-      text: "text-emerald-600",
-      progress: "bg-emerald-500",
-    },
-    orange: {
-      bg: "bg-orange-100",
-      text: "text-orange-600",
-      progress: "bg-orange-500",
-    },
-    red: { bg: "bg-red-100", text: "text-red-600", progress: "bg-red-500" },
-  };
-
-  const color = colorMap[getProgressColor()];
+  const colorConfig = getColorConfig();
 
   return (
-    <Card className="h-full animate-scale-in group relative">
+    <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 group relative overflow-hidden flex flex-col">
       {/* Remove Button */}
       <button
         onClick={onRemove}
-        className="absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-100 transition-all z-10"
+        className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-100 transition-all z-10"
         title="Remove widget"
       >
-        <X className="w-4 h-4 text-gray-400" />
+        <X className="w-3.5 h-3.5 text-gray-400" />
       </button>
 
-      <div className="p-5">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl ${color.bg} flex items-center justify-center`}
-            >
-              <Target className={`w-5 h-5 ${color.text}`} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 text-sm">
-                Revenue vs Target
-              </h3>
-              <p className="text-xs text-gray-500">This Month</p>
-            </div>
+      {/* Header */}
+      <div className="px-5 pt-5 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-md">
+            <Target className="w-5 h-5 text-white" />
           </div>
-        </div>
-
-        {/* Gauge Visualization */}
-        <div className="relative mb-4">
-          <div className="flex items-center justify-center">
-            <div className="relative w-32 h-16 overflow-hidden">
-              {/* Background Arc */}
-              <div className="absolute inset-0 border-8 border-gray-200 rounded-t-full" />
-
-              {/* Progress Arc */}
-              <motion.div
-                initial={{ rotate: -90 }}
-                animate={{ rotate: -90 + percentage * 1.8 }}
-                transition={{ duration: 1, ease: "easeOut" }}
-                className={`absolute inset-0 border-8 ${color.progress.replace("bg-", "border-")} rounded-t-full origin-bottom`}
-                style={{
-                  clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 100%, 0 100%)",
-                }}
-              />
-
-              {/* Center Text */}
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
-                <span className={`text-2xl font-bold ${color.text}`}>
-                  {percentage}%
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Bar Alternative */}
-        <div className="space-y-2">
-          <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${percentage}%` }}
-              transition={{ duration: 1, ease: "easeOut" }}
-              className={`h-full ${color.progress} rounded-full`}
-            />
-          </div>
-
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">
-              <span className="font-semibold text-gray-900">
-                ₹{(currentRevenue / 100000).toFixed(1)}L
-              </span>{" "}
-              / ₹{(targetRevenue / 100000).toFixed(0)}L
-            </span>
-            <span className={`font-medium ${color.text}`}>
-              {percentage >= 100
-                ? "Goal Met! 🎉"
-                : `${100 - percentage}% to go`}
-            </span>
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-3">
-          <div className="text-center">
-            <p className="text-xs text-gray-500">Last Month</p>
-            <p className="text-sm font-semibold text-gray-900">₹38.5L</p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-gray-500">Growth</p>
-            <p className="text-sm font-semibold text-emerald-600">+17.4%</p>
+          <div>
+            <h3 className="font-bold text-gray-900 text-sm">
+              Revenue vs Target
+            </h3>
+            <p className="text-xs text-gray-400 font-medium">This Month</p>
           </div>
         </div>
       </div>
-    </Card>
+
+      {/* SVG Gauge */}
+      <div className="flex-shrink-0 flex flex-col items-center pb-2">
+        <div className="relative">
+          <svg width="140" height="80" viewBox="0 0 140 80">
+            {/* Track */}
+            <path
+              d="M 10 75 A 60 60 0 0 1 130 75"
+              fill="none"
+              stroke="#F3F4F6"
+              strokeWidth="12"
+              strokeLinecap="round"
+            />
+            {/* Progress */}
+            <motion.path
+              d="M 10 75 A 60 60 0 0 1 130 75"
+              fill="none"
+              stroke={colorConfig.stroke}
+              strokeWidth="12"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              initial={{ strokeDashoffset: circumference }}
+              animate={{ strokeDashoffset: dashOffset }}
+              transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
+            />
+          </svg>
+          {/* Center Content */}
+          <div className="absolute bottom-1 left-0 right-0 flex flex-col items-center">
+            <span
+              className={`text-3xl font-extrabold leading-none ${colorConfig.text}`}
+            >
+              {percentage}%
+            </span>
+            <span className="text-[10px] text-gray-400 font-semibold mt-0.5">
+              of target
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Revenue Values */}
+      <div className="px-5 pb-2">
+        <div className="flex items-center justify-between text-xs mb-1.5">
+          <span className="text-gray-400 font-medium">₹0</span>
+          <span className="text-gray-400 font-medium">
+            ₹{(targetRevenue / 100000).toFixed(0)}L target
+          </span>
+        </div>
+        <div className="relative h-2.5 bg-gray-100 rounded-full overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${percentage}%` }}
+            transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
+            className="h-full rounded-full"
+            style={{ backgroundColor: colorConfig.stroke }}
+          />
+        </div>
+        <div className="flex items-center justify-between mt-1.5">
+          <span className="text-sm font-extrabold text-gray-900">
+            ₹{(currentRevenue / 100000).toFixed(1)}L earned
+          </span>
+          <span
+            className={`text-xs font-bold px-2 py-0.5 rounded-full ${colorConfig.bg} ${colorConfig.border} border ${colorConfig.text}`}
+          >
+            {colorConfig.label}
+          </span>
+        </div>
+      </div>
+
+      {/* Stats Footer */}
+      <div className="mx-4 mt-2 mb-4 grid grid-cols-2 gap-3">
+        <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+            Last Month
+          </p>
+          <p className="text-base font-extrabold text-gray-800 leading-tight mt-0.5">
+            ₹38.5L
+          </p>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+          <div className="flex items-center justify-center gap-1">
+            <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">
+              Growth
+            </p>
+          </div>
+          <p className="text-base font-extrabold text-emerald-700 leading-tight mt-0.5">
+            +17.4%
+          </p>
+        </div>
+      </div>
+    </div>
   );
 };
 

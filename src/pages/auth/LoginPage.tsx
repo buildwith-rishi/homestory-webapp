@@ -2,9 +2,81 @@ import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { Logo } from "../../components/shared";
-import { Mail, Lock, Eye, EyeOff, X, CheckCircle2, XCircle, KeyRound } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  X,
+  CheckCircle2,
+  XCircle,
+  KeyRound,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
+} from "lucide-react";
 import { resetPassword } from "../../services/passwordApi";
 import Spinner from "../../components/ui/Spinner";
+
+// ── Role credential definitions ────────────────────────────────────────────
+const ROLE_CREDENTIALS = [
+  {
+    role: "Super Admin",
+    email: "admin@example.com",
+    password: "admin123",
+    badge: "bg-red-100 text-red-700",
+    description: "Full system access",
+  },
+  {
+    role: "Admin",
+    email: "admin@goodhomestory.com",
+    password: "GHS@Admin2026",
+    badge: "bg-purple-100 text-purple-700",
+    description: "User & CRM management",
+  },
+  {
+    role: "Design Head",
+    email: "designhead@goodhomestory.com",
+    password: "GHS@DesignHead2026",
+    badge: "bg-violet-100 text-violet-700",
+    description: "Design dept. head",
+  },
+  {
+    role: "Project Manager",
+    email: "pm@goodhomestory.com",
+    password: "GHS@PM2026",
+    badge: "bg-blue-100 text-blue-700",
+    description: "Project lifecycle",
+  },
+  {
+    role: "Designer",
+    email: "designer@goodhomestory.com",
+    password: "GHS@Designer2026",
+    badge: "bg-pink-100 text-pink-700",
+    description: "Design execution",
+  },
+  {
+    role: "BDR",
+    email: "bdr@goodhomestory.com",
+    password: "GHS@BDR2026",
+    badge: "bg-orange-100 text-orange-700",
+    description: "Lead & sales",
+  },
+  {
+    role: "Accounts",
+    email: "accounts@goodhomestory.com",
+    password: "GHS@Accounts2026",
+    badge: "bg-green-100 text-green-700",
+    description: "Finance & payments",
+  },
+  {
+    role: "Site Engineer",
+    email: "engineer@goodhomestory.com",
+    password: "GHS@Engineer2026",
+    badge: "bg-teal-100 text-teal-700",
+    description: "Field execution",
+  },
+] as const;
 
 // ── Forgot-Password Modal ───────────────────────────────────────────────────
 function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
@@ -28,16 +100,29 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!strong) { setError("Password does not meet the requirements."); return; }
-    if (newPwd !== confirmPwd) { setError("Passwords do not match."); return; }
-    if (!userId.trim()) { setError("Please enter your User ID."); return; }
+    if (!strong) {
+      setError("Password does not meet the requirements.");
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (!userId.trim()) {
+      setError("Please enter your User ID.");
+      return;
+    }
 
     setLoading(true);
     try {
       await resetPassword(userId.trim(), newPwd);
       setStep("success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Password reset failed. Please contact your administrator.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Password reset failed. Please contact your administrator.",
+      );
     } finally {
       setLoading(false);
     }
@@ -53,8 +138,12 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
               <KeyRound className="w-5 h-5 text-orange-500" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-gray-900">Reset Password</h2>
-              <p className="text-xs text-gray-500">Enter your User ID and a new password</p>
+              <h2 className="text-base font-semibold text-gray-900">
+                Reset Password
+              </h2>
+              <p className="text-xs text-gray-500">
+                Enter your User ID and a new password
+              </p>
             </div>
           </div>
           <button
@@ -72,8 +161,13 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
               <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center">
                 <CheckCircle2 className="w-8 h-8 text-green-500" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">Password Updated!</h3>
-              <p className="text-sm text-gray-500">Your password has been reset successfully. You can now log in with your new password.</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Password Updated!
+              </h3>
+              <p className="text-sm text-gray-500">
+                Your password has been reset successfully. You can now log in
+                with your new password.
+              </p>
               <button
                 onClick={onClose}
                 className="mt-2 w-full h-11 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition-colors"
@@ -85,39 +179,62 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* User ID */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">User ID</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  User ID
+                </label>
                 <input
                   type="text"
                   value={userId}
-                  onChange={(e) => { setUserId(e.target.value); setError(""); }}
+                  onChange={(e) => {
+                    setUserId(e.target.value);
+                    setError("");
+                  }}
                   placeholder="Enter your User ID"
                   className="w-full h-11 px-4 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                   required
                 />
-                <p className="text-xs text-gray-400 mt-1">Your User ID is provided by your administrator.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Your User ID is provided by your administrator.
+                </p>
               </div>
 
               {/* New Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  New Password
+                </label>
                 <div className="relative">
                   <input
                     type={showNew ? "text" : "password"}
                     value={newPwd}
-                    onChange={(e) => { setNewPwd(e.target.value); setError(""); }}
+                    onChange={(e) => {
+                      setNewPwd(e.target.value);
+                      setError("");
+                    }}
                     placeholder="Enter new password"
                     className="w-full h-11 pl-4 pr-11 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                     required
                   />
-                  <button type="button" onClick={() => setShowNew((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <button
+                    type="button"
+                    onClick={() => setShowNew((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
                     {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
                 {newPwd.length > 0 && (
                   <div className="grid grid-cols-2 gap-1 mt-2">
                     {rules.map((r) => (
-                      <div key={r.label} className={`flex items-center gap-1 text-xs ${r.ok ? "text-green-600" : "text-gray-400"}`}>
-                        {r.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} className="text-gray-300" />}
+                      <div
+                        key={r.label}
+                        className={`flex items-center gap-1 text-xs ${r.ok ? "text-green-600" : "text-gray-400"}`}
+                      >
+                        {r.ok ? (
+                          <CheckCircle2 size={12} />
+                        ) : (
+                          <XCircle size={12} className="text-gray-300" />
+                        )}
                         {r.label}
                       </div>
                     ))}
@@ -127,22 +244,33 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
 
               {/* Confirm Password */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Confirm Password
+                </label>
                 <div className="relative">
                   <input
                     type={showConfirm ? "text" : "password"}
                     value={confirmPwd}
-                    onChange={(e) => { setConfirmPwd(e.target.value); setError(""); }}
+                    onChange={(e) => {
+                      setConfirmPwd(e.target.value);
+                      setError("");
+                    }}
                     placeholder="Re-enter new password"
                     className={`w-full h-11 pl-4 pr-11 border rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all ${confirmPwd && confirmPwd !== newPwd ? "border-red-400" : "border-gray-300"}`}
                     required
                   />
-                  <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
                     {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
                 {confirmPwd && confirmPwd !== newPwd && (
-                  <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                  <p className="text-xs text-red-500 mt-1">
+                    Passwords do not match
+                  </p>
                 )}
               </div>
 
@@ -164,8 +292,13 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
                 }`}
               >
                 {loading ? (
-                  <><Spinner size="xs" color="white" />Resetting…</>
-                ) : "Reset Password"}
+                  <>
+                    <Spinner size="xs" color="white" />
+                    Resetting…
+                  </>
+                ) : (
+                  "Reset Password"
+                )}
               </button>
             </form>
           )}
@@ -184,6 +317,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showForgotModal, setShowForgotModal] = useState(false);
+  const [showCredentials, setShowCredentials] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,7 +344,9 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Forgot Password Modal */}
-      {showForgotModal && <ForgotPasswordModal onClose={() => setShowForgotModal(false)} />}
+      {showForgotModal && (
+        <ForgotPasswordModal onClose={() => setShowForgotModal(false)} />
+      )}
       {/* Left Side - Form */}
       <div className="w-full lg:w-2/5 flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-24 bg-white">
         <div className="w-full max-w-md mx-auto">
@@ -323,11 +459,7 @@ export function LoginPage() {
                   : "bg-orange-500 text-white hover:bg-orange-600 shadow-sm hover:shadow-md"
               }`}
             >
-              {loading ? (
-                <Spinner size="sm" color="white" />
-              ) : (
-                "Sign in"
-              )}
+              {loading ? <Spinner size="sm" color="white" /> : "Sign in"}
             </button>
           </form>
 
@@ -344,9 +476,63 @@ export function LoginPage() {
             </p>
           </div>
 
+          {/* Role Credentials Reference */}
+          <div className="mt-6 border border-gray-200 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowCredentials((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-orange-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  Role Credentials Reference
+                </span>
+              </div>
+              {showCredentials ? (
+                <ChevronUp className="w-4 h-4 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              )}
+            </button>
+            {showCredentials && (
+              <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
+                {ROLE_CREDENTIALS.map((cred) => (
+                  <button
+                    key={cred.role}
+                    type="button"
+                    onClick={() => {
+                      setEmail(cred.email);
+                      setPassword(cred.password);
+                      setShowCredentials(false);
+                    }}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-gray-100 hover:border-orange-200 hover:bg-orange-50/50 transition-all text-left group"
+                  >
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cred.badge}`}
+                    >
+                      {cred.role}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-800 truncate">
+                        {cred.email}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {cred.description}
+                      </p>
+                    </div>
+                    <span className="text-xs text-orange-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                      Use →
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Footer */}
-          <div className="mt-12 text-center text-xs text-gray-500">
-            © Good Homestory 2076
+          <div className="mt-6 text-center text-xs text-gray-500">
+            © Good Homestory 2026
           </div>
         </div>
       </div>

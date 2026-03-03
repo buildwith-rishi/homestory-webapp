@@ -160,7 +160,7 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
 
       {/* Category stats bar */}
       {selectedCat && (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="bg-gray-50 rounded-lg p-2.5 text-center">
             <p className="text-lg font-bold text-gray-900">{taskStats.total}</p>
             <p className="text-[10px] text-gray-500 font-medium">Total Tasks</p>

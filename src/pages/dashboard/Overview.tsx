@@ -15,6 +15,12 @@ import {
   Wrench,
   FileCheck,
   Phone,
+  ShieldCheck,
+  Hammer,
+  PaintBucket,
+  ReceiptText,
+  UserCog,
+  BarChart3,
 } from "lucide-react";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
@@ -27,7 +33,7 @@ import { Card, Button, Badge, Progress } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuth } from "../../contexts/AuthContext";
-import { getRoleDisplayName } from "../../config/rbac";
+import { getRoleDisplayName, ROLES } from "../../config/rbac";
 import { listProjects, getProjectStages } from "../../services/projectApi";
 import type { Project, ProjectStageData } from "../../types";
 
@@ -38,12 +44,17 @@ export const DashboardOverview: React.FC = () => {
   const navigate = useNavigate();
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
   const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
-  const [projectCategoryFilter, setProjectCategoryFilter] = useState<string>("all");
+  const [projectCategoryFilter, setProjectCategoryFilter] =
+    useState<string>("all");
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectStagesMap, setProjectStagesMap] = useState<
     Record<string, ProjectStageData[]>
   >({});
   const [showAllDeadlines, setShowAllDeadlines] = useState(false);
+
+  // Role-specific context
+  const roleMeta = roleId ? ROLES[roleId] : null;
+  const roleName = roleMeta?.name ?? "User";
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -101,36 +112,6 @@ export const DashboardOverview: React.FC = () => {
   const leadsSparkline = [58, 62, 59, 65, 63, 67, 68];
   const revenueSparkline = [38, 41, 39, 43, 42, 44, 45];
   const meetingsSparkline = [4, 6, 5, 7, 6, 4, 5];
-
-  // Filter projects based on selection
-  const filteredProjects = useMemo(() => {
-    const allProjects = [
-      {
-        id: "1",
-        name: "Modern 3BHK - Sharma Family",
-        stage: "Design",
-        progress: 65,
-        color: "bg-blue-500",
-      },
-      {
-        id: "2",
-        name: "Luxury Villa - Kumar Residence",
-        stage: "Execution",
-        progress: 40,
-        color: "bg-orange-500",
-      },
-      {
-        id: "3",
-        name: "Contemporary 2BHK - Patel Home",
-        stage: "Material",
-        progress: 75,
-        color: "bg-purple-500",
-      },
-    ];
-
-    if (!selectedProject) return allProjects;
-    return allProjects.filter((p) => p.id === selectedProject.id);
-  }, [selectedProject]);
 
   // Filter meetings based on selection (map to projects by name/client)
   const filteredMeetings = useMemo(() => {
@@ -287,7 +268,12 @@ export const DashboardOverview: React.FC = () => {
     }
 
     return filtered;
-  }, [allDeadlines, selectedProject, pipelineTypeFilter, projectCategoryFilter]);
+  }, [
+    allDeadlines,
+    selectedProject,
+    pipelineTypeFilter,
+    projectCategoryFilter,
+  ]);
 
   // Show filtered message when a specific project is selected
   const isFiltered = selectedProject !== null;
@@ -346,6 +332,156 @@ export const DashboardOverview: React.FC = () => {
             </div>
           )}
 
+          {/* Role-Specific Quick Actions Banner */}
+          {roleId === "SITE_ENGINEER" && (
+            <div className="bg-gradient-to-r from-teal-50 to-teal-100 border border-teal-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-teal-500 flex items-center justify-center">
+                    <Hammer className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Site Engineer Dashboard
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Track tasks, upload photos, and report issues from the
+                      field
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate("/app")}
+                    className="rounded-xl"
+                  >
+                    Open Mobile View
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => navigate("/app/issues/report")}
+                    className="rounded-xl"
+                  >
+                    Report Issue
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {roleId === "ACCOUNTS" && (
+            <div className="bg-gradient-to-r from-green-50 to-emerald-100 border border-green-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-green-600 flex items-center justify-center">
+                    <ReceiptText className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Finance & Accounts View
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Payment tracking, invoices, and financial reports
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate("/dashboard/analytics")}
+                    className="rounded-xl"
+                  >
+                    <BarChart3 className="w-4 h-4 mr-1" /> Reports
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(roleId === "DESIGNER" || roleId === "DESIGN_HEAD") && (
+            <div className="bg-gradient-to-r from-violet-50 to-pink-50 border border-violet-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-violet-500 flex items-center justify-center">
+                    <PaintBucket className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {roleId === "DESIGN_HEAD"
+                        ? "Design Head Overview"
+                        : "Designer Workspace"}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Manage design tasks, project stages and deliverables
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate("/dashboard/projects")}
+                    className="rounded-xl"
+                  >
+                    View Projects
+                  </Button>
+                  {roleId === "DESIGN_HEAD" && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => navigate("/dashboard/users")}
+                      className="rounded-xl"
+                    >
+                      <UserCog className="w-4 h-4 mr-1" /> Manage Team
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {roleId === "BDR" && (
+            <div className="bg-gradient-to-r from-orange-50 to-amber-100 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center">
+                    <Phone className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      BDR Workspace
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Lead pipeline, follow-ups, and meeting scheduling
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate("/dashboard/leads")}
+                    className="rounded-xl"
+                  >
+                    View Leads
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => navigate("/bdr")}
+                    className="rounded-xl"
+                  >
+                    Open BDR App
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Stat Cards Grid – role-aware */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Projects – visible to roles with projects.read */}
@@ -398,7 +534,7 @@ export const DashboardOverview: React.FC = () => {
               />
             )}
 
-            {/* Tasks – shown to Site Engineers & PMs */}
+            {/* Tasks – shown to Site Engineers, Designers & PMs */}
             {can("tasks.read") && !can("dashboard.*") && (
               <StatCard
                 icon={CheckCircle}
@@ -407,6 +543,19 @@ export const DashboardOverview: React.FC = () => {
                 change={{ value: 3, isPositive: false }}
                 iconColor="primary"
                 sparklineData={[3, 5, 4, 7, 6, 8, 7]}
+                animated={true}
+              />
+            )}
+
+            {/* Payments – shown to ACCOUNTS */}
+            {roleId === "ACCOUNTS" && (
+              <StatCard
+                icon={DollarSign}
+                label="Pending Payments"
+                value={12}
+                change={{ value: 2, isPositive: false }}
+                iconColor="teal"
+                sparklineData={[5, 8, 7, 9, 10, 11, 12]}
                 animated={true}
               />
             )}
@@ -427,454 +576,452 @@ export const DashboardOverview: React.FC = () => {
           {/* Projects and Activity Grid */}
           <div className="grid lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 space-y-4">
-              <Card className="animate-scale-in">
-                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Recent Projects
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Track your ongoing projects
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    View All →
-                  </Button>
-                </div>
-                <div className="p-4 space-y-3">
-                  {filteredProjects.map((project) => (
-                    <div
-                      key={project.id}
-                      className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer group"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
-                          {project.name}
-                        </h3>
-                        <Badge>{project.stage}</Badge>
-                      </div>
-                      <div className="space-y-2">
-                        <Progress value={project.progress} />
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600">
-                            {project.progress}% Complete
-                          </span>
-                          <span className="text-gray-500">Due in 12 days</span>
-                        </div>
-                      </div>
+              {/* Today's Meetings – gated by meetings.read */}
+              {can("meetings.read") && (
+                <Card className="animate-scale-in">
+                  <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        Today's Meetings
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Your schedule for today
+                      </p>
                     </div>
-                  ))}
-                  {filteredProjects.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>No projects found for the selected filter.</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-
-              <Card className="animate-scale-in">
-                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Today's Meetings
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Your schedule for today
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    View Calendar →
-                  </Button>
-                </div>
-                <div className="p-4 space-y-3">
-                  {filteredMeetings.map((meeting, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-semibold">
-                        {meeting.avatar}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900">
-                          {meeting.time} - {meeting.client}
-                        </p>
-                        <p className="text-sm text-gray-600">{meeting.type}</p>
-                      </div>
-                      <Badge
-                        variant={
-                          meeting.status === "In Progress" ? "info" : "neutral"
-                        }
-                      >
-                        {meeting.status}
-                      </Badge>
-                    </div>
-                  ))}
-                  {filteredMeetings.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>No meetings scheduled for the selected project.</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-
-              {/* Project Deadlines Section */}
-              <Card className="animate-scale-in">
-                <div className="p-4 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
-                          Project Deadlines
-                        </h2>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Upcoming project due dates
-                        </p>
-                      </div>
-                      {/* Results Count Badge */}
-                      <Badge
-                        variant={
-                          filteredDeadlines.length === 0
-                            ? "neutral"
-                            : filteredDeadlines.some(
-                                  (d) =>
-                                    d.status === "critical" ||
-                                    d.status === "urgent",
-                                )
-                              ? "error"
-                              : "info"
-                        }
-                      >
-                        {filteredDeadlines.length}{" "}
-                        {filteredDeadlines.length === 1
-                          ? "Project"
-                          : "Projects"}
-                      </Badge>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAllDeadlines((prev) => !prev)}
-                    >
-                      {showAllDeadlines ? "Show Less ↑" : "View All →"}
+                    <Button variant="ghost" size="sm">
+                      View Calendar →
                     </Button>
                   </div>
-
-                  {/* Pipeline Type Filter Pills (Level 1) */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {pipelineTypeFilterOptions.map((option) => {
-                      const count =
-                        option.value === "all"
-                          ? allDeadlines.length
-                          : allDeadlines.filter(
-                              (d) => d.pipelineType === option.value,
-                            ).length;
-                      const isActive = pipelineTypeFilter === option.value;
-
-                      return (
-                        <button
-                          key={option.value}
-                          onClick={() => {
-                            setPipelineTypeFilter(option.value);
-                            setProjectCategoryFilter("all");
-                            setShowAllDeadlines(false);
-                          }}
-                          className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                            isActive
-                              ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-200"
-                              : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md"
-                          }`}
+                  <div className="p-4 space-y-3">
+                    {filteredMeetings.map((meeting, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-semibold">
+                          {meeting.avatar}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900">
+                            {meeting.time} - {meeting.client}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {meeting.type}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            meeting.status === "In Progress"
+                              ? "info"
+                              : "neutral"
+                          }
                         >
-                          <span className="flex items-center gap-2">
-                            {option.label}
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                isActive
-                                  ? "bg-white/20 text-white"
-                                  : "bg-gray-200 text-gray-600"
-                              }`}
-                            >
-                              {count}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
+                          {meeting.status}
+                        </Badge>
+                      </div>
+                    ))}
+                    {filteredMeetings.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No meetings scheduled for the selected project.</p>
+                      </div>
+                    )}
                   </div>
+                </Card>
+              )}{" "}
+              {/* end meetings.read guard */}
+              {/* Project Deadlines Section – gated by projects.read */}
+              {can("projects.read") && (
+                <Card className="animate-scale-in">
+                  <div className="p-4 border-b border-gray-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <h2 className="text-lg font-semibold text-gray-900">
+                            Project Deadlines
+                          </h2>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Upcoming project due dates
+                          </p>
+                        </div>
+                        {/* Results Count Badge */}
+                        <Badge
+                          variant={
+                            filteredDeadlines.length === 0
+                              ? "neutral"
+                              : filteredDeadlines.some(
+                                    (d) =>
+                                      d.status === "critical" ||
+                                      d.status === "urgent",
+                                  )
+                                ? "error"
+                                : "info"
+                          }
+                        >
+                          {filteredDeadlines.length}{" "}
+                          {filteredDeadlines.length === 1
+                            ? "Project"
+                            : "Projects"}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAllDeadlines((prev) => !prev)}
+                      >
+                        {showAllDeadlines ? "Show Less ↑" : "View All →"}
+                      </Button>
+                    </div>
 
-                  {/* Sub-category Filter Pills (Level 2) – shown when Architecture or Interiors selected */}
-                  {pipelineTypeFilter !== "all" && (
-                    <div className="flex items-center gap-2 mt-2 pl-1">
-                      <span className="text-xs text-gray-400 font-medium mr-1">
-                        {pipelineTypeFilter === "DESIGN_ONLY"
-                          ? "Architecture"
-                          : "Interiors"}
-                        :
-                      </span>
-                      {projectCategoryOptions.map((cat) => {
-                        const baseFiltered = allDeadlines.filter(
-                          (d) => d.pipelineType === pipelineTypeFilter,
-                        );
-                        const catCount =
-                          cat.value === "all"
-                            ? baseFiltered.length
-                            : baseFiltered.filter(
-                                (d) =>
-                                  (d as any).projectCategory?.toUpperCase() ===
-                                  cat.value,
+                    {/* Pipeline Type Filter Pills (Level 1) */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {pipelineTypeFilterOptions.map((option) => {
+                        const count =
+                          option.value === "all"
+                            ? allDeadlines.length
+                            : allDeadlines.filter(
+                                (d) => d.pipelineType === option.value,
                               ).length;
-                        const isCatActive = projectCategoryFilter === cat.value;
+                        const isActive = pipelineTypeFilter === option.value;
 
                         return (
                           <button
-                            key={cat.value}
+                            key={option.value}
                             onClick={() => {
-                              setProjectCategoryFilter(cat.value);
+                              setPipelineTypeFilter(option.value);
+                              setProjectCategoryFilter("all");
                               setShowAllDeadlines(false);
                             }}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-                              isCatActive
-                                ? "bg-orange-100 text-orange-700 border border-orange-300"
-                                : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+                            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                              isActive
+                                ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-200"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md"
                             }`}
                           >
-                            <span className="flex items-center gap-1.5">
-                              {cat.label}
+                            <span className="flex items-center gap-2">
+                              {option.label}
                               <span
-                                className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                                  isCatActive
-                                    ? "bg-orange-200 text-orange-700"
-                                    : "bg-gray-200 text-gray-500"
+                                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                  isActive
+                                    ? "bg-white/20 text-white"
+                                    : "bg-gray-200 text-gray-600"
                                 }`}
                               >
-                                {catCount}
+                                {count}
                               </span>
                             </span>
                           </button>
                         );
                       })}
                     </div>
-                  )}
-                </div>
-                <div className="p-4 space-y-3">
-                  {(showAllDeadlines
-                    ? filteredDeadlines
-                    : filteredDeadlines.slice(0, 5)
-                  ).map((project, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-all cursor-pointer ${
-                        project.status === "critical" ||
-                        project.status === "overdue"
-                          ? "border-red-300 bg-red-50"
-                          : project.status === "urgent"
-                            ? "border-orange-300 bg-orange-50"
-                            : project.status === "warning"
-                              ? "border-yellow-300 bg-yellow-50"
-                              : project.status === "no-deadline"
-                                ? "border-gray-200 bg-gray-50/50"
-                                : "border-gray-200 hover:border-orange-300"
-                      }`}
-                    >
-                      {/* Status Icon */}
+
+                    {/* Sub-category Filter Pills (Level 2) – shown when Architecture or Interiors selected */}
+                    {pipelineTypeFilter !== "all" && (
+                      <div className="flex items-center gap-2 mt-2 pl-1">
+                        <span className="text-xs text-gray-400 font-medium mr-1">
+                          {pipelineTypeFilter === "DESIGN_ONLY"
+                            ? "Architecture"
+                            : "Interiors"}
+                          :
+                        </span>
+                        {projectCategoryOptions.map((cat) => {
+                          const baseFiltered = allDeadlines.filter(
+                            (d) => d.pipelineType === pipelineTypeFilter,
+                          );
+                          const catCount =
+                            cat.value === "all"
+                              ? baseFiltered.length
+                              : baseFiltered.filter(
+                                  (d) =>
+                                    (
+                                      d as any
+                                    ).projectCategory?.toUpperCase() ===
+                                    cat.value,
+                                ).length;
+                          const isCatActive =
+                            projectCategoryFilter === cat.value;
+
+                          return (
+                            <button
+                              key={cat.value}
+                              onClick={() => {
+                                setProjectCategoryFilter(cat.value);
+                                setShowAllDeadlines(false);
+                              }}
+                              className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                                isCatActive
+                                  ? "bg-orange-100 text-orange-700 border border-orange-300"
+                                  : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+                              }`}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                {cat.label}
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                                    isCatActive
+                                      ? "bg-orange-200 text-orange-700"
+                                      : "bg-gray-200 text-gray-500"
+                                  }`}
+                                >
+                                  {catCount}
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {(showAllDeadlines
+                      ? filteredDeadlines
+                      : filteredDeadlines.slice(0, 5)
+                    ).map((project, i) => (
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        key={i}
+                        className={`flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-all cursor-pointer ${
                           project.status === "critical" ||
                           project.status === "overdue"
-                            ? "bg-red-100"
+                            ? "border-red-300 bg-red-50"
                             : project.status === "urgent"
-                              ? "bg-orange-100"
+                              ? "border-orange-300 bg-orange-50"
                               : project.status === "warning"
-                                ? "bg-yellow-100"
+                                ? "border-yellow-300 bg-yellow-50"
                                 : project.status === "no-deadline"
-                                  ? "bg-gray-100"
-                                  : "bg-green-100"
+                                  ? "border-gray-200 bg-gray-50/50"
+                                  : "border-gray-200 hover:border-orange-300"
                         }`}
                       >
-                        {project.status === "critical" ||
-                        project.status === "overdue" ||
-                        project.status === "urgent" ? (
-                          <AlertTriangle
-                            className={`w-5 h-5 ${
-                              project.status === "critical" ||
-                              project.status === "overdue"
-                                ? "text-red-600"
-                                : "text-orange-600"
-                            }`}
-                          />
-                        ) : project.status === "warning" ? (
-                          <Clock className="w-5 h-5 text-yellow-600" />
-                        ) : project.status === "no-deadline" ? (
-                          <Calendar className="w-5 h-5 text-gray-400" />
-                        ) : (
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                        )}
-                      </div>
-
-                      {/* Project Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-medium text-gray-900 truncate">
-                            {project.name}
-                          </p>
-                          <Badge
-                            variant={
-                              project.stage === "Design"
-                                ? "info"
-                                : project.stage === "Execution"
-                                  ? "warning"
-                                  : project.stage === "Handover"
-                                    ? "success"
-                                    : "neutral"
-                            }
-                            className="text-xs"
-                          >
-                            {project.stage}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="flex-1">
-                            <Progress
-                              value={project.progress}
-                              className="h-1.5"
-                            />
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {project.progress}%
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Deadline Info */}
-                      <div className="text-right flex-shrink-0">
-                        {project.status === "no-deadline" ? (
-                          <>
-                            <p className="text-sm font-semibold text-gray-500">
-                              No deadline set
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              Schedule Pending
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p
-                              className={`text-sm font-semibold ${
+                        {/* Status Icon */}
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            project.status === "critical" ||
+                            project.status === "overdue"
+                              ? "bg-red-100"
+                              : project.status === "urgent"
+                                ? "bg-orange-100"
+                                : project.status === "warning"
+                                  ? "bg-yellow-100"
+                                  : project.status === "no-deadline"
+                                    ? "bg-gray-100"
+                                    : "bg-green-100"
+                          }`}
+                        >
+                          {project.status === "critical" ||
+                          project.status === "overdue" ||
+                          project.status === "urgent" ? (
+                            <AlertTriangle
+                              className={`w-5 h-5 ${
                                 project.status === "critical" ||
                                 project.status === "overdue"
-                                  ? "text-red-700"
-                                  : project.status === "urgent"
-                                    ? "text-orange-600"
-                                    : project.status === "warning"
-                                      ? "text-yellow-600"
-                                      : "text-gray-700"
+                                  ? "text-red-600"
+                                  : "text-orange-600"
                               }`}
-                            >
-                              {project.deadline}
+                            />
+                          ) : project.status === "warning" ? (
+                            <Clock className="w-5 h-5 text-yellow-600" />
+                          ) : project.status === "no-deadline" ? (
+                            <Calendar className="w-5 h-5 text-gray-400" />
+                          ) : (
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          )}
+                        </div>
+
+                        {/* Project Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium text-gray-900 truncate">
+                              {project.name}
                             </p>
-                            <p
-                              className={`text-xs font-medium ${
-                                project.status === "overdue"
-                                  ? "text-red-500"
-                                  : project.status === "critical" ||
-                                      project.status === "urgent"
-                                    ? "text-orange-500"
-                                    : project.status === "warning"
-                                      ? "text-yellow-500"
-                                      : "text-gray-400"
-                              }`}
+                            <Badge
+                              variant={
+                                project.stage === "Design"
+                                  ? "info"
+                                  : project.stage === "Execution"
+                                    ? "warning"
+                                    : project.stage === "Handover"
+                                      ? "success"
+                                      : "neutral"
+                              }
+                              className="text-xs"
                             >
-                              {project.status === "overdue"
-                                ? `${Math.abs(project.daysLeft)}d overdue`
-                                : `${project.daysLeft}d left`}{" "}
-                              · {project.deadlineLabel}
-                            </p>
-                          </>
-                        )}
+                              {project.stage}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1">
+                              <Progress
+                                value={project.progress}
+                                className="h-1.5"
+                              />
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {project.progress}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Deadline Info */}
+                        <div className="text-right flex-shrink-0">
+                          {project.status === "no-deadline" ? (
+                            <>
+                              <p className="text-sm font-semibold text-gray-500">
+                                No deadline set
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                Schedule Pending
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p
+                                className={`text-sm font-semibold ${
+                                  project.status === "critical" ||
+                                  project.status === "overdue"
+                                    ? "text-red-700"
+                                    : project.status === "urgent"
+                                      ? "text-orange-600"
+                                      : project.status === "warning"
+                                        ? "text-yellow-600"
+                                        : "text-gray-700"
+                                }`}
+                              >
+                                {project.deadline}
+                              </p>
+                              <p
+                                className={`text-xs font-medium ${
+                                  project.status === "overdue"
+                                    ? "text-red-500"
+                                    : project.status === "critical" ||
+                                        project.status === "urgent"
+                                      ? "text-orange-500"
+                                      : project.status === "warning"
+                                        ? "text-yellow-500"
+                                        : "text-gray-400"
+                                }`}
+                              >
+                                {project.status === "overdue"
+                                  ? `${Math.abs(project.daysLeft)}d overdue`
+                                  : `${project.daysLeft}d left`}{" "}
+                                · {project.deadlineLabel}
+                              </p>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {!showAllDeadlines && filteredDeadlines.length > 5 && (
-                    <button
-                      onClick={() => navigate("/dashboard/projects")}
-                      className="w-full py-2.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-dashed border-orange-200 hover:border-orange-300"
-                    >
-                      + {filteredDeadlines.length - 5} more project
-                      {filteredDeadlines.length - 5 !== 1 ? "s" : ""} — View All Projects
-                    </button>
-                  )}
-                  {filteredDeadlines.length === 0 && (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Clock className="w-8 h-8 text-gray-400" />
+                    ))}
+                    {!showAllDeadlines && filteredDeadlines.length > 5 && (
+                      <button
+                        onClick={() => navigate("/dashboard/projects")}
+                        className="w-full py-2.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-dashed border-orange-200 hover:border-orange-300"
+                      >
+                        + {filteredDeadlines.length - 5} more project
+                        {filteredDeadlines.length - 5 !== 1 ? "s" : ""} — View
+                        All Projects
+                      </button>
+                    )}
+                    {filteredDeadlines.length === 0 && (
+                      <div className="text-center py-12">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Clock className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p className="text-gray-900 font-medium mb-1">
+                          No Deadlines Found
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {pipelineTypeFilter !== "all"
+                            ? `No ${pipelineTypeFilterOptions.find((o) => o.value === pipelineTypeFilter)?.label}${projectCategoryFilter !== "all" ? ` · ${projectCategoryOptions.find((c) => c.value === projectCategoryFilter)?.label}` : ""} projects with upcoming deadlines.`
+                            : "No upcoming deadlines for the selected filter."}
+                        </p>
                       </div>
-                      <p className="text-gray-900 font-medium mb-1">
-                        No Deadlines Found
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {pipelineTypeFilter !== "all"
-                          ? `No ${pipelineTypeFilterOptions.find((o) => o.value === pipelineTypeFilter)?.label}${projectCategoryFilter !== "all" ? ` · ${projectCategoryOptions.find((c) => c.value === projectCategoryFilter)?.label}` : ""} projects with upcoming deadlines.`
-                          : "No upcoming deadlines for the selected filter."}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </Card>
+                    )}
+                  </div>
+                </Card>
+              )}{" "}
+              {/* end projects.read guard */}
             </div>
 
             <div className="space-y-4">
               <ActivityFeed />
-              <Card>
-                <div className="p-4 border-b border-ash/10">
-                  <h2 className="font-display text-display-sm text-secondary">
-                    Lead Pipeline
-                  </h2>
-                </div>
-                <div className="p-4 space-y-3">
-                  {[
-                    { stage: "New", count: 32, color: "ash" },
-                    { stage: "Qualified", count: 18, color: "teal" },
-                    { stage: "Meeting", count: 8, color: "olive" },
-                    { stage: "Proposal", count: 5, color: "primary" },
-                    { stage: "Won", count: 3, color: "teal" },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between">
-                      <span className="font-body text-sm text-secondary">
-                        {item.stage}
-                      </span>
-                      <span className="font-body font-medium text-secondary">
-                        {item.count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-
-              <Card>
-                <div className="p-4 border-b border-ash/10">
-                  <h2 className="font-display text-display-sm text-secondary">
-                    Quick Actions
-                  </h2>
-                </div>
-                <div className="p-4 grid grid-cols-2 gap-3">
-                  <Button variant="ghost" className="h-20 flex flex-col gap-2">
-                    <Calendar size={20} />
-                    <span className="text-xs">Schedule Meeting</span>
-                  </Button>
-                  <Button variant="ghost" className="h-20 flex flex-col gap-2">
-                    <Users size={20} />
-                    <span className="text-xs">Add Lead</span>
-                  </Button>
-                  <Button variant="ghost" className="h-20 flex flex-col gap-2">
-                    <FolderKanban size={20} />
-                    <span className="text-xs">New Project</span>
-                  </Button>
-                  <Button variant="ghost" className="h-20 flex flex-col gap-2">
-                    <TrendingUp size={20} />
-                    <span className="text-xs">Send Update</span>
-                  </Button>
-                </div>
-              </Card>
+              {/* Lead Pipeline – only for roles that can read leads */}
+              {can("leads.read") && (
+                <Card>
+                  <div className="p-4 border-b border-ash/10">
+                    <h2 className="font-display text-display-sm text-secondary">
+                      Lead Pipeline
+                    </h2>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {[
+                      { stage: "New", count: 32, color: "ash" },
+                      { stage: "Qualified", count: 18, color: "teal" },
+                      { stage: "Meeting", count: 8, color: "olive" },
+                      { stage: "Proposal", count: 5, color: "primary" },
+                      { stage: "Won", count: 3, color: "teal" },
+                    ].map((item, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="font-body text-sm text-secondary">
+                          {item.stage}
+                        </span>
+                        <span className="font-body font-medium text-secondary">
+                          {item.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+              {/* Payments summary – only for ACCOUNTS role */}
+              {roleId === "ACCOUNTS" && (
+                <Card>
+                  <div className="p-4 border-b border-ash/10">
+                    <h2 className="font-display text-display-sm text-secondary flex items-center gap-2">
+                      <ReceiptText className="w-4 h-4 text-green-600" />
+                      Payments Summary
+                    </h2>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {[
+                      {
+                        label: "Received",
+                        count: "₹18.4L",
+                        color: "text-green-600",
+                      },
+                      {
+                        label: "Pending",
+                        count: "₹7.2L",
+                        color: "text-orange-500",
+                      },
+                      {
+                        label: "Overdue",
+                        count: "₹2.1L",
+                        color: "text-red-500",
+                      },
+                      {
+                        label: "This Month",
+                        count: "₹9.8L",
+                        color: "text-blue-600",
+                      },
+                    ].map((item, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="font-body text-sm text-secondary">
+                          {item.label}
+                        </span>
+                        <span
+                          className={`font-body font-semibold text-sm ${item.color}`}
+                        >
+                          {item.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
             </div>
           </div>
         </>

@@ -270,7 +270,7 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="p-3 bg-white/80 border-gray-200/50">
           <p className="text-xs text-gray-500 font-medium">Overall Progress</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">

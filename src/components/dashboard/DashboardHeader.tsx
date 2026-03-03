@@ -1,11 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import { Bell, ChevronRight, X, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  Bell,
+  ChevronRight,
+  X,
+  CheckCheck,
+  Info,
+  AlertTriangle,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useProjectStore } from "../../stores/projectStore";
 import { useMeetingStore } from "../../stores/meetingStore";
 import { useCustomerStore } from "../../stores/customerStore";
 import { useLeadStore } from "../../stores/leadStore";
+import { useTeamMemberStore } from "../../stores/teamMemberStore";
 import Spinner from "../ui/Spinner";
 import {
   getNotifications,
@@ -31,6 +41,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const { currentMeeting } = useMeetingStore();
   const { currentCustomer } = useCustomerStore();
   const { currentLead } = useLeadStore();
+  const { currentTeamMember } = useTeamMemberStore();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -56,7 +67,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setDropdownOpen(false);
       }
     };
@@ -71,7 +85,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   const handleMarkRead = async (id: string) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
     await markNotificationRead(id);
   };
@@ -146,15 +160,25 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
     // If we're on a lead details page, show the lead name instead of UUID
     const isLeadDetailsPage =
-      path.length >= 3 &&
-      path[1] === "leads" &&
-      path[2] &&
-      path[2].length > 20; // UUIDs are long
+      path.length >= 3 && path[1] === "leads" && path[2] && path[2].length > 20; // UUIDs are long
     if (isLeadDetailsPage && currentLead) {
       return currentLead.name || "Lead Details";
     }
     if (isLeadDetailsPage) {
       return "Lead Details";
+    }
+
+    // If we're on an engineer/team member details page, show the member name
+    const isEngineerDetailsPage =
+      path.length >= 3 &&
+      path[1] === "engineers" &&
+      path[2] &&
+      path[2].length > 10;
+    if (isEngineerDetailsPage && currentTeamMember) {
+      return currentTeamMember.name || "Team Member";
+    }
+    if (isEngineerDetailsPage) {
+      return "Team Member";
     }
 
     // Capitalize and format the path segment
@@ -171,19 +195,26 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   return (
     <header
       className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-200 z-40 transition-[left] duration-300 shadow-sm ${
-        sidebarCollapsed ? "left-20" : "left-72"
+        sidebarCollapsed ? "left-20" : "left-64 xl:left-72"
       }`}
     >
-      <div className="h-full px-4 flex items-center justify-between gap-6">
+      <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4 overflow-hidden">
         {/* Left: Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm flex-shrink-0">
-          <span className="text-gray-500 font-medium">Main Menu</span>
-          <ChevronRight size={16} className="text-gray-400" />
-          <span className="text-gray-900 font-semibold">{getBreadcrumb()}</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 text-sm min-w-0 flex-1">
+          <span className="text-gray-500 font-medium hidden sm:inline whitespace-nowrap">
+            Main Menu
+          </span>
+          <ChevronRight
+            size={16}
+            className="text-gray-400 flex-shrink-0 hidden sm:inline"
+          />
+          <span className="text-gray-900 font-semibold truncate">
+            {getBreadcrumb()}
+          </span>
         </div>
 
         {/* Right: Bell + User Profile */}
-          <div className="flex items-center gap-4 flex-shrink-0 ml-auto">
+        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
           {/* Bell Icon + Notification Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
@@ -198,11 +229,13 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
             {/* Dropdown panel */}
             {dropdownOpen && (
-              <div className="absolute right-0 top-12 w-96 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+              <div className="absolute right-0 top-12 w-[min(24rem,calc(100vw-1rem))] bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Notifications
+                    </h3>
                     {unreadCount > 0 && (
                       <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-2 py-0.5 rounded-full">
                         {unreadCount} new
@@ -252,13 +285,19 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                           {getNotificationIcon(n.type)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm leading-snug ${!n.read ? "font-semibold text-gray-900" : "font-medium text-gray-700"}`}>
+                          <p
+                            className={`text-sm leading-snug ${!n.read ? "font-semibold text-gray-900" : "font-medium text-gray-700"}`}
+                          >
                             {n.title}
                           </p>
                           {n.message && (
-                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                              {n.message}
+                            </p>
                           )}
-                          <p className="text-xs text-gray-400 mt-1">{formatTime(n.createdAt)}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {formatTime(n.createdAt)}
+                          </p>
                         </div>
                         {!n.read && (
                           <span className="mt-1.5 w-2 h-2 flex-shrink-0 bg-orange-500 rounded-full" />
@@ -272,16 +311,16 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           </div>
 
           {/* User Profile */}
-          <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
-            <div className="text-right">
-              <p className="text-sm font-semibold text-gray-900">
+          <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-gray-200">
+            <div className="text-right hidden md:block min-w-0 max-w-[10rem]">
+              <p className="text-sm font-semibold text-gray-900 truncate">
                 {user?.name || "Sophia Labston"}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 truncate">
                 {user?.email || "codence@gmail.com"}
               </p>
             </div>
-            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-gray-100">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary/10 rounded-full flex items-center justify-center ring-2 ring-gray-100 flex-shrink-0">
               <span className="text-primary font-semibold text-sm">
                 {user?.name?.charAt(0).toUpperCase() ||
                   user?.email?.charAt(0).toUpperCase() ||

@@ -1,7 +1,12 @@
 import React from "react";
-import { X, AlertTriangle, ArrowRight, TrendingDown } from "lucide-react";
+import {
+  X,
+  AlertTriangle,
+  ArrowRight,
+  TrendingDown,
+  Flame,
+} from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, Badge, Button } from "../../ui";
 import { WidgetProps } from "./index";
 
 interface StaleDeal {
@@ -13,6 +18,12 @@ interface StaleDeal {
   stage: string;
   owner: string;
 }
+
+const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
+  Proposal: { bg: "bg-blue-50", text: "text-blue-700" },
+  Negotiation: { bg: "bg-purple-50", text: "text-purple-700" },
+  default: { bg: "bg-gray-100", text: "text-gray-600" },
+};
 
 const StaleDealsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   const staleDeals: StaleDeal[] = [
@@ -47,108 +58,136 @@ const StaleDealsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
 
   const totalAtRisk = staleDeals.reduce((sum, deal) => sum + deal.value, 0);
 
-  const getUrgencyColor = (days: number) => {
-    if (days >= 21) return "text-red-600 bg-red-100";
-    if (days >= 14) return "text-orange-600 bg-orange-100";
-    return "text-yellow-600 bg-yellow-100";
+  const getUrgencyConfig = (days: number) => {
+    if (days >= 21)
+      return {
+        ring: "ring-red-400",
+        bg: "bg-red-600",
+        label: "text-red-600",
+        pill: "bg-red-50 text-red-700",
+      };
+    if (days >= 14)
+      return {
+        ring: "ring-orange-400",
+        bg: "bg-orange-500",
+        label: "text-orange-600",
+        pill: "bg-orange-50 text-orange-700",
+      };
+    return {
+      ring: "ring-yellow-400",
+      bg: "bg-yellow-500",
+      label: "text-yellow-600",
+      pill: "bg-yellow-50 text-yellow-700",
+    };
   };
 
   return (
-    <Card className="h-full animate-scale-in group relative">
+    <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 group relative overflow-hidden flex flex-col">
       {/* Remove Button */}
       <button
         onClick={onRemove}
-        className="absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-100 transition-all z-10"
+        className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-100 transition-all z-10"
         title="Remove widget"
       >
-        <X className="w-4 h-4 text-gray-400" />
+        <X className="w-3.5 h-3.5 text-gray-400" />
       </button>
 
-      <div className="p-5">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-orange-600" />
+      {/* Colored Header Strip */}
+      <div className="bg-gradient-to-r from-orange-500 to-red-500 px-5 pt-4 pb-5 rounded-t-2xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 text-sm">
+              <h3 className="font-bold text-white text-sm tracking-wide">
                 Stale Opportunities
               </h3>
-              <p className="text-xs text-gray-500">Stuck for 14+ days</p>
+              <p className="text-orange-100 text-xs">Stuck for 14+ days</p>
             </div>
           </div>
-          <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-            <AlertTriangle className="w-3 h-3 mr-1" />
-            {staleDeals.length} Alert
-          </Badge>
-        </div>
-
-        {/* Alert Banner */}
-        <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-3 mb-4">
-          <div className="flex items-center gap-2 text-orange-700">
-            <TrendingDown className="w-4 h-4" />
-            <span className="text-sm font-medium">
-              ₹{(totalAtRisk / 100000).toFixed(1)}L at risk
+          <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full">
+            <Flame className="w-3.5 h-3.5 text-white" />
+            <span className="text-xs font-bold text-white">
+              {staleDeals.length} Alert
             </span>
           </div>
-          <p className="text-xs text-orange-600 mt-1">
-            {staleDeals.length} deals need immediate attention
-          </p>
         </div>
 
-        {/* Deal List */}
-        <div className="space-y-3 max-h-40 overflow-y-auto">
-          {staleDeals.map((deal, index) => (
+        {/* Risk Summary */}
+        <div className="mt-3 bg-white/15 backdrop-blur-sm rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <p className="text-orange-100 text-xs">Total value at risk</p>
+            <p className="text-white font-extrabold text-xl leading-tight">
+              ₹{(totalAtRisk / 100000).toFixed(1)}L
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-orange-100 text-xs">{staleDeals.length} deals</p>
+            <p className="text-white text-xs font-medium">need attention</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Deal List */}
+      <div className="flex-1 px-4 pt-3 pb-2 space-y-1.5 overflow-y-auto">
+        {staleDeals.map((deal, index) => {
+          const urgency = getUrgencyConfig(deal.daysStuck);
+          const stageStyle = STAGE_COLORS[deal.stage] || STAGE_COLORS.default;
+          return (
             <motion.div
               key={deal.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.08 }}
+              className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group/item"
             >
-              {/* Days Indicator */}
+              {/* Days Badge */}
               <div
-                className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center flex-shrink-0 ${getUrgencyColor(deal.daysStuck)}`}
+                className={`w-11 h-11 rounded-xl ${urgency.bg} flex flex-col items-center justify-center flex-shrink-0 shadow-sm`}
               >
-                <span className="text-xs font-bold">{deal.daysStuck}</span>
-                <span className="text-[8px]">days</span>
+                <span className="text-sm font-extrabold text-white leading-none">
+                  {deal.daysStuck}
+                </span>
+                <span className="text-[9px] text-white/80 font-medium">
+                  days
+                </span>
               </div>
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-semibold text-gray-900 truncate group-hover/item:text-orange-600 transition-colors">
                   {deal.name}
                 </p>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <span>{deal.company}</span>
-                  <span>•</span>
-                  <span className="font-medium text-gray-700">
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-xs text-gray-500 truncate">
+                    {deal.company}
+                  </span>
+                  <span className="text-gray-300">•</span>
+                  <span className="text-xs font-bold text-gray-800">
                     ₹{(deal.value / 100000).toFixed(1)}L
                   </span>
                 </div>
               </div>
 
-              {/* Stage Badge */}
-              <Badge variant="neutral" className="text-xs flex-shrink-0">
+              {/* Stage */}
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${stageStyle.bg} ${stageStyle.text}`}
+              >
                 {deal.stage}
-              </Badge>
+              </span>
             </motion.div>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-center text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-          >
-            Review All Stale Deals <ArrowRight className="w-4 h-4 ml-1" />
-          </Button>
-        </div>
+          );
+        })}
       </div>
-    </Card>
+
+      {/* Footer */}
+      <div className="px-4 pb-4 pt-1">
+        <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-orange-200 text-orange-600 text-sm font-semibold hover:bg-orange-50 transition-colors">
+          Review All Stale Deals <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
   );
 };
 

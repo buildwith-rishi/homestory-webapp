@@ -352,7 +352,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     <div className="space-y-4">
       {/* Header */}
       <MatrixHeader stage={stage} onBack={onBack}>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button
             variant="outline"
             size="sm"
@@ -369,7 +369,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             className="text-blue-600 border-blue-300 hover:bg-blue-50"
           >
             <Plus className="w-4 h-4 mr-1" />
-            Add Days
+            <span className="hidden sm:inline">Add </span>Days
           </Button>
           <Button
             variant="outline"
@@ -378,7 +378,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             className="text-purple-600 border-purple-300 hover:bg-purple-50"
           >
             <Tag className="w-4 h-4 mr-1" />
-            Add Category
+            <span className="hidden sm:inline">Add </span>Category
           </Button>
           <Button
             variant="outline"
@@ -387,7 +387,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             className="text-gray-600 border-gray-300 hover:bg-gray-50"
           >
             <Settings className="w-4 h-4 mr-1" />
-            Settings
+            <span className="hidden sm:inline">Settings</span>
           </Button>
           <Button
             variant="outline"
@@ -396,14 +396,14 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             className="text-red-500 border-red-200 hover:bg-red-50"
           >
             <Trash2 className="w-4 h-4 mr-1" />
-            Delete Plan
+            <span className="hidden sm:inline">Delete Plan</span>
           </Button>
         </div>
       </MatrixHeader>
 
       {/* Stats Bar */}
       {stats && (
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
           <Card className="p-3 bg-white/80 border-gray-200/50">
             <p className="text-xs text-gray-500 font-medium">Completion</p>
             <p className="text-xl font-bold text-gray-900 mt-0.5">
@@ -444,7 +444,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       )}
 
       {/* Info Bar + View Toggle */}
-      <div className="flex items-center justify-between text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-y-2 text-sm">
         <div className="flex items-center gap-3 text-gray-500">
           <span className="flex items-center gap-1">
             <Calendar className="w-4 h-4" />
@@ -738,7 +738,7 @@ const MatrixHeader: React.FC<{
   onBack: () => void;
   children?: React.ReactNode;
 }> = ({ stage, onBack, children }) => (
-  <div className="flex items-center justify-between">
+  <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
     <div className="flex items-center gap-3">
       <button
         onClick={onBack}

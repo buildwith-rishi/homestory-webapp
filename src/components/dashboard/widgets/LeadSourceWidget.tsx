@@ -1,7 +1,6 @@
 import React from "react";
-import { X, PieChart as PieChartIcon } from "lucide-react";
+import { X, TrendingUp } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { Card } from "../../ui";
 import { WidgetProps } from "./index";
 
 const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
@@ -28,15 +27,17 @@ const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
     if (active && payload && payload.length) {
       const percentage = ((payload[0].value / total) * 100).toFixed(1);
       return (
-        <div className="bg-white px-3 py-2 rounded-lg shadow-lg border border-gray-200">
+        <div className="bg-white px-3 py-2 rounded-xl shadow-lg border border-gray-100">
           <div className="flex items-center gap-2">
             <div
-              className="w-3 h-3 rounded-full"
+              className="w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: payload[0].payload.color }}
             />
-            <span className="text-xs text-gray-600">{payload[0].name}</span>
+            <span className="text-xs text-gray-600 font-medium">
+              {payload[0].name}
+            </span>
           </div>
-          <p className="text-sm font-semibold text-gray-900 mt-1">
+          <p className="text-sm font-bold text-gray-900 mt-1">
             {payload[0].value} leads ({percentage}%)
           </p>
         </div>
@@ -46,84 +47,95 @@ const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   };
 
   return (
-    <Card className="h-full animate-scale-in group relative">
+    <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 group relative overflow-hidden flex flex-col">
       {/* Remove Button */}
       <button
         onClick={onRemove}
-        className="absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-100 transition-all z-10"
+        className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-100 transition-all z-10"
         title="Remove widget"
       >
-        <X className="w-4 h-4 text-gray-400" />
+        <X className="w-3.5 h-3.5 text-gray-400" />
       </button>
 
-      <div className="p-5">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-              <PieChartIcon className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 text-sm">
-                Lead Sources
-              </h3>
-              <p className="text-xs text-gray-500">Distribution by channel</p>
-            </div>
+      {/* Header */}
+      <div className="px-5 pt-5 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+            <TrendingUp className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900 text-sm">Lead Sources</h3>
+            <p className="text-xs text-gray-400 font-medium">
+              Distribution by channel
+            </p>
           </div>
         </div>
+      </div>
 
-        {/* Chart */}
-        <div className="flex items-center justify-center">
-          <ResponsiveContainer width="100%" height={140}>
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                innerRadius={40}
-                outerRadius={60}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Legend */}
-        <div className="mt-2 space-y-1.5">
-          {data.map((entry) => {
-            const percentage = ((entry.value / total) * 100).toFixed(0);
-            return (
-              <div
-                key={entry.name}
-                className="flex items-center justify-between text-xs"
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span className="text-gray-600">{entry.name}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-900 font-medium">
-                    {entry.value}
-                  </span>
-                  <span className="text-gray-400 w-8 text-right">
-                    {percentage}%
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+      {/* Donut Chart with center label */}
+      <div className="relative flex-shrink-0">
+        <ResponsiveContainer width="100%" height={140}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={46}
+              outerRadius={65}
+              paddingAngle={3}
+              dataKey="value"
+              startAngle={90}
+              endAngle={-270}
+            >
+              {data.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.color}
+                  strokeWidth={0}
+                />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+        {/* Center Text */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <p className="text-2xl font-extrabold text-gray-900 leading-none">
+            {total}
+          </p>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+            Total
+          </p>
         </div>
       </div>
-    </Card>
+
+      {/* Legend with bars */}
+      <div className="flex-1 px-5 pb-5 space-y-2">
+        {data.map((entry) => {
+          const pct = Math.round((entry.value / total) * 100);
+          return (
+            <div key={entry.name} className="flex items-center gap-2.5">
+              <div
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-xs text-gray-600 w-20 flex-shrink-0">
+                {entry.name}
+              </span>
+              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${pct}%`, backgroundColor: entry.color }}
+                />
+              </div>
+              <span className="text-[11px] font-bold text-gray-700 w-7 text-right flex-shrink-0">
+                {pct}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 

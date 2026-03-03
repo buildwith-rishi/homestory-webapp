@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { UserRole } from "../../types";
 import type { RoleId } from "../../config/rbac";
@@ -13,8 +13,14 @@ interface ProtectedRouteProps {
   allowedRoleIds?: RoleId[];
   /** New: restrict by permission string (e.g. 'leads.read') */
   requiredPermission?: string;
-  /** Where to redirect if access denied (defaults to /dashboard) */
+  /**
+   * Where to redirect if access denied.
+   * Defaults to /access-denied (shows rich Access Denied page).
+   * Pass "/dashboard" to silently redirect to dashboard instead.
+   */
   fallback?: string;
+  /** Where to redirect if not authenticated (defaults to /login) */
+  loginRedirect?: string;
 }
 
 export function ProtectedRoute({
@@ -22,35 +28,49 @@ export function ProtectedRoute({
   allowedRoles,
   allowedRoleIds,
   requiredPermission,
-  fallback = "/dashboard",
+  fallback = "/access-denied",
+  loginRedirect = "/login",
 }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, user, roleId, can } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return <PageLoader />;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to={loginRedirect}
+        replace
+        state={{ from: location.pathname }}
+      />
+    );
   }
 
   // Check RoleId-based access (new RBAC)
   if (allowedRoleIds && roleId) {
     if (!allowedRoleIds.includes(roleId)) {
-      return <Navigate to={fallback} replace />;
+      return (
+        <Navigate to={fallback} replace state={{ from: location.pathname }} />
+      );
     }
   }
 
   // Check permission-based access
   if (requiredPermission) {
     if (!can(requiredPermission)) {
-      return <Navigate to={fallback} replace />;
+      return (
+        <Navigate to={fallback} replace state={{ from: location.pathname }} />
+      );
     }
   }
 
   // Legacy role check
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to={fallback} replace />;
+    return (
+      <Navigate to={fallback} replace state={{ from: location.pathname }} />
+    );
   }
 
   return <>{children}</>;

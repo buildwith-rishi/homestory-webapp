@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from "react";
 import {
   LandingNav,
   HeroSection,
@@ -12,12 +12,9 @@ import {
   FinalCTA,
   Footer,
   FloatingActions,
-  VoiceAgentModal,
-} from '../components/landing';
+} from "../components/landing";
 
 const LandingPage: React.FC = () => {
-  const [isVoiceAgentOpen, setIsVoiceAgentOpen] = useState(false);
-
   return (
     <div className="min-h-screen bg-white">
       <LandingNav />
@@ -31,8 +28,7 @@ const LandingPage: React.FC = () => {
       <FAQ />
       <FinalCTA />
       <Footer />
-      <FloatingActions onVoiceAgentClick={() => setIsVoiceAgentOpen(true)} />
-      <VoiceAgentModal isOpen={isVoiceAgentOpen} onClose={() => setIsVoiceAgentOpen(false)} />
+      <FloatingActions />
     </div>
   );
 };

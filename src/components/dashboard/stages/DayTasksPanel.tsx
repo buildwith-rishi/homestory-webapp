@@ -20,8 +20,10 @@ import type { MatrixTask, MatrixCategory } from "../../../types";
 import {
   getMatrixDayTasks,
   getCategoryTasks,
+  getProjectById,
 } from "../../../services/projectApi";
 import { sendEmail } from "../../../services/emailSendApi";
+import { RichTextEditor } from "./RichTextEditor";
 import { NewTaskModal } from "./NewTaskModal";
 import toast from "react-hot-toast";
 
@@ -93,6 +95,22 @@ const getDateForDay = (startDate: string, dayNumber: number) => {
   });
 };
 
+const PUSH_REASONS_KEY = "ghs_push_reasons";
+
+/** Read all stored push reasons: { [taskId]: reason } */
+function getPushReasons(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(PUSH_REASONS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+/** Retrieve push reason for a specific task */
+function getPushReason(taskId: string): string {
+  return getPushReasons()[taskId] || "";
+}
+
 export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   matrixId,
   projectId,
@@ -123,6 +141,26 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const [notifyMessage, setNotifyMessage] = useState("");
   const [loadingEmail, setLoadingEmail] = useState(false);
   const [sendingNotify, setSendingNotify] = useState(false);
+  const [editorResetKey, setEditorResetKey] = useState(0);
+  const [editorInitialHtml, setEditorInitialHtml] = useState("");
+
+  /** Build a professional pre-filled email template for the message body */
+  const buildEmailTemplate = (opts: {
+    customerName: string;
+    projectName: string;
+    dayNumber: number;
+    taskTitles: string[];
+  }) => {
+    const taskItems = opts.taskTitles.map((t) => `<li>${t}</li>`).join("");
+    return [
+      `<p>Hi <strong>${opts.customerName}</strong>,</p>`,
+      `<p>Hope you're doing great! Here's your <strong>Day ${opts.dayNumber}</strong> project update for <strong>${opts.projectName}</strong>.</p>`,
+      `<p>We've completed the following tasks today:</p>`,
+      `<ul>${taskItems}</ul>`,
+      `<p>If you have any questions or need clarification on anything, please feel free to reply to this email — we're always happy to help!</p>`,
+      `<p>Warm regards,<br/>The GoodHomeStory Team</p>`,
+    ].join("");
+  };
 
   const fetchDayTasks = useCallback(async () => {
     setLoading(true);
@@ -151,10 +189,10 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     });
   }, [tasks]);
 
-  const fetchNotifyEmail = async () => {
+  /** Fallback: fetch via task customer-email endpoint */
+  const fetchNotifyEmailFallback = async () => {
     const firstId = [...checkedTaskIds][0];
     if (!firstId) return;
-    setLoadingEmail(true);
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com"}/api/tasks/${firstId}/customer-email`,
@@ -173,6 +211,23 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       }
     } catch {
       // non-critical
+    }
+  };
+
+  /** Auto-populate email from the project's lead or account */
+  const fetchProjectEmail = async () => {
+    if (!projectId) return;
+    setLoadingEmail(true);
+    try {
+      const project = await getProjectById(projectId);
+      const email = project.lead?.email || project.account?.email || "";
+      const name = project.lead?.name || project.account?.name || "";
+      if (email) setNotifyEmail(email);
+      if (name) setNotifyToName(name);
+      // Fallback to task-level endpoint if project has no email
+      if (!email) await fetchNotifyEmailFallback();
+    } catch {
+      await fetchNotifyEmailFallback();
     } finally {
       setLoadingEmail(false);
     }
@@ -190,9 +245,11 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       .map((t) => `<li style="padding:4px 0;color:#374151;">✅ ${t}</li>`)
       .join("");
 
-    const noteBlock = opts.personalNote
-      ? `<p style="margin:16px 0;color:#374151;line-height:1.6;">${opts.personalNote.replace(/\n/g, "<br/>")}</p>`
-      : "";
+    const isNoteEmpty = !opts.personalNote.replace(/<[^>]*>/g, "").trim();
+    const noteBlock =
+      opts.personalNote && !isNoteEmpty
+        ? `<div style="margin:16px 0 8px;color:#374151;line-height:1.7;font-size:14px;">${opts.personalNote}</div>`
+        : "";
 
     return `<!DOCTYPE html>
 <html>
@@ -278,6 +335,8 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
         setNotifyMessage("");
         setNotifySubject("");
         setNotifyToName("");
+        setNotifyEmail("");
+        setEditorResetKey((k) => k + 1);
         setCheckedTaskIds(new Set());
       } else {
         toast.error(res.message || "Failed to send notification");
@@ -394,7 +453,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       </div>
 
       {/* Mini stats */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div className="bg-gray-50 rounded-lg p-2 text-center">
           <p className="text-lg font-bold text-gray-900">
             {statusCounts.total}
@@ -524,6 +583,21 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                                 ✓ {task.completionNotes}
                               </p>
                             )}
+                            {(() => {
+                              const reason =
+                                task.pushReason ||
+                                task.reason ||
+                                getPushReason(task.id);
+                              return reason ? (
+                                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 inline-flex items-center gap-1">
+                                  <span>🔄</span>
+                                  <span className="font-medium">
+                                    Rescheduled:
+                                  </span>{" "}
+                                  {reason}
+                                </p>
+                              ) : null;
+                            })()}
                           </div>
 
                           {/* Attachment badge */}
@@ -689,7 +763,21 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                   // Auto-fill subject on open
                   if (!notifySubject)
                     setNotifySubject(`Task Update – Day ${dayNumber}`);
-                  fetchNotifyEmail();
+                  // Auto-populate customer email from the project
+                  if (!notifyEmail) fetchProjectEmail();
+                  // Build and inject pre-filled email template
+                  const checkedTasks = tasks.filter((t) =>
+                    checkedTaskIds.has(t.id),
+                  );
+                  const customerName = notifyToName.trim() || "Customer";
+                  const template = buildEmailTemplate({
+                    customerName,
+                    projectName: projectName || "Your Project",
+                    dayNumber,
+                    taskTitles: checkedTasks.map((t) => t.title),
+                  });
+                  setEditorInitialHtml(template);
+                  setEditorResetKey((k) => k + 1);
                 }
                 setShowNotifyCompose((prev) => !prev);
               }}
@@ -733,7 +821,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                 />
                 {!notifyEmail && (
                   <button
-                    onClick={fetchNotifyEmail}
+                    onClick={fetchProjectEmail}
                     disabled={loadingEmail}
                     className="text-xs text-orange-500 hover:text-orange-700 font-medium whitespace-nowrap disabled:opacity-50"
                   >
@@ -761,17 +849,17 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
               />
             </div>
 
-            {/* Message */}
+            {/* Message — rich text */}
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">
                 Message (optional)
               </label>
-              <textarea
-                value={notifyMessage}
-                onChange={(e) => setNotifyMessage(e.target.value)}
-                rows={3}
+              <RichTextEditor
+                onChange={setNotifyMessage}
                 placeholder="Add a personal note to the customer…"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 resize-none"
+                resetKey={editorResetKey}
+                initialHtml={editorInitialHtml}
+                minHeight="140px"
               />
             </div>
 

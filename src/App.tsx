@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { AccessDeniedPage } from "./pages/auth/AccessDeniedPage";
 import LandingPage from "./pages/LandingPage";
 import DesignSystemPage from "./pages/DesignSystemPage";
 import { SmoothScroll } from "./components/shared";
@@ -15,7 +16,6 @@ import {
   ProjectDetails,
   LeadsPage,
   UpdatesPage,
-  VoiceAgentPage,
   EngineersPage,
   SettingsPage,
   Customers,
@@ -47,6 +47,7 @@ import {
   BDRProfile,
   BDRLeads,
   BDRMeetings,
+  BDRLoginPage,
 } from "./pages/bdr";
 
 function App() {
@@ -72,6 +73,14 @@ function App() {
           />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
+          <Route
+            path="/access-denied"
+            element={
+              <ProtectedRoute loginRedirect="/login">
+                <AccessDeniedPage />
+              </ProtectedRoute>
+            }
+          />
 
           <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
           <Route path="/Admin" element={<Navigate to="/dashboard" replace />} />
@@ -207,12 +216,17 @@ function App() {
               }
             />
 
-            {/* Marketing – restricted to SUPER_ADMIN, ADMIN, BDR */}
+            {/* Marketing – restricted to SUPER_ADMIN, ADMIN, DESIGN_HEAD, BDR */}
             <Route
               path="marketing"
               element={
                 <ProtectedRoute
-                  allowedRoleIds={["SUPER_ADMIN", "ADMIN", "BDR"]}
+                  allowedRoleIds={[
+                    "SUPER_ADMIN",
+                    "ADMIN",
+                    "DESIGN_HEAD",
+                    "BDR",
+                  ]}
                 >
                   <Marketing />
                 </ProtectedRoute>
@@ -234,19 +248,15 @@ function App() {
               path="email-editor"
               element={
                 <ProtectedRoute
-                  allowedRoleIds={["SUPER_ADMIN", "ADMIN", "BDR"]}
+                  allowedRoleIds={[
+                    "SUPER_ADMIN",
+                    "ADMIN",
+                    "DESIGN_HEAD",
+                    "BDR",
+                    "PROJECT_MANAGER",
+                  ]}
                 >
                   <EmailEditor />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Voice Agent – admin only */}
-            <Route
-              path="voice-agent"
-              element={
-                <ProtectedRoute allowedRoleIds={["SUPER_ADMIN", "ADMIN"]}>
-                  <VoiceAgentPage />
                 </ProtectedRoute>
               }
             />
@@ -254,11 +264,13 @@ function App() {
             {/* Settings – everyone can access their own settings */}
             <Route path="settings" element={<SettingsPage />} />
 
-            {/* User Management – admin only */}
+            {/* User Management – admin + design head */}
             <Route
               path="users"
               element={
-                <ProtectedRoute allowedRoleIds={["SUPER_ADMIN", "ADMIN"]}>
+                <ProtectedRoute
+                  allowedRoleIds={["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD"]}
+                >
                   <UserManagement />
                 </ProtectedRoute>
               }
@@ -268,7 +280,9 @@ function App() {
           <Route
             path="/instagram"
             element={
-              <ProtectedRoute allowedRoleIds={["SUPER_ADMIN", "ADMIN", "BDR"]}>
+              <ProtectedRoute
+                allowedRoleIds={["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD", "BDR"]}
+              >
                 <InstagramPage />
               </ProtectedRoute>
             }
@@ -359,10 +373,14 @@ function App() {
           />
 
           {/* BDR App – Business Development Representative dashboard */}
+          <Route path="/bdr/login" element={<BDRLoginPage />} />
           <Route
             path="/bdr"
             element={
-              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
+              <ProtectedRoute
+                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                loginRedirect="/bdr/login"
+              >
                 <BDRAppShell>
                   <BDRHome />
                 </BDRAppShell>
@@ -372,7 +390,10 @@ function App() {
           <Route
             path="/bdr/tasks"
             element={
-              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
+              <ProtectedRoute
+                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                loginRedirect="/bdr/login"
+              >
                 <BDRAppShell>
                   <BDRTasks />
                 </BDRAppShell>
@@ -382,7 +403,10 @@ function App() {
           <Route
             path="/bdr/profile"
             element={
-              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
+              <ProtectedRoute
+                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                loginRedirect="/bdr/login"
+              >
                 <BDRAppShell>
                   <BDRProfile />
                 </BDRAppShell>
@@ -393,7 +417,10 @@ function App() {
           <Route
             path="/bdr/leads"
             element={
-              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
+              <ProtectedRoute
+                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                loginRedirect="/bdr/login"
+              >
                 <BDRAppShell>
                   <BDRLeads />
                 </BDRAppShell>
@@ -403,7 +430,10 @@ function App() {
           <Route
             path="/bdr/meetings"
             element={
-              <ProtectedRoute allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}>
+              <ProtectedRoute
+                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                loginRedirect="/bdr/login"
+              >
                 <BDRAppShell>
                   <BDRMeetings />
                 </BDRAppShell>

@@ -280,6 +280,18 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setPushing(true);
     try {
       await pushMatrixTask(taskId, pushTargetDay, pushReason);
+      // Persist reason locally so it shows on the task row immediately
+      if (pushReason.trim()) {
+        try {
+          const stored = JSON.parse(
+            localStorage.getItem("ghs_push_reasons") || "{}",
+          );
+          stored[taskId] = pushReason.trim();
+          localStorage.setItem("ghs_push_reasons", JSON.stringify(stored));
+        } catch {
+          // non-critical
+        }
+      }
       toast.success(`Task pushed to Day ${pushTargetDay}`);
       setShowPushPanel(false);
       setPushReason("");
@@ -804,6 +816,32 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       </p>
                     </div>
                   )}
+
+                  {/* Push reason — shown when the task was rescheduled */}
+                  {(() => {
+                    const apiReason = task.pushReason || task.reason;
+                    let storedReason = "";
+                    try {
+                      const map = JSON.parse(
+                        localStorage.getItem("ghs_push_reasons") || "{}",
+                      );
+                      storedReason = map[taskId] || "";
+                    } catch {
+                      /* noop */
+                    }
+                    const reason = apiReason || storedReason;
+                    return reason ? (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-sm">🔄</span>
+                          <p className="text-xs font-semibold text-amber-700 uppercase">
+                            Rescheduled — Reason
+                          </p>
+                        </div>
+                        <p className="text-sm text-amber-800">{reason}</p>
+                      </div>
+                    ) : null;
+                  })()}
 
                   {/* Push task to another day */}
                   <div className="border-t border-gray-100 pt-5">

@@ -24,10 +24,13 @@ import {
   Users,
   Clock,
   Layers,
+  Briefcase,
+  Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useEmailTemplateStore } from "../../stores/emailTemplateStore";
-import { EmailTemplate } from "../../types";
+import { EmailTemplate, Project } from "../../types";
+import { listProjects } from "../../services/projectApi";
 import EmailSendAPI, {
   SendEmailRequest,
   SendTemplateEmailRequest,
@@ -215,6 +218,7 @@ const FieldRow: React.FC<{
 export const EmailEditor: React.FC = () => {
   const editorRef = useRef<EmailEditorCoreRef>(null);
   const templateEditorRef = useRef<EmailEditorCoreRef>(null);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
 
   // Form state
   const [to, setTo] = useState("");
@@ -222,6 +226,13 @@ export const EmailEditor: React.FC = () => {
   const [cc, setCc] = useState("");
   const [subject, setSubject] = useState("");
   const [showCc, setShowCc] = useState(false);
+
+  // Project picker state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
 
   // UI state
   const [sending, setSending] = useState(false);
@@ -238,6 +249,9 @@ export const EmailEditor: React.FC = () => {
   const [appliedTemplate, setAppliedTemplate] = useState<EmailTemplate | null>(
     null,
   );
+  const [appliedTemplateRawHtml, setAppliedTemplateRawHtml] = useState("");
+  const [appliedTemplateRawSubject, setAppliedTemplateRawSubject] =
+    useState("");
   const [templateVarValues, setTemplateVarValues] = useState<
     Record<string, string>
   >({});
@@ -280,6 +294,29 @@ export const EmailEditor: React.FC = () => {
     fetchTemplates().catch(() => toast.error("Failed to load email templates"));
   }, [fetchTemplates]);
 
+  // Fetch project list for the project picker dropdown
+  useEffect(() => {
+    setProjectsLoading(true);
+    listProjects({ limit: 200 })
+      .then((res) => setProjects(res.projects))
+      .catch(() => {})
+      .finally(() => setProjectsLoading(false));
+  }, []);
+
+  // Close project dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        projectDropdownRef.current &&
+        !projectDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowProjectDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   // Populate embedded template editor after modal opens
   useEffect(() => {
     if (!showTemplateModal) return;
@@ -295,25 +332,182 @@ export const EmailEditor: React.FC = () => {
     setCharCount(text.trim().length);
   }, []);
 
+  // ── Project helpers ─────────────────────────────────────────────
+
+  /**
+   * Replace {{varName}} / {{ varName }} placeholders in a string.
+   * Leaves the placeholder intact when the value is empty/undefined.
+   */
+  const resolveVars = (
+    template: string,
+    vars: Record<string, string>,
+  ): string =>
+    template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
+      const val = vars[key];
+      return val && val.trim() ? val : _match; // keep placeholder if blank
+    });
+
+  /** Build a comprehensive map of every common {{variable}} from project data */
+  const buildVarsFromProject = (project: Project): Record<string, string> => {
+    const customerName = project.lead?.name || project.account?.name || "";
+    const todayFormatted = new Date().toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+    const totalValueStr =
+      project.totalValue != null ? String(project.totalValue) : "";
+    const paidAmountStr =
+      project.paidAmount != null ? String(project.paidAmount) : "";
+    return {
+      // Core identity
+      customerName,
+      clientName: customerName,
+      leadName: project.lead?.name || "",
+      accountName: project.account?.name || "",
+      contactName: customerName,
+      // Project
+      projectName: project.projectName,
+      projectId: project.id,
+      projectNumber: project.projectNumber || "",
+      projectStatus: project.status || "",
+      projectCategory: project.projectCategory || "",
+      // Financial — auto-fill known amounts; leave transaction empty for manual entry
+      amount: totalValueStr,
+      totalValue: totalValueStr,
+      projectValue: totalValueStr,
+      paidAmount: paidAmountStr,
+      transactionId: "", // must be filled manually
+      invoiceNumber: "",
+      // Dates
+      paymentDate: todayFormatted,
+      date: todayFormatted,
+      today: todayFormatted,
+      handoverDate: project.tentativeHandoverDate
+        ? new Date(project.tentativeHandoverDate).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "",
+      startDate: project.createdAt
+        ? new Date(project.createdAt).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "",
+      // Property / location
+      propertyAddress: project.propertyAddress || "",
+      address: project.propertyAddress || "",
+      city: project.propertyCity || "",
+      propertyCity: project.propertyCity || "",
+      propertyBHK: project.propertyBHK || "",
+      bhk: project.propertyBHK || "",
+      // Contact
+      customerPhone: project.lead?.phone || project.account?.phone || "",
+      phone: project.lead?.phone || project.account?.phone || "",
+      customerEmail: project.lead?.email || project.account?.email || "",
+      email: project.lead?.email || project.account?.email || "",
+      siteContactName: project.siteContactName || "",
+      siteContactPhone: project.siteContactPhone || "",
+      // Team
+      designerName: project.assignedDesigner?.name || "",
+      pmName: project.assignedPM?.name || "",
+      // Stage
+      currentStage: project.currentStageCode || "",
+      stage: project.currentStageCode || "",
+      // Placeholders that require manual input
+      completionPercentage: "",
+      completedWork: "",
+      upcomingWork: "",
+      reviewLink: "",
+      occasion: "",
+      messageBody: "",
+    };
+  };
+
+  /** Select a project: auto-fill TO + NAME and (re-)populate template vars */
+  const handleSelectProject = (project: Project) => {
+    setSelectedProject(project);
+    const email = project.lead?.email || project.account?.email || "";
+    const name = project.lead?.name || project.account?.name || "";
+    if (email) setTo(email);
+    if (name) setToName(name);
+    setShowProjectDropdown(false);
+    setProjectSearch("");
+
+    // If a template is already applied, refresh variable values and push to editor
+    if (appliedTemplate) {
+      const pv = buildVarsFromProject(project);
+      const baseVars =
+        appliedTemplate.variables && appliedTemplate.variables.length > 0
+          ? appliedTemplate.variables.reduce<Record<string, string>>(
+              (acc, v) => ({
+                ...acc,
+                [v.name]: pv[v.name] ?? acc[v.name] ?? "",
+              }),
+              templateVarValues,
+            )
+          : pv;
+      const mergedVars = { ...pv, ...baseVars };
+      setTemplateVarValues(mergedVars);
+      // Resolve placeholders in the raw template and push to editor
+      const rawHtml = appliedTemplateRawHtml || appliedTemplate.htmlBody || "";
+      const rawSubject =
+        appliedTemplateRawSubject || appliedTemplate.subject || "";
+      const resolvedHtml = resolveVars(rawHtml, mergedVars);
+      const resolvedSubject = resolveVars(rawSubject, mergedVars);
+      editorRef.current?.setHtml(resolvedHtml);
+      if (resolvedSubject) setSubject(resolvedSubject);
+    }
+
+    toast.success(`Project "${project.projectName}" selected`);
+  };
+
   // ── Template actions ────────────────────────────────────────────
 
   const applyTemplate = (template: EmailTemplate) => {
-    if (editorRef.current) {
-      editorRef.current.setHtml(template.htmlBody);
-      if (template.subject) setSubject(template.subject);
+    // 1. Save raw HTML + subject so we can re-resolve when vars change
+    const rawHtml = template.htmlBody || "";
+    const rawSubject = template.subject || "";
+    setAppliedTemplateRawHtml(rawHtml);
+    setAppliedTemplateRawSubject(rawSubject);
+
+    // 2. Build vars: start from project data (if available), overlay template var defaults
+    const projectVars = selectedProject
+      ? buildVarsFromProject(selectedProject)
+      : {};
+    const initialVars: Record<string, string> = {};
+    if (template.variables && template.variables.length > 0) {
+      template.variables.forEach((v) => {
+        initialVars[v.name] = projectVars[v.name] ?? "";
+      });
     }
+    // Merge: project vars take precedence for any key they have
+    const mergedVars: Record<string, string> = {
+      ...projectVars,
+      ...initialVars,
+    };
+    setTemplateVarValues(mergedVars);
+
+    // 3. Resolve {{placeholders}} in HTML and subject, then push to editor
+    const resolvedHtml = resolveVars(rawHtml, mergedVars);
+    const resolvedSubject = resolveVars(rawSubject, mergedVars);
+    editorRef.current?.setHtml(resolvedHtml);
+    if (resolvedSubject) setSubject(resolvedSubject);
+
     setAppliedTemplate(template);
     setEmailType(template.category || "OTHER");
+
+    // 4. Open fill-modal only for vars that still have unfilled placeholders
     if (template.variables && template.variables.length > 0) {
-      const initialVars: Record<string, string> = {};
-      template.variables.forEach((v) => {
-        initialVars[v.name] = "";
-      });
-      setTemplateVarValues(initialVars);
-      setShowVarFillModal(true);
-    } else {
-      setTemplateVarValues({});
+      const unfilled = template.variables.filter(
+        (v) => !mergedVars[v.name]?.trim(),
+      );
+      if (unfilled.length > 0) setShowVarFillModal(true);
     }
+
     setShowTemplates(false);
     toast.success(`"${template.name}" template applied`);
   };
@@ -348,6 +542,10 @@ export const EmailEditor: React.FC = () => {
     setEmailType("");
     setCurrentHtml("");
     setCharCount(0);
+    setSelectedProject(null);
+    setProjectSearch("");
+    setAppliedTemplateRawHtml("");
+    setAppliedTemplateRawSubject("");
     toast("Editor cleared", { icon: "\ud83d\uddd1\ufe0f" });
   };
 
@@ -778,6 +976,152 @@ export const EmailEditor: React.FC = () => {
 
         {/* Addressing Section */}
         <div className="divide-y divide-gray-100">
+          {/* PROJECT PICKER ROW */}
+          <div
+            ref={projectDropdownRef}
+            className="relative group flex items-center hover:bg-gray-50/60 border-b border-gray-100"
+          >
+            <div className="w-14 shrink-0 flex items-center justify-center py-4 text-gray-300 group-hover:text-gray-400 transition-colors">
+              <Briefcase className="w-4 h-4" />
+            </div>
+            <label className="w-[52px] shrink-0 text-[10px] font-bold uppercase tracking-wider select-none text-gray-400 group-hover:text-gray-500 transition-colors">
+              Project
+            </label>
+            <div className="flex-1 flex items-center">
+              {selectedProject ? (
+                <div className="flex-1 flex items-center gap-2 py-3">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded-full">
+                    <Briefcase className="w-3 h-3" />
+                    {selectedProject.projectName}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setSelectedProject(null);
+                      setTo("");
+                      setToName("");
+                    }}
+                    className="p-0.5 text-gray-300 hover:text-gray-500 transition-colors rounded"
+                    title="Clear project"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowProjectDropdown((v) => !v)}
+                  className="flex-1 flex items-center gap-2 py-3.5 pr-4 text-sm text-gray-300 hover:text-gray-500 transition-colors text-left"
+                >
+                  {projectsLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <span>Select a project to auto-fill recipient…</span>
+                  )}
+                </button>
+              )}
+              {!selectedProject && (
+                <button
+                  onClick={() => setShowProjectDropdown((v) => !v)}
+                  className="mr-4 p-1.5 text-gray-300 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+                >
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      showProjectDropdown ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+              )}
+            </div>
+            {/* Dropdown */}
+            {showProjectDropdown && (
+              <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-200 rounded-xl shadow-xl mt-1 overflow-hidden">
+                <div className="p-2 border-b border-gray-100">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                    <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <input
+                      autoFocus
+                      type="text"
+                      value={projectSearch}
+                      onChange={(e) => setProjectSearch(e.target.value)}
+                      placeholder="Search projects…"
+                      className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder:text-gray-400"
+                    />
+                    {projectSearch && (
+                      <button
+                        onClick={() => setProjectSearch("")}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="max-h-52 overflow-y-auto">
+                  {projects
+                    .filter(
+                      (p) =>
+                        !projectSearch ||
+                        p.projectName
+                          .toLowerCase()
+                          .includes(projectSearch.toLowerCase()) ||
+                        (p.lead?.name ?? "")
+                          .toLowerCase()
+                          .includes(projectSearch.toLowerCase()) ||
+                        (p.account?.name ?? "")
+                          .toLowerCase()
+                          .includes(projectSearch.toLowerCase()),
+                    )
+                    .map((p) => {
+                      const email = p.lead?.email || p.account?.email || "";
+                      const name = p.lead?.name || p.account?.name || "";
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => handleSelectProject(p)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-orange-50 transition-colors group/item"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 group-hover/item:bg-orange-100 transition-colors">
+                            <Briefcase className="w-3.5 h-3.5 text-orange-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-gray-800 truncate">
+                              {p.projectName}
+                            </div>
+                            <div className="text-[11px] text-gray-400 truncate">
+                              {name
+                                ? `${name}${email ? ` · ${email}` : ""}`
+                                : email || "No email"}
+                            </div>
+                          </div>
+                          {email && (
+                            <span className="text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded shrink-0">
+                              Has email
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  {projects.filter(
+                    (p) =>
+                      !projectSearch ||
+                      p.projectName
+                        .toLowerCase()
+                        .includes(projectSearch.toLowerCase()) ||
+                      (p.lead?.name ?? "")
+                        .toLowerCase()
+                        .includes(projectSearch.toLowerCase()) ||
+                      (p.account?.name ?? "")
+                        .toLowerCase()
+                        .includes(projectSearch.toLowerCase()),
+                  ).length === 0 && (
+                    <div className="px-4 py-6 text-center text-sm text-gray-400">
+                      No projects found
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <FieldRow
             label="To"
             icon={<AtSign className="w-4 h-4" />}
@@ -1199,8 +1543,25 @@ export const EmailEditor: React.FC = () => {
                       );
                       return;
                     }
+                    // Resolve and push to editor with the updated vars
+                    const rawHtml =
+                      appliedTemplateRawHtml || appliedTemplate.htmlBody || "";
+                    const rawSubject =
+                      appliedTemplateRawSubject ||
+                      appliedTemplate.subject ||
+                      "";
+                    const resolvedHtml = resolveVars(
+                      rawHtml,
+                      templateVarValues,
+                    );
+                    const resolvedSubject = resolveVars(
+                      rawSubject,
+                      templateVarValues,
+                    );
+                    editorRef.current?.setHtml(resolvedHtml);
+                    if (resolvedSubject) setSubject(resolvedSubject);
                     setShowVarFillModal(false);
-                    toast.success("Variables saved");
+                    toast.success("Variables applied to email");
                   }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl transition-all shadow-md shadow-orange-500/20"
                 >
