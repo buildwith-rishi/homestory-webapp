@@ -46,6 +46,7 @@ import toast from "react-hot-toast";
 
 interface StageMatrixViewProps {
   projectId: string;
+  projectName?: string;
   stage: ProjectStageData;
   onBack: () => void;
 }
@@ -114,6 +115,7 @@ const getDateForDay = (startDate: string, dayNumber: number) => {
 
 export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   projectId,
+  projectName = "",
   stage,
   onBack,
 }) => {
@@ -142,10 +144,6 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const handleAddDaySuccess = () => {
     setShowAddDayModal(false);
     fetchMatrix();
-    // Jump to last page to show the new day
-    const newTotal = (matrix?.totalDays || 0) + 1;
-    const newLastPage = Math.ceil(newTotal / DAYS_PER_PAGE) - 1;
-    setDayPage(newLastPage);
   };
 
   const fetchMatrix = useCallback(async () => {
@@ -229,10 +227,17 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     }
   };
 
-  const handleStatusChange = async (taskId: string, newStatus: string) => {
+  const handleStatusChange = async (
+    taskId: string,
+    newStatus: string,
+    completionNotes?: string,
+  ) => {
     setUpdatingTaskId(taskId);
     try {
-      const data: UpdateTaskStatusRequest = { status: newStatus };
+      const data: UpdateTaskStatusRequest = {
+        status: newStatus,
+        ...(completionNotes ? { completionNotes } : {}),
+      };
       await updateMatrixTaskStatus(taskId, data);
       toast.success("Task status updated");
       await fetchMatrix();
@@ -615,6 +620,8 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                   <div className="border-t border-gray-100 px-4 py-3">
                     <DayTasksPanel
                       matrixId={matrix.id}
+                      projectId={projectId}
+                      projectName={projectName}
                       dayNumber={dayNum}
                       startDate={matrix.startDate}
                       categories={categories}
@@ -666,11 +673,9 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       {/* Add Day Modal */}
       {showAddDayModal && matrix && (
         <AddDayModal
-          projectId={projectId}
-          stageId={stage.id}
+          matrixId={matrix.id}
           currentTotalDays={matrix.totalDays}
           startDate={matrix.startDate}
-          categories={categories}
           stageName={stage.stageName}
           onClose={() => setShowAddDayModal(false)}
           onSuccess={handleAddDaySuccess}

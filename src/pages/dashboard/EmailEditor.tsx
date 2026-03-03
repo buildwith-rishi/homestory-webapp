@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import ReactDOM from "react-dom";
 import {
   Mail,
   Send,
@@ -26,7 +27,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useEmailTemplateStore } from "../../stores/emailTemplateStore";
-import { EmailTemplate, EmailTemplateVariable } from "../../types";
+import { EmailTemplate } from "../../types";
 import EmailSendAPI, {
   SendEmailRequest,
   SendTemplateEmailRequest,
@@ -87,6 +88,97 @@ const CATEGORY_EMOJI: Record<string, string> = {
   FOLLOW_UP: "\u{1f501}",
 };
 
+// ── Starter templates (pre-populated body + subject per category) ──
+const STARTER_TEMPLATES: Record<
+  string,
+  { subject: string; category: string; html: string }
+> = {
+  ONBOARDING: {
+    subject: "Welcome to GoodHomeStory, {{customerName}}! \ud83c\udfe0",
+    category: "ONBOARDING",
+    html: [
+      "<h2>Welcome aboard, {{customerName}}! \ud83d\udc4b</h2>",
+      "<p>We\u2019re thrilled to have you with us. Your project <strong>{{projectName}}</strong> has been set up and our team is ready to get started.</p>",
+      "<p>Here\u2019s what happens next:</p>",
+      "<ul>",
+      "<li>Our project manager will reach out within <strong>24 hours</strong> to confirm the schedule.</li>",
+      "<li>You\u2019ll receive a detailed project timeline by end of week.</li>",
+      "<li>Feel free to reply to this email with any questions.</li>",
+      "</ul>",
+      "<p>We look forward to transforming your space!<br/>\u2014 The GoodHomeStory Team</p>",
+    ].join(""),
+  },
+  PROJECT_UPDATE: {
+    subject: "Project Update: {{projectName}} \ud83d\udcd0",
+    category: "PROJECT_UPDATE",
+    html: [
+      "<h2>Project Update \ud83c\udfd7\ufe0f</h2>",
+      "<p>Hi {{customerName}},</p>",
+      "<p>Here\u2019s the latest update on <strong>{{projectName}}</strong>:</p>",
+      "<p><strong>Completed this week:</strong><br/>{{completedWork}}</p>",
+      "<p><strong>Upcoming next:</strong><br/>{{upcomingWork}}</p>",
+      "<p><strong>Current completion:</strong> {{completionPercentage}}%</p>",
+      "<p>Reach out any time if you have questions.<br/>\u2014 The GoodHomeStory Team</p>",
+    ].join(""),
+  },
+  PAYMENT: {
+    subject: "Payment Confirmation \u2014 {{projectName}}",
+    category: "PAYMENT",
+    html: [
+      "<h2>Payment Received \ud83d\udcb3</h2>",
+      "<p>Hi {{customerName}},</p>",
+      "<p>We\u2019ve successfully received your payment of <strong>{{amount}}</strong> for <strong>{{projectName}}</strong>.</p>",
+      "<p><strong>Transaction ID:</strong> {{transactionId}}<br/>",
+      "<strong>Date:</strong> {{paymentDate}}</p>",
+      "<p>A detailed invoice has been attached to this email for your records.</p>",
+      "<p>Thank you for your trust.<br/>\u2014 The GoodHomeStory Team</p>",
+    ].join(""),
+  },
+  COMPLETION: {
+    subject: "\ud83c\udf89 Your Project is Complete \u2014 {{projectName}}",
+    category: "OTHER",
+    html: [
+      "<h2>Project Complete! \ud83c\udf89</h2>",
+      "<p>Hi {{customerName}},</p>",
+      "<p>We\u2019re excited to let you know that <strong>{{projectName}}</strong> is officially complete!</p>",
+      "<p>It was a pleasure working with you. We\u2019d love to hear your feedback \u2014 a quick review helps us serve future clients better.</p>",
+      '<p>\ud83d\udc49 <a href="{{reviewLink}}">Leave a review</a></p>',
+      "<p>Don\u2019t hesitate to reach out for future projects.<br/>\u2014 The GoodHomeStory Team</p>",
+    ].join(""),
+  },
+  FOLLOW_UP: {
+    subject: "Following up on {{projectName}}",
+    category: "FOLLOW_UP",
+    html: [
+      "<h2>Quick Follow-up \ud83d\udd01</h2>",
+      "<p>Hi {{customerName}},</p>",
+      "<p>Just checking in on <strong>{{projectName}}</strong>. We wanted to make sure everything is going smoothly and you\u2019re happy with the progress so far.</p>",
+      "<p>If you have any questions, concerns, or feedback, please don\u2019t hesitate to reply to this email.</p>",
+      "<p>Looking forward to hearing from you!<br/>\u2014 The GoodHomeStory Team</p>",
+    ].join(""),
+  },
+  OCCASION: {
+    subject: "\ud83c\udf82 Happy {{occasion}}, {{customerName}}!",
+    category: "OCCASION",
+    html: [
+      "<h2>Happy {{occasion}}, {{customerName}}! \ud83c\udf82</h2>",
+      "<p>From all of us at GoodHomeStory, we wish you a wonderful {{occasion}}!</p>",
+      "<p>As a valued client, we\u2019re grateful for your trust and look forward to serving you again soon.</p>",
+      "<p>Warm wishes,<br/>\u2014 The GoodHomeStory Team</p>",
+    ].join(""),
+  },
+  OTHER: {
+    subject: "Hello {{customerName}}",
+    category: "OTHER",
+    html: [
+      "<h2>Hi {{customerName}},</h2>",
+      "<p>Thank you for being a valued GoodHomeStory client.</p>",
+      "<p>{{messageBody}}</p>",
+      "<p>Feel free to reply to this email if you have any questions.<br/>\u2014 The GoodHomeStory Team</p>",
+    ].join(""),
+  },
+};
+
 // ── Sub-components ────────────────────────────────────────────────
 
 const FieldRow: React.FC<{
@@ -122,6 +214,7 @@ const FieldRow: React.FC<{
 // ── Main Component ────────────────────────────────────────────────
 export const EmailEditor: React.FC = () => {
   const editorRef = useRef<EmailEditorCoreRef>(null);
+  const templateEditorRef = useRef<EmailEditorCoreRef>(null);
 
   // Form state
   const [to, setTo] = useState("");
@@ -162,14 +255,13 @@ export const EmailEditor: React.FC = () => {
       | "ONBOARDING"
       | "PROJECT_UPDATE"
       | "PAYMENT"
-      | "COMPLETION"
+      | "FOLLOW_UP"
+      | "OCCASION"
       | "OTHER",
     description: "",
     subject: "",
   });
-  const [templateVariables, setTemplateVariables] = useState<
-    EmailTemplateVariable[]
-  >([]);
+  const [templateBodyHtml, setTemplateBodyHtml] = useState("");
 
   // Store
   const {
@@ -187,6 +279,15 @@ export const EmailEditor: React.FC = () => {
   useEffect(() => {
     fetchTemplates().catch(() => toast.error("Failed to load email templates"));
   }, [fetchTemplates]);
+
+  // Populate embedded template editor after modal opens
+  useEffect(() => {
+    if (!showTemplateModal) return;
+    const timer = setTimeout(() => {
+      templateEditorRef.current?.setHtml(templateBodyHtml);
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [showTemplateModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle editor content changes
   const handleEditorChange = useCallback((html: string, text: string) => {
@@ -317,20 +418,51 @@ export const EmailEditor: React.FC = () => {
       description: "",
       subject: "",
     });
-    setTemplateVariables([]);
+    setTemplateBodyHtml("");
     setEditingTemplateId(null);
   };
 
   const openCreateTemplateModal = () => {
     setTemplateEditMode("create");
     setEditingTemplateId(null);
+
+    // If the composer already has content, use that; otherwise load a starter
+    const capturedHtml = editorRef.current?.getHtml().trim() || "";
+    const isEmpty =
+      !capturedHtml ||
+      capturedHtml === "<br>" ||
+      capturedHtml === "<p></p>" ||
+      capturedHtml === "<p><br></p>";
+
+    // Pick the best-guess category from a starter based on current subject keywords
+    const guessCategory = (): keyof typeof STARTER_TEMPLATES => {
+      const s = (subject || "").toLowerCase();
+      if (s.includes("welcome") || s.includes("onboard")) return "ONBOARDING";
+      if (s.includes("update") || s.includes("progress"))
+        return "PROJECT_UPDATE";
+      if (s.includes("payment") || s.includes("invoice")) return "PAYMENT";
+      if (s.includes("complet") || s.includes("done") || s.includes("finish"))
+        return "COMPLETION";
+      if (s.includes("follow")) return "FOLLOW_UP";
+      if (
+        s.includes("happy") ||
+        s.includes("birthday") ||
+        s.includes("occasion")
+      )
+        return "OCCASION";
+      return "ONBOARDING"; // default to most common
+    };
+
+    const defaultCategory = guessCategory();
+    const starter = STARTER_TEMPLATES[defaultCategory];
+
+    setTemplateBodyHtml(isEmpty ? starter.html : capturedHtml);
     setTemplateFormData({
       name: "",
-      category: "OTHER",
+      category: defaultCategory as typeof templateFormData.category,
       description: "",
-      subject: subject || "",
+      subject: subject.trim() || starter.subject,
     });
-    setTemplateVariables([]);
     setShowTemplateModal(true);
   };
 
@@ -339,28 +471,42 @@ export const EmailEditor: React.FC = () => {
       toast.error("Please enter a template name");
       return;
     }
-    if (!templateFormData.subject.trim() && !subject.trim()) {
+    if (!templateFormData.subject.trim()) {
       toast.error("Please add a subject line");
       return;
     }
 
     try {
-      const validVariables = templateVariables.filter(
-        (v) => v.name.trim() !== "",
-      );
-      const templateSubject = templateFormData.subject.trim() || subject.trim();
-      const editorHtml = editorRef.current?.getHtml().trim() || "";
-      const editorText = editorRef.current?.getTextContent().trim() || "";
+      const htmlBody =
+        templateEditorRef.current?.getHtml().trim() ||
+        templateBodyHtml ||
+        `<p>Template: ${templateFormData.name.trim()}</p>`;
+      const textBody =
+        templateEditorRef.current?.getTextContent().trim() ||
+        `Template: ${templateFormData.name.trim()}`;
+
+      // Auto-detect {{variable}} placeholders from subject + body
+      const varRegex = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+      const detected = new Set<string>();
+      let m;
+      const combined = htmlBody + " " + templateFormData.subject;
+      while ((m = varRegex.exec(combined)) !== null) detected.add(m[1]);
+      const variables =
+        detected.size > 0
+          ? Array.from(detected).map((name) => ({
+              name,
+              required: false,
+              description: "",
+            }))
+          : undefined;
 
       const templateData = {
         name: templateFormData.name.trim(),
         category: templateFormData.category,
-        description: templateFormData.description.trim() || undefined,
-        subject: templateSubject,
-        htmlBody:
-          editorHtml || `<p>Template: ${templateFormData.name.trim()}</p>`,
-        textBody: editorText || `Template: ${templateFormData.name.trim()}`,
-        variables: validVariables.length > 0 ? validVariables : undefined,
+        subject: templateFormData.subject.trim(),
+        htmlBody,
+        textBody,
+        variables,
       };
 
       if (templateEditMode === "create") {
@@ -571,7 +717,6 @@ export const EmailEditor: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            applyTemplate(t);
                             setTemplateEditMode("edit");
                             setEditingTemplateId(t.id);
                             setTemplateFormData({
@@ -580,7 +725,7 @@ export const EmailEditor: React.FC = () => {
                               description: t.description || "",
                               subject: t.subject || "",
                             });
-                            setTemplateVariables(t.variables || []);
+                            setTemplateBodyHtml(t.htmlBody || "");
                             setShowTemplateModal(true);
                           }}
                           className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200 text-blue-600 hover:bg-blue-50 transition-colors"
@@ -959,368 +1104,311 @@ export const EmailEditor: React.FC = () => {
       </div>
 
       {/* VARIABLE FILL MODAL */}
-      {showVarFillModal && appliedTemplate?.variables && (
-        <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowVarFillModal(false)}
-        >
+      {showVarFillModal &&
+        appliedTemplate?.variables &&
+        ReactDOM.createPortal(
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+            onClick={() => setShowVarFillModal(false)}
           >
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between rounded-t-2xl">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">
-                  Fill Template Variables
-                </h2>
-                <p className="text-xs text-gray-400 mt-1">
-                  Customize values for &ldquo;{appliedTemplate.name}&rdquo;
-                </p>
-              </div>
-              <button
-                onClick={() => setShowVarFillModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {appliedTemplate.variables.map((variable) => (
-                <div key={variable.name}>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    {variable.name}
-                    {variable.required && (
-                      <span className="text-red-500 ml-0.5">*</span>
-                    )}
-                  </label>
-                  {variable.description && (
-                    <p className="text-xs text-gray-400 mb-1.5">
-                      {variable.description}
-                    </p>
-                  )}
-                  <input
-                    type="text"
-                    value={templateVarValues[variable.name] || ""}
-                    onChange={(e) =>
-                      setTemplateVarValues({
-                        ...templateVarValues,
-                        [variable.name]: e.target.value,
-                      })
-                    }
-                    placeholder={`Enter ${variable.name}...`}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
-                  />
-                </div>
-              ))}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Email Type
-                </label>
-                <select
-                  value={emailType}
-                  onChange={(e) => setEmailType(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
-                >
-                  {Object.entries(CATEGORY_EMOJI).map(([key, emoji]) => (
-                    <option key={key} value={key}>
-                      {emoji}{" "}
-                      {key
-                        .replace(/_/g, " ")
-                        .replace(/\b\w/g, (l) => l.toUpperCase())}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-100 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
-              <button
-                onClick={() => setShowVarFillModal(false)}
-                className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const missing = appliedTemplate.variables!.filter(
-                    (v) => v.required && !templateVarValues[v.name]?.trim(),
-                  );
-                  if (missing.length > 0) {
-                    toast.error(
-                      `Please fill: ${missing.map((m) => m.name).join(", ")}`,
-                    );
-                    return;
-                  }
-                  setShowVarFillModal(false);
-                  toast.success("Variables saved");
-                }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl transition-all shadow-md shadow-orange-500/20"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Save Variables
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TEMPLATE CREATE/EDIT MODAL */}
-      {showTemplateModal && (
-        <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={resetTemplateModal}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between rounded-t-2xl z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-orange-500" />
-                </div>
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between rounded-t-2xl">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">
-                    {templateEditMode === "create"
-                      ? "Save as Template"
-                      : "Edit Template"}
+                    Fill Template Variables
                   </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {templateEditMode === "create"
-                      ? "Save this email as a reusable template"
-                      : "Update template details"}
+                  <p className="text-xs text-gray-400 mt-1">
+                    Customize values for &ldquo;{appliedTemplate.name}&rdquo;
                   </p>
                 </div>
+                <button
+                  onClick={() => setShowVarFillModal(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={resetTemplateModal}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {/* Body */}
-            <div className="p-6 space-y-5">
-              {/* Name & Category */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-6 space-y-4">
+                {appliedTemplate.variables.map((variable) => (
+                  <div key={variable.name}>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      {variable.name}
+                      {variable.required && (
+                        <span className="text-red-500 ml-0.5">*</span>
+                      )}
+                    </label>
+                    {variable.description && (
+                      <p className="text-xs text-gray-400 mb-1.5">
+                        {variable.description}
+                      </p>
+                    )}
+                    <input
+                      type="text"
+                      value={templateVarValues[variable.name] || ""}
+                      onChange={(e) =>
+                        setTemplateVarValues({
+                          ...templateVarValues,
+                          [variable.name]: e.target.value,
+                        })
+                      }
+                      placeholder={`Enter ${variable.name}...`}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
+                    />
+                  </div>
+                ))}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Template Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={templateFormData.name}
-                    onChange={(e) =>
-                      setTemplateFormData({
-                        ...templateFormData,
-                        name: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., Welcome Email"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Category <span className="text-red-500">*</span>
+                    Email Type
                   </label>
                   <select
-                    value={templateFormData.category}
-                    onChange={(e) =>
-                      setTemplateFormData({
-                        ...templateFormData,
-                        category: e.target
-                          .value as typeof templateFormData.category,
-                      })
-                    }
+                    value={emailType}
+                    onChange={(e) => setEmailType(e.target.value)}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
                   >
-                    <option value="ONBOARDING">
-                      {"\ud83d\udc4b"} Onboarding
-                    </option>
-                    <option value="PROJECT_UPDATE">
-                      {"\ud83c\udfd7\ufe0f"} Project Update
-                    </option>
-                    <option value="PAYMENT">{"\ud83d\udcb3"} Payment</option>
-                    <option value="COMPLETION">
-                      {"\ud83c\udf89"} Completion
-                    </option>
-                    <option value="OTHER">{"\ud83d\udce7"} Other</option>
+                    {Object.entries(CATEGORY_EMOJI).map(([key, emoji]) => (
+                      <option key={key} value={key}>
+                        {emoji}{" "}
+                        {key
+                          .replace(/_/g, " ")
+                          .replace(/\b\w/g, (l) => l.toUpperCase())}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              {/* Subject */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Subject <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={templateFormData.subject}
-                  onChange={(e) =>
-                    setTemplateFormData({
-                      ...templateFormData,
-                      subject: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., Welcome, {{customerName}}!"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
-                />
-                <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
-                  <Code className="w-3 h-3" />
-                  {"Use {{variableName}} for dynamic placeholders"}
-                </p>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Description
-                </label>
-                <textarea
-                  value={templateFormData.description}
-                  onChange={(e) =>
-                    setTemplateFormData({
-                      ...templateFormData,
-                      description: e.target.value,
-                    })
-                  }
-                  placeholder="Brief description of when to use this template"
-                  rows={2}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm resize-none transition-colors"
-                />
-              </div>
-
-              {/* Template Variables */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-semibold text-gray-700">
-                    Template Variables
-                  </label>
-                  <button
-                    onClick={() =>
-                      setTemplateVariables([
-                        ...templateVariables,
-                        { name: "", required: false, description: "" },
-                      ])
+              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-100 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
+                <button
+                  onClick={() => setShowVarFillModal(false)}
+                  className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const missing = appliedTemplate.variables!.filter(
+                      (v) => v.required && !templateVarValues[v.name]?.trim(),
+                    );
+                    if (missing.length > 0) {
+                      toast.error(
+                        `Please fill: ${missing.map((m) => m.name).join(", ")}`,
+                      );
+                      return;
                     }
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-3 h-3" /> Add Variable
-                  </button>
-                </div>
+                    setShowVarFillModal(false);
+                    toast.success("Variables saved");
+                  }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl transition-all shadow-md shadow-orange-500/20"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Save Variables
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
-                {templateVariables.length === 0 ? (
-                  <div className="text-center py-5 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                    <Code className="w-5 h-5 text-gray-300 mx-auto mb-1.5" />
-                    <p className="text-xs text-gray-400">
-                      No variables defined
+      {/* TEMPLATE CREATE/EDIT MODAL */}
+      {showTemplateModal &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+            onClick={resetTemplateModal}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col"
+              style={{ height: "min(88vh, 820px)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-orange-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">
+                      {templateEditMode === "create"
+                        ? "Save as Template"
+                        : "Edit Template"}
+                    </h2>
+                    <p className="text-[11px] text-gray-400">
+                      {templateEditMode === "create"
+                        ? "Give it a name, subject and write the email body"
+                        : "Update the template name, subject or body"}
                     </p>
                   </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    {templateVariables.map((variable, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100"
-                      >
-                        <input
-                          type="text"
-                          value={variable.name}
-                          onChange={(e) => {
-                            const u = [...templateVariables];
-                            u[index] = { ...u[index], name: e.target.value };
-                            setTemplateVariables(u);
-                          }}
-                          placeholder="Name"
-                          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors"
-                        />
-                        <input
-                          type="text"
-                          value={variable.description || ""}
-                          onChange={(e) => {
-                            const u = [...templateVariables];
-                            u[index] = {
-                              ...u[index],
-                              description: e.target.value,
-                            };
-                            setTemplateVariables(u);
-                          }}
-                          placeholder="Description"
-                          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors"
-                        />
-                        <label className="flex items-center gap-1.5 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={variable.required}
-                            onChange={(e) => {
-                              const u = [...templateVariables];
-                              u[index] = {
-                                ...u[index],
-                                required: e.target.checked,
-                              };
-                              setTemplateVariables(u);
-                            }}
-                            className="rounded text-orange-500 focus:ring-orange-500 w-3.5 h-3.5"
-                          />
-                          Req
-                        </label>
-                        <button
-                          onClick={() =>
-                            setTemplateVariables(
-                              templateVariables.filter((_, i) => i !== index),
-                            )
-                          }
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                </div>
+                <button
+                  onClick={resetTemplateModal}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* Info Banner */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-semibold text-amber-900">
-                    Template Content
-                  </p>
-                  <p className="text-amber-700 mt-0.5 text-xs leading-relaxed">
+              {/* Compact Meta Fields */}
+              <div className="px-6 py-4 border-b border-gray-100 shrink-0 space-y-3 bg-gray-50/40">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                      Template Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={templateFormData.name}
+                      onChange={(e) =>
+                        setTemplateFormData({
+                          ...templateFormData,
+                          name: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Welcome Email"
+                      autoFocus
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        Category
+                      </label>
+                      {templateEditMode === "create" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const starter =
+                              STARTER_TEMPLATES[templateFormData.category] ||
+                              STARTER_TEMPLATES["OTHER"];
+                            setTemplateFormData((prev) => ({
+                              ...prev,
+                              subject: starter.subject,
+                            }));
+                            setTemplateBodyHtml(starter.html);
+                            templateEditorRef.current?.setHtml(starter.html);
+                          }}
+                          className="text-[10px] font-semibold text-orange-500 hover:text-orange-600 hover:bg-orange-50 px-2 py-0.5 rounded-md transition-colors"
+                        >
+                          ↺ Load example
+                        </button>
+                      )}
+                    </div>
+                    <select
+                      value={templateFormData.category}
+                      onChange={(e) => {
+                        const newCat = e.target
+                          .value as typeof templateFormData.category;
+                        const starter =
+                          STARTER_TEMPLATES[newCat] ||
+                          STARTER_TEMPLATES["OTHER"];
+                        // Auto-swap subject if it still matches any starter (not custom-typed)
+                        const isStillStarter = Object.values(
+                          STARTER_TEMPLATES,
+                        ).some((s) => s.subject === templateFormData.subject);
+                        setTemplateFormData((prev) => ({
+                          ...prev,
+                          category: newCat,
+                          subject:
+                            templateEditMode === "create" && isStillStarter
+                              ? starter.subject
+                              : prev.subject,
+                        }));
+                        if (templateEditMode === "create") {
+                          setTemplateBodyHtml(starter.html);
+                          templateEditorRef.current?.setHtml(starter.html);
+                        }
+                      }}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors"
+                    >
+                      <option value="ONBOARDING">👋 Onboarding</option>
+                      <option value="PROJECT_UPDATE">🏗️ Project Update</option>
+                      <option value="PAYMENT">💳 Payment</option>
+                      <option value="FOLLOW_UP">🔁 Follow Up</option>
+                      <option value="OCCASION">🎂 Occasion</option>
+                      <option value="OTHER">🎉 Completion / Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                    Subject <span className="text-red-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={templateFormData.subject}
+                      onChange={(e) =>
+                        setTemplateFormData({
+                          ...templateFormData,
+                          subject: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Welcome, {{customerName}}! 🏠"
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors pr-44"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 flex items-center gap-1 pointer-events-none select-none">
+                      <Code className="w-3 h-3" />
+                      {"{{variable}} auto-detected"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Embedded Email Body Editor */}
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="px-6 pt-3 pb-1.5 shrink-0 flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    Email Body
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    Use{" "}
+                    <code className="font-mono text-orange-500 bg-orange-50 px-1 rounded">
+                      {"{{name}}"}
+                    </code>{" "}
+                    placeholders — they are auto-saved as variables
+                  </span>
+                </div>
+                <div className="flex-1 overflow-auto border-t border-gray-100">
+                  <EmailEditorCore
+                    ref={templateEditorRef}
+                    onChange={(html: string) => setTemplateBodyHtml(html)}
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0 bg-gray-50/40">
+                <p className="text-xs text-gray-400">
+                  {templateEditMode === "create"
+                    ? "Starter content pre-loaded · switch category to load a different example"
+                    : "Edit fields or body then save to update the template"}
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={resetTemplateModal}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveTemplate}
+                    className="px-6 py-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl transition-all shadow-md shadow-orange-500/20"
+                  >
                     {templateEditMode === "create"
-                      ? "The current editor content will be saved as the template body."
-                      : "Saving will update the template with the current editor content."}
-                  </p>
+                      ? "Create Template"
+                      : "Update Template"}
+                  </button>
                 </div>
               </div>
             </div>
-
-            {/* Footer */}
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-100 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
-              <button
-                onClick={resetTemplateModal}
-                className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveTemplate}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl transition-all shadow-md shadow-orange-500/20"
-              >
-                {templateEditMode === "create"
-                  ? "Create Template"
-                  : "Update Template"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
 
       {/* EDITOR STYLES */}
       <style>{`

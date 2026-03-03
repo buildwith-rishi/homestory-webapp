@@ -27,11 +27,17 @@ import toast from "react-hot-toast";
 
 interface DayTasksPanelProps {
   matrixId: string;
+  projectId: string;
+  projectName?: string;
   dayNumber: number;
   startDate: string;
   categories: MatrixCategory[];
   onTaskClick: (taskId: string, task?: MatrixTask) => void;
-  onStatusChange: (taskId: string, newStatus: string) => void;
+  onStatusChange: (
+    taskId: string,
+    newStatus: string,
+    completionNotes?: string,
+  ) => void;
   updatingTaskId: string | null;
 }
 
@@ -89,6 +95,8 @@ const getDateForDay = (startDate: string, dayNumber: number) => {
 
 export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   matrixId,
+  projectId,
+  projectName = "",
   dayNumber,
   startDate,
   categories,
@@ -101,11 +109,16 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [completionDialog, setCompletionDialog] = useState<{
+    taskId: string;
+    notes: string;
+  } | null>(null);
 
   // Notify customer state
   const [checkedTaskIds, setCheckedTaskIds] = useState<Set<string>>(new Set());
   const [showNotifyCompose, setShowNotifyCompose] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState("");
+  const [notifyToName, setNotifyToName] = useState("");
   const [notifySubject, setNotifySubject] = useState("");
   const [notifyMessage, setNotifyMessage] = useState("");
   const [loadingEmail, setLoadingEmail] = useState(false);
@@ -129,7 +142,9 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
 
   // Auto-uncheck tasks that are no longer COMPLETED
   useEffect(() => {
-    const completedIds = new Set(tasks.filter((t) => t.status === "COMPLETED").map((t) => t.id));
+    const completedIds = new Set(
+      tasks.filter((t) => t.status === "COMPLETED").map((t) => t.id),
+    );
     setCheckedTaskIds((prev) => {
       const next = new Set([...prev].filter((id) => completedIds.has(id)));
       return next.size === prev.size ? prev : next;
@@ -143,18 +158,75 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com"}/api/tasks/${firstId}/customer-email`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` } },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          },
+        },
       );
       if (response.ok) {
         const data = await response.json();
         const email = data.customerEmail || data.email || "";
+        const name = data.customerName || data.toName || data.name || "";
         if (email) setNotifyEmail(email);
+        if (name) setNotifyToName(name);
       }
     } catch {
       // non-critical
     } finally {
       setLoadingEmail(false);
     }
+  };
+
+  const buildNotifyHtml = (opts: {
+    customerName: string;
+    projectName: string;
+    updateTitle: string;
+    personalNote: string;
+    taskTitles: string[];
+    dayNumber: number;
+  }) => {
+    const taskListItems = opts.taskTitles
+      .map((t) => `<li style="padding:4px 0;color:#374151;">✅ ${t}</li>`)
+      .join("");
+
+    const noteBlock = opts.personalNote
+      ? `<p style="margin:16px 0;color:#374151;line-height:1.6;">${opts.personalNote.replace(/\n/g, "<br/>")}</p>`
+      : "";
+
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);max-width:600px;">
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">GoodHomeStory</h1>
+          <p style="margin:4px 0 0;color:#fed7aa;font-size:13px;">Project Day ${opts.dayNumber} Update</p>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi <strong>${opts.customerName}</strong>,</p>
+          <p style="margin:0 0 20px;color:#374151;line-height:1.6;">Here's your Day <strong>${opts.dayNumber}</strong> update for <strong>${opts.projectName}</strong>.</p>
+          <div style="background:#fff7ed;border-left:4px solid #f97316;border-radius:6px;padding:14px 18px;margin:0 0 20px;">
+            <p style="margin:0;font-size:14px;font-weight:600;color:#c2410c;">${opts.updateTitle}</p>
+          </div>
+          ${noteBlock}
+          <p style="margin:0 0 10px;color:#374151;font-weight:600;font-size:14px;">Completed today:</p>
+          <ul style="margin:0 0 24px;padding-left:18px;">${taskListItems}</ul>
+          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">If you have any questions, feel free to reply to this email.<br/>— The GoodHomeStory Team</p>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;color:#9ca3af;font-size:11px;text-align:center;">© 2026 GoodHomeStory. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
   };
 
   const handleSendNotify = async () => {
@@ -167,30 +239,53 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       return;
     }
     setSendingNotify(true);
-    const checkedTitles = tasks
-      .filter((t) => checkedTaskIds.has(t.id))
-      .map((t) => `• ${t.title}`)
-      .join("\n");
-    const body = notifyMessage.trim()
-      ? `${notifyMessage}\n\nCompleted tasks:\n${checkedTitles}`
-      : `The following tasks have been completed:\n\n${checkedTitles}`;
+    const checkedTasks = tasks.filter((t) => checkedTaskIds.has(t.id));
+    const updateTitle =
+      checkedTasks.length === 1
+        ? checkedTasks[0].title
+        : `Day ${dayNumber} Task Update`;
+    const customerName =
+      notifyToName.trim() || notifyEmail.trim().split("@")[0];
+
+    const htmlBody = buildNotifyHtml({
+      customerName,
+      projectName: projectName || "Your Project",
+      updateTitle,
+      personalNote: notifyMessage.trim(),
+      taskTitles: checkedTasks.map((t) => t.title),
+      dayNumber,
+    });
+
     try {
       const res = await sendEmail({
         to: notifyEmail.trim(),
+        toName: notifyToName.trim() || undefined,
         subject: notifySubject.trim(),
-        textBody: body,
+        htmlBody,
+        templateName: "project_update",
+        variables: {
+          customerName,
+          projectName: projectName || "Your Project",
+          updateTitle,
+          updateBody: notifyMessage.trim() || updateTitle,
+        },
+        emailType: "PROJECT_UPDATE",
+        projectId,
       });
       if (res.success) {
         toast.success(`Notification sent to ${notifyEmail.trim()}`);
         setShowNotifyCompose(false);
         setNotifyMessage("");
         setNotifySubject("");
+        setNotifyToName("");
         setCheckedTaskIds(new Set());
       } else {
         toast.error(res.message || "Failed to send notification");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send notification");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to send notification",
+      );
     } finally {
       setSendingNotify(false);
     }
@@ -363,117 +458,186 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                     const isUpdating = updatingTaskId === task.id;
 
                     return (
-                      <div
-                        key={task.id}
-                        className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors group"
-                      >
-                        {/* Notify checkbox — only enabled when COMPLETED */}
-                        <input
-                          type="checkbox"
-                          disabled={task.status !== "COMPLETED"}
-                          checked={checkedTaskIds.has(task.id)}
-                          onChange={(e) => {
-                            setCheckedTaskIds((prev) => {
-                              const next = new Set(prev);
-                              if (e.target.checked) next.add(task.id);
-                              else next.delete(task.id);
-                              return next;
-                            });
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          title={
-                            task.status !== "COMPLETED"
-                              ? "Only completed tasks can be selected for notification"
-                              : "Select for customer notification"
-                          }
-                          className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400 disabled:opacity-25 disabled:cursor-not-allowed flex-shrink-0"
-                        />
+                      <div key={task.id} className="rounded-lg overflow-hidden">
+                        <div className="flex items-center gap-3 py-2.5 px-3 hover:bg-gray-50 transition-colors group">
+                          {/* Notify checkbox — only enabled when COMPLETED */}
+                          <input
+                            type="checkbox"
+                            disabled={task.status !== "COMPLETED"}
+                            checked={checkedTaskIds.has(task.id)}
+                            onChange={(e) => {
+                              setCheckedTaskIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(task.id);
+                                else next.delete(task.id);
+                                return next;
+                              });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            title={
+                              task.status !== "COMPLETED"
+                                ? "Only completed tasks can be selected for notification"
+                                : "Select for customer notification"
+                            }
+                            className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400 disabled:opacity-25 disabled:cursor-not-allowed flex-shrink-0"
+                          />
 
-                        {/* Status icon */}
-                        <span className={`flex-shrink-0 ${cfg.text}`}>
-                          {cfg.icon}
-                        </span>
+                          {/* Status icon */}
+                          <span className={`flex-shrink-0 ${cfg.text}`}>
+                            {cfg.icon}
+                          </span>
 
-                        {/* Task info */}
-                        <div
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => onTaskClick(task.id, task)}
-                        >
-                          <p
-                            className={`text-sm font-medium ${
-                              task.status === "COMPLETED"
-                                ? "text-gray-400 line-through"
-                                : "text-gray-900"
-                            }`}
+                          {/* Task info */}
+                          <div
+                            className="flex-1 min-w-0 cursor-pointer"
+                            onClick={() => onTaskClick(task.id, task)}
                           >
-                            {task.title}
-                          </p>
-                          {task.description && (
-                            <p className="text-xs text-gray-400 truncate mt-0.5">
-                              {task.description}
+                            <p
+                              className={`text-sm font-medium ${
+                                task.status === "COMPLETED"
+                                  ? "text-gray-400 line-through"
+                                  : "text-gray-900"
+                              }`}
+                            >
+                              {task.title}
                             </p>
+                            {task.description && (
+                              <p className="text-xs text-gray-400 truncate mt-0.5">
+                                {task.description}
+                              </p>
+                            )}
+                            {task.taskDate && (
+                              <p className="text-[10px] text-blue-500 mt-0.5">
+                                📅{" "}
+                                {new Date(task.taskDate).toLocaleDateString(
+                                  "en-IN",
+                                  {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  },
+                                )}
+                              </p>
+                            )}
+                            {task.completionNotes && (
+                              <p className="text-xs text-green-600 italic mt-0.5">
+                                ✓ {task.completionNotes}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Attachment badge */}
+                          {task._count && task._count.attachments > 0 && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                              <Paperclip className="w-2.5 h-2.5" />
+                              {task._count.attachments}
+                            </span>
                           )}
-                          {task.taskDate && (
-                            <p className="text-[10px] text-blue-500 mt-0.5">
-                              📅{" "}
-                              {new Date(task.taskDate).toLocaleDateString(
-                                "en-IN",
-                                {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                },
-                              )}
-                            </p>
-                          )}
-                          {task.completionNotes && (
-                            <p className="text-xs text-green-600 italic mt-0.5">
-                              ✓ {task.completionNotes}
-                            </p>
+
+                          {/* View detail */}
+                          <button
+                            onClick={() => onTaskClick(task.id, task)}
+                            className="p-1 text-gray-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition-all"
+                            title="View details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Status dropdown */}
+                          {isUpdating ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
+                          ) : (
+                            <select
+                              value={task.status}
+                              onChange={(e) => {
+                                const newStatus = e.target.value;
+                                setTasks((prev) =>
+                                  prev.map((t) =>
+                                    t.id === task.id
+                                      ? { ...t, status: newStatus }
+                                      : t,
+                                  ),
+                                );
+                                if (newStatus === "COMPLETED") {
+                                  setCompletionDialog({
+                                    taskId: task.id,
+                                    notes: "",
+                                  });
+                                } else {
+                                  setCompletionDialog(null);
+                                  onStatusChange(task.id, newStatus);
+                                }
+                              }}
+                              className={`text-xs px-2 py-1 rounded-md border-0 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-400 ${cfg.bg} ${cfg.text}`}
+                            >
+                              <option value="PENDING">Pending</option>
+                              <option value="IN_PROGRESS">In Progress</option>
+                              <option value="COMPLETED">Completed</option>
+                              <option value="CANCELLED">Cancelled</option>
+                              <option value="OVERDUE">Overdue</option>
+                            </select>
                           )}
                         </div>
-
-                        {/* Attachment badge */}
-                        {task._count && task._count.attachments > 0 && (
-                          <span className="flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                            <Paperclip className="w-2.5 h-2.5" />
-                            {task._count.attachments}
-                          </span>
-                        )}
-
-                        {/* View detail */}
-                        <button
-                          onClick={() => onTaskClick(task.id, task)}
-                          className="p-1 text-gray-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition-all"
-                          title="View details"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Status dropdown */}
-                        {isUpdating ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
-                        ) : (
-                          <select
-                            value={task.status}
-                            onChange={(e) => {
-                              const newStatus = e.target.value;
-                              // Optimistically update local state
-                              setTasks((prev) =>
-                                prev.map((t) =>
-                                  t.id === task.id ? { ...t, status: newStatus } : t,
-                                ),
-                              );
-                              onStatusChange(task.id, newStatus);
-                            }}
-                            className={`text-xs px-2 py-1 rounded-md border-0 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-400 ${cfg.bg} ${cfg.text}`}
-                          >
-                            <option value="PENDING">Pending</option>
-                            <option value="IN_PROGRESS">In Progress</option>
-                            <option value="COMPLETED">Completed</option>
-                            <option value="CANCELLED">Cancelled</option>
-                            <option value="OVERDUE">Overdue</option>
-                          </select>
+                        {/* Inline completion notes prompt */}
+                        {completionDialog?.taskId === task.id && (
+                          <div className="px-3 pb-3 pt-2 bg-green-50 border-t border-green-100">
+                            <p className="text-[11px] font-semibold text-green-700 mb-1.5">
+                              Completion notes (optional)
+                            </p>
+                            <div className="flex gap-2">
+                              <input
+                                autoFocus
+                                type="text"
+                                value={completionDialog.notes}
+                                onChange={(e) =>
+                                  setCompletionDialog({
+                                    taskId: task.id,
+                                    notes: e.target.value,
+                                  })
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    onStatusChange(
+                                      task.id,
+                                      "COMPLETED",
+                                      completionDialog.notes || undefined,
+                                    );
+                                    setCompletionDialog(null);
+                                  }
+                                  if (e.key === "Escape") {
+                                    onStatusChange(task.id, "COMPLETED");
+                                    setCompletionDialog(null);
+                                  }
+                                }}
+                                placeholder="e.g. Site survey completed, all measurements taken"
+                                className="flex-1 text-xs border border-green-200 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400/40 bg-white"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onStatusChange(
+                                    task.id,
+                                    "COMPLETED",
+                                    completionDialog.notes || undefined,
+                                  );
+                                  setCompletionDialog(null);
+                                }}
+                                className="text-xs px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-md font-medium transition-colors"
+                              >
+                                Done
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onStatusChange(task.id, "COMPLETED");
+                                  setCompletionDialog(null);
+                                }}
+                                className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md font-medium transition-colors"
+                              >
+                                Skip
+                              </button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     );
@@ -617,9 +781,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                 size="sm"
                 onClick={handleSendNotify}
                 disabled={
-                  sendingNotify ||
-                  !notifyEmail.trim() ||
-                  !notifySubject.trim()
+                  sendingNotify || !notifyEmail.trim() || !notifySubject.trim()
                 }
                 className="bg-orange-500 hover:bg-orange-600 text-white"
               >

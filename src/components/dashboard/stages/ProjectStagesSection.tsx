@@ -43,7 +43,9 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
 
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
-  const [phaseTab, setPhaseTab] = useState<"all" | "DESIGN" | "EXECUTION">("all");
+  const [phaseTab, setPhaseTab] = useState<"all" | "DESIGN" | "EXECUTION">(
+    "all",
+  );
   const [showAddStageModal, setShowAddStageModal] = useState(false);
   const [matrixStage, setMatrixStage] = useState<ProjectStageData | null>(null);
 
@@ -134,6 +136,7 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
     return (
       <StageMatrixView
         projectId={project.id}
+        projectName={project.projectName}
         stage={matrixStage}
         onBack={() => setMatrixStage(null)}
       />
@@ -207,11 +210,13 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
 
       {/* Phase Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        {([
-          { key: "all" as const, label: "All" },
-          { key: "DESIGN" as const, label: "Interiors" },
-          { key: "EXECUTION" as const, label: "Architecture" },
-        ] as const).map((tab) => (
+        {(
+          [
+            { key: "all" as const, label: "All" },
+            { key: "DESIGN" as const, label: "Interiors" },
+            { key: "EXECUTION" as const, label: "Architecture" },
+          ] as const
+        ).map((tab) => (
           <button
             key={tab.key}
             onClick={() => setPhaseTab(tab.key)}

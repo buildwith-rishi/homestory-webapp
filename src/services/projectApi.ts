@@ -1898,18 +1898,21 @@ export async function getMatrixStats(matrixId: string): Promise<MatrixStats> {
 
 /**
  * Update task status
- * PUT /api/tasks/:taskId/status
+ * PUT /api/matrix-tasks/:taskId/status
  */
 export async function updateMatrixTaskStatus(
   taskId: string,
   data: UpdateTaskStatusRequest,
 ): Promise<MatrixTask> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/status`, {
-      method: "PUT",
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/matrix-tasks/${taskId}/status`,
+      {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
     const result = await handleResponse<any>(response);
     return result.task || result;
   } catch (error) {
