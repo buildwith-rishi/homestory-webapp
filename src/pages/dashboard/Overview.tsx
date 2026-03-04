@@ -1,6 +1,14 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { differenceInDays, parseISO } from "date-fns";
+import { useNavigate, Navigate } from "react-router-dom";
+import {
+  differenceInDays,
+  parseISO,
+  format,
+  startOfDay,
+  endOfDay,
+  startOfMonth,
+  endOfMonth,
+} from "date-fns";
 import {
   FolderKanban,
   Users,
@@ -34,44 +42,64 @@ import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuth } from "../../contexts/AuthContext";
 import { getRoleDisplayName, ROLES } from "../../config/rbac";
-import { listProjects, getProjectStages } from "../../services/projectApi";
-import type { Project, ProjectStageData } from "../../types";
+import { getProjectStages, getAllPayments } from "../../services/projectApi";
+import { listMeetings } from "../../services/meetingApi";
+import { listLeads } from "../../services/leadApi";
+import { getUpcomingTasks } from "../../services/tasksApi";
+import { useProjectStore } from "../../stores/projectStore";
+import type { Project, ProjectStageData, Meeting } from "../../types";
 
 export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const { openWidgetLibrary } = useUIStore();
   const { can, canAny, roleId } = useAuth();
   const navigate = useNavigate();
+  // Use the shared project store so Dashboard and Projects page always see the same data
+  const { projects, fetchProjects: fetchProjectsFromStore } = useProjectStore();
+
+  // DESIGNER role: redirect away from Dashboard overview to Projects
+  useEffect(() => {
+    if (roleId === "DESIGNER") {
+      navigate("/dashboard/projects", { replace: true });
+    }
+  }, [roleId, navigate]);
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
   const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
   const [projectCategoryFilter, setProjectCategoryFilter] =
     useState<string>("all");
-  const [projects, setProjects] = useState<Project[]>([]);
   const [projectStagesMap, setProjectStagesMap] = useState<
     Record<string, ProjectStageData[]>
   >({});
   const [showAllDeadlines, setShowAllDeadlines] = useState(false);
+  const [todaysMeetings, setTodaysMeetings] = useState<Meeting[]>([]);
+  const [meetingsLoading, setMeetingsLoading] = useState(false);
+  const [totalLeads, setTotalLeads] = useState<number>(0);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [revenueThisMonth, setRevenueThisMonth] = useState<number>(0);
+  const [revenueLoading, setRevenueLoading] = useState(false);
+  const [tasksDueToday, setTasksDueToday] = useState<number>(0);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number>(0);
 
   // Role-specific context
   const roleMeta = roleId ? ROLES[roleId] : null;
   const roleName = roleMeta?.name ?? "User";
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const data = await listProjects({ limit: 100 });
-        // @ts-ignore - Handle potential API response structure variations
-        const projectsData: Project[] = Array.isArray(data)
-          ? data
-          : (data as any).projects || [];
-        setProjects(projectsData);
+    // Use the shared store fetch (same call as the Projects page)
+    fetchProjectsFromStore();
+  }, [fetchProjectsFromStore]);
 
-        // Fetch stages for all projects in parallel to get tentative dates
+  // Fetch stages for all projects in parallel (for the deadlines section)
+  useEffect(() => {
+    if (projects.length === 0) return;
+    const fetchStages = async () => {
+      try {
         const stageResults = await Promise.allSettled(
-          projectsData.map((p) =>
+          projects.map((p) =>
             getProjectStages(p.id).then((res) => ({
               projectId: p.id,
-              // @ts-ignore - API may return stages in different shapes
+              // @ts-ignore
               stages: (Array.isArray(res)
                 ? res
                 : (res as any)?.stages || []) as ProjectStageData[],
@@ -86,12 +114,11 @@ export const DashboardOverview: React.FC = () => {
         });
         setProjectStagesMap(stagesMap);
       } catch (error) {
-        console.error("Failed to fetch projects", error);
-        setProjects([]);
+        console.error("Failed to fetch project stages", error);
       }
     };
-    fetchProjects();
-  }, []);
+    fetchStages();
+  }, [projects]);
 
   // Pipeline type filter options for deadline filtering
   const pipelineTypeFilterOptions = [
@@ -113,38 +140,151 @@ export const DashboardOverview: React.FC = () => {
   const revenueSparkline = [38, 41, 39, 43, 42, 44, 45];
   const meetingsSparkline = [4, 6, 5, 7, 6, 4, 5];
 
-  // Filter meetings based on selection (map to projects by name/client)
-  const filteredMeetings = useMemo(() => {
-    const allMeetings = [
-      {
-        time: "10:00 AM",
-        client: "Rajesh Kumar",
-        type: "Site Visit",
-        status: "Upcoming",
-        avatar: "RK",
-        projectId: "2", // Kumar Residence
-      },
-      {
-        time: "2:30 PM",
-        client: "Priya Sharma",
-        type: "Design Review",
-        status: "Upcoming",
-        avatar: "PS",
-        projectId: "1", // Sharma Family
-      },
-      {
-        time: "4:00 PM",
-        client: "Amit Patel",
-        type: "Consultation",
-        status: "In Progress",
-        avatar: "AP",
-        projectId: "3", // Patel Home
-      },
-    ];
+  // Derive stats from projects — same logic as the Projects page
+  const totalProjectsCount = projects.length;
+  const activeProjectsCount = projects.filter(
+    (p) =>
+      p.status === "ACTIVE" ||
+      p.status === "active" ||
+      p.status === "YET_TO_START" ||
+      p.status === "ONGOING",
+  ).length;
+  const inProgressProjectsCount = projects.filter((p) => {
+    const s = (p.status || "").toUpperCase();
+    return s !== "COMPLETED" && s !== "CANCELLED";
+  }).length;
 
-    if (!selectedProject) return allMeetings;
-    return allMeetings.filter((m) => m.projectId === selectedProject.id);
-  }, [selectedProject]);
+  // Fetch total leads count
+  useEffect(() => {
+    const fetchLeads = async () => {
+      setLeadsLoading(true);
+      try {
+        const res = await listLeads({ limit: 1 });
+        setTotalLeads(res.total || 0);
+      } catch (err) {
+        console.error("Failed to fetch leads count", err);
+      } finally {
+        setLeadsLoading(false);
+      }
+    };
+    fetchLeads();
+  }, []);
+
+  // Fetch revenue this month
+  useEffect(() => {
+    const fetchRevenue = async () => {
+      setRevenueLoading(true);
+      try {
+        const today = new Date();
+        const res = await getAllPayments({
+          dateFrom: startOfMonth(today).toISOString(),
+          dateTo: endOfMonth(today).toISOString(),
+          limit: 500,
+        });
+        const payments = res.payments || [];
+        const total = payments.reduce((sum, p) => {
+          const s = (p.status || "").toUpperCase();
+          if (s !== "COLLECTED" && s !== "PARTIALLY_PAID") return sum;
+          return (
+            sum + Number(p.actualAmount ?? p.invoiceAmount ?? p.amount ?? 0)
+          );
+        }, 0);
+        setRevenueThisMonth(total);
+        // Count pending/overdue payments for ACCOUNTS role
+        const pending = payments.filter((p) => {
+          const s = (p.status || "").toUpperCase();
+          return s === "PENDING" || s === "OVERDUE";
+        }).length;
+        setPendingPaymentsCount(pending);
+      } catch (err) {
+        console.error("Failed to fetch revenue", err);
+      } finally {
+        setRevenueLoading(false);
+      }
+    };
+    fetchRevenue();
+  }, []);
+
+  // Fetch tasks due today
+  useEffect(() => {
+    const fetchTasks = async () => {
+      setTasksLoading(true);
+      try {
+        const tasks = await getUpcomingTasks();
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        const dueToday = tasks.filter((t) =>
+          t.dueDate ? t.dueDate.slice(0, 10) === todayStr : false,
+        ).length;
+        setTasksDueToday(dueToday);
+      } catch (err) {
+        console.error("Failed to fetch tasks", err);
+      } finally {
+        setTasksLoading(false);
+      }
+    };
+    fetchTasks();
+  }, []);
+
+  // Format revenue for display
+  const formatRevenue = (amount: number): string => {
+    if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)}Cr`;
+    if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+    if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
+    return `₹${amount}`;
+  };
+  useEffect(() => {
+    const fetchTodaysMeetings = async () => {
+      setMeetingsLoading(true);
+      try {
+        const today = new Date();
+        const response = await listMeetings({
+          dateFrom: startOfDay(today).toISOString(),
+          dateTo: endOfDay(today).toISOString(),
+          limit: 50,
+        });
+        setTodaysMeetings(response.meetings);
+      } catch (err) {
+        console.error("Failed to fetch today's meetings", err);
+        setTodaysMeetings([]);
+      } finally {
+        setMeetingsLoading(false);
+      }
+    };
+    fetchTodaysMeetings();
+  }, []);
+
+  // Helper to format a meeting for display
+  const getMeetingDisplayProps = (meeting: Meeting) => {
+    const dateStr =
+      meeting.scheduledAt || meeting.scheduledDate || meeting.createdAt;
+    const time = dateStr ? format(parseISO(dateStr), "hh:mm a") : "--:--";
+    const title = meeting.title || "Meeting";
+    const words = title.trim().split(/\s+/);
+    const avatar =
+      words.length >= 2
+        ? (words[0][0] + words[1][0]).toUpperCase()
+        : title.slice(0, 2).toUpperCase();
+    const statusRaw = (meeting.status || "").toLowerCase();
+    const status =
+      statusRaw === "in_progress" || statusRaw === "in progress"
+        ? "In Progress"
+        : statusRaw === "completed"
+          ? "Completed"
+          : "Upcoming";
+    const type = meeting.type
+      ? String(meeting.type).replace(/_/g, " ")
+      : "Meeting";
+    return { time, title, avatar, status, type };
+  };
+
+  // Filter meetings based on selected project
+  const filteredMeetings = useMemo(() => {
+    if (!selectedProject) return todaysMeetings;
+    return todaysMeetings.filter(
+      (m) =>
+        m.projectId === selectedProject.id || m.entityId === selectedProject.id,
+    );
+  }, [todaysMeetings, selectedProject]);
 
   // All deadlines data
   const allDeadlines = useMemo(() => {
@@ -488,8 +628,8 @@ export const DashboardOverview: React.FC = () => {
             {can("projects.read") && (
               <StatCard
                 icon={FolderKanban}
-                label="Active Projects"
-                value={24}
+                label="Total Projects"
+                value={totalProjectsCount}
                 change={{ value: 12, isPositive: true }}
                 iconColor="primary"
                 sparklineData={projectsSparkline}
@@ -502,7 +642,7 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={Users}
                 label="Total Leads"
-                value={68}
+                value={leadsLoading ? 0 : totalLeads}
                 change={{ value: 8, isPositive: true }}
                 iconColor="teal"
                 sparklineData={leadsSparkline}
@@ -515,7 +655,7 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={TrendingUp}
                 label="Revenue This Month"
-                value="₹45.2L"
+                value={revenueLoading ? "…" : formatRevenue(revenueThisMonth)}
                 change={{ value: 15, isPositive: true }}
                 iconColor="olive"
                 sparklineData={revenueSparkline}
@@ -527,7 +667,7 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={Calendar}
                 label="Meetings Today"
-                value={5}
+                value={meetingsLoading ? 0 : todaysMeetings.length}
                 iconColor="rose"
                 sparklineData={meetingsSparkline}
                 animated={true}
@@ -539,7 +679,7 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={CheckCircle}
                 label="Tasks Due Today"
-                value={7}
+                value={tasksLoading ? 0 : tasksDueToday}
                 change={{ value: 3, isPositive: false }}
                 iconColor="primary"
                 sparklineData={[3, 5, 4, 7, 6, 8, 7]}
@@ -552,7 +692,7 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={DollarSign}
                 label="Pending Payments"
-                value={12}
+                value={revenueLoading ? 0 : pendingPaymentsCount}
                 change={{ value: 2, isPositive: false }}
                 iconColor="teal"
                 sparklineData={[5, 8, 7, 9, 10, 11, 12]}
@@ -588,42 +728,67 @@ export const DashboardOverview: React.FC = () => {
                         Your schedule for today
                       </p>
                     </div>
-                    <Button variant="ghost" size="sm">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate("/dashboard/meetings/calendar")}
+                    >
                       View Calendar →
                     </Button>
                   </div>
                   <div className="p-4 space-y-3">
-                    {filteredMeetings.map((meeting, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-semibold">
-                          {meeting.avatar}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900">
-                            {meeting.time} - {meeting.client}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {meeting.type}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            meeting.status === "In Progress"
-                              ? "info"
-                              : "neutral"
-                          }
-                        >
-                          {meeting.status}
-                        </Badge>
+                    {meetingsLoading ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <div className="inline-block w-5 h-5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin mb-2" />
+                        <p className="text-sm">Loading today's meetings…</p>
                       </div>
-                    ))}
-                    {filteredMeetings.length === 0 && (
+                    ) : filteredMeetings.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
-                        <p>No meetings scheduled for the selected project.</p>
+                        <Calendar className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm font-medium">No meetings today</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {selectedProject
+                            ? "No meetings for the selected project."
+                            : "Your schedule is clear for today."}
+                        </p>
                       </div>
+                    ) : (
+                      filteredMeetings.map((meeting) => {
+                        const { time, title, avatar, status, type } =
+                          getMeetingDisplayProps(meeting);
+                        return (
+                          <div
+                            key={meeting.id}
+                            className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer"
+                            onClick={() =>
+                              navigate(`/dashboard/meetings/${meeting.id}`)
+                            }
+                          >
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                              {avatar}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 truncate">
+                                {time} – {title}
+                              </p>
+                              <p className="text-sm text-gray-600 capitalize">
+                                {type}
+                              </p>
+                            </div>
+                            <Badge
+                              variant={
+                                status === "In Progress"
+                                  ? "info"
+                                  : status === "Completed"
+                                    ? "success"
+                                    : "neutral"
+                              }
+                            >
+                              {status}
+                            </Badge>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </Card>
@@ -942,37 +1107,6 @@ export const DashboardOverview: React.FC = () => {
 
             <div className="space-y-4">
               <ActivityFeed />
-              {/* Lead Pipeline – only for roles that can read leads */}
-              {can("leads.read") && (
-                <Card>
-                  <div className="p-4 border-b border-ash/10">
-                    <h2 className="font-display text-display-sm text-secondary">
-                      Lead Pipeline
-                    </h2>
-                  </div>
-                  <div className="p-4 space-y-3">
-                    {[
-                      { stage: "New", count: 32, color: "ash" },
-                      { stage: "Qualified", count: 18, color: "teal" },
-                      { stage: "Meeting", count: 8, color: "olive" },
-                      { stage: "Proposal", count: 5, color: "primary" },
-                      { stage: "Won", count: 3, color: "teal" },
-                    ].map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="font-body text-sm text-secondary">
-                          {item.stage}
-                        </span>
-                        <span className="font-body font-medium text-secondary">
-                          {item.count}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
               {/* Payments summary – only for ACCOUNTS role */}
               {roleId === "ACCOUNTS" && (
                 <Card>

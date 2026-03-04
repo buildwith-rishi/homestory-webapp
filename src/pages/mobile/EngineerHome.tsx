@@ -4,7 +4,6 @@ import {
   Camera,
   CheckSquare,
   AlertCircle,
-  Phone,
   ChevronRight,
   MapPin,
   Clock,
@@ -22,6 +21,14 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useAuthStore } from "../../stores/authStore";
 import { ProjectStage, Task } from "../../types";
 import { Spinner } from "../../components/ui";
+import {
+  getSiteEngineerTasks,
+  getSiteEngineerProjects,
+  getSiteEngineerProfile,
+  type SiteEngineerTask,
+  type SiteEngineerProject,
+  type SiteEngineerProfile,
+} from "../../services/siteEngineerApi";
 
 export function EngineerHome() {
   const navigate = useNavigate();
@@ -41,12 +48,28 @@ export function EngineerHome() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Site engineer API data
+  const [seTasks, setSeTasks] = useState<SiteEngineerTask[]>([]);
+  const [seProjects, setSeProjects] = useState<SiteEngineerProject[]>([]);
+  const [seProfile, setSeProfile] = useState<SiteEngineerProfile | null>(null);
+
   // Handle retry for tasks
   const handleRetryTasks = async () => {
     setIsRefreshing(true);
     clearError();
     try {
-      await Promise.all([fetchAllTasks(), fetchUpcomingTasks()]);
+      const [, , tasks, seProjs, profile] = await Promise.all([
+        fetchAllTasks(),
+        fetchUpcomingTasks(),
+        getSiteEngineerTasks(),
+        getSiteEngineerProjects(),
+        getSiteEngineerProfile(),
+      ]);
+      setSeTasks(tasks);
+      setSeProjects(seProjs);
+      setSeProfile(profile);
+    } catch (err) {
+      console.warn("Retry failed:", err);
     } finally {
       setIsRefreshing(false);
     }
@@ -62,6 +85,19 @@ export function EngineerHome() {
     fetchAllTasks();
     fetchUpcomingTasks();
 
+    // Load from site engineer APIs
+    Promise.all([
+      getSiteEngineerTasks(),
+      getSiteEngineerProjects(),
+      getSiteEngineerProfile(),
+    ])
+      .then(([tasks, seProjs, profile]) => {
+        setSeTasks(tasks);
+        setSeProjects(seProjs);
+        setSeProfile(profile);
+      })
+      .catch((err) => console.warn("Site engineer home API error:", err));
+
     // Monitor online/offline status
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -74,17 +110,38 @@ export function EngineerHome() {
     };
   }, [fetchProjects, fetchAllTasks, fetchUpcomingTasks]);
 
-  const activeProjects = (projects || []).filter((p) => p.status === "active");
-  const todayTasks = (allTasks || []).filter(
-    (t) => !t.completed && t.dueDate === new Date().toISOString().split("T")[0],
+  // Prefer SE API data; fall back to project store
+  const seProjectIds = new Set(seProjects.map((p) => p.id));
+  const mergedProjects = [
+    ...seProjects,
+    ...(projects || []).filter((p) => !seProjectIds.has(p.id)),
+  ];
+  const activeProjects = mergedProjects.filter(
+    (p) => p.status === "active" || p.status === "ACTIVE",
   );
-  const todayPhotos = 12;
-  const openIssues = 1;
 
-  // Get upcoming tasks (next 7 days, limited to 5)
-  const displayUpcomingTasks = (upcomingTasks || [])
-    .filter((t) => !t.completed)
-    .slice(0, 5);
+  const seTaskIds = new Set(seTasks.map((t) => t.id));
+  const today = new Date().toISOString().split("T")[0];
+  const seTodayTasks = seTasks.filter(
+    (t) => t.status !== "COMPLETED" && t.dueDate === today,
+  );
+  const storeTodayTasks = (allTasks || []).filter(
+    (t) => !seTaskIds.has(t.id) && !t.completed && t.dueDate === today,
+  );
+  const todayTasks = [...seTodayTasks, ...storeTodayTasks];
+
+  // Derived stats – come from real API data only
+  const todayPhotos = seProfile?.stats?.totalPhotos ?? 0;
+  const openIssues = 0; // Will populate once issues API is available
+
+  // Get upcoming tasks from SE API + store (next 7 days, limited to 5)
+  const seUpcoming = seTasks
+    .filter((t) => t.status !== "COMPLETED" && t.dueDate && t.dueDate > today)
+    .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+  const storeUpcoming = (upcomingTasks || []).filter(
+    (t) => !seTaskIds.has(t.id) && !t.completed,
+  );
+  const displayUpcomingTasks = [...seUpcoming, ...storeUpcoming].slice(0, 5);
 
   // Priority badge helper
   const getPriorityBadge = (priority: string) => {
@@ -206,17 +263,6 @@ export function EngineerHome() {
           </h2>
           <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={() => navigate("/app/upload")}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
-            >
-              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                <Camera className="w-6 h-6 text-orange-600" />
-              </div>
-              <span className="text-sm font-semibold text-gray-900">
-                Upload Photos
-              </span>
-            </button>
-            <button
               onClick={() => navigate("/app/tasks")}
               className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
             >
@@ -236,17 +282,6 @@ export function EngineerHome() {
               </div>
               <span className="text-sm font-semibold text-gray-900">
                 Report Issue
-              </span>
-            </button>
-            <button
-              onClick={() => (window.location.href = "tel:+919876543210")}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
-            >
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <Phone className="w-6 h-6 text-green-600" />
-              </div>
-              <span className="text-sm font-semibold text-gray-900">
-                Contact Office
               </span>
             </button>
           </div>

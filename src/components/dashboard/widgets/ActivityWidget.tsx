@@ -1,98 +1,116 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   X,
   Activity,
-  User,
   FileText,
   Calendar,
   CheckCircle,
   AlertCircle,
   Clock,
   ArrowRight,
+  Phone,
+  Mail,
+  MessageCircle,
+  MapPin,
+  CreditCard,
+  Upload,
+  RefreshCw,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, Button } from "../../ui";
 import { WidgetProps } from "./index";
+import { getActivities } from "../../../services/activitiesApi";
+import type { Activity as ActivityItem, ActivityType } from "../../../types";
 
-interface ActivityItem {
-  id: string;
-  type: "lead" | "project" | "meeting" | "task" | "alert";
-  title: string;
-  description: string;
-  timestamp: Date;
-  user?: string;
-}
+const ACTIVITY_TYPE_META: Record<
+  ActivityType,
+  { title: string; IconComp: React.ElementType; color: string }
+> = {
+  NOTE: { title: "Note Added", IconComp: FileText, color: "bg-gray-500" },
+  CALL: { title: "Call Logged", IconComp: Phone, color: "bg-blue-500" },
+  MEETING: {
+    title: "Meeting Logged",
+    IconComp: Calendar,
+    color: "bg-purple-500",
+  },
+  EMAIL: { title: "Email Sent", IconComp: Mail, color: "bg-teal-500" },
+  WHATSAPP: {
+    title: "WhatsApp Message",
+    IconComp: MessageCircle,
+    color: "bg-green-500",
+  },
+  SITE_VISIT: { title: "Site Visit", IconComp: MapPin, color: "bg-orange-500" },
+  STAGE_CHANGE: {
+    title: "Stage Changed",
+    IconComp: RefreshCw,
+    color: "bg-indigo-500",
+  },
+  STATUS_CHANGE: {
+    title: "Status Updated",
+    IconComp: RefreshCw,
+    color: "bg-yellow-500",
+  },
+  PAYMENT: {
+    title: "Payment Activity",
+    IconComp: CreditCard,
+    color: "bg-emerald-500",
+  },
+  DOCUMENT_UPLOAD: {
+    title: "Document Uploaded",
+    IconComp: Upload,
+    color: "bg-gray-400",
+  },
+  TASK_COMPLETED: {
+    title: "Task Completed",
+    IconComp: CheckCircle,
+    color: "bg-emerald-500",
+  },
+};
+
+const getActivityMeta = (type: ActivityType) =>
+  ACTIVITY_TYPE_META[type] ?? {
+    title: type.replace(/_/g, " "),
+    IconComp: AlertCircle,
+    color: "bg-gray-400",
+  };
+
+const formatRelativeTime = (date: Date) => {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+};
 
 const ActivityWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const activities: ActivityItem[] = [
-    {
-      id: "1",
-      type: "lead",
-      title: "New Lead Assigned",
-      description: "Priya Sharma - Luxury Apartment in Bandra",
-      timestamp: new Date(Date.now() - 15 * 60 * 1000),
-      user: "Rahul Kumar",
-    },
-    {
-      id: "2",
-      type: "project",
-      title: "Project Updated",
-      description: "Mehra Residence moved to Design Phase",
-      timestamp: new Date(Date.now() - 45 * 60 * 1000),
-      user: "Anjali Patel",
-    },
-    {
-      id: "3",
-      type: "meeting",
-      title: "Meeting Completed",
-      description: "Site visit with Kapoor family",
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      user: "Vikram Singh",
-    },
-    {
-      id: "4",
-      type: "task",
-      title: "Task Completed",
-      description: "Final design approval received",
-      timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000),
-      user: "Neha Gupta",
-    },
-    {
-      id: "5",
-      type: "alert",
-      title: "Payment Pending",
-      description: "Invoice #2847 overdue by 3 days",
-      timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
-    },
-  ];
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const getActivityIcon = (type: ActivityItem["type"]) => {
-    switch (type) {
-      case "lead":
-        return { Icon: User, color: "bg-blue-500" };
-      case "project":
-        return { Icon: FileText, color: "bg-orange-500" };
-      case "meeting":
-        return { Icon: Calendar, color: "bg-purple-500" };
-      case "task":
-        return { Icon: CheckCircle, color: "bg-emerald-500" };
-      case "alert":
-        return { Icon: AlertCircle, color: "bg-red-500" };
-    }
-  };
-
-  const formatRelativeTime = (date: Date) => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
-  };
+  useEffect(() => {
+    const fetchActivities = async () => {
+      setLoading(true);
+      try {
+        const data = await getActivities();
+        const sorted = [...(Array.isArray(data) ? data : [])]
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          )
+          .slice(0, 5);
+        setActivities(sorted);
+      } catch (err) {
+        console.error("Failed to load activities for widget", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchActivities();
+  }, []);
 
   return (
     <Card className="h-full animate-scale-in group relative !p-0">
@@ -122,55 +140,80 @@ const ActivityWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           <Clock className="w-4 h-4 text-gray-400" />
         </div>
 
-        {/* Activity List */}
-        <div className="space-y-2 max-h-56 overflow-y-auto">
-          {activities.map((activity, index) => {
-            const { Icon, color } = getActivityIcon(activity.type);
-            return (
-              <motion.div
-                key={activity.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.08 }}
-                className="flex gap-3"
-              >
-                {/* Timeline */}
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`w-8 h-8 rounded-full ${color} flex items-center justify-center flex-shrink-0`}
-                  >
-                    <Icon className="w-4 h-4 text-white" />
-                  </div>
-                  {index < activities.length - 1 && (
-                    <div className="w-0.5 flex-1 bg-gray-200 mt-2" />
-                  )}
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex gap-3 animate-pulse">
+                <div className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0" />
+                <div className="flex-1 space-y-1.5 py-1">
+                  <div className="h-3 bg-gray-200 rounded w-3/4" />
+                  <div className="h-2 bg-gray-100 rounded w-full" />
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-                {/* Content */}
-                <div className="flex-1 pb-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900">
-                        {activity.title}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {activity.description}
-                      </p>
+        {/* Empty state */}
+        {!loading && activities.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <Clock className="w-6 h-6 text-gray-300 mb-1" />
+            <p className="text-xs text-gray-400">No recent activity</p>
+          </div>
+        )}
+
+        {/* Activity List */}
+        {!loading && activities.length > 0 && (
+          <div className="space-y-2 max-h-56 overflow-y-auto">
+            {activities.map((activity, index) => {
+              const { title, IconComp, color } = getActivityMeta(activity.type);
+              return (
+                <motion.div
+                  key={activity.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.08 }}
+                  className="flex gap-3"
+                >
+                  {/* Timeline */}
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`w-8 h-8 rounded-full ${color} flex items-center justify-center flex-shrink-0`}
+                    >
+                      <IconComp className="w-4 h-4 text-white" />
                     </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0">
-                      {formatRelativeTime(activity.timestamp)}
-                    </span>
+                    {index < activities.length - 1 && (
+                      <div className="w-0.5 flex-1 bg-gray-200 mt-2" />
+                    )}
                   </div>
-                  {activity.user && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      by {activity.user}
-                    </p>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+
+                  {/* Content */}
+                  <div className="flex-1 pb-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900">
+                          {title}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {activity.description}
+                        </p>
+                      </div>
+                      <span className="text-xs text-gray-400 flex-shrink-0">
+                        {formatRelativeTime(new Date(activity.createdAt))}
+                      </span>
+                    </div>
+                    {activity.createdBy && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        by {activity.createdBy}
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="mt-4 pt-4 border-t border-gray-100">

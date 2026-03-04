@@ -15,18 +15,18 @@ import {
   Trash2,
   Tag,
   Loader2,
-  Shield,
   ClipboardList,
   Flag,
-  AlertCircle,
   CircleDot,
   CheckCheck,
 } from "lucide-react";
-import {
-  getAdminBDRTasksByUserId,
-  type BDRTaskAPIItem,
-} from "../../services/bdrApi";
 import { Button, Card } from "../../components/ui";
+import { getTasks } from "../../services/tasksApi";
+import {
+  getAdminSETasksByUserId,
+  type SiteEngineerTask,
+} from "../../services/siteEngineerApi";
+import type { Task } from "../../types";
 import {
   getAllTeamMembers,
   updateTeamMember,
@@ -186,15 +186,47 @@ function formatTaskDate(iso?: string) {
   });
 }
 
-// ─── BDR Tasks Panel ─────────────────────────────────────────────────────────
+// ─── Member Tasks Panel ──────────────────────────────────────────────────────
 
-const BDRTasksPanel: React.FC<{ userId: string; memberName: string }> = ({
-  userId,
-  memberName,
-}) => {
-  const [tasks, setTasks] = useState<BDRTaskAPIItem[]>([]);
+/** Convert a SiteEngineerTask into the Task shape used by the panel UI */
+function seTaskToTask(t: SiteEngineerTask): Task {
+  // normalise status to lowercase so STATUS_META keys match
+  const rawStatus = t.status?.toUpperCase() ?? "TODO";
+  const normStatus =
+    rawStatus === "PENDING" || rawStatus === "TODO"
+      ? "todo"
+      : rawStatus === "IN_PROGRESS" || rawStatus === "INPROGRESS"
+        ? "inprogress"
+        : rawStatus === "COMPLETED"
+          ? "completed"
+          : "todo";
+
+  return {
+    id: t.id,
+    projectId: t.projectId ?? "",
+    title: t.title,
+    taskType: t.taskType ?? "OTHER",
+    dueDate: t.dueDate ?? "",
+    priority: t.priority ?? "MEDIUM",
+    status: normStatus,
+    completed: normStatus === "completed",
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    description: t.description,
+    dueTime: t.dueTime,
+    completedAt: t.completedAt,
+    // carry project name so the card can display it
+    ...(t.projectName ? { projectName: t.projectName } : {}),
+  } as unknown as Task;
+}
+
+const MemberTasksPanel: React.FC<{
+  memberId: string;
+  userId?: string;
+  memberName: string;
+}> = ({ memberId, userId, memberName }) => {
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
     "all" | "todo" | "inprogress" | "completed"
   >("all");
@@ -202,30 +234,74 @@ const BDRTasksPanel: React.FC<{ userId: string; memberName: string }> = ({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
-    getAdminBDRTasksByUserId(userId)
-      .then((res) => {
-        if (!cancelled) setTasks(res.tasks ?? []);
-      })
-      .catch((err) => {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : "Failed to load tasks");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+
+    // Build the set of IDs to match against — team-member id + auth userId
+    const ids = new Set<string>([memberId]);
+    if (userId) ids.add(userId);
+
+    // Promises to run in parallel:
+    //   1. SE matrix tasks — dual-strategy admin fetch (see siteEngineerApi.ts)
+    //      Pass both userId (may be undefined) AND memberId so the helper can
+    //      filter by whichever field the server populates.
+    //   2. General CRM tasks (filter client-side by assignedToId)
+    const sePromise: Promise<Task[]> = getAdminSETasksByUserId(userId, memberId)
+      .then((list) => list.map(seTaskToTask))
+      .catch(() => []);
+
+    const generalPromise: Promise<Task[]> = getTasks()
+      .then((allTasks) =>
+        allTasks.filter((t) => {
+          if (t.assignedToId && ids.has(t.assignedToId)) return true;
+          if (t.assigneeIds?.some((aid) => ids.has(aid))) return true;
+          if (t.assignees?.some((a) => ids.has(a.id))) return true;
+          if (
+            typeof t.assignedTo === "string" &&
+            t.assignedTo &&
+            ids.has(t.assignedTo)
+          )
+            return true;
+          return false;
+        }),
+      )
+      .catch(() => []);
+
+    Promise.all([sePromise, generalPromise]).then(([seTasks, generalTasks]) => {
+      if (cancelled) return;
+      // De-duplicate by id — SE tasks take precedence
+      const seen = new Set<string>(seTasks.map((t) => t.id));
+      const merged = [
+        ...seTasks,
+        ...generalTasks.filter((t) => !seen.has(t.id)),
+      ];
+      setTasks(merged);
+      setLoading(false);
+    });
+
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [memberId, userId]);
 
+  const normalize = (s: string) => s.toLowerCase().replace(/[_\-\s]/g, "");
   const total = tasks.length;
-  const todoCount = tasks.filter((t) => t.status === "todo").length;
-  const inProgCount = tasks.filter((t) => t.status === "inprogress").length;
-  const doneCount = tasks.filter((t) => t.status === "completed").length;
+  const todoCount = tasks.filter(
+    (t) => normalize(t.status) === "todo" || normalize(t.status) === "pending",
+  ).length;
+  const inProgCount = tasks.filter(
+    (t) => normalize(t.status) === "inprogress",
+  ).length;
+  const doneCount = tasks.filter(
+    (t) => normalize(t.status) === "completed" || t.completed,
+  ).length;
 
-  const filtered =
-    activeTab === "all" ? tasks : tasks.filter((t) => t.status === activeTab);
+  const matchTab = (t: Task) => {
+    const ns = normalize(t.status);
+    if (activeTab === "todo") return ns === "todo" || ns === "pending";
+    if (activeTab === "inprogress") return ns === "inprogress";
+    if (activeTab === "completed") return ns === "completed" || t.completed;
+    return true;
+  };
+  const filtered = activeTab === "all" ? tasks : tasks.filter(matchTab);
 
   const tabs = [
     { key: "all", label: "All", count: total },
@@ -244,10 +320,10 @@ const BDRTasksPanel: React.FC<{ userId: string; memberName: string }> = ({
           </div>
           <div>
             <h2 className="text-base font-bold text-gray-900">
-              Tasks by {memberName.split(" ")[0]}
+              Tasks assigned to {memberName.split(" ")[0]}
             </h2>
             <p className="text-xs text-gray-500">
-              All tasks created by this BDR
+              All tasks assigned to this team member
             </p>
           </div>
         </div>
@@ -302,155 +378,144 @@ const BDRTasksPanel: React.FC<{ userId: string; memberName: string }> = ({
         ))}
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
-          <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
       {/* Tabs */}
-      {!error && (
-        <>
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+      <>
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === tab.key
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+              <span
+                className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold ${
                   activeTab === tab.key
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-orange-100 text-orange-700"
+                    : "bg-gray-200 text-gray-600"
                 }`}
               >
-                {tab.label}
-                <span
-                  className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold ${
-                    activeTab === tab.key
-                      ? "bg-orange-100 text-orange-700"
-                      : "bg-gray-200 text-gray-600"
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Task list */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
+              <ClipboardList className="w-7 h-7 text-gray-300" />
+            </div>
+            <p className="text-sm font-medium text-gray-500">
+              {activeTab === "all"
+                ? "No tasks assigned to this member yet"
+                : `No ${activeTab === "inprogress" ? "in-progress" : activeTab} tasks`}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((task) => {
+              const statusMeta =
+                STATUS_META[task.status?.toLowerCase()] ?? STATUS_META["todo"];
+              const priorityMeta = PRIORITY_META[task.priority ?? "MEDIUM"];
+              return (
+                <div
+                  key={task.id}
+                  className={`flex items-start gap-4 p-4 rounded-xl border transition-all ${
+                    task.status === "completed"
+                      ? "bg-gray-50/60 border-gray-100 opacity-70"
+                      : "bg-white border-gray-200 hover:border-orange-200 hover:shadow-sm"
                   }`}
                 >
-                  {tab.count}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Task list */}
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
-                <ClipboardList className="w-7 h-7 text-gray-300" />
-              </div>
-              <p className="text-sm font-medium text-gray-500">
-                {activeTab === "all"
-                  ? "No tasks found for this BDR yet"
-                  : `No ${activeTab === "inprogress" ? "in-progress" : activeTab} tasks`}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filtered.map((task) => {
-                const statusMeta =
-                  STATUS_META[task.status?.toLowerCase()] ??
-                  STATUS_META["todo"];
-                const priorityMeta = PRIORITY_META[task.priority ?? "MEDIUM"];
-                return (
+                  {/* Status icon */}
                   <div
-                    key={task.id}
-                    className={`flex items-start gap-4 p-4 rounded-xl border transition-all ${
+                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
                       task.status === "completed"
-                        ? "bg-gray-50/60 border-gray-100 opacity-70"
-                        : "bg-white border-gray-200 hover:border-orange-200 hover:shadow-sm"
+                        ? "bg-green-100 border-green-200 text-green-600"
+                        : "bg-white border-gray-200 text-gray-400"
                     }`}
                   >
-                    {/* Status icon */}
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
+                    {task.status === "completed" ? (
+                      <CheckCheck className="w-3.5 h-3.5" />
+                    ) : (
+                      <CircleDot className="w-3.5 h-3.5" />
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-semibold truncate ${
                         task.status === "completed"
-                          ? "bg-green-100 border-green-200 text-green-600"
-                          : "bg-white border-gray-200 text-gray-400"
+                          ? "line-through text-gray-400"
+                          : "text-gray-900"
                       }`}
                     >
-                      {task.status === "completed" ? (
-                        <CheckCheck className="w-3.5 h-3.5" />
-                      ) : (
-                        <CircleDot className="w-3.5 h-3.5" />
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={`text-sm font-semibold truncate ${
-                          task.status === "completed"
-                            ? "line-through text-gray-400"
-                            : "text-gray-900"
-                        }`}
-                      >
-                        {task.title}
+                      {task.title}
+                    </p>
+                    {task.description && (
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
+                        {task.description}
                       </p>
-                      {task.description && (
-                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
-                          {task.description}
-                        </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {/* Type */}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-xs font-medium text-purple-700">
+                        <Briefcase className="w-3 h-3" />
+                        {TASK_TYPE_LABELS[task.taskType] ?? task.taskType}
+                      </span>
+                      {/* Due date */}
+                      {task.dueDate && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-xs text-gray-600">
+                          <Calendar className="w-3 h-3" />
+                          {formatTaskDate(task.dueDate)}
+                          {task.dueTime && (
+                            <span className="text-gray-400">
+                              · {task.dueTime}
+                            </span>
+                          )}
+                        </span>
                       )}
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        {/* Type */}
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-xs font-medium text-purple-700">
-                          <Briefcase className="w-3 h-3" />
-                          {TASK_TYPE_LABELS[task.taskType] ?? task.taskType}
-                        </span>
-                        {/* Due date */}
-                        {task.dueDate && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-xs text-gray-600">
-                            <Calendar className="w-3 h-3" />
-                            {formatTaskDate(task.dueDate)}
-                            {task.dueTime && (
-                              <span className="text-gray-400">
-                                · {task.dueTime}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                        {/* Priority */}
-                        {task.priority && (
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs font-semibold ${
-                              priorityMeta?.bg ?? "bg-gray-50"
-                            } ${priorityMeta?.text ?? "text-gray-600"} border-transparent`}
-                          >
-                            <Flag className="w-3 h-3" />
-                            {task.priority}
-                          </span>
-                        )}
-                        {/* Status */}
+                      {/* Priority */}
+                      {task.priority && (
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs font-semibold ${statusMeta.bg} ${statusMeta.text} ${statusMeta.border}`}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs font-semibold ${
+                            priorityMeta?.bg ?? "bg-gray-50"
+                          } ${priorityMeta?.text ?? "text-gray-600"} border-transparent`}
                         >
-                          {statusMeta.icon}
-                          {statusMeta.label}
+                          <Flag className="w-3 h-3" />
+                          {task.priority}
                         </span>
-                      </div>
+                      )}
+                      {/* Status */}
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs font-semibold ${statusMeta.bg} ${statusMeta.text} ${statusMeta.border}`}
+                      >
+                        {statusMeta.icon}
+                        {statusMeta.label}
+                      </span>
                     </div>
-
-                    {/* Created at */}
-                    <span className="text-xs text-gray-400 shrink-0 mt-0.5">
-                      {formatTaskDate(task.createdAt)}
-                    </span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
+
+                  {/* Created at */}
+                  <span className="text-xs text-gray-400 shrink-0 mt-0.5">
+                    {formatTaskDate(task.createdAt)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </>
     </div>
   );
 };
@@ -982,16 +1047,14 @@ export const EngineerDetails: React.FC = () => {
         </Card>
       </div>
 
-      {/* ── BDR Tasks Section (only for BDR / CRM team members) ──────────── */}
-      {(member.isCrmUser === true || member.role?.toUpperCase() === "BDR") &&
-        (member.userId ?? member.id) && (
-          <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
-            <BDRTasksPanel
-              userId={member.userId ?? member.id}
-              memberName={member.name}
-            />
-          </div>
-        )}
+      {/* ── Tasks Section — show tasks assigned to this team member ────── */}
+      <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
+        <MemberTasksPanel
+          memberId={member.id}
+          userId={member.userId}
+          memberName={member.name}
+        />
+      </div>
     </div>
   );
 };

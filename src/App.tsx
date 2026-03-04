@@ -233,11 +233,19 @@ function App() {
               }
             />
 
-            {/* Analytics / Reports */}
+            {/* Analytics / Reports – not accessible to DESIGNER */}
             <Route
               path="analytics"
               element={
-                <ProtectedRoute requiredPermission="reports.view">
+                <ProtectedRoute
+                  allowedRoleIds={[
+                    "SUPER_ADMIN",
+                    "ADMIN",
+                    "DESIGN_HEAD",
+                    "PROJECT_MANAGER",
+                    "ACCOUNTS",
+                  ]}
+                >
                   <Analytics />
                 </ProtectedRoute>
               }

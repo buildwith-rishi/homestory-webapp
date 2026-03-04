@@ -459,6 +459,36 @@ export async function updateProjectPayment(
 }
 
 /**
+ * Get all payments across all projects (global revenue view)
+ * GET /api/payments?dateFrom=...&dateTo=...&limit=...
+ */
+export async function getAllPayments(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ProjectPaymentsResponse> {
+  try {
+    const queryParams = new URLSearchParams();
+    if (params?.dateFrom) queryParams.append("dateFrom", params.dateFrom);
+    if (params?.dateTo) queryParams.append("dateTo", params.dateTo);
+    if (params?.status) queryParams.append("status", params.status);
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.offset) queryParams.append("offset", params.offset.toString());
+    const url = `${API_BASE_URL}/api/payments${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<ProjectPaymentsResponse>(response);
+  } catch (error) {
+    console.error("Error fetching all payments:", error);
+    throw error;
+  }
+}
+
+/**
  * Create a payment milestone
  * POST /api/payments  (projectId included in request body)
  */

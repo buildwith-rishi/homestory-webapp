@@ -3,147 +3,165 @@ import { createPortal } from "react-dom";
 import {
   Check,
   ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Clock,
-  MapPin,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
   Loader2,
   Camera,
   X,
-  Image,
-  FileText,
   CalendarDays,
   Wrench,
   Flag,
+  Circle,
+  PlayCircle,
+  Building2,
+  RotateCcw,
+  Grid3X3,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { useProjectStore } from "../../stores/projectStore";
 import { Task } from "../../types";
 import toast from "react-hot-toast";
+import {
+  getSiteEngineerTasks,
+  getSiteEngineerProjects,
+  updateSiteEngineerTaskStatus,
+  uploadSiteEngineerTaskPhoto,
+  type SiteEngineerTask,
+  type SiteEngineerProject,
+} from "../../services/siteEngineerApi";
 
-// ── Dummy tasks shown alongside real tasks ────────────────────────────────────
-const TODAY_STR = new Date().toISOString().split("T")[0];
-
-const DUMMY_TASKS: Task[] = [
-  {
-    id: "dummy-1",
-    projectId: "dummy-project-1",
-    title: "Electrical Wiring — Master Bedroom",
-    taskType: "Electrical",
-    dueDate: TODAY_STR,
-    priority: "HIGH",
-    status: "TODO",
-    completed: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Complete the full wiring layout for master bedroom — 4 sockets, 2 switch boards, and fan point. Verify earthing connections.",
-    dueTime: "10:00",
-    assignedTo: "Site Engineer",
-  },
-  {
-    id: "dummy-2",
-    projectId: "dummy-project-1",
-    title: "Wall Plastering — Living Room (2nd coat)",
-    taskType: "Civil",
-    dueDate: TODAY_STR,
-    priority: "MEDIUM",
-    status: "IN_PROGRESS",
-    completed: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Apply second coat plaster on north & east walls of the living room. Ensure surface is level and smooth before coat dries.",
-    dueTime: "12:00",
-    assignedTo: "Site Engineer",
-  },
-  {
-    id: "dummy-3",
-    projectId: "dummy-project-2",
-    title: "Tile Inspection — Bathroom 2",
-    taskType: "Tiling",
-    dueDate: TODAY_STR,
-    priority: "HIGH",
-    status: "TODO",
-    completed: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Inspect completed tile work in bathroom 2. Check grout lines, tile alignment, and waterproofing joints at edges.",
-    dueTime: "14:00",
-    assignedTo: "Site Engineer",
-  },
-  {
-    id: "dummy-4",
-    projectId: "dummy-project-2",
-    title: "Paint — First Coat (Kitchen Ceiling)",
-    taskType: "Painting",
-    dueDate: TODAY_STR,
-    priority: "LOW",
-    status: "COMPLETED",
-    completed: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Apply first coat of off-white (shade 1012) on the kitchen ceiling. Two coats required overall. Allow 4 hrs drying time.",
-    dueTime: "09:00",
-    assignedTo: "Site Engineer",
-    completedAt: new Date().toISOString(),
-  },
-  {
-    id: "dummy-5",
-    projectId: "dummy-project-1",
-    title: "Plumbing — Bathroom 1 Fixtures",
-    taskType: "Plumbing",
-    dueDate: TODAY_STR,
-    priority: "HIGH",
-    status: "TODO",
-    completed: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    description:
-      "Install basin mixer, shower head, and concealed flush valve in bathroom 1. Pressure test all connections after installation.",
-    dueTime: "15:30",
-    assignedTo: "Site Engineer",
-  },
-];
-
-const DUMMY_PROJECTS = [
-  { id: "dummy-project-1", name: "Sharma Residence — Sector 15" },
-  { id: "dummy-project-2", name: "Patel Villa — Phase 2" },
-];
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS = [
   {
     value: "TODO",
     label: "To Do",
-    bg: "bg-gray-100",
-    text: "text-gray-700",
+    Icon: Circle,
+    ring: "ring-gray-400",
+    pill: "bg-gray-100 text-gray-700",
     dot: "bg-gray-400",
   },
   {
     value: "IN_PROGRESS",
     label: "In Progress",
-    bg: "bg-blue-100",
-    text: "text-blue-700",
+    Icon: PlayCircle,
+    ring: "ring-blue-400",
+    pill: "bg-blue-100 text-blue-700",
     dot: "bg-blue-500",
   },
   {
     value: "COMPLETED",
     label: "Completed",
-    bg: "bg-green-100",
-    text: "text-green-700",
+    Icon: CheckCircle2,
+    ring: "ring-green-400",
+    pill: "bg-green-100 text-green-700",
     dot: "bg-green-500",
   },
+] as const;
+
+const PRIORITY_META: Record<
+  string,
+  { pill: string; dot: string; label: string }
+> = {
+  URGENT: {
+    pill: "bg-red-100 text-red-700",
+    dot: "bg-red-500",
+    label: "Urgent",
+  },
+  HIGH: {
+    pill: "bg-orange-100 text-orange-700",
+    dot: "bg-orange-500",
+    label: "High",
+  },
+  MEDIUM: {
+    pill: "bg-yellow-100 text-yellow-700",
+    dot: "bg-yellow-500",
+    label: "Medium",
+  },
+  LOW: {
+    pill: "bg-green-100 text-green-700",
+    dot: "bg-green-500",
+    label: "Low",
+  },
+};
+
+const STATUS_BORDER: Record<string, string> = {
+  TODO: "before:bg-gray-300",
+  IN_PROGRESS: "before:bg-blue-500",
+  COMPLETED: "before:bg-green-500",
+};
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
-const PRIORITY_STYLES: Record<string, string> = {
-  HIGH: "bg-red-100 text-red-700",
-  MEDIUM: "bg-yellow-100 text-yellow-700",
-  LOW: "bg-green-100 text-green-700",
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getMondayWeek(anchor: Date): Date[] {
+  const dow = anchor.getDay();
+  const mon = new Date(anchor);
+  mon.setDate(anchor.getDate() - ((dow + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(mon);
+    d.setDate(mon.getDate() + i);
+    return d;
+  });
+}
+
+function toDateStr(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+
+function fmtTime(time?: string) {
+  if (!time) return "";
+  const [h, m] = time.split(":");
+  const hr = parseInt(h);
+  return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
+}
+
+function relDay(dateStr: string) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  const diff = Math.round((d.getTime() - now.getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  if (diff > 1 && diff < 7) return `In ${diff} days`;
+  return new Date(dateStr).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function getMonthCalendar(year: number, month: number): (Date | null)[][] {
+  const first = new Date(year, month, 1);
+  const startOffset = (first.getDay() + 6) % 7; // 0=Mon … 6=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = Array(startOffset).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks: (Date | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
 
 export function EngineerTasks() {
   const {
@@ -157,12 +175,23 @@ export function EngineerTasks() {
     updateTask,
     clearError,
   } = useProjectStore();
-  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const [seTasks, setSeTasks] = useState<SiteEngineerTask[]>([]);
+  const [seProjects, setSeProjects] = useState<SiteEngineerProject[]>([]);
+  const [seLoading, setSeLoading] = useState(false);
+  const [seError, setSeError] = useState<string | null>(null);
+
+  const today = new Date();
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [weekAnchor, setWeekAnchor] = useState(today);
+  const [viewMode, setViewMode] = useState<"week" | "month">("week");
+  const [calMonth, setCalMonth] = useState(
+    () => new Date(today.getFullYear(), today.getMonth(), 1),
+  );
   const [showCompleted, setShowCompleted] = useState(false);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Task detail modal
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [editStatus, setEditStatus] = useState<string>("");
   const [workPhoto, setWorkPhoto] = useState<{
@@ -172,15 +201,15 @@ export function EngineerTasks() {
   const [isSavingStatus, setIsSavingStatus] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const handleOpenTaskDetail = (task: Task) => {
+  const openDetail = (task: Task) => {
     setSelectedTask(task);
     setEditStatus(task.status || "TODO");
     setWorkPhoto(null);
   };
-
-  const handleCloseTaskDetail = () => {
+  const closeDetail = () => {
     setSelectedTask(null);
     setEditStatus("");
+    if (workPhoto?.previewUrl) URL.revokeObjectURL(workPhoto.previewUrl);
     setWorkPhoto(null);
   };
 
@@ -188,91 +217,79 @@ export function EngineerTasks() {
     if (!selectedTask) return;
     setIsSavingStatus(true);
     try {
-      const isDummy = selectedTask.id.startsWith("dummy-");
-      if (!isDummy) {
-        await updateTask(selectedTask.id, {
-          status: editStatus,
-          completed: editStatus === "COMPLETED",
-        });
-        fetchAllTasks();
+      if (editStatus === "COMPLETED" && workPhoto?.file) {
+        await uploadSiteEngineerTaskPhoto(
+          selectedTask.id,
+          workPhoto.file,
+          `Completion – ${selectedTask.title}`,
+        ).catch(() => {});
       }
-      toast.success("Task status updated!");
-      handleCloseTaskDetail();
-    } catch {
-      toast.error("Failed to update status");
+      await updateSiteEngineerTaskStatus(selectedTask.id, {
+        status: editStatus as "TODO" | "IN_PROGRESS" | "COMPLETED",
+        ...(editStatus === "COMPLETED"
+          ? { completionNotes: "Updated via mobile app" }
+          : {}),
+      });
+      await updateTask(selectedTask.id, {
+        status: editStatus,
+        completed: editStatus === "COMPLETED",
+      }).catch(() => {});
+      getSiteEngineerTasks()
+        .then(setSeTasks)
+        .catch(() => {});
+      fetchAllTasks();
+      toast.success("Status updated");
+      closeDetail();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update");
     } finally {
       setIsSavingStatus(false);
     }
   };
 
-  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCamera = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (workPhoto?.previewUrl) URL.revokeObjectURL(workPhoto.previewUrl);
-    const previewUrl = URL.createObjectURL(file);
-    setWorkPhoto({ file, previewUrl });
+    setWorkPhoto({ file, previewUrl: URL.createObjectURL(file) });
     toast.success("Photo captured!");
   };
 
-  // Initial load
   useEffect(() => {
     fetchProjects();
     fetchAllTasks();
+    setSeLoading(true);
+    Promise.all([getSiteEngineerTasks(), getSiteEngineerProjects()])
+      .then(([tasks, projs]) => {
+        setSeTasks(tasks);
+        setSeProjects(projs);
+      })
+      .catch((e) =>
+        setSeError(e instanceof Error ? e.message : "Failed to load"),
+      )
+      .finally(() => setSeLoading(false));
   }, [fetchProjects, fetchAllTasks]);
 
-  // Pull-to-refresh handler
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    clearError(); // Clear any previous errors before refreshing
+    setSeError(null);
+    clearError();
     try {
-      await Promise.all([fetchProjects(), fetchAllTasks()]);
-      toast.success("Tasks refreshed");
+      const [, , tasks, projs] = await Promise.all([
+        fetchProjects(),
+        fetchAllTasks(),
+        getSiteEngineerTasks(),
+        getSiteEngineerProjects(),
+      ]);
+      setSeTasks(tasks);
+      setSeProjects(projs);
+      toast.success("Refreshed");
     } catch {
-      toast.error("Failed to refresh tasks");
+      toast.error("Failed to refresh");
     } finally {
       setIsRefreshing(false);
     }
   }, [fetchProjects, fetchAllTasks, clearError]);
-
-  const getWeekDates = () => {
-    const dates = [];
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay() + 1);
-
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + i);
-      dates.push(date);
-    }
-    return dates;
-  };
-
-  const weekDates = getWeekDates();
-  const selectedDateStr = selectedDate.toISOString().split("T")[0];
-
-  // Merge real API tasks with dummy sample tasks
-  const allDisplayTasks = [...(allTasks || []), ...DUMMY_TASKS];
-  const allDisplayProjects = [
-    ...(projects || []),
-    ...(DUMMY_PROJECTS as unknown as typeof projects),
-  ];
-
-  const tasksForDate = allDisplayTasks.filter(
-    (t) => t.dueDate === selectedDateStr,
-  );
-  const pendingTasks = tasksForDate.filter((t) => !t.completed);
-  const completedTasks = tasksForDate.filter((t) => t.completed);
-
-  const groupedTasks: Record<string, Task[]> = {};
-  pendingTasks.forEach((task) => {
-    const project = allDisplayProjects.find((p) => p.id === task.projectId);
-    const projectName = project?.name || "Unknown Project";
-    if (!groupedTasks[projectName]) {
-      groupedTasks[projectName] = [];
-    }
-    groupedTasks[projectName].push(task);
-  });
 
   const handleToggleTask = async (taskId: string, shouldComplete: boolean) => {
     setCompletingTaskId(taskId);
@@ -281,135 +298,393 @@ export function EngineerTasks() {
         await completeTask(taskId);
         toast.success("Task completed!");
       } else {
-        // To uncomplete, update the task status back to TODO
         await updateTask(taskId, { completed: false, status: "TODO" });
         toast.success("Task reopened");
       }
-    } catch (error) {
-      toast.error(
-        shouldComplete ? "Failed to complete task" : "Failed to reopen task",
-      );
+    } catch {
+      toast.error(shouldComplete ? "Failed to complete" : "Failed to reopen");
     } finally {
       setCompletingTaskId(null);
     }
   };
 
-  const formatTime = (time?: string) => {
-    if (!time) return "";
-    const [hours, minutes] = time.split(":");
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const weekDates = getMondayWeek(weekAnchor);
+  const todayStr = toDateStr(today);
+  const selectedStr = toDateStr(selectedDate);
 
-  const totalTasks = tasksForDate.length;
-  const completedCount = completedTasks.length;
-  const pendingCount = pendingTasks.length;
-  const completionRate =
-    totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+  const seTaskIds = new Set(seTasks.map((t) => t.id));
+  const seAsTask: Task[] = seTasks.map((t) => ({
+    ...t,
+    completed: t.status === "COMPLETED",
+  }));
+  const storeForDate = (allTasks || []).filter(
+    (t) => !seTaskIds.has(t.id) && t.dueDate === selectedStr,
+  );
+  const allDisplay = [...seAsTask, ...storeForDate];
 
+  const seProjectIds = new Set(seProjects.map((p) => p.id));
+  const allDisplayProjects = [
+    ...seProjects,
+    ...(projects || []).filter((p) => !seProjectIds.has(p.id)),
+  ];
+
+  const loading = (tasksLoading || seLoading) && !isRefreshing;
+  const error = tasksError || seError;
+  const pending = allDisplay.filter((t) => !t.completed);
+  const done = allDisplay.filter((t) => t.completed);
+  const total = allDisplay.length;
+  const pct = total > 0 ? Math.round((done.length / total) * 100) : 0;
+
+  // Task dots per date on calendar
+  const dotMap: Record<string, number> = {};
+  seAsTask.forEach((t) => {
+    if (t.dueDate) dotMap[t.dueDate] = (dotMap[t.dueDate] || 0) + 1;
+  });
+
+  // Group pending by project
+  const grouped: Record<string, Task[]> = {};
+  pending.forEach((task) => {
+    const proj = allDisplayProjects.find((p) => p.id === task.projectId);
+    const name =
+      (task as Task & { projectName?: string }).projectName ??
+      proj?.name ??
+      "General Tasks";
+    if (!grouped[name]) grouped[name] = [];
+    grouped[name].push(task);
+  });
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 pb-20">
+    <div className="min-h-screen bg-[#F7F8FA] pb-24">
       <MobileHeader title="Tasks" showNotifications />
 
-      {/* Stats Summary with Refresh */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-700">
-            Today's Progress
-          </h2>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing || tasksLoading}
-            className="flex items-center gap-1.5 text-orange-600 text-sm font-medium disabled:opacity-50"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
-            />
-            {isRefreshing ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">{totalTasks}</p>
-            <p className="text-xs text-gray-600">Total</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-orange-600">{pendingCount}</p>
-            <p className="text-xs text-gray-600">Pending</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-green-600">
-              {completedCount}
+      {/* ── Calendar Hero Card ───────────────────────────────────────────── */}
+      <div className="bg-white shadow-sm">
+        {/* Month + nav */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-2">
+          <div>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+              {viewMode === "month"
+                ? `${MONTHS[calMonth.getMonth()]} ${calMonth.getFullYear()}`
+                : `${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`}
             </p>
-            <p className="text-xs text-gray-600">Done</p>
+            <h2 className="text-lg font-extrabold text-gray-900 leading-tight mt-0.5">
+              {selectedStr === todayStr
+                ? "Today's Tasks"
+                : selectedDate.toLocaleDateString("en-IN", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "short",
+                  })}
+            </h2>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                if (viewMode === "month") {
+                  setCalMonth(
+                    new Date(
+                      calMonth.getFullYear(),
+                      calMonth.getMonth() - 1,
+                      1,
+                    ),
+                  );
+                } else {
+                  const d = new Date(weekAnchor);
+                  d.setDate(d.getDate() - 7);
+                  setWeekAnchor(d);
+                }
+              }}
+              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:scale-95 transition"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-600" />
+            </button>
+            <button
+              onClick={() => {
+                setWeekAnchor(new Date(today));
+                setSelectedDate(new Date(today));
+                setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+              }}
+              className="px-3 h-8 rounded-full bg-orange-50 text-orange-600 text-xs font-bold active:scale-95 transition border border-orange-200"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => {
+                if (viewMode === "month") {
+                  setCalMonth(
+                    new Date(
+                      calMonth.getFullYear(),
+                      calMonth.getMonth() + 1,
+                      1,
+                    ),
+                  );
+                } else {
+                  const d = new Date(weekAnchor);
+                  d.setDate(d.getDate() + 7);
+                  setWeekAnchor(d);
+                }
+              }}
+              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:scale-95 transition"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+            </button>
           </div>
         </div>
-        {totalTasks > 0 && (
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-gray-600">Progress</span>
-              <span className="font-bold text-gray-900">{completionRate}%</span>
+
+        {/* Week / Month toggle */}
+        <div className="px-5 pb-3">
+          <div className="inline-flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+            <button
+              onClick={() => setViewMode("week")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === "week"
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-gray-400"
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              Week
+            </button>
+            <button
+              onClick={() => {
+                setCalMonth(
+                  new Date(
+                    selectedDate.getFullYear(),
+                    selectedDate.getMonth(),
+                    1,
+                  ),
+                );
+                setViewMode("month");
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === "month"
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-gray-400"
+              }`}
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+              Month
+            </button>
+          </div>
+        </div>
+
+        {/* Week strip */}
+        {viewMode === "week" && (
+          <div className="grid grid-cols-7 gap-0.5 px-3 pb-3 pt-1">
+            {weekDates.map((date, i) => {
+              const ds = toDateStr(date);
+              const isSel = ds === selectedStr;
+              const isTod = ds === todayStr;
+              const hasDot = (dotMap[ds] || 0) > 0;
+              return (
+                <button
+                  key={ds}
+                  onClick={() => setSelectedDate(new Date(date))}
+                  className="flex flex-col items-center gap-1 py-2.5 rounded-2xl transition-all active:scale-95 select-none"
+                  style={
+                    isSel
+                      ? {
+                          background: "linear-gradient(145deg,#f97316,#dc6a0f)",
+                          boxShadow: "0 4px 14px rgba(249,115,22,.35)",
+                        }
+                      : {}
+                  }
+                >
+                  <span
+                    className={`text-[9px] font-bold uppercase tracking-widest ${
+                      isSel
+                        ? "text-orange-100"
+                        : isTod
+                          ? "text-orange-500"
+                          : "text-gray-400"
+                    }`}
+                  >
+                    {DAYS[i]}
+                  </span>
+                  <span
+                    className={`text-[17px] font-extrabold leading-none ${
+                      isSel
+                        ? "text-white"
+                        : isTod
+                          ? "text-orange-600"
+                          : "text-gray-800"
+                    }`}
+                  >
+                    {date.getDate()}
+                  </span>
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      hasDot
+                        ? isSel
+                          ? "bg-white/75"
+                          : "bg-orange-400"
+                        : "bg-transparent"
+                    }`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Month grid */}
+        {viewMode === "month" && (
+          <div className="px-3 pb-3">
+            {/* Day-of-week header */}
+            <div className="grid grid-cols-7 mb-1">
+              {DAYS.map((d) => (
+                <div
+                  key={d}
+                  className="text-center text-[9px] font-bold text-gray-400 uppercase tracking-widest py-1"
+                >
+                  {d}
+                </div>
+              ))}
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            {/* Date rows */}
+            {getMonthCalendar(calMonth.getFullYear(), calMonth.getMonth()).map(
+              (week, wi) => (
+                <div key={wi} className="grid grid-cols-7">
+                  {week.map((date, di) => {
+                    if (!date)
+                      return <div key={`empty-${wi}-${di}`} className="py-1" />;
+                    const ds = toDateStr(date);
+                    const isSel = ds === selectedStr;
+                    const isTod = ds === todayStr;
+                    const count = dotMap[ds] || 0;
+                    return (
+                      <button
+                        key={ds}
+                        onClick={() => {
+                          setSelectedDate(new Date(date));
+                          setWeekAnchor(new Date(date));
+                        }}
+                        className="flex flex-col items-center py-1 active:scale-95 transition-all select-none"
+                      >
+                        <span
+                          className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold transition-all ${
+                            isSel
+                              ? "text-white shadow-md"
+                              : isTod
+                                ? "text-orange-600 ring-2 ring-orange-400 ring-offset-1"
+                                : "text-gray-800 hover:bg-gray-100"
+                          }`}
+                          style={
+                            isSel
+                              ? {
+                                  background:
+                                    "linear-gradient(145deg,#f97316,#dc6a0f)",
+                                }
+                              : {}
+                          }
+                        >
+                          {date.getDate()}
+                        </span>
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                            count > 0
+                              ? isSel
+                                ? "bg-white/80"
+                                : "bg-orange-400"
+                              : "bg-transparent"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              ),
+            )}
+          </div>
+        )}
+
+        {/* Stat strip */}
+        <div className="border-t border-gray-100 grid grid-cols-3 divide-x divide-gray-100">
+          {[
+            { label: "Total", val: total, color: "text-gray-900" },
+            { label: "Pending", val: pending.length, color: "text-orange-500" },
+            { label: "Done", val: done.length, color: "text-green-600" },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="flex flex-col items-center py-3 gap-0.5"
+            >
+              <span
+                className={`text-xl font-extrabold tabular-nums ${s.color}`}
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin inline" />
+                ) : (
+                  s.val
+                )}
+              </span>
+              <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Progress bar */}
+        {total > 0 && (
+          <div className="px-5 pb-4">
+            <div className="flex justify-between text-[10px] font-semibold mb-1.5">
+              <span className="text-gray-400 uppercase tracking-wide">
+                Progress
+              </span>
+              <span className="text-gray-700">{pct}%</span>
+            </div>
+            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
               <div
-                className="bg-gradient-to-r from-orange-500 to-orange-600 h-2 rounded-full transition-all"
-                style={{ width: `${completionRate}%` }}
+                className="h-2 rounded-full transition-all duration-500"
+                style={{
+                  width: `${pct}%`,
+                  background:
+                    pct === 100
+                      ? "linear-gradient(90deg,#22c55e,#16a34a)"
+                      : "linear-gradient(90deg,#f97316,#ea580c)",
+                }}
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* Week Selector */}
-      <div className="sticky top-16 bg-white border-b border-gray-200 z-20 shadow-sm">
-        <div className="flex gap-2 overflow-x-auto px-4 py-3 scrollbar-hide">
-          {weekDates.map((date) => {
-            const isSelected =
-              date.toISOString().split("T")[0] === selectedDateStr;
-            const isToday =
-              date.toISOString().split("T")[0] ===
-              new Date().toISOString().split("T")[0];
-
-            return (
-              <button
-                key={date.toISOString()}
-                onClick={() => setSelectedDate(date)}
-                className={`flex flex-col items-center justify-center min-w-[56px] h-18 rounded-xl transition-all shadow-sm ${
-                  isSelected
-                    ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white scale-105 shadow-md"
-                    : isToday
-                      ? "bg-orange-50 text-orange-600 border-2 border-orange-300"
-                      : "bg-white text-gray-600 border border-gray-200"
-                }`}
-              >
-                <span className="text-xs font-medium">
-                  {date.toLocaleDateString("en-US", { weekday: "short" })}
-                </span>
-                <span className="text-xl font-bold mt-0.5">
-                  {date.getDate()}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      {/* ── Refresh ─────────────────────────────────────────────────────── */}
+      <div className="flex justify-end px-4 pt-3 pb-1">
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing || loading}
+          className="flex items-center gap-1.5 text-xs text-orange-600 font-semibold disabled:opacity-40 active:scale-95 transition"
+        >
+          <RefreshCw
+            className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+          />
+          {isRefreshing ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Loading State */}
-        {tasksLoading && !isRefreshing && (
-          <div className="space-y-4">
+      {/* ── Task list ────────────────────────────────────────────────────── */}
+      <div className="px-4 space-y-4">
+        {/* Skeleton */}
+        {loading && (
+          <div className="space-y-3">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse"
+                className="bg-white rounded-2xl border border-gray-100 p-4 animate-pulse"
               >
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-gray-200 rounded-lg" />
+                <div className="flex gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gray-200 shrink-0" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-3/4" />
-                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                    <div className="h-3.5 bg-gray-200 rounded-lg w-3/4" />
+                    <div className="h-3 bg-gray-100 rounded-lg w-1/2" />
+                    <div className="flex gap-2">
+                      <div className="h-5 bg-gray-100 rounded-full w-16" />
+                      <div className="h-5 bg-gray-100 rounded-full w-12" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -417,416 +692,403 @@ export function EngineerTasks() {
           </div>
         )}
 
-        {/* Error State */}
-        {tasksError && !tasksLoading && (
-          <div className="text-center py-16">
-            <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-12 h-12 text-red-500" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              Failed to Load Tasks
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">{tasksError}</p>
+        {/* Error */}
+        {error && !loading && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-center">
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+            <p className="text-sm font-bold text-red-700 mb-1">
+              Failed to load
+            </p>
+            <p className="text-xs text-red-500 mb-3">{error}</p>
             <button
               onClick={handleRefresh}
-              className="inline-flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg font-medium"
+              className="inline-flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-bold"
             >
-              <RefreshCw className="w-4 h-4" />
-              Try Again
+              <RefreshCw className="w-3.5 h-3.5" /> Retry
             </button>
           </div>
         )}
 
-        {/* Empty State */}
-        {!tasksLoading &&
-          !tasksError &&
-          pendingTasks.length === 0 &&
-          completedTasks.length === 0 && (
-            <div className="text-center py-16">
-              <div className="w-24 h-24 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <CheckCircle2 className="w-12 h-12 text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                All Clear!
-              </h3>
-              <p className="text-sm text-gray-600">
-                No tasks scheduled for this day
-              </p>
+        {/* Empty */}
+        {!loading && !error && total === 0 && (
+          <div className="flex flex-col items-center pt-16 pb-8 text-center">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center mb-4 shadow-md">
+              <CheckCircle2 className="w-10 h-10 text-green-600" />
             </div>
-          )}
+            <h3 className="text-base font-extrabold text-gray-900">
+              All Clear!
+            </h3>
+            <p className="text-sm text-gray-400 mt-1">
+              No tasks assigned for this period
+            </p>
+          </div>
+        )}
 
-        {/* Task Content */}
-        {!tasksLoading &&
-          !tasksError &&
-          (pendingTasks.length > 0 || completedTasks.length > 0) && (
-            <>
-              {Object.entries(groupedTasks).map(
-                ([projectName, projectTasks]) => (
-                  <div key={projectName}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-1 h-5 bg-orange-500 rounded-full" />
-                      <h3 className="text-sm font-bold text-gray-900">
-                        {projectName}
-                      </h3>
-                      <span className="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                        {projectTasks.length}{" "}
-                        {projectTasks.length === 1 ? "task" : "tasks"}
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      {projectTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          onClick={() => handleOpenTaskDetail(task)}
-                          className={`bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md hover:border-orange-300 transition-all cursor-pointer ${
-                            completingTaskId === task.id ? "opacity-70" : ""
-                          }`}
+        {/* Grouped pending tasks */}
+        {!loading &&
+          !error &&
+          Object.entries(grouped).map(([projectName, tasks]) => (
+            <div key={projectName}>
+              <div className="flex items-center gap-2 mb-2.5 mt-1">
+                <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                  <Building2 className="w-3.5 h-3.5 text-orange-600" />
+                </div>
+                <span className="text-sm font-bold text-gray-800 truncate flex-1">
+                  {projectName}
+                </span>
+                <span className="text-[11px] text-gray-500 bg-white border border-gray-200 rounded-full px-2.5 py-0.5 font-semibold shrink-0">
+                  {tasks.length}
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                {tasks.map((task) => {
+                  const stOpt =
+                    STATUS_OPTIONS.find(
+                      (s) => s.value === (task.status?.toUpperCase() || "TODO"),
+                    ) ?? STATUS_OPTIONS[0];
+                  const prMeta = task.priority
+                    ? PRIORITY_META[task.priority]
+                    : undefined;
+                  const borderCls =
+                    STATUS_BORDER[task.status?.toUpperCase() || "TODO"] ??
+                    STATUS_BORDER.TODO;
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => openDetail(task)}
+                      className={`relative bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden cursor-pointer active:scale-[0.98] transition-all hover:shadow-md hover:border-orange-200
+                      before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 ${borderCls}`}
+                    >
+                      <div className="pl-5 pr-4 py-3.5 flex items-start gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleTask(task.id, !task.completed);
+                          }}
+                          disabled={completingTaskId === task.id}
+                          className="mt-0.5 shrink-0 active:scale-95 transition-transform"
                         >
-                          <div className="flex items-start gap-3">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleTask(task.id, !task.completed);
-                              }}
-                              disabled={completingTaskId === task.id}
-                              className="mt-0.5 flex-shrink-0 active:scale-95 transition-transform disabled:cursor-not-allowed"
-                            >
-                              <div
-                                className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-                                  completingTaskId === task.id
-                                    ? "border-orange-400 bg-orange-50"
-                                    : task.completed
-                                      ? "bg-gradient-to-br from-green-500 to-green-600 border-green-500 shadow-sm"
-                                      : "border-gray-300 hover:border-orange-500 hover:bg-orange-50"
-                                }`}
-                              >
-                                {completingTaskId === task.id ? (
-                                  <Loader2 className="w-4 h-4 text-orange-500 animate-spin" />
-                                ) : task.completed ? (
-                                  <Check className="w-4 h-4 text-white" />
-                                ) : null}
-                              </div>
-                            </button>
-
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-sm font-medium ${
-                                  task.completed
-                                    ? "text-gray-400 line-through"
-                                    : "text-gray-900"
-                                }`}
-                              >
-                                {task.title}
-                              </p>
-                              {task.description && (
-                                <p className="text-xs text-gray-500 mt-1 line-clamp-1">
-                                  {task.description}
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                {task.dueTime && (
-                                  <div
-                                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg ${
-                                      task.completed
-                                        ? "bg-gray-100 text-gray-500"
-                                        : "bg-orange-50 text-orange-600"
-                                    }`}
-                                  >
-                                    <Clock className="w-3 h-3" />
-                                    <span className="text-xs font-medium">
-                                      {formatTime(task.dueTime)}
-                                    </span>
-                                  </div>
-                                )}
-                                {task.taskType && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium">
-                                    <Wrench className="w-3 h-3" />
-                                    {task.taskType}
-                                  </span>
-                                )}
-                                {task.priority && (
-                                  <span
-                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${PRIORITY_STYLES[task.priority] || "bg-gray-100 text-gray-600"}`}
-                                  >
-                                    <Flag className="w-3 h-3" />
-                                    {task.priority}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ),
-              )}
-
-              {completedTasks.length > 0 && (
-                <div className="mt-5">
-                  <button
-                    onClick={() => setShowCompleted(!showCompleted)}
-                    className="flex items-center justify-between w-full bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                      </div>
-                      <span className="text-sm font-bold text-gray-900">
-                        Completed Tasks
-                      </span>
-                      <span className="text-xs text-gray-500 bg-green-50 px-2 py-1 rounded-full">
-                        {completedTasks.length}
-                      </span>
-                    </div>
-                    {showCompleted ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    )}
-                  </button>
-
-                  {showCompleted && (
-                    <div className="space-y-3">
-                      {completedTasks.map((task) => {
-                        const project = allDisplayProjects.find(
-                          (p) => p.id === task.projectId,
-                        );
-                        return (
                           <div
-                            key={task.id}
-                            onClick={() => handleOpenTaskDetail(task)}
-                            className={`bg-white rounded-xl border border-gray-200 p-4 opacity-70 hover:opacity-100 hover:border-green-300 transition-all cursor-pointer ${
-                              completingTaskId === task.id ? "opacity-50" : ""
+                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                              completingTaskId === task.id
+                                ? "border-orange-400 bg-orange-50"
+                                : task.completed
+                                  ? "bg-green-500 border-green-500 shadow-sm"
+                                  : "border-gray-300 hover:border-orange-400"
                             }`}
                           >
-                            <div className="flex items-start gap-3">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleTask(task.id, false);
-                                }}
-                                disabled={completingTaskId === task.id}
-                                className="mt-0.5 flex-shrink-0 active:scale-95 transition-transform disabled:cursor-not-allowed"
-                              >
-                                <div
-                                  className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shadow-sm ${
-                                    completingTaskId === task.id
-                                      ? "border-orange-400 bg-orange-50"
-                                      : "bg-gradient-to-br from-green-500 to-green-600 border-green-500"
-                                  }`}
-                                >
-                                  {completingTaskId === task.id ? (
-                                    <Loader2 className="w-4 h-4 text-orange-500 animate-spin" />
-                                  ) : (
-                                    <Check className="w-4 h-4 text-white" />
-                                  )}
-                                </div>
-                              </button>
-
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-500 line-through">
-                                  {task.title}
-                                </p>
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <MapPin className="w-3 h-3 text-gray-400" />
-                                  <p className="text-xs text-gray-500">
-                                    {project?.name}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
+                            {completingTaskId === task.id ? (
+                              <Loader2 className="w-3.5 h-3.5 text-orange-500 animate-spin" />
+                            ) : task.completed ? (
+                              <Check className="w-3.5 h-3.5 text-white" />
+                            ) : null}
                           </div>
-                        );
-                      })}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-sm font-semibold leading-snug ${task.completed ? "text-gray-400 line-through" : "text-gray-900"}`}
+                          >
+                            {task.title}
+                          </p>
+                          {task.description && (
+                            <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">
+                              {task.description}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${stOpt.pill}`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${stOpt.dot}`}
+                              />
+                              {stOpt.label}
+                            </span>
+                            {prMeta && (
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${prMeta.pill}`}
+                              >
+                                <Flag className="w-2.5 h-2.5" />
+                                {prMeta.label}
+                              </span>
+                            )}
+                            {task.dueDate && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                                <CalendarDays className="w-2.5 h-2.5" />
+                                {relDay(task.dueDate)}
+                              </span>
+                            )}
+                            {task.dueTime && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-600">
+                                <Clock className="w-2.5 h-2.5" />
+                                {fmtTime(task.dueTime)}
+                              </span>
+                            )}
+                            {task.taskType && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-600">
+                                <Wrench className="w-2.5 h-2.5" />
+                                {task.taskType}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-1" />
+                      </div>
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+        {/* Completed accordion */}
+        {!loading && !error && done.length > 0 && (
+          <div className="mt-1">
+            <button
+              onClick={() => setShowCompleted((v) => !v)}
+              className="flex items-center justify-between w-full bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 active:scale-[0.98] transition"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
                 </div>
-              )}
-            </>
-          )}
+                <span className="text-sm font-bold text-gray-900">
+                  Completed
+                </span>
+                <span className="w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {done.length}
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showCompleted ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {showCompleted && (
+              <div className="mt-2 space-y-2">
+                {done.map((task) => (
+                  <div
+                    key={task.id}
+                    onClick={() => openDetail(task)}
+                    className="relative bg-white/70 rounded-2xl border border-gray-100 overflow-hidden cursor-pointer active:scale-[0.98] transition-all before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-green-400"
+                  >
+                    <div className="pl-5 pr-4 py-3 flex items-start gap-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleTask(task.id, false);
+                        }}
+                        disabled={completingTaskId === task.id}
+                        className="mt-0.5 shrink-0 active:scale-95 transition-transform"
+                      >
+                        <div className="w-6 h-6 rounded-full bg-green-500 border-2 border-green-500 flex items-center justify-center shadow-sm">
+                          {completingTaskId === task.id ? (
+                            <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5 text-white" />
+                          )}
+                        </div>
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-400 line-through">
+                          {task.title}
+                        </p>
+                        {task.dueDate && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {relDay(task.dueDate)}
+                          </p>
+                        )}
+                      </div>
+                      <RotateCcw className="w-3.5 h-3.5 text-gray-300 shrink-0 mt-1" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="h-4" />
       </div>
 
-      {/* ── Task Detail Modal ── */}
+      {/* ── Task Detail Bottom Sheet ──────────────────────────────────────── */}
       {selectedTask &&
         createPortal(
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-            <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center"
+            style={{
+              background: "rgba(0,0,0,0.55)",
+              backdropFilter: "blur(4px)",
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeDetail();
+            }}
+          >
+            <div className="bg-white w-full max-w-md rounded-t-3xl shadow-2xl flex flex-col max-h-[93dvh]">
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1 shrink-0">
+                <div className="w-10 h-1 rounded-full bg-gray-200" />
+              </div>
+
               {/* Header */}
-              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
+                <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center">
                     <Wrench className="w-4 h-4 text-orange-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest">
                       Task Details
+                    </p>
+                    <p className="text-xs font-bold text-gray-700 mt-0.5 leading-tight">
+                      {(selectedTask as Task & { projectName?: string })
+                        .projectName ??
+                        allDisplayProjects.find(
+                          (p) => p.id === selectedTask.projectId,
+                        )?.name ??
+                        "—"}
                     </p>
                   </div>
                 </div>
                 <button
-                  onClick={handleCloseTaskDetail}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                  onClick={closeDetail}
+                  className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:scale-95 transition"
                 >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <X className="w-4 h-4 text-gray-500" />
                 </button>
               </div>
 
-              {/* Scrollable Body */}
+              {/* Body */}
               <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
-                {/* Task Title */}
+                {/* Title + description */}
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900 leading-snug">
+                  <h2 className="text-lg font-extrabold text-gray-900 leading-snug">
                     {selectedTask.title}
                   </h2>
                   {selectedTask.description && (
-                    <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">
+                    <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
                       {selectedTask.description}
                     </p>
                   )}
                 </div>
 
-                {/* Meta Info Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  {selectedTask.taskType && (
-                    <div className="bg-purple-50 rounded-xl p-3">
-                      <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wide mb-1">
-                        Type
-                      </p>
-                      <div className="flex items-center gap-1.5">
-                        <Wrench className="w-3.5 h-3.5 text-purple-600" />
-                        <span className="text-sm font-semibold text-purple-800">
-                          {selectedTask.taskType}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  {selectedTask.priority && (
-                    <div
-                      className={`rounded-xl p-3 ${PRIORITY_STYLES[selectedTask.priority] || "bg-gray-50"}`}
-                    >
-                      <p className="text-[10px] font-semibold uppercase tracking-wide mb-1 opacity-70">
-                        Priority
-                      </p>
-                      <div className="flex items-center gap-1.5">
-                        <Flag className="w-3.5 h-3.5" />
-                        <span className="text-sm font-semibold">
-                          {selectedTask.priority}
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                {/* Meta chips */}
+                <div className="flex flex-wrap gap-2">
                   {selectedTask.dueDate && (
-                    <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                        Due Date
-                      </p>
-                      <div className="flex items-center gap-1.5">
-                        <CalendarDays className="w-3.5 h-3.5 text-gray-500" />
-                        <span className="text-sm font-semibold text-gray-800">
-                          {new Date(selectedTask.dueDate).toLocaleDateString(
-                            "en-IN",
-                            {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            },
-                          )}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl px-3 py-2">
+                      <CalendarDays className="w-3.5 h-3.5 text-gray-500" />
+                      <span className="text-xs font-semibold text-gray-700">
+                        {new Date(selectedTask.dueDate).toLocaleDateString(
+                          "en-IN",
+                          { day: "numeric", month: "short", year: "numeric" },
+                        )}
+                      </span>
                     </div>
                   )}
                   {selectedTask.dueTime && (
-                    <div className="bg-orange-50 rounded-xl p-3">
-                      <p className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide mb-1">
-                        Time
-                      </p>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-orange-500" />
-                        <span className="text-sm font-semibold text-orange-800">
-                          {formatTime(selectedTask.dueTime)}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-1.5 bg-orange-50 rounded-xl px-3 py-2">
+                      <Clock className="w-3.5 h-3.5 text-orange-500" />
+                      <span className="text-xs font-semibold text-orange-700">
+                        {fmtTime(selectedTask.dueTime)}
+                      </span>
+                    </div>
+                  )}
+                  {selectedTask.priority &&
+                    (() => {
+                      const pm = PRIORITY_META[selectedTask.priority];
+                      return pm ? (
+                        <div
+                          className={`flex items-center gap-1.5 rounded-xl px-3 py-2 ${pm.pill}`}
+                        >
+                          <Flag className="w-3.5 h-3.5" />
+                          <span className="text-xs font-semibold">
+                            {pm.label} Priority
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
+                  {selectedTask.taskType && (
+                    <div className="flex items-center gap-1.5 bg-purple-50 rounded-xl px-3 py-2">
+                      <Wrench className="w-3.5 h-3.5 text-purple-500" />
+                      <span className="text-xs font-semibold text-purple-700">
+                        {selectedTask.taskType}
+                      </span>
                     </div>
                   )}
                 </div>
 
-                {/* Status Dropdown */}
+                {/* Status picker */}
                 <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2.5">
                     Update Status
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={editStatus}
-                      onChange={(e) => setEditStatus(e.target.value)}
-                      className="w-full appearance-none px-4 py-3 pr-10 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold focus:ring-2 focus:ring-orange-500 focus:border-orange-400 transition-colors"
-                    >
-                      {STATUS_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
-                  {/* Status badge preview */}
-                  <div className="mt-2">
-                    {(() => {
-                      const s = STATUS_OPTIONS.find(
-                        (o) => o.value === editStatus,
-                      );
-                      return s ? (
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.text}`}
-                        >
-                          <span
-                            className={`w-2 h-2 rounded-full ${s.dot}`}
-                          />
-                          {s.label}
-                        </span>
-                      ) : null;
-                    })()}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {STATUS_OPTIONS.map(
+                      ({ value, label, Icon, ring, pill, dot }) => {
+                        const active = editStatus === value;
+                        const textColor = pill.split(" ")[1];
+                        return (
+                          <button
+                            key={value}
+                            onClick={() => setEditStatus(value)}
+                            className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl border-2 transition-all active:scale-95 ${
+                              active
+                                ? `border-transparent ring-2 ${ring} bg-white shadow-md`
+                                : "border-gray-100 bg-gray-50"
+                            }`}
+                          >
+                            <Icon
+                              className={`w-5 h-5 ${active ? textColor : "text-gray-300"}`}
+                            />
+                            <span
+                              className={`text-[10px] font-bold ${active ? textColor : "text-gray-400"}`}
+                            >
+                              {label}
+                            </span>
+                            {active && (
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${dot}`}
+                              />
+                            )}
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                 </div>
 
-                {/* Camera Section — enabled only when COMPLETED */}
+                {/* Photo capture */}
                 <div
-                  className={`rounded-2xl border-2 transition-all overflow-hidden ${
-                    editStatus === "COMPLETED"
-                      ? "border-green-300 bg-green-50"
-                      : "border-dashed border-gray-200 bg-gray-50 opacity-50"
-                  }`}
+                  className={`rounded-2xl border-2 overflow-hidden transition-all ${editStatus === "COMPLETED" ? "border-green-300 bg-green-50" : "border-dashed border-gray-200 opacity-50"}`}
                 >
-                  <div className="px-4 pt-4 pb-3">
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="px-4 pt-3.5 pb-2.5">
+                    <div className="flex items-center gap-2 mb-0.5">
                       <Camera
                         className={`w-4 h-4 ${editStatus === "COMPLETED" ? "text-green-600" : "text-gray-400"}`}
                       />
                       <p
                         className={`text-sm font-bold ${editStatus === "COMPLETED" ? "text-green-800" : "text-gray-400"}`}
                       >
-                        Work Completion Photo
+                        Completion Photo
                       </p>
                     </div>
                     <p
                       className={`text-xs ${editStatus === "COMPLETED" ? "text-green-700" : "text-gray-400"}`}
                     >
                       {editStatus === "COMPLETED"
-                        ? "Capture or upload a photo as proof of completed work."
-                        : "Mark the task as Completed to enable photo capture."}
+                        ? "Attach a photo as proof of completed work."
+                        : "Mark as Completed to enable photo."}
                     </p>
                   </div>
-
                   {editStatus === "COMPLETED" && (
                     <div className="px-4 pb-4">
                       {workPhoto ? (
-                        /* Photo Preview */
                         <div className="relative">
                           <img
                             src={workPhoto.previewUrl}
-                            alt="Work completion"
-                            className="w-full h-48 object-cover rounded-xl"
+                            alt="Completion"
+                            className="w-full h-44 object-cover rounded-xl"
                           />
                           <button
                             onClick={() => setWorkPhoto(null)}
@@ -834,35 +1096,27 @@ export function EngineerTasks() {
                           >
                             <X className="w-4 h-4 text-white" />
                           </button>
-                          <div className="absolute bottom-2 left-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-lg flex items-center gap-1">
-                            <Check className="w-3 h-3" />
-                            Photo Ready
+                          <div className="absolute bottom-2 left-2 bg-green-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Ready
                           </div>
                           <button
                             onClick={() => cameraInputRef.current?.click()}
-                            className="absolute bottom-2 right-2 bg-white/90 text-gray-700 text-xs font-semibold px-2 py-1 rounded-lg flex items-center gap-1 border border-gray-200"
+                            className="absolute bottom-2 right-2 bg-white text-gray-700 text-[10px] font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1 border border-gray-200"
                           >
-                            <Camera className="w-3 h-3" />
-                            Retake
+                            <Camera className="w-3 h-3" /> Retake
                           </button>
                         </div>
                       ) : (
-                        /* Camera Button */
                         <button
                           onClick={() => cameraInputRef.current?.click()}
-                          className="w-full h-32 flex flex-col items-center justify-center gap-2.5 bg-white border-2 border-dashed border-green-300 rounded-xl hover:bg-green-50 hover:border-green-400 active:scale-95 transition-all"
+                          className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-white border-2 border-dashed border-green-300 rounded-xl hover:border-green-400 active:scale-[0.98] transition"
                         >
-                          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                            <Camera className="w-6 h-6 text-green-600" />
+                          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                            <Camera className="w-5 h-5 text-green-600" />
                           </div>
-                          <div className="text-center">
-                            <p className="text-sm font-semibold text-green-700">
-                              Capture Photo
-                            </p>
-                            <p className="text-xs text-green-600 mt-0.5">
-                              Tap to open camera or choose from gallery
-                            </p>
-                          </div>
+                          <p className="text-xs font-semibold text-green-700">
+                            Tap to capture / choose photo
+                          </p>
                         </button>
                       )}
                     </div>
@@ -870,18 +1124,26 @@ export function EngineerTasks() {
                 </div>
               </div>
 
-              {/* Footer Actions */}
-              <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex gap-3">
+              {/* Footer */}
+              <div
+                className="px-5 py-4 border-t border-gray-100 flex gap-3 shrink-0"
+                style={{
+                  paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+                }}
+              >
                 <button
-                  onClick={handleCloseTaskDetail}
-                  className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+                  onClick={closeDetail}
+                  className="flex-1 py-3.5 rounded-2xl border-2 border-gray-200 text-sm font-bold text-gray-700 active:scale-[0.97] transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveStatus}
                   disabled={isSavingStatus}
-                  className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+                  className="flex-1 py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 shadow-md shadow-orange-200 active:scale-[0.97] transition disabled:opacity-60"
+                  style={{
+                    background: "linear-gradient(135deg,#f97316,#dc6a0f)",
+                  }}
                 >
                   {isSavingStatus ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -896,14 +1158,13 @@ export function EngineerTasks() {
           document.body,
         )}
 
-      {/* Hidden camera/file input */}
       <input
         ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={handleCameraCapture}
+        onChange={handleCamera}
       />
     </div>
   );

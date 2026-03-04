@@ -81,14 +81,12 @@ export const DashboardLayout: React.FC = () => {
         />
 
         <div
-          className={`transition-[margin-left] duration-300 min-w-0 ${
+          className={`transition-all duration-300 ease-in-out ${
             sidebarCollapsed ? "ml-20" : "ml-64 xl:ml-72"
           }`}
         >
-          <main className="pt-20 px-3 sm:px-4 lg:px-6 pb-6 min-h-screen min-w-0">
-            <div className="max-w-[1600px] mx-auto w-full">
-              <Outlet />
-            </div>
+          <main className="pt-20 px-3 sm:px-4 lg:px-6 pb-6 min-h-screen w-full">
+            <Outlet />
           </main>
         </div>
       </div>

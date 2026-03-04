@@ -120,22 +120,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   fetchProjects: async (params?: ListProjectsParams) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await projectAPI.listProjects(params);
-      
+      // Use a high limit by default so all projects are loaded
+      const response = await projectAPI.listProjects(params ?? { limit: 1000 });
+
       // Deduplicate projects by ID
       const uniqueProjectsMap = new Map<string, Project>();
       (response.projects || []).forEach((project) => {
         uniqueProjectsMap.set(project.id, project);
       });
       const uniqueProjects = Array.from(uniqueProjectsMap.values());
-      
+
       // Log if duplicates were removed
       if (uniqueProjects.length < (response.projects || []).length) {
         console.warn(
-          `Removed ${(response.projects || []).length - uniqueProjects.length} duplicate projects from API response`
+          `Removed ${(response.projects || []).length - uniqueProjects.length} duplicate projects from API response`,
         );
       }
-      
+
       set({ projects: uniqueProjects, isLoading: false });
     } catch (error) {
       const errorMessage =

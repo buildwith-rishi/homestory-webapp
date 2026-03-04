@@ -1139,7 +1139,7 @@ export const CustomerDetails: React.FC = () => {
     : null;
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-6xl mx-auto">
+    <div className="space-y-8 animate-fade-in w-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
@@ -2373,30 +2373,6 @@ export const CustomerDetails: React.FC = () => {
                 )}
             </div>
           )}
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Quick Actions */}
-          <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-              Quick Actions
-            </h3>
-            <div className="space-y-2">
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-orange-50 hover:text-orange-700 rounded-xl transition-colors">
-                <Phone className="w-4 h-4" />
-                Call Customer
-              </button>
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors">
-                <Mail className="w-4 h-4" />
-                Send Email
-              </button>
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-green-50 hover:text-green-700 rounded-xl transition-colors">
-                <MessageCircle className="w-4 h-4" />
-                WhatsApp
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 

@@ -194,7 +194,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   return (
     <header
-      className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-200 z-40 transition-[left] duration-300 shadow-sm ${
+      className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-200 z-40 transition-all duration-300 ease-in-out shadow-sm ${
         sidebarCollapsed ? "left-20" : "left-64 xl:left-72"
       }`}
     >

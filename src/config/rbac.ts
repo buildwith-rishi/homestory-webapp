@@ -94,7 +94,7 @@ export const ROLES: Record<RoleId, RoleMeta> = {
     accessLevel: "Medium",
     color: "text-pink-700",
     bgColor: "bg-pink-100",
-    defaultRoute: "/dashboard",
+    defaultRoute: "/dashboard/projects",
   },
   DESIGN_HEAD: {
     id: "DESIGN_HEAD",
@@ -359,7 +359,15 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard",
     icon: "Home",
     section: "main",
-    requiredPermission: "dashboard.view",
+    allowedRoles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "DESIGN_HEAD",
+      "PROJECT_MANAGER",
+      "ACCOUNTS",
+      "BDR",
+      "SITE_ENGINEER",
+    ],
   },
   {
     id: "leads",
@@ -416,7 +424,13 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/analytics",
     icon: "BarChart3",
     section: "business",
-    requiredPermission: "reports.view",
+    allowedRoles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "DESIGN_HEAD",
+      "PROJECT_MANAGER",
+      "ACCOUNTS",
+    ],
   },
   {
     id: "email-editor",

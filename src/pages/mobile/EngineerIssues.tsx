@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -13,9 +13,12 @@ import {
   Package,
   Shield,
   Calendar as CalendarIcon,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { IssueCategory, IssueSeverity } from "../../types";
+import { getSiteEngineerIssues } from "../../services/siteEngineerApi";
 
 interface Issue {
   id: string;
@@ -29,58 +32,28 @@ interface Issue {
   location?: string;
 }
 
-// Mock data - replace with actual API call
-const mockIssues: Issue[] = [
-  {
-    id: "1",
-    projectName: "Bitgains Residence",
-    category: IssueCategory.QUALITY,
-    severity: IssueSeverity.HIGH,
-    title: "Wall finishing quality issue",
-    description: "Uneven plastering on bedroom wall requires rework",
-    status: "OPEN",
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    location: "Bedroom 2",
-  },
-  {
-    id: "2",
-    projectName: "Mehra Villa",
-    category: IssueCategory.MATERIAL,
-    severity: IssueSeverity.MEDIUM,
-    title: "Cement shortage",
-    description: "Need 10 more bags for foundation work",
-    status: "IN_PROGRESS",
-    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "3",
-    projectName: "Bitgains Residence",
-    category: IssueCategory.SAFETY,
-    severity: IssueSeverity.CRITICAL,
-    title: "Scaffolding instability",
-    description: "Urgent: Scaffolding on 2nd floor needs immediate attention",
-    status: "OPEN",
-    createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-    location: "2nd Floor",
-  },
-  {
-    id: "4",
-    projectName: "Kumar Apartment",
-    category: IssueCategory.DELAY,
-    severity: IssueSeverity.LOW,
-    title: "Plumber delayed arrival",
-    description: "Plumber will arrive 2 hours late today",
-    status: "RESOLVED",
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
 export function EngineerIssues() {
   const navigate = useNavigate();
-  const [issues] = useState<Issue[]>(mockIssues);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [issuesLoading, setIssuesLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  const loadIssues = () => {
+    setIssuesLoading(true);
+    getSiteEngineerIssues()
+      .then((data) => setIssues(data as Issue[]))
+      .catch((err) => {
+        console.warn("Issues fetch failed:", err);
+        // Silently fall through – empty list is shown
+      })
+      .finally(() => setIssuesLoading(false));
+  };
+
+  useEffect(() => {
+    loadIssues();
+  }, []);
 
   const getCategoryIcon = (category: IssueCategory) => {
     switch (category) {
@@ -244,7 +217,27 @@ export function EngineerIssues() {
 
       {/* Issues List */}
       <div className="p-4 space-y-3">
-        {filteredIssues.length === 0 ? (
+        {/* Loading skeleton */}
+        {issuesLoading && (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-gray-200 rounded-xl" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!issuesLoading && filteredIssues.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-24 h-24 bg-gradient-to-br from-green-100 to-green-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
               <CheckCircle2 className="w-12 h-12 text-green-600" />

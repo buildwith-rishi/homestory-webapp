@@ -1,4 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import {
+  format,
+  subMonths,
+  startOfMonth,
+  endOfMonth,
+  parseISO,
+} from "date-fns";
 import {
   AreaChart,
   Area,
@@ -9,16 +16,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import Card from "../ui/Card";
+import { getAllPayments } from "../../services/projectApi";
 
-const data = [
-  { month: "Jul", revenue: 2840000 },
-  { month: "Aug", revenue: 3200000 },
-  { month: "Sep", revenue: 2650000 },
-  { month: "Oct", revenue: 3800000 },
-  { month: "Nov", revenue: 4200000 },
-  { month: "Dec", revenue: 3900000 },
-  { month: "Jan", revenue: 4520000 },
-];
+// Fallback placeholder shown during loading
+const PLACEHOLDER_DATA = Array.from({ length: 7 }, (_, i) => ({
+  month: format(subMonths(new Date(), 6 - i), "MMM"),
+  revenue: 0,
+}));
 
 interface CustomTooltipProps {
   active?: boolean;
@@ -45,10 +49,66 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({
 };
 
 export const RevenueChart: React.FC = () => {
+  const [data, setData] = useState(PLACEHOLDER_DATA);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRevenue = async () => {
+      setLoading(true);
+      try {
+        // Fetch payments for the last 7 months
+        const dateFrom = startOfMonth(subMonths(new Date(), 6)).toISOString();
+        const dateTo = endOfMonth(new Date()).toISOString();
+        const res = await getAllPayments({ dateFrom, dateTo, limit: 1000 });
+        const payments = res.payments || [];
+
+        // Build last 7 months buckets
+        const buckets: Record<string, number> = {};
+        for (let i = 6; i >= 0; i--) {
+          const key = format(subMonths(new Date(), i), "MMM yyyy");
+          buckets[key] = 0;
+        }
+
+        // Sum collected payments into their month bucket
+        payments.forEach((p) => {
+          const statusUp = (p.status || "").toUpperCase();
+          if (statusUp !== "COLLECTED" && statusUp !== "PARTIALLY_PAID") return;
+          const dateStr = p.collectedAt || p.collectedDate || p.createdAt;
+          if (!dateStr) return;
+          const key = format(parseISO(dateStr), "MMM yyyy");
+          if (key in buckets) {
+            const amount = Number(
+              p.actualAmount ?? p.invoiceAmount ?? p.amount ?? 0,
+            );
+            buckets[key] += amount;
+          }
+        });
+
+        const chartData = Object.entries(buckets).map(
+          ([monthYear, revenue]) => ({
+            month: monthYear.split(" ")[0], // Short month name
+            revenue,
+          }),
+        );
+        setData(chartData);
+      } catch (err) {
+        console.error("RevenueChart fetch failed:", err);
+        // Keep placeholder zeros
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRevenue();
+  }, []);
+
   const total = data.reduce((sum, item) => sum + item.revenue, 0);
-  const average = total / data.length;
+  const average = data.length > 0 ? total / data.length : 0;
+  const firstRevenue = data[0]?.revenue || 0;
+  const lastRevenue = data[data.length - 1]?.revenue || 0;
   const growth =
-    ((data[data.length - 1].revenue - data[0].revenue) / data[0].revenue) * 100;
+    firstRevenue === 0
+      ? 0
+      : ((lastRevenue - firstRevenue) / firstRevenue) * 100;
 
   return (
     <Card className="p-6 animate-scale-in">
@@ -63,15 +123,21 @@ export const RevenueChart: React.FC = () => {
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-600">Total Revenue</p>
-          <p className="text-2xl font-bold text-gray-900">
-            ₹{(total / 10000000).toFixed(2)}Cr
-          </p>
-          <p
-            className={`text-xs mt-1 ${growth > 0 ? "text-emerald-600" : "text-red-600"}`}
-          >
-            {growth > 0 ? "↑" : "↓"} {Math.abs(growth).toFixed(1)}% vs first
-            month
-          </p>
+          {loading ? (
+            <div className="h-8 w-28 bg-gray-100 rounded animate-pulse mt-1" />
+          ) : (
+            <p className="text-2xl font-bold text-gray-900">
+              ₹{(total / 10000000).toFixed(2)}Cr
+            </p>
+          )}
+          {!loading && (
+            <p
+              className={`text-xs mt-1 ${growth > 0 ? "text-emerald-600" : "text-red-600"}`}
+            >
+              {growth > 0 ? "↑" : "↓"} {Math.abs(growth).toFixed(1)}% vs first
+              month
+            </p>
+          )}
         </div>
       </div>
 
@@ -121,13 +187,15 @@ export const RevenueChart: React.FC = () => {
         <div>
           <span className="text-gray-500">Average: </span>
           <span className="font-semibold text-gray-900">
-            ₹{(average / 100000).toFixed(1)}L/month
+            {loading ? "…" : `₹${(average / 100000).toFixed(1)}L/month`}
           </span>
         </div>
         <div>
           <span className="text-gray-500">Peak: </span>
           <span className="font-semibold text-gray-900">
-            ₹{(Math.max(...data.map((d) => d.revenue)) / 100000).toFixed(1)}L
+            {loading
+              ? "…"
+              : `₹${(Math.max(...data.map((d) => d.revenue), 0) / 100000).toFixed(1)}L`}
           </span>
         </div>
       </div>
