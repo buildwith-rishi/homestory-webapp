@@ -81,7 +81,9 @@ export const LeadModal: React.FC<{
 
   const availableSources = sources.length > 0 ? sources : defaultSources;
 
-  const [activeTab, setActiveTab] = useState<"basic" | "property" | "referral">("basic");
+  const [activeTab, setActiveTab] = useState<"basic" | "property" | "referral">(
+    "basic",
+  );
 
   const emptyForm: Omit<Lead, "id"> = {
     name: "",
@@ -187,13 +189,18 @@ export const LeadModal: React.FC<{
     if (!formData.email?.trim()) newErrors.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Invalid email format";
-    if (!formData.serviceInterest) newErrors.serviceInterest = "Service Interest is required";
-    if (!formData.propertyType) newErrors.propertyType = "Property Type is required";
+    if (!formData.serviceInterest)
+      newErrors.serviceInterest = "Service Interest is required";
+    if (!formData.propertyType)
+      newErrors.propertyType = "Property Type is required";
     if (!formData.homeType) newErrors.homeType = "Home Type is required";
     if (!formData.city?.trim()) newErrors.city = "City is required";
-    if (!formData.startTimeline) newErrors.startTimeline = "Start Timeline is required";
-    if (!formData.budgetComfort) newErrors.budgetComfort = "Budget Comfort is required";
-    if (!formData.projectScope) newErrors.projectScope = "Project Scope is required";
+    if (!formData.startTimeline)
+      newErrors.startTimeline = "Start Timeline is required";
+    if (!formData.budgetComfort)
+      newErrors.budgetComfort = "Budget Comfort is required";
+    if (!formData.projectScope)
+      newErrors.projectScope = "Project Scope is required";
     setErrors(newErrors);
     return newErrors;
   };
@@ -202,8 +209,17 @@ export const LeadModal: React.FC<{
     e.preventDefault();
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
-      const propertyTabFields = ["serviceInterest", "propertyType", "homeType", "city", "startTimeline", "budgetComfort", "projectScope"];
-      if (propertyTabFields.some((k) => validationErrors[k])) setActiveTab("property");
+      const propertyTabFields = [
+        "serviceInterest",
+        "propertyType",
+        "homeType",
+        "city",
+        "startTimeline",
+        "budgetComfort",
+        "projectScope",
+      ];
+      if (propertyTabFields.some((k) => validationErrors[k]))
+        setActiveTab("property");
       else setActiveTab("basic");
       return;
     }
@@ -212,7 +228,10 @@ export const LeadModal: React.FC<{
       // Build sourceDetails object from sub-fields
       const sourceDetails: Record<string, string> | null =
         srcCampaign || srcMedium
-          ? { ...(srcCampaign && { campaign: srcCampaign }), ...(srcMedium && { medium: srcMedium }) }
+          ? {
+              ...(srcCampaign && { campaign: srcCampaign }),
+              ...(srcMedium && { medium: srcMedium }),
+            }
           : null;
       // Build explicit payload — convert empty strings to null so Prisma doesn't receive unexpected values
       const payload = {
@@ -229,9 +248,12 @@ export const LeadModal: React.FC<{
         propertyType: formData.propertyType || null,
         homeType: formData.homeType || null,
         projectType: formData.projectType || null,
-        area: formData.area !== null && formData.area !== undefined && String(formData.area) !== ""
-          ? Number(formData.area)
-          : null,
+        area:
+          formData.area !== null &&
+          formData.area !== undefined &&
+          String(formData.area) !== ""
+            ? Number(formData.area)
+            : null,
         city: formData.city?.trim() || null,
         location: formData.location?.trim() || null,
         message: formData.message?.trim() || null,
@@ -241,7 +263,8 @@ export const LeadModal: React.FC<{
         budgetComfort: formData.budgetComfort || null,
         projectScope: formData.projectScope || null,
         floorPlanUrl: formData.floorPlanUrl?.trim() || null,
-        wantsExperienceCenterVisit: formData.wantsExperienceCenterVisit || false,
+        wantsExperienceCenterVisit:
+          formData.wantsExperienceCenterVisit || false,
         canWhatsApp: formData.canWhatsApp || false,
         assignedToId: formData.assignedToId?.trim() || null,
         referrerName: formData.referrerName?.trim() || null,
@@ -252,7 +275,8 @@ export const LeadModal: React.FC<{
       };
       await onSave(payload as unknown as Omit<Lead, "id">);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to save lead";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to save lead";
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -268,7 +292,9 @@ export const LeadModal: React.FC<{
 
   const selectClass = (err?: string) =>
     `w-full px-4 py-2.5 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer transition-all ${
-      err ? "border-red-300 bg-red-50 hover:border-red-400" : "border-gray-200 hover:border-gray-300"
+      err
+        ? "border-red-300 bg-red-50 hover:border-red-400"
+        : "border-gray-200 hover:border-gray-300"
     }`;
 
   const tabs: { key: "basic" | "property" | "referral"; label: string }[] = [
@@ -279,7 +305,10 @@ export const LeadModal: React.FC<{
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-orange-100 rounded-t-2xl">
@@ -292,11 +321,16 @@ export const LeadModal: React.FC<{
                 {lead ? "Edit Lead" : "Add New Lead"}
               </h2>
               <p className="text-sm text-gray-600">
-                {lead ? "Update all lead information" : "Fill in the lead details"}
+                {lead
+                  ? "Update all lead information"
+                  : "Fill in the lead details"}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/50 rounded-lg transition-colors">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+          >
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -321,7 +355,6 @@ export const LeadModal: React.FC<{
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
-
           {/* ── Tab 1: Basic Info ── */}
           {activeTab === "basic" && (
             <div className="space-y-4">
@@ -347,7 +380,9 @@ export const LeadModal: React.FC<{
 
                 {/* Email */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Email <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="email"
                     value={formData.email || ""}
@@ -383,7 +418,9 @@ export const LeadModal: React.FC<{
 
                 {/* Company Name */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Company Name</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Company Name
+                  </label>
                   <input
                     type="text"
                     value={formData.companyName || ""}
@@ -395,7 +432,9 @@ export const LeadModal: React.FC<{
 
                 {/* Type */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Lead Type</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Lead Type
+                  </label>
                   <select
                     value={formData.householdOrCompany || "HOUSEHOLD"}
                     onChange={(e) => f("householdOrCompany", e.target.value)}
@@ -409,21 +448,27 @@ export const LeadModal: React.FC<{
 
                 {/* Source */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Lead Source</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Lead Source
+                  </label>
                   <select
                     value={formData.source || "WEBSITE"}
                     onChange={(e) => f("source", e.target.value)}
                     className={selectClass()}
                   >
                     {availableSources.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
                     ))}
                   </select>
                 </div>
 
                 {/* Status */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Status</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Status
+                  </label>
                   <select
                     value={formData.status || "NEW"}
                     onChange={(e) => f("status", e.target.value)}
@@ -439,7 +484,9 @@ export const LeadModal: React.FC<{
 
                 {/* Source Campaign */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Source Campaign</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Source Campaign
+                  </label>
                   <input
                     type="text"
                     value={srcCampaign}
@@ -451,7 +498,9 @@ export const LeadModal: React.FC<{
 
                 {/* Source Medium */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Source Medium</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Source Medium
+                  </label>
                   <input
                     type="text"
                     value={srcMedium}
@@ -464,7 +513,8 @@ export const LeadModal: React.FC<{
                 {/* Score */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Lead Score <span className="text-gray-400 font-normal">(0–100)</span>
+                    Lead Score{" "}
+                    <span className="text-gray-400 font-normal">(0–100)</span>
                   </label>
                   <input
                     type="number"
@@ -478,7 +528,9 @@ export const LeadModal: React.FC<{
 
                 {/* Assigned To */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Assigned To</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Assigned To
+                  </label>
                   <select
                     value={formData.assignedToId || ""}
                     onChange={(e) => f("assignedToId", e.target.value || null)}
@@ -486,7 +538,9 @@ export const LeadModal: React.FC<{
                   >
                     <option value="">— Unassigned —</option>
                     {users.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                      <option key={u.id} value={u.id}>
+                        {u.name || u.email}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -507,10 +561,14 @@ export const LeadModal: React.FC<{
                   <input
                     type="checkbox"
                     checked={formData.wantsExperienceCenterVisit || false}
-                    onChange={(e) => f("wantsExperienceCenterVisit", e.target.checked)}
+                    onChange={(e) =>
+                      f("wantsExperienceCenterVisit", e.target.checked)
+                    }
                     className="w-4 h-4 rounded text-orange-500 border-gray-300 focus:ring-orange-500"
                   />
-                  <span className="text-sm text-gray-700">Wants Experience Center Visit</span>
+                  <span className="text-sm text-gray-700">
+                    Wants Experience Center Visit
+                  </span>
                 </label>
               </div>
             </div>
@@ -520,10 +578,11 @@ export const LeadModal: React.FC<{
           {activeTab === "property" && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-
                 {/* Service Interest */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Service Interest <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Service Interest <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={formData.serviceInterest || ""}
                     onChange={(e) => f("serviceInterest", e.target.value)}
@@ -531,52 +590,59 @@ export const LeadModal: React.FC<{
                   >
                     <option value="">Select...</option>
                     <option value="INTERIOR_DESIGN">Interior Design</option>
-                    <option value="RENOVATION_REMODELING">Renovation & Remodeling</option>
-                    <option value="CONSULTATION_ADVISORY">Consultation & Advisory</option>
+                    <option value="RENOVATION_REMODELING">
+                      Renovation & Remodeling
+                    </option>
+                    <option value="CONSULTATION_ADVISORY">
+                      Consultation & Advisory
+                    </option>
                     <option value="CUSTOM_FURNITURE">Custom Furniture</option>
-                    <option value="FULL_HOME_CONSTRUCTION">Full Home Construction</option>
+
                     <option value="MODULAR_KITCHEN">Modular Kitchen</option>
-                    <option value="BATHROOM_RENOVATION">Bathroom Renovation</option>
+                    <option value="BATHROOM_RENOVATION">
+                      Bathroom Renovation
+                    </option>
                     <option value="LANDSCAPE_DESIGN">Landscape Design</option>
                     <option value="OTHER">Other</option>
                   </select>
                   {errors.serviceInterest && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" /> {errors.serviceInterest}
+                      <AlertCircle className="w-3.5 h-3.5" />{" "}
+                      {errors.serviceInterest}
                     </p>
                   )}
                 </div>
 
                 {/* Property Type */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Property Type <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Property Type <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={formData.propertyType || ""}
                     onChange={(e) => f("propertyType", e.target.value)}
                     className={selectClass(errors.propertyType)}
                   >
                     <option value="">Select...</option>
-                    <option value="APARTMENT">Apartment</option>
-                    <option value="VILLA">Villa</option>
-                    <option value="ROW_HOUSE">Row House</option>
-                    <option value="PENTHOUSE">Penthouse</option>
-                    <option value="DUPLEX">Duplex</option>
-                    <option value="STUDIO">Studio</option>
-                    <option value="OFFICE">Office</option>
-                    <option value="RETAIL">Retail</option>
-                    <option value="WAREHOUSE">Warehouse</option>
-                    <option value="OTHER">Other</option>
+                    <option value="HOME">Home</option>
+                    <option value="RESIDENTIAL">Residential</option>
+                    <option value="COMMERCIAL">Commercial</option>
+                    <option value="MIXED_USE">Mixed Use</option>
+                    <option value="OTHERS">Others</option>
                   </select>
                   {errors.propertyType && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" /> {errors.propertyType}
+                      <AlertCircle className="w-3.5 h-3.5" />{" "}
+                      {errors.propertyType}
                     </p>
                   )}
                 </div>
 
                 {/* Home Type */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Home Type <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Home Type <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={formData.homeType || ""}
                     onChange={(e) => f("homeType", e.target.value)}
@@ -603,24 +669,33 @@ export const LeadModal: React.FC<{
 
                 {/* Project Type */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Project Type</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Project Type
+                  </label>
                   <select
                     value={formData.projectType || ""}
                     onChange={(e) => f("projectType", e.target.value)}
                     className={selectClass()}
                   >
                     <option value="">Select...</option>
-                    <option value="HOME">Home</option>
-                    <option value="RESIDENTIAL">Residential</option>
-                    <option value="COMMERCIAL">Commercial</option>
-                    <option value="MIXED_USE">Mixed Use</option>
-                    <option value="OTHERS">Others</option>
+                    <option value="APARTMENT">Apartment</option>
+                    <option value="VILLA">Villa</option>
+                    <option value="ROW_HOUSE">Row House</option>
+                    <option value="PENTHOUSE">Penthouse</option>
+                    <option value="DUPLEX">Duplex</option>
+                    <option value="STUDIO">Studio</option>
+                    <option value="OFFICE">Office</option>
+                    <option value="RETAIL">Retail</option>
+                    <option value="WAREHOUSE">Warehouse</option>
+                    <option value="OTHER">Other</option>
                   </select>
                 </div>
 
                 {/* Property Project Type */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Property Project Type</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Property Project Type
+                  </label>
                   <select
                     value={formData.propertyProjectType || ""}
                     onChange={(e) => f("propertyProjectType", e.target.value)}
@@ -639,12 +714,19 @@ export const LeadModal: React.FC<{
 
                 {/* Area */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Area (sqft)</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Area (sqft)
+                  </label>
                   <input
                     type="number"
                     min={0}
                     value={formData.area ?? ""}
-                    onChange={(e) => f("area", e.target.value === "" ? null : Number(e.target.value))}
+                    onChange={(e) =>
+                      f(
+                        "area",
+                        e.target.value === "" ? null : Number(e.target.value),
+                      )
+                    }
                     placeholder="e.g., 1500"
                     className={inputClass()}
                   />
@@ -652,7 +734,9 @@ export const LeadModal: React.FC<{
 
                 {/* City */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">City <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    City <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={formData.city || ""}
@@ -669,7 +753,9 @@ export const LeadModal: React.FC<{
 
                 {/* Location */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Location / Address</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Location / Address
+                  </label>
                   <input
                     type="text"
                     value={formData.location || ""}
@@ -681,7 +767,9 @@ export const LeadModal: React.FC<{
 
                 {/* Project Stage */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Project Stage</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Project Stage
+                  </label>
                   <select
                     value={formData.projectStage || ""}
                     onChange={(e) => f("projectStage", e.target.value)}
@@ -689,8 +777,12 @@ export const LeadModal: React.FC<{
                   >
                     <option value="">Select...</option>
                     <option value="NOT_SURE">Not Sure</option>
-                    <option value="NEW_HOME_PENDING">New Home (Pending Possession)</option>
-                    <option value="NEW_HOME_RECEIVED">New Home (Received)</option>
+                    <option value="NEW_HOME_PENDING">
+                      New Home (Pending Possession)
+                    </option>
+                    <option value="NEW_HOME_RECEIVED">
+                      New Home (Received)
+                    </option>
                     <option value="RENOVATION">Renovation</option>
                     <option value="COMMERCIAL_FITOUT">Commercial Fitout</option>
                   </select>
@@ -698,7 +790,9 @@ export const LeadModal: React.FC<{
 
                 {/* Start Timeline */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Start Timeline <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Start Timeline <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={formData.startTimeline || ""}
                     onChange={(e) => f("startTimeline", e.target.value)}
@@ -713,14 +807,17 @@ export const LeadModal: React.FC<{
                   </select>
                   {errors.startTimeline && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" /> {errors.startTimeline}
+                      <AlertCircle className="w-3.5 h-3.5" />{" "}
+                      {errors.startTimeline}
                     </p>
                   )}
                 </div>
 
                 {/* Budget Comfort */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Budget Comfort <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Budget Comfort <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={formData.budgetComfort || ""}
                     onChange={(e) => f("budgetComfort", e.target.value)}
@@ -735,14 +832,17 @@ export const LeadModal: React.FC<{
                   </select>
                   {errors.budgetComfort && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" /> {errors.budgetComfort}
+                      <AlertCircle className="w-3.5 h-3.5" />{" "}
+                      {errors.budgetComfort}
                     </p>
                   )}
                 </div>
 
                 {/* Project Scope */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Project Scope <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Project Scope <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={formData.projectScope || ""}
                     onChange={(e) => f("projectScope", e.target.value)}
@@ -752,24 +852,35 @@ export const LeadModal: React.FC<{
                     <option value="NOT_SURE">Not Sure</option>
                     <option value="TURNKEY">Turnkey</option>
                     <option value="DESIGN_ONLY">Design Only</option>
-                    <option value="KITCHEN_WARDROBES">Kitchen &amp; Wardrobes</option>
-                    <option value="INTERIOR_DESIGN_ONLY">Interior Design Only</option>
-                    <option value="INTERIOR_DESIGN_AND_BUILD">Interior Design and Build</option>
-                    <option value="ARCHITECTURE_DESIGN_ONLY">Architecture Design Only</option>
+                    <option value="KITCHEN_WARDROBES">
+                      Kitchen &amp; Wardrobes
+                    </option>
+                    <option value="INTERIOR_DESIGN_ONLY">
+                      Interior Design Only
+                    </option>
+                    <option value="INTERIOR_DESIGN_AND_BUILD">
+                      Interior Design and Build
+                    </option>
+                    <option value="ARCHITECTURE_DESIGN_ONLY">
+                      Architecture Design Only
+                    </option>
                     <option value="RENOVATION">Renovation</option>
                     <option value="SPECIFIC_SPACE">Specific Space</option>
                     <option value="OTHERS">Others</option>
                   </select>
                   {errors.projectScope && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" /> {errors.projectScope}
+                      <AlertCircle className="w-3.5 h-3.5" />{" "}
+                      {errors.projectScope}
                     </p>
                   )}
                 </div>
 
                 {/* Floor Plan Upload */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Floor Plan</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Floor Plan
+                  </label>
                   <div
                     onClick={() => floorPlanInputRef.current?.click()}
                     className="flex items-center gap-3 w-full px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all cursor-pointer"
@@ -779,15 +890,23 @@ export const LeadModal: React.FC<{
                     </div>
                     <div className="min-w-0 flex-1">
                       {floorPlanFile ? (
-                        <p className="text-sm font-medium text-gray-800 truncate">{floorPlanFile.name}</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {floorPlanFile.name}
+                        </p>
                       ) : (
-                        <p className="text-sm text-gray-400">Click to upload floor plan (PDF, PNG, JPG)</p>
+                        <p className="text-sm text-gray-400">
+                          Click to upload floor plan (PDF, PNG, JPG)
+                        </p>
                       )}
                     </div>
                     {floorPlanFile && (
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setFloorPlanFile(null); f("floorPlanUrl", ""); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFloorPlanFile(null);
+                          f("floorPlanUrl", "");
+                        }}
                         className="text-gray-400 hover:text-red-500 transition-colors"
                       >
                         <X className="w-4 h-4" />
@@ -809,7 +928,9 @@ export const LeadModal: React.FC<{
 
                 {/* Message */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Message</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Message
+                  </label>
                   <textarea
                     rows={2}
                     value={formData.message || ""}
@@ -821,7 +942,9 @@ export const LeadModal: React.FC<{
 
                 {/* Requirements */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Requirements</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Requirements
+                  </label>
                   <textarea
                     rows={2}
                     value={formData.requirements || ""}
@@ -844,7 +967,9 @@ export const LeadModal: React.FC<{
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Referrer Name</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Referrer Name
+                    </label>
                     <input
                       type="text"
                       value={formData.referrerName || ""}
@@ -854,7 +979,9 @@ export const LeadModal: React.FC<{
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Referrer Phone</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Referrer Phone
+                    </label>
                     <input
                       type="tel"
                       value={formData.referrerPhone || ""}
@@ -864,11 +991,15 @@ export const LeadModal: React.FC<{
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Referrer Project Number</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Referrer Project Number
+                    </label>
                     <input
                       type="text"
                       value={formData.referrerProjectNumber || ""}
-                      onChange={(e) => f("referrerProjectNumber", e.target.value)}
+                      onChange={(e) =>
+                        f("referrerProjectNumber", e.target.value)
+                      }
                       placeholder="e.g., GHS-24-0001"
                       className={inputClass()}
                     />
@@ -883,7 +1014,9 @@ export const LeadModal: React.FC<{
                 </h4>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Agency Name</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Agency Name
+                    </label>
                     <input
                       type="text"
                       value={formData.agentAgencyName || ""}
@@ -893,7 +1026,9 @@ export const LeadModal: React.FC<{
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Agency Details</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Agency Details
+                    </label>
                     <textarea
                       rows={3}
                       value={formData.agentAgencyDetails || ""}
@@ -1394,7 +1529,8 @@ export const LeadsPage: React.FC = () => {
       }
       toast.success("Lead updated successfully!");
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to update lead";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to update lead";
       toast.error(errorMessage);
     }
   };
@@ -1425,9 +1561,7 @@ export const LeadsPage: React.FC = () => {
 
     // Guard: lead has already been converted
     if ((selectedLead as any).convertedToAccount) {
-      toast.error(
-        `This lead has already been converted to a customer.`,
-      );
+      toast.error(`This lead has already been converted to a customer.`);
       setShowConvertModal(false);
       return;
     }
@@ -1725,21 +1859,21 @@ export const LeadsPage: React.FC = () => {
           statuses
             .filter((status) => status.value !== "CONVERTED")
             .map((status) => (
-            <button
-              key={status.value}
-              onClick={() => {
-                setSelectedStage(status.value);
-                setSelectedLeadIds(new Set());
-              }}
-              className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                selectedStage === status.value
-                  ? "bg-orange-500 text-white shadow-md shadow-orange-200"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {status.label} ({leadCounts[status.value] || 0})
-            </button>
-          ))}
+              <button
+                key={status.value}
+                onClick={() => {
+                  setSelectedStage(status.value);
+                  setSelectedLeadIds(new Set());
+                }}
+                className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                  selectedStage === status.value
+                    ? "bg-orange-500 text-white shadow-md shadow-orange-200"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {status.label} ({leadCounts[status.value] || 0})
+              </button>
+            ))}
         <button
           onClick={() => {
             setSelectedStage("__unassigned__");
