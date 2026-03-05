@@ -91,7 +91,7 @@ export const LeadModal: React.FC<{
     phone: "",
     source: availableSources[0]?.value || "WEBSITE",
     companyName: "",
-    householdOrCompany: "HOUSEHOLD",
+    householdOrCompany: "RESIDENTIAL",
     status: "NEW",
     score: 0,
     serviceInterest: "",
@@ -139,7 +139,7 @@ export const LeadModal: React.FC<{
         phone: lead.phone || "",
         source: lead.source || availableSources[0]?.value || "WEBSITE",
         companyName: lead.companyName || "",
-        householdOrCompany: lead.householdOrCompany || "HOUSEHOLD",
+        householdOrCompany: lead.householdOrCompany || "RESIDENTIAL",
         status: lead.status || "NEW",
         score: lead.score || 0,
         serviceInterest: lead.serviceInterest || "",
@@ -240,7 +240,7 @@ export const LeadModal: React.FC<{
         phone: formData.phone,
         source: formData.source || "WEBSITE",
         status: formData.status || "NEW",
-        householdOrCompany: formData.householdOrCompany || "HOUSEHOLD",
+        householdOrCompany: formData.householdOrCompany || "RESIDENTIAL",
         companyName: formData.companyName?.trim() || null,
         score: formData.score ?? 0,
         sourceDetails,
@@ -436,12 +436,12 @@ export const LeadModal: React.FC<{
                     Lead Type
                   </label>
                   <select
-                    value={formData.householdOrCompany || "HOUSEHOLD"}
+                    value={formData.householdOrCompany || "RESIDENTIAL"}
                     onChange={(e) => f("householdOrCompany", e.target.value)}
                     className={selectClass()}
                   >
-                    <option value="HOUSEHOLD">Household</option>
-                    <option value="COMPANY">Company</option>
+                    <option value="RESIDENTIAL">Residential</option>
+                    <option value="COMMERCIAL">Commercial</option>
                     <option value="OTHERS">Others</option>
                   </select>
                 </div>
