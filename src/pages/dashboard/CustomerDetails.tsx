@@ -99,6 +99,8 @@ interface Customer {
   lastContact: string;
   photoUrl?: string;
   alternatePhone?: string;
+  secondaryEmails?: string[];
+  secondaryPhones?: string[];
   address?: string;
   familyMembers?: FamilyMember[];
   importantDates?: ImportantDate[];
@@ -333,6 +335,14 @@ export const CustomerDetails: React.FC = () => {
   const [editingTab, setEditingTab] = useState<string | null>(null);
   const isEditing = editingTab !== null;
   const [isSaving, setIsSaving] = useState(false);
+
+  // Contact info edit state
+  const [contactEditForm, setContactEditForm] = useState<{
+    secondaryEmails: string[];
+    secondaryPhones: string[];
+    newEmail: string;
+    newPhone: string;
+  }>({ secondaryEmails: [], secondaryPhones: [], newEmail: "", newPhone: "" });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -505,6 +515,8 @@ export const CustomerDetails: React.FC = () => {
             : "N/A",
           photoUrl: undefined,
           alternatePhone: undefined,
+          secondaryEmails: (apiCustomer as any).secondaryEmails || [],
+          secondaryPhones: (apiCustomer as any).secondaryPhones || [],
           address:
             apiCustomer.billingAddress ||
             apiCustomer.shippingAddress ||
@@ -727,6 +739,12 @@ export const CustomerDetails: React.FC = () => {
       }
       if (updates.importantDates !== undefined) {
         apiUpdates.importantDates = updates.importantDates;
+      }
+      if (updates.secondaryEmails !== undefined) {
+        apiUpdates.secondaryEmails = updates.secondaryEmails;
+      }
+      if (updates.secondaryPhones !== undefined) {
+        apiUpdates.secondaryPhones = updates.secondaryPhones;
       }
       if (updates.clientRanking !== undefined) {
         // Store in notes or custom field if available
@@ -1511,11 +1529,20 @@ export const CustomerDetails: React.FC = () => {
                     Contact Information
                   </h3>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (editingTab === "overview") {
-                        setEditingTab(null);
-                        toast.success("Changes saved!");
+                        const success = await handleSaveCustomer({
+                          secondaryEmails: contactEditForm.secondaryEmails,
+                          secondaryPhones: contactEditForm.secondaryPhones,
+                        });
+                        if (success !== false) setEditingTab(null);
                       } else {
+                        setContactEditForm({
+                          secondaryEmails: customer.secondaryEmails || [],
+                          secondaryPhones: customer.secondaryPhones || [],
+                          newEmail: "",
+                          newPhone: "",
+                        });
                         setEditingTab("overview");
                       }
                     }}
@@ -1536,75 +1563,305 @@ export const CustomerDetails: React.FC = () => {
                     {editingTab === "overview" ? "Save" : "Edit"}
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
-                    <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
-                      <Mail className="w-4 h-4 text-orange-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-400 font-medium">Email</p>
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {customer.email || "Not provided"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
-                    <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                      <Phone className="w-4 h-4 text-blue-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-400 font-medium">Phone</p>
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {customer.phone || "Not provided"}
-                      </p>
-                    </div>
-                  </div>
-                  {customer.alternatePhone && (
+
+                {/* VIEW MODE */}
+                {editingTab !== "overview" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Primary email */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
-                      <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <Phone className="w-4 h-4 text-gray-500" />
+                      <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                        <Mail className="w-4 h-4 text-orange-500" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400 font-medium">
-                          Alternate Phone
+                          Email
                         </p>
                         <p className="text-sm font-medium text-gray-900 truncate">
-                          {customer.alternatePhone}
+                          {customer.email || "Not provided"}
                         </p>
                       </div>
                     </div>
-                  )}
-                  {customer.communicationPreference && (
+                    {/* Primary phone */}
                     <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
-                      <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
-                        <MessageCircle className="w-4 h-4 text-green-500" />
+                      <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <Phone className="w-4 h-4 text-blue-500" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs text-gray-400 font-medium">
-                          Preferred Contact
+                          Phone
                         </p>
-                        <p className="text-sm font-medium text-gray-900 capitalize">
-                          {customer.communicationPreference}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {customer.address && (
-                    <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl md:col-span-2">
-                      <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                        <MapPin className="w-4 h-4 text-purple-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-400 font-medium">
-                          Address
-                        </p>
-                        <p className="text-sm font-medium text-gray-900">
-                          {customer.address}
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {customer.phone || "Not provided"}
                         </p>
                       </div>
                     </div>
-                  )}
-                </div>
+                    {/* Secondary emails */}
+                    {(customer.secondaryEmails || []).map((email, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-3 p-3 bg-orange-50/40 rounded-xl"
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          <Mail className="w-4 h-4 text-orange-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-400 font-medium">
+                            Email {idx + 2}
+                          </p>
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {email}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Secondary phones */}
+                    {(customer.secondaryPhones || []).map((phone, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-3 p-3 bg-blue-50/40 rounded-xl"
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <Phone className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-400 font-medium">
+                            Phone {idx + 2}
+                          </p>
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {phone}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {customer.communicationPreference && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
+                        <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+                          <MessageCircle className="w-4 h-4 text-green-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-400 font-medium">
+                            Preferred Contact
+                          </p>
+                          <p className="text-sm font-medium text-gray-900 capitalize">
+                            {customer.communicationPreference}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {customer.address && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl md:col-span-2">
+                        <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                          <MapPin className="w-4 h-4 text-purple-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-400 font-medium">
+                            Address
+                          </p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {customer.address}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* EDIT MODE */}
+                {editingTab === "overview" && (
+                  <div className="space-y-5">
+                    {/* Read-only primary fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
+                        <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                          <Mail className="w-4 h-4 text-orange-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-400 font-medium">
+                            Primary Email
+                          </p>
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {customer.email || "Not provided"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
+                        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                          <Phone className="w-4 h-4 text-blue-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-400 font-medium">
+                            Primary Phone
+                          </p>
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {customer.phone || "Not provided"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Emails */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                        Additional Emails
+                      </p>
+                      <div className="space-y-2">
+                        {contactEditForm.secondaryEmails.map((email, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-orange-50/50 border border-orange-100 rounded-xl">
+                              <Mail className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+                              <span className="text-sm text-gray-800 truncate">
+                                {email}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() =>
+                                setContactEditForm((prev) => ({
+                                  ...prev,
+                                  secondaryEmails: prev.secondaryEmails.filter(
+                                    (_, i) => i !== idx,
+                                  ),
+                                }))
+                              }
+                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl focus-within:border-orange-400 focus-within:ring-1 focus-within:ring-orange-100">
+                            <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            <input
+                              type="email"
+                              placeholder="Add email address..."
+                              value={contactEditForm.newEmail}
+                              onChange={(e) =>
+                                setContactEditForm((prev) => ({
+                                  ...prev,
+                                  newEmail: e.target.value,
+                                }))
+                              }
+                              onKeyDown={(e) => {
+                                if (
+                                  e.key === "Enter" &&
+                                  contactEditForm.newEmail.trim()
+                                ) {
+                                  setContactEditForm((prev) => ({
+                                    ...prev,
+                                    secondaryEmails: [
+                                      ...prev.secondaryEmails,
+                                      prev.newEmail.trim(),
+                                    ],
+                                    newEmail: "",
+                                  }));
+                                }
+                              }}
+                              className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (contactEditForm.newEmail.trim()) {
+                                setContactEditForm((prev) => ({
+                                  ...prev,
+                                  secondaryEmails: [
+                                    ...prev.secondaryEmails,
+                                    prev.newEmail.trim(),
+                                  ],
+                                  newEmail: "",
+                                }));
+                              }
+                            }}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-500 hover:text-orange-600 transition-colors flex-shrink-0"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Phones */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                        Additional Phone Numbers
+                      </p>
+                      <div className="space-y-2">
+                        {contactEditForm.secondaryPhones.map((phone, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-blue-50/50 border border-blue-100 rounded-xl">
+                              <Phone className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                              <span className="text-sm text-gray-800 truncate">
+                                {phone}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() =>
+                                setContactEditForm((prev) => ({
+                                  ...prev,
+                                  secondaryPhones: prev.secondaryPhones.filter(
+                                    (_, i) => i !== idx,
+                                  ),
+                                }))
+                              }
+                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100">
+                            <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            <input
+                              type="tel"
+                              placeholder="Add phone number..."
+                              value={contactEditForm.newPhone}
+                              onChange={(e) =>
+                                setContactEditForm((prev) => ({
+                                  ...prev,
+                                  newPhone: e.target.value,
+                                }))
+                              }
+                              onKeyDown={(e) => {
+                                if (
+                                  e.key === "Enter" &&
+                                  contactEditForm.newPhone.trim()
+                                ) {
+                                  setContactEditForm((prev) => ({
+                                    ...prev,
+                                    secondaryPhones: [
+                                      ...prev.secondaryPhones,
+                                      prev.newPhone.trim(),
+                                    ],
+                                    newPhone: "",
+                                  }));
+                                }
+                              }}
+                              className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (contactEditForm.newPhone.trim()) {
+                                setContactEditForm((prev) => ({
+                                  ...prev,
+                                  secondaryPhones: [
+                                    ...prev.secondaryPhones,
+                                    prev.newPhone.trim(),
+                                  ],
+                                  newPhone: "",
+                                }));
+                              }
+                            }}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-500 hover:text-blue-600 transition-colors flex-shrink-0"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Professional Information */}
