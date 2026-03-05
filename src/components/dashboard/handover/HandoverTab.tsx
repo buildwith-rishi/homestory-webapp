@@ -23,6 +23,16 @@ import {
 } from "lucide-react";
 import { Button, Card, SectionLoader, Spinner } from "../../ui";
 import toast from "react-hot-toast";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
+
+function resolvePhotoUrl(fileUrl: string): string {
+  if (!fileUrl) return "";
+  if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://"))
+    return fileUrl;
+  return `${API_BASE_URL}/${fileUrl}`;
+}
 import type {
   HandoverActivity,
   CreateHandoverActivityRequest,
@@ -114,6 +124,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoIsPublic, setPhotoIsPublic] = useState(true);
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
 
   // Lightbox
   const [lightboxPhoto, setLightboxPhoto] = useState<HandoverPhoto | null>(
@@ -288,32 +299,36 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
   // Photo Handling
   // ==========================================
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       toast.error("Please select an image file");
       return;
     }
-    // Max 10MB
     if (file.size > 10 * 1024 * 1024) {
       toast.error("File size must be under 10MB");
       return;
     }
+    setSelectedPhotoFile(file);
+    e.target.value = "";
+  };
+
+  const handlePhotoUpload = async () => {
+    if (!selectedPhotoFile) return;
 
     setUploadingPhoto(true);
     try {
       await uploadHandoverPhoto(
         projectId,
-        file,
+        selectedPhotoFile,
         photoCaption.trim() || undefined,
         photoIsPublic,
       );
       toast.success("Photo uploaded");
       setPhotoCaption("");
       setPhotoIsPublic(true);
+      setSelectedPhotoFile(null);
       setShowPhotoUpload(false);
       await fetchPhotos();
     } catch (err) {
@@ -836,7 +851,12 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
                   Upload Handover Photo
                 </h3>
                 <button
-                  onClick={() => setShowPhotoUpload(false)}
+                  onClick={() => {
+                    setShowPhotoUpload(false);
+                    setSelectedPhotoFile(null);
+                    setPhotoCaption("");
+                    setPhotoIsPublic(true);
+                  }}
                   className="p-1 rounded-md hover:bg-gray-100 text-gray-400"
                 >
                   <X className="w-4 h-4" />
@@ -866,39 +886,84 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
                     <span className="text-sm text-gray-600">Public photo</span>
                   </label>
                 </div>
-                <label
-                  className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${
-                    uploadingPhoto
-                      ? "border-orange-300 bg-orange-50"
-                      : "border-gray-300 hover:border-orange-400 hover:bg-orange-50/50"
-                  }`}
-                >
-                  {uploadingPhoto ? (
-                    <>
-                      <Spinner size="lg" color="brand" className="mb-2" />
-                      <span className="text-sm text-orange-600 font-medium">
+
+                {/* File selector zone */}
+                {!selectedPhotoFile ? (
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors border-gray-300 hover:border-orange-400 hover:bg-orange-50/50">
+                    <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                    <span className="text-sm text-gray-600 font-medium">
+                      Click to select photo
+                    </span>
+                    <span className="text-xs text-gray-400 mt-0.5">
+                      JPG, PNG up to 10MB
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoFileSelect}
+                    />
+                  </label>
+                ) : (
+                  <div className="flex items-center justify-between px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                        <Camera className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {selectedPhotoFile.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {(selectedPhotoFile.size / 1024 / 1024).toFixed(1)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPhotoFile(null)}
+                      className="p-1.5 rounded-lg hover:bg-orange-100 text-gray-400 hover:text-rose-500 flex-shrink-0 ml-2"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    onClick={handlePhotoUpload}
+                    disabled={!selectedPhotoFile || uploadingPhoto}
+                    className="bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
+                  >
+                    {uploadingPhoto ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                         Uploading...
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-8 h-8 text-gray-400 mb-2" />
-                      <span className="text-sm text-gray-600 font-medium">
-                        Click to select photo
-                      </span>
-                      <span className="text-xs text-gray-400 mt-0.5">
-                        JPG, PNG up to 10MB
-                      </span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePhotoUpload}
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-1" />
+                        Upload Photo
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowPhotoUpload(false);
+                      setSelectedPhotoFile(null);
+                      setPhotoCaption("");
+                      setPhotoIsPublic(true);
+                    }}
                     disabled={uploadingPhoto}
-                  />
-                </label>
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
             </Card>
           )}
@@ -938,7 +1003,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
                 >
                   <div className="aspect-square">
                     <img
-                      src={photo.url}
+                      src={resolvePhotoUrl(photo.fileUrl)}
                       alt={photo.caption || "Handover photo"}
                       className="w-full h-full object-cover cursor-pointer"
                       onClick={() => setLightboxPhoto(photo)}
@@ -1005,7 +1070,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
               <X className="w-6 h-6" />
             </button>
             <img
-              src={lightboxPhoto.url}
+              src={resolvePhotoUrl(lightboxPhoto.fileUrl)}
               alt={lightboxPhoto.caption || "Handover photo"}
               className="w-full max-h-[80vh] object-contain rounded-xl"
             />

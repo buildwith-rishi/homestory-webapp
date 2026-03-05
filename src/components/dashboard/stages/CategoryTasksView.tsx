@@ -11,10 +11,12 @@ import {
   ArrowLeft,
   BarChart3,
   Filter,
+  User,
 } from "lucide-react";
 import { Card } from "../../ui";
 import type { MatrixTask, MatrixCategory, MatrixStats } from "../../../types";
 import { getCategoryTasks } from "../../../services/projectApi";
+import { useAuth } from "../../../contexts/AuthContext";
 
 interface CategoryTasksViewProps {
   categories: MatrixCategory[];
@@ -73,6 +75,8 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
   onStatusChange,
   updatingTaskId,
 }) => {
+  const { user } = useAuth();
+
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     categories[0]?.id || "",
   );
@@ -292,15 +296,26 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
                             className="flex-1 min-w-0 cursor-pointer"
                             onClick={() => onTaskClick(task.id, task)}
                           >
-                            <p
-                              className={`text-sm font-medium ${
-                                task.status === "COMPLETED"
-                                  ? "text-gray-400 line-through"
-                                  : "text-gray-900"
-                              }`}
-                            >
-                              {task.title}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p
+                                className={`text-sm font-medium ${
+                                  task.status === "COMPLETED"
+                                    ? "text-gray-400 line-through"
+                                    : "text-gray-900"
+                                }`}
+                              >
+                                {task.title}
+                              </p>
+                              {/* "Mine" badge for tasks assigned to current user */}
+                              {user?.id &&
+                                (task.assignedToId ?? task.assignedTo?.id) ===
+                                  user.id && (
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 flex-shrink-0">
+                                    <User className="w-2.5 h-2.5" />
+                                    Mine
+                                  </span>
+                                )}
+                            </div>
                             {task.description && (
                               <p className="text-xs text-gray-400 truncate">
                                 {task.description}

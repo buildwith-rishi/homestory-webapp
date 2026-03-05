@@ -65,7 +65,11 @@ export const UserManagement: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
 
   // Check if user has admin role
-  const isAdmin = roleId === "SUPER_ADMIN" || roleId === "ADMIN";
+  const isAdmin =
+    roleId === "SUPER_ADMIN" ||
+    roleId === "ADMIN" ||
+    roleId === "LEAD_PROJECT_MANAGER" ||
+    roleId === "HR";
 
   const loadUsers = async () => {
     try {
@@ -451,12 +455,15 @@ export const UserManagement: React.FC = () => {
             <option value="all">All Roles</option>
             <option value="SUPER_ADMIN">Super Admin</option>
             <option value="ADMIN">Admin</option>
-            <option value="BDR">Business Development Rep</option>
+            <option value="LEAD_PROJECT_MANAGER">Lead Project Manager</option>
             <option value="PROJECT_MANAGER">Project Manager</option>
+            <option value="BDR">Business Development Representative</option>
+            <option value="SALES">Sales</option>
+            <option value="HR">Human Resources</option>
             <option value="ACCOUNTS">Accounts / Finance</option>
             <option value="SITE_ENGINEER">Site Engineer</option>
             <option value="DESIGNER">Designer</option>
-            <option value="DESIGN_HEAD">Design Head</option>
+            <option value="DESIGN_HEAD">Lead Designer</option>
           </select>
 
           {/* Status Filter */}
@@ -739,12 +746,15 @@ export const UserManagement: React.FC = () => {
                 backgroundSize: "1.25em 1.25em",
               }}
             >
-              <option value="BDR">Business Development Rep</option>
+              <option value="BDR">Business Development Representative</option>
+              <option value="SALES">Sales</option>
+              <option value="HR">Human Resources</option>
               <option value="SITE_ENGINEER">Site Engineer</option>
               <option value="PROJECT_MANAGER">Project Manager</option>
+              <option value="LEAD_PROJECT_MANAGER">Lead Project Manager</option>
               <option value="ACCOUNTS">Accounts / Finance</option>
               <option value="DESIGNER">Designer</option>
-              <option value="DESIGN_HEAD">Design Head</option>
+              <option value="DESIGN_HEAD">Lead Designer</option>
               <option value="ADMIN">Admin</option>
               <option value="SUPER_ADMIN">Super Admin</option>
             </select>
@@ -1009,12 +1019,15 @@ export const UserManagement: React.FC = () => {
                 backgroundSize: "1.25em 1.25em",
               }}
             >
-              <option value="BDR">Business Development Rep</option>
+              <option value="BDR">Business Development Representative</option>
+              <option value="SALES">Sales</option>
+              <option value="HR">Human Resources</option>
               <option value="SITE_ENGINEER">Site Engineer</option>
               <option value="PROJECT_MANAGER">Project Manager</option>
+              <option value="LEAD_PROJECT_MANAGER">Lead Project Manager</option>
               <option value="ACCOUNTS">Accounts / Finance</option>
               <option value="DESIGNER">Designer</option>
-              <option value="DESIGN_HEAD">Design Head</option>
+              <option value="DESIGN_HEAD">Lead Designer</option>
               <option value="ADMIN">Admin</option>
               <option value="SUPER_ADMIN">Super Admin</option>
             </select>
@@ -1157,7 +1170,9 @@ export const UserManagement: React.FC = () => {
               <p className="font-medium text-gray-900 text-sm">
                 {selectedUser?.name}
               </p>
-              <p className="text-xs text-gray-600 mt-0.5">{selectedUser?.email}</p>
+              <p className="text-xs text-gray-600 mt-0.5">
+                {selectedUser?.email}
+              </p>
             </div>
           </div>
 

@@ -2864,8 +2864,11 @@ export const Customers: React.FC = () => {
 
   // Filter customers based on active filters
   const filteredCustomers = customers.filter((customer) => {
-    // Type filter
-    if (activeTypeFilter !== "all" && customer.type !== activeTypeFilter) {
+    // Type filter — case-insensitive comparison
+    if (
+      activeTypeFilter !== "all" &&
+      (customer.type || "").toUpperCase() !== activeTypeFilter.toUpperCase()
+    ) {
       return false;
     }
 
@@ -2954,9 +2957,9 @@ export const Customers: React.FC = () => {
               All Types
             </button>
             <button
-              onClick={() => setActiveTypeFilter("HOUSEHOLD")}
+              onClick={() => setActiveTypeFilter("RESIDENTIAL")}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                activeTypeFilter === "HOUSEHOLD"
+                activeTypeFilter === "RESIDENTIAL"
                   ? "bg-orange-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
@@ -2965,9 +2968,9 @@ export const Customers: React.FC = () => {
               Residential
             </button>
             <button
-              onClick={() => setActiveTypeFilter("COMPANY")}
+              onClick={() => setActiveTypeFilter("COMMERCIAL")}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                activeTypeFilter === "COMPANY"
+                activeTypeFilter === "COMMERCIAL"
                   ? "bg-orange-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}

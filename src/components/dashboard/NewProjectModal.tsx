@@ -20,9 +20,18 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Button, Input } from "../ui";
-import { CreateProjectRequest, PipelineType, ProjectCategory, ScopeType, BudgetTier, PropertySubtype } from "../../types";
+import {
+  CreateProjectRequest,
+  PipelineType,
+  ProjectCategory,
+  ScopeType,
+  BudgetTier,
+  PropertySubtype,
+} from "../../types";
 import type { Customer } from "../../types/customer";
 import { listCustomers } from "../../services/customerApi";
+import { getAllTeamMembers } from "../../services/teamApi";
+import type { TeamMember } from "../../services/teamApi";
 import { useProjectOptions } from "../../hooks/useProjectOptions";
 
 export interface NewProjectModalProps {
@@ -57,6 +66,7 @@ interface FormData {
   specialRequirements: string;
   designTeam: string;
   executionTeam: string;
+  assignedPMId: string;
   remarks: string;
 }
 
@@ -86,6 +96,7 @@ const INITIAL_FORM_DATA: FormData = {
   specialRequirements: "",
   designTeam: "",
   executionTeam: "",
+  assignedPMId: "",
   remarks: "",
 };
 
@@ -118,14 +129,25 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersError, setCustomersError] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch customers on mount
+  // PM (Project Manager) state
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
+  const [pmSearch, setPmSearch] = useState("");
+  const [selectedPM, setSelectedPM] = useState<TeamMember | null>(null);
+  const [showPMDropdown, setShowPMDropdown] = useState(false);
+  const pmDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch customers and team members on mount
   useEffect(() => {
     if (isOpen) {
       fetchCustomers();
+      fetchTeamMembers();
     }
     if (!isOpen) {
       setFormData({ ...INITIAL_FORM_DATA });
@@ -133,11 +155,13 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       setShowMore(false);
       setSelectedCustomer(null);
       setCustomerSearch("");
+      setSelectedPM(null);
+      setPmSearch("");
       setSubmitting(false);
     }
   }, [isOpen]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -146,10 +170,39 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       ) {
         setShowCustomerDropdown(false);
       }
+      if (
+        pmDropdownRef.current &&
+        !pmDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowPMDropdown(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const fetchTeamMembers = async () => {
+    setTeamMembersLoading(true);
+    try {
+      const members = await getAllTeamMembers();
+      // Filter to project managers; fall back to all active members if none found
+      const pms = members.filter((m) => {
+        const r = (m.role ?? "").toLowerCase();
+        return (
+          r.includes("project_manager") ||
+          r.includes("project manager") ||
+          r === "pm"
+        );
+      });
+      setTeamMembers(
+        pms.length > 0 ? pms : members.filter((m) => m.isActive !== false),
+      );
+    } catch {
+      // silently ignore – PM assignment stays optional
+    } finally {
+      setTeamMembersLoading(false);
+    }
+  };
 
   const fetchCustomers = async () => {
     setCustomersLoading(true);
@@ -169,7 +222,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const filteredCustomers = customers.filter((customer) => {
     const q = customerSearch.toLowerCase();
     if (!q) return true;
-    const primaryContact = customer.contacts?.find((c) => c.isPrimary) ?? customer.contacts?.[0];
+    const primaryContact =
+      customer.contacts?.find((c) => c.isPrimary) ?? customer.contacts?.[0];
     return (
       customer.name?.toLowerCase().includes(q) ||
       primaryContact?.email?.toLowerCase().includes(q) ||
@@ -238,7 +292,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     if (formData.constructionStatus)
       request.constructionStatus = formData.constructionStatus;
     if (formData.tentativeHandoverDate)
-      request.tentativeHandoverDate = new Date(formData.tentativeHandoverDate).toISOString();
+      request.tentativeHandoverDate = new Date(
+        formData.tentativeHandoverDate,
+      ).toISOString();
     if (formData.specialRequirements)
       request.specialRequirements = formData.specialRequirements;
     if (formData.totalValue) request.totalValue = Number(formData.totalValue);
@@ -256,6 +312,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         .filter(Boolean);
     }
     if (formData.remarks) request.remarks = formData.remarks;
+    if (formData.assignedPMId) request.assignedPMId = formData.assignedPMId;
 
     try {
       await onSubmit(request);
@@ -388,7 +445,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="text"
-                        value={selectedCustomer ? selectedCustomer.name : customerSearch}
+                        value={
+                          selectedCustomer
+                            ? selectedCustomer.name
+                            : customerSearch
+                        }
                         onChange={(e) => {
                           setCustomerSearch(e.target.value);
                           if (selectedCustomer) {
@@ -428,55 +489,57 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       )}
                     </div>
 
-                    {showCustomerDropdown && !customersLoading && !selectedCustomer && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
-                        {filteredCustomers.length === 0 ? (
-                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                            No customers found
-                          </div>
-                        ) : (
-                          filteredCustomers.slice(0, 30).map((customer) => {
-                            const primaryContact =
-                              customer.contacts?.find((c) => c.isPrimary) ??
-                              customer.contacts?.[0];
-                            return (
-                              <button
-                                key={customer.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedCustomer(customer);
-                                  handleChange("accountId", customer.id);
-                                  setCustomerSearch("");
-                                  setShowCustomerDropdown(false);
-                                }}
-                                className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors border-b border-gray-50 last:border-0"
-                              >
-                                <p className="text-sm font-semibold text-gray-900">
-                                  {customer.name}
-                                </p>
-                                <div className="flex items-center gap-3 mt-0.5">
-                                  {primaryContact?.email && (
-                                    <span className="text-xs text-gray-500">
-                                      {primaryContact.email}
-                                    </span>
-                                  )}
-                                  {primaryContact?.phone && (
-                                    <span className="text-xs text-gray-500">
-                                      {primaryContact.phone}
-                                    </span>
-                                  )}
-                                  {customer.billingCity && (
-                                    <span className="text-xs text-gray-400">
-                                      {customer.billingCity}
-                                    </span>
-                                  )}
-                                </div>
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
+                    {showCustomerDropdown &&
+                      !customersLoading &&
+                      !selectedCustomer && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
+                          {filteredCustomers.length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                              No customers found
+                            </div>
+                          ) : (
+                            filteredCustomers.slice(0, 30).map((customer) => {
+                              const primaryContact =
+                                customer.contacts?.find((c) => c.isPrimary) ??
+                                customer.contacts?.[0];
+                              return (
+                                <button
+                                  key={customer.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedCustomer(customer);
+                                    handleChange("accountId", customer.id);
+                                    setCustomerSearch("");
+                                    setShowCustomerDropdown(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors border-b border-gray-50 last:border-0"
+                                >
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {customer.name}
+                                  </p>
+                                  <div className="flex items-center gap-3 mt-0.5">
+                                    {primaryContact?.email && (
+                                      <span className="text-xs text-gray-500">
+                                        {primaryContact.email}
+                                      </span>
+                                    )}
+                                    {primaryContact?.phone && (
+                                      <span className="text-xs text-gray-500">
+                                        {primaryContact.phone}
+                                      </span>
+                                    )}
+                                    {customer.billingCity && (
+                                      <span className="text-xs text-gray-400">
+                                        {customer.billingCity}
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
                   </div>
                 )}
                 {errors.accountId && (
@@ -507,7 +570,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-2xl">{"\U0001F3A8"}</span>
+                      <span className="text-2xl">🎨</span>
                       {formData.pipelineType === PipelineType.DESIGN_ONLY && (
                         <CheckCircle2 className="w-5 h-5 text-orange-500" />
                       )}
@@ -536,7 +599,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-2xl">{"\U0001F3D7\uFE0F"}</span>
+                      <span className="text-2xl">🏗️</span>
                       {formData.pipelineType ===
                         PipelineType.DESIGN_AND_EXECUTION && (
                         <CheckCircle2 className="w-5 h-5 text-orange-500" />
@@ -631,6 +694,118 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                     {errors.scopeType}
                   </p>
                 )}
+              </div>
+
+              {/* Assigned Project Manager */}
+              <div ref={pmDropdownRef}>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-orange-500" />
+                    Assigned Project Manager
+                    <span className="text-xs font-normal text-gray-400">
+                      (optional)
+                    </span>
+                  </div>
+                </label>
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={selectedPM ? selectedPM.name : pmSearch}
+                      onChange={(e) => {
+                        setPmSearch(e.target.value);
+                        if (selectedPM) {
+                          setSelectedPM(null);
+                          handleChange("assignedPMId", "");
+                        }
+                        setShowPMDropdown(true);
+                      }}
+                      onFocus={() => setShowPMDropdown(true)}
+                      placeholder={
+                        teamMembersLoading
+                          ? "Loading team members..."
+                          : "Search project manager..."
+                      }
+                      disabled={teamMembersLoading}
+                      className={`w-full pl-10 pr-10 py-2.5 border rounded-xl text-sm transition-all outline-none border-gray-300 focus:ring-2 focus:ring-orange-100 focus:border-orange-400 ${
+                        teamMembersLoading
+                          ? "bg-gray-50 cursor-wait"
+                          : "bg-white"
+                      }`}
+                    />
+                    {teamMembersLoading && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+                    )}
+                    {selectedPM && !teamMembersLoading && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPM(null);
+                          handleChange("assignedPMId", "");
+                          setPmSearch("");
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {showPMDropdown && !teamMembersLoading && !selectedPM && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                      {(() => {
+                        const filtered = teamMembers.filter((m) => {
+                          const q = pmSearch.toLowerCase();
+                          return (
+                            !q ||
+                            m.name.toLowerCase().includes(q) ||
+                            (m.email ?? "").toLowerCase().includes(q) ||
+                            (m.role ?? "").toLowerCase().includes(q)
+                          );
+                        });
+                        return filtered.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                            No project managers found
+                          </div>
+                        ) : (
+                          filtered.map((member) => (
+                            <button
+                              key={member.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPM(member);
+                                handleChange(
+                                  "assignedPMId",
+                                  member.userId ?? member.id,
+                                );
+                                setPmSearch("");
+                                setShowPMDropdown(false);
+                              }}
+                              className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors border-b border-gray-50 last:border-0"
+                            >
+                              <p className="text-sm font-semibold text-gray-900">
+                                {member.name}
+                              </p>
+                              <div className="flex items-center gap-3 mt-0.5">
+                                {member.role && (
+                                  <span className="text-xs text-orange-500 font-medium">
+                                    {member.role.replace(/_/g, " ")}
+                                  </span>
+                                )}
+                                {member.email && (
+                                  <span className="text-xs text-gray-500">
+                                    {member.email}
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          ))
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Quick Optional: City + Total Value */}
@@ -948,7 +1123,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           }
                           placeholder="e.g., Sathish, Thrisha"
                         />
-                        <p className="text-xs text-gray-400 mt-1">Comma-separated names</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Comma-separated names
+                        </p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -961,7 +1138,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           }
                           placeholder="e.g., Dilip, Santhosh"
                         />
-                        <p className="text-xs text-gray-400 mt-1">Comma-separated names</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Comma-separated names
+                        </p>
                       </div>
                     </div>
 

@@ -35,7 +35,7 @@ const ROLE_CREDENTIALS = [
     description: "User & CRM management",
   },
   {
-    role: "Design Head",
+    role: "Lead Designer",
     email: "designhead@goodhomestory.com",
     password: "GHS@DesignHead2026",
     badge: "bg-violet-100 text-violet-700",
@@ -61,6 +61,27 @@ const ROLE_CREDENTIALS = [
     password: "GHS@BDR2026",
     badge: "bg-orange-100 text-orange-700",
     description: "Lead & sales",
+  },
+  {
+    role: "Sales",
+    email: "sales@goodhomestory.com",
+    password: "GHS@Sales2026",
+    badge: "bg-indigo-100 text-indigo-700",
+    description: "Sales team",
+  },
+  {
+    role: "HR",
+    email: "hr@goodhomestory.com",
+    password: "GHS@HR2026",
+    badge: "bg-cyan-100 text-cyan-700",
+    description: "Human resources",
+  },
+  {
+    role: "Lead Project Manager",
+    email: "leadpm@goodhomestory.com",
+    password: "GHS@LeadPM2026",
+    badge: "bg-slate-100 text-slate-700",
+    description: "Senior project oversight",
   },
   {
     role: "Accounts",

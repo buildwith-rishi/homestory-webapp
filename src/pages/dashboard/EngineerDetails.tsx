@@ -29,9 +29,11 @@ import {
 import type { Task } from "../../types";
 import {
   getAllTeamMembers,
+  getTeamMemberProfile,
   updateTeamMember,
   deleteTeamMember,
   type TeamMember,
+  type DayTask,
   type UpdateTeamMemberPayload,
 } from "../../services/teamApi";
 import { useTeamMemberStore } from "../../stores/teamMemberStore";
@@ -188,6 +190,38 @@ function formatTaskDate(iso?: string) {
 
 // ─── Member Tasks Panel ──────────────────────────────────────────────────────
 
+/** Convert a DayTask (from GET /api/team/:id) into the Task shape used by the panel */
+function dayTaskToTask(t: DayTask): Task {
+  const rawStatus = (t.status ?? "PENDING").toUpperCase();
+  const status =
+    rawStatus === "COMPLETED"
+      ? "completed"
+      : rawStatus === "IN_PROGRESS" || rawStatus === "INPROGRESS"
+        ? "inprogress"
+        : "todo";
+
+  const dueDate = t.taskDate
+    ? t.taskDate.includes("T")
+      ? t.taskDate.split("T")[0]
+      : t.taskDate
+    : undefined;
+
+  return {
+    id: t.id,
+    projectId: t.project?.id ?? "",
+    title: t.title,
+    taskType: "OTHER",
+    dueDate: dueDate ?? "",
+    priority: "MEDIUM",
+    status,
+    completed: status === "completed",
+    createdAt: t.taskDate ?? "",
+    updatedAt: t.taskDate ?? "",
+    description: t.categoryName ? `Category: ${t.categoryName}` : undefined,
+    ...(t.project?.projectName ? { projectName: t.project.projectName } : {}),
+  } as unknown as Task;
+}
+
 /** Convert a SiteEngineerTask into the Task shape used by the panel UI */
 function seTaskToTask(t: SiteEngineerTask): Task {
   // normalise status to lowercase so STATUS_META keys match
@@ -223,15 +257,23 @@ function seTaskToTask(t: SiteEngineerTask): Task {
 const MemberTasksPanel: React.FC<{
   memberId: string;
   userId?: string;
-  memberName: string;
-}> = ({ memberId, userId, memberName }) => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  memberName?: string;
+  preloadedTasks?: Task[];
+}> = ({ memberId, userId, memberName, preloadedTasks }) => {
+  const [tasks, setTasks] = useState<Task[]>(preloadedTasks ?? []);
+  const [loading, setLoading] = useState(preloadedTasks === undefined);
   const [activeTab, setActiveTab] = useState<
     "all" | "todo" | "inprogress" | "completed"
   >("all");
 
   useEffect(() => {
+    // If tasks were preloaded from the profile API, use them directly
+    if (preloadedTasks !== undefined) {
+      setTasks(preloadedTasks);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
 
@@ -280,7 +322,7 @@ const MemberTasksPanel: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [memberId, userId]);
+  }, [memberId, userId, preloadedTasks]);
 
   const normalize = (s: string) => s.toLowerCase().replace(/[_\-\s]/g, "");
   const total = tasks.length;
@@ -320,7 +362,8 @@ const MemberTasksPanel: React.FC<{
           </div>
           <div>
             <h2 className="text-base font-bold text-gray-900">
-              Tasks assigned to {memberName.split(" ")[0]}
+              Tasks assigned to{" "}
+              {memberName ? memberName.split(" ")[0] : "Member"}
             </h2>
             <p className="text-xs text-gray-500">
               All tasks assigned to this team member
@@ -522,7 +565,8 @@ const MemberTasksPanel: React.FC<{
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getInitials(name: string) {
+function getInitials(name?: string) {
+  if (!name) return "?";
   return name
     .split(" ")
     .map((n) => n[0] ?? "")
@@ -571,6 +615,9 @@ export const EngineerDetails: React.FC = () => {
     (location.state as { member?: TeamMember } | null)?.member ?? null;
 
   const [member, setMember] = useState<TeamMember | null>(stateData);
+  const [profileDayTasks, setProfileDayTasks] = useState<Task[] | undefined>(
+    undefined,
+  );
   const [isLoading, setIsLoading] = useState(!stateData);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -585,35 +632,46 @@ export const EngineerDetails: React.FC = () => {
     return () => setCurrentTeamMember(null);
   }, [member, setCurrentTeamMember]);
 
-  // Fallback: if no state data, fetch list and find member by id
-  const loadFromList = useCallback(async () => {
+  // Always call GET /api/team/:id to get the full profile including dayTasks.
+  // Falls back to fetching the list if the call fails.
+  const loadMember = useCallback(async () => {
     if (!id) {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
+    if (!stateData) setIsLoading(true);
     try {
-      const all = await getAllTeamMembers();
-      const found = all.find((m) => String(m.id) === id);
-      if (found) {
-        setMember(found);
-      } else {
-        toast.error("Team member not found.");
-        navigate("/dashboard/engineers", { replace: true });
-      }
+      const profile = await getTeamMemberProfile(id);
+      setMember(profile.memberInfo);
+      // Convert dayTasks from the profile into the Task shape used by the panel
+      const converted = (profile.dayTasks ?? []).map(dayTaskToTask);
+      setProfileDayTasks(converted);
     } catch {
-      toast.error("Failed to load team member.");
-      navigate("/dashboard/engineers", { replace: true });
+      // Direct endpoint failed – fall back to fetching the full list
+      try {
+        const all = await getAllTeamMembers();
+        const found = all.find((m) => String(m.id) === id);
+        if (found) {
+          setMember(found);
+          setProfileDayTasks([]); // no day tasks from list endpoint
+        } else if (!stateData) {
+          toast.error("Team member not found.");
+          navigate("/dashboard/engineers", { replace: true });
+        }
+      } catch {
+        if (!stateData) {
+          toast.error("Failed to load team member.");
+          navigate("/dashboard/engineers", { replace: true });
+        }
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [id, navigate]);
+  }, [id, navigate, stateData]);
 
   useEffect(() => {
-    if (!stateData) {
-      loadFromList();
-    }
-  }, [stateData, loadFromList]);
+    loadMember();
+  }, [loadMember]);
 
   // ── Edit ──────────────────────────────────────────────────────────────────
   const startEditing = () => {
@@ -1047,12 +1105,13 @@ export const EngineerDetails: React.FC = () => {
         </Card>
       </div>
 
-      {/* ── Tasks Section — show tasks assigned to this team member ────── */}
+      {/* ── Tasks Section — tasks from GET /api/team/:id (dayTasks) ────── */}
       <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
         <MemberTasksPanel
           memberId={member.id}
           userId={member.userId}
           memberName={member.name}
+          preloadedTasks={profileDayTasks}
         />
       </div>
     </div>

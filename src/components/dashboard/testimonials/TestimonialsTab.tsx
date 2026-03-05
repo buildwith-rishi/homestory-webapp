@@ -43,7 +43,6 @@ import {
   deleteTestimonial,
   uploadTestimonialMedia,
   updateTestimonialStatus,
-  getTestimonialStatuses,
 } from "../../../services/projectApi";
 import { useAuth } from "../../../contexts/AuthContext";
 
@@ -143,7 +142,6 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
   const { user } = useAuth();
   const [testimonials, setTestimonials] = useState<ProjectTestimonial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modal states
@@ -153,9 +151,6 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
   const [viewingTestimonial, setViewingTestimonial] =
     useState<ProjectTestimonial | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [statusOptions, setStatusOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
 
   // ==========================================
   // Data Fetching
@@ -178,31 +173,19 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
     fetchTestimonials();
   }, [fetchTestimonials]);
 
-  useEffect(() => {
-    getTestimonialStatuses()
-      .then((opts) =>
-        setStatusOptions(
-          opts.map((o: { value: string; label: string }) => ({
-            value: o.value,
-            label: o.label,
-          })),
-        ),
-      )
-      .catch(() => {});
-  }, []);
-
   // ==========================================
   // Filtered data
   // ==========================================
 
   const filteredTestimonials = testimonials.filter((t) => {
-    const matchesStatus = filterStatus === "ALL" || t.status === filterStatus;
     const matchesSearch =
       searchQuery === "" ||
-      t.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.customerName || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
       t.testimonialText.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (t.customerCity || "").toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+    return matchesSearch;
   });
 
   // ==========================================
@@ -365,49 +348,17 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
         </div>
       </div>
 
-      {/* Search + Filter Bar */}
+      {/* Search Bar */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by name, text, or city..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            />
-          </div>
-          <div className="flex gap-1.5 flex-wrap">
-            <button
-              onClick={() => setFilterStatus("ALL")}
-              className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                filterStatus === "ALL"
-                  ? "bg-orange-500 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              All ({testimonials.length})
-            </button>
-            {statusOptions.map((opt) => {
-              const count = testimonials.filter(
-                (t) => t.status === opt.value,
-              ).length;
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => setFilterStatus(opt.value)}
-                  className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                    filterStatus === opt.value
-                      ? "bg-orange-500 text-white shadow-sm"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {opt.label} ({count})
-                </button>
-              );
-            })}
-          </div>
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name, text, or city..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+          />
         </div>
       </div>
 
@@ -502,36 +453,38 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
       )}
 
       {/* Delete Confirmation */}
-      {deletingId && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
-            <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center mx-auto mb-4">
-              <Trash2 className="w-6 h-6 text-rose-500" />
+      {deletingId &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+              <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-6 h-6 text-rose-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                Delete Testimonial?
+              </h3>
+              <p className="text-sm text-gray-500 text-center mb-6">
+                This action cannot be undone. The testimonial will be
+                permanently removed.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeletingId(null)}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="flex-1 px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-              Delete Testimonial?
-            </h3>
-            <p className="text-sm text-gray-500 text-center mb-6">
-              This action cannot be undone. The testimonial will be permanently
-              removed.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeletingId(null)}
-                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                className="flex-1 px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>,
-      document.body)}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };
@@ -562,7 +515,7 @@ const TestimonialRow: React.FC<TestimonialRowProps> = ({
   const hasMedia =
     testimonial.videoUrl ||
     testimonial.audioUrl ||
-    testimonial.photoUrls.length > 0;
+    (testimonial.photoUrls?.length ?? 0) > 0;
 
   const hasVideo = !!testimonial.videoUrl;
 
@@ -573,7 +526,7 @@ const TestimonialRow: React.FC<TestimonialRowProps> = ({
           {/* Avatar */}
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-50 flex items-center justify-center flex-shrink-0 border border-orange-200">
             <span className="text-lg font-bold text-orange-600">
-              {testimonial.customerName.charAt(0).toUpperCase()}
+              {(testimonial.customerName || "?").charAt(0).toUpperCase()}
             </span>
           </div>
 
@@ -716,11 +669,11 @@ const TestimonialRow: React.FC<TestimonialRowProps> = ({
                       <Mic className="w-3 h-3" /> Audio
                     </span>
                   )}
-                  {testimonial.photoUrls.length > 0 && (
+                  {(testimonial.photoUrls?.length ?? 0) > 0 && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 text-teal-700 rounded text-xs font-medium">
                       <ImageIcon className="w-3 h-3" />{" "}
-                      {testimonial.photoUrls.length} Photo
-                      {testimonial.photoUrls.length > 1 ? "s" : ""}
+                      {testimonial.photoUrls!.length} Photo
+                      {testimonial.photoUrls!.length > 1 ? "s" : ""}
                     </span>
                   )}
                 </div>
@@ -789,10 +742,6 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
-    if (!form.customerName.trim()) {
-      toast.error("Please enter customer name");
-      return;
-    }
     if (!form.testimonialText.trim()) {
       toast.error("Please enter testimonial text");
       return;
@@ -804,7 +753,9 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
         capturedByDesignerId: designerId,
         rating: form.rating,
         testimonialText: form.testimonialText.trim(),
-        customerName: form.customerName.trim(),
+        ...(form.customerName.trim() && {
+          customerName: form.customerName.trim(),
+        }),
         canSharePublicly: form.canSharePublicly,
         canUseName: form.canUseName,
         canUsePhoto: form.canUsePhoto,
@@ -887,7 +838,10 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
           {/* Customer Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Customer Name <span className="text-rose-500">*</span>
+              Customer Name{" "}
+              <span className="text-xs text-gray-400 font-normal">
+                (optional)
+              </span>
             </label>
             <input
               type="text"
@@ -993,100 +947,24 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
             </div>
           </div>
 
-          {/* Permissions */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Permissions
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {(
-                [
-                  {
-                    key: "canSharePublicly" as const,
-                    label: "Share Publicly",
-                    desc: "Use on website & marketing",
-                    icon: Globe,
-                  },
-                  {
-                    key: "canUseName" as const,
-                    label: "Use Name",
-                    desc: "Display customer name",
-                    icon: UserCheck,
-                  },
-                  {
-                    key: "canUsePhoto" as const,
-                    label: "Use Photo",
-                    desc: "Display customer photo",
-                    icon: Camera,
-                  },
-                ] as const
-              ).map(({ key, label, desc, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, [key]: !f[key] }))}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
-                    form[key]
-                      ? "border-orange-500 bg-orange-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Icon
-                      className={`w-4 h-4 ${
-                        form[key] ? "text-orange-600" : "text-gray-400"
-                      }`}
-                    />
-                    <span
-                      className={`text-sm font-medium ${
-                        form[key] ? "text-orange-900" : "text-gray-700"
-                      }`}
-                    >
-                      {label}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500">{desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Media Upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Media (Optional)
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-              {/* Video Upload */}
-              <label className="flex flex-col items-center justify-center gap-2 px-4 py-5 border-2 border-dashed border-purple-300 bg-purple-50/30 rounded-lg hover:border-purple-400 hover:bg-purple-50/50 transition-all cursor-pointer group">
-                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                  <Video className="w-5 h-5 text-purple-600" />
-                </div>
-                <div className="text-center">
-                  <span className="text-sm font-medium text-purple-700">
-                    Upload Video
-                  </span>
-                  <p className="text-xs text-purple-600 mt-0.5">
-                    MP4, WebM, MOV
-                  </p>
-                </div>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleAddMedia}
-                  className="hidden"
-                />
-              </label>
+            <div className="grid grid-cols-3 gap-2 mb-3">
               {/* Photo Upload */}
-              <label className="flex flex-col items-center justify-center gap-2 px-4 py-5 border-2 border-dashed border-teal-300 bg-teal-50/30 rounded-lg hover:border-teal-400 hover:bg-teal-50/50 transition-all cursor-pointer group">
+              <label className="flex flex-col items-center gap-2 px-3 py-4 border-2 border-dashed border-teal-300 bg-teal-50/30 rounded-lg hover:border-teal-400 hover:bg-teal-50/60 transition-all cursor-pointer group">
                 <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center group-hover:bg-teal-200 transition-colors">
-                  <Camera className="w-5 h-5 text-teal-600" />
+                  <ImageIcon className="w-5 h-5 text-teal-600" />
                 </div>
                 <div className="text-center">
-                  <span className="text-sm font-medium text-teal-700">
-                    Upload Photos
+                  <span className="text-xs font-medium text-teal-700">
+                    Upload Photo
                   </span>
-                  <p className="text-xs text-teal-600 mt-0.5">JPG, PNG, HEIC</p>
+                  <p className="text-[10px] text-teal-600 mt-0.5">
+                    JPG, PNG, WEBP
+                  </p>
                 </div>
                 <input
                   type="file"
@@ -1097,21 +975,41 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
                 />
               </label>
               {/* Audio Upload */}
-              <label className="flex flex-col items-center justify-center gap-2 px-4 py-5 border-2 border-dashed border-indigo-300 bg-indigo-50/30 rounded-lg hover:border-indigo-400 hover:bg-indigo-50/50 transition-all cursor-pointer group">
+              <label className="flex flex-col items-center gap-2 px-3 py-4 border-2 border-dashed border-indigo-300 bg-indigo-50/30 rounded-lg hover:border-indigo-400 hover:bg-indigo-50/60 transition-all cursor-pointer group">
                 <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
                   <Mic className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div className="text-center">
-                  <span className="text-sm font-medium text-indigo-700">
+                  <span className="text-xs font-medium text-indigo-700">
                     Upload Audio
                   </span>
-                  <p className="text-xs text-indigo-600 mt-0.5">
+                  <p className="text-[10px] text-indigo-600 mt-0.5">
                     MP3, WAV, M4A
                   </p>
                 </div>
                 <input
                   type="file"
                   accept="audio/*"
+                  onChange={handleAddMedia}
+                  className="hidden"
+                />
+              </label>
+              {/* Video Upload */}
+              <label className="flex flex-col items-center gap-2 px-3 py-4 border-2 border-dashed border-purple-300 bg-purple-50/30 rounded-lg hover:border-purple-400 hover:bg-purple-50/60 transition-all cursor-pointer group">
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                  <Video className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="text-center">
+                  <span className="text-xs font-medium text-purple-700">
+                    Upload Video
+                  </span>
+                  <p className="text-[10px] text-purple-600 mt-0.5">
+                    MP4, WebM, MOV
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  accept="video/*"
                   onChange={handleAddMedia}
                   className="hidden"
                 />
@@ -1155,22 +1053,6 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
               </div>
             )}
           </div>
-
-          {/* Internal Notes */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Internal Notes (Optional)
-            </label>
-            <textarea
-              value={form.notes}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, notes: e.target.value }))
-              }
-              rows={2}
-              placeholder="Private notes about this testimonial..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
-            />
-          </div>
         </div>
 
         {/* Footer */}
@@ -1202,7 +1084,8 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
         </div>
       </div>
     </div>,
-  document.body);
+    document.body,
+  );
 };
 
 // ==========================================
@@ -1223,7 +1106,7 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
   onUpdated,
 }) => {
   const [form, setForm] = useState({
-    customerName: testimonial.customerName,
+    customerName: testimonial.customerName || "",
     testimonialText: testimonial.testimonialText,
     rating: testimonial.rating,
     customerDesignation: testimonial.customerDesignation || "",
@@ -1237,10 +1120,6 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
-    if (!form.customerName.trim()) {
-      toast.error("Customer name is required");
-      return;
-    }
     if (!form.testimonialText.trim()) {
       toast.error("Testimonial text is required");
       return;
@@ -1249,20 +1128,18 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
     setSaving(true);
     try {
       const payload: UpdateTestimonialRequest = {
-        customerName: form.customerName.trim(),
         testimonialText: form.testimonialText.trim(),
         rating: form.rating,
         canSharePublicly: form.canSharePublicly,
         canUseName: form.canUseName,
         canUsePhoto: form.canUsePhoto,
-        ...(form.customerDesignation && {
-          customerDesignation: form.customerDesignation.trim(),
+        ...(form.customerName.trim() && {
+          customerName: form.customerName.trim(),
         }),
-        ...(form.customerCompany && {
-          customerCompany: form.customerCompany.trim(),
-        }),
-        ...(form.customerCity && { customerCity: form.customerCity.trim() }),
-        ...(form.notes && { notes: form.notes.trim() }),
+        customerDesignation: form.customerDesignation.trim() || undefined,
+        customerCompany: form.customerCompany.trim() || undefined,
+        customerCity: form.customerCity.trim() || undefined,
+        notes: form.notes.trim() || undefined,
       };
 
       const updated = await updateTestimonial(
@@ -1290,7 +1167,10 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
                 Edit Testimonial
               </h2>
               <p className="text-sm text-gray-500 mt-0.5">
-                Update feedback from {testimonial.customerName}
+                Update feedback
+                {testimonial.customerName
+                  ? ` from ${testimonial.customerName}`
+                  : ""}
               </p>
             </div>
             <button
@@ -1307,7 +1187,10 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Customer Name <span className="text-rose-500">*</span>
+              Customer Name{" "}
+              <span className="text-xs text-gray-400 font-normal">
+                (optional)
+              </span>
             </label>
             <input
               type="text"
@@ -1506,7 +1389,8 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
         </div>
       </div>
     </div>,
-  document.body);
+    document.body,
+  );
 };
 
 // ==========================================
@@ -1536,7 +1420,7 @@ const ViewTestimonialModal: React.FC<ViewTestimonialModalProps> = ({
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-100 to-orange-50 flex items-center justify-center border border-orange-200">
                 <span className="text-xl font-bold text-orange-600">
-                  {testimonial.customerName.charAt(0).toUpperCase()}
+                  {(testimonial.customerName || "?").charAt(0).toUpperCase()}
                 </span>
               </div>
               <div>
@@ -1641,11 +1525,11 @@ const ViewTestimonialModal: React.FC<ViewTestimonialModalProps> = ({
           </div>
 
           {/* Photos */}
-          {testimonial.photoUrls.length > 0 && (
+          {(testimonial.photoUrls?.length ?? 0) > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">Photos</h4>
               <div className="grid grid-cols-3 gap-2">
-                {testimonial.photoUrls.map((url, i) => (
+                {testimonial.photoUrls!.map((url, i) => (
                   <a
                     key={i}
                     href={url}
@@ -1831,7 +1715,8 @@ const ViewTestimonialModal: React.FC<ViewTestimonialModalProps> = ({
         </div>
       </div>
     </div>,
-  document.body);
+    document.body,
+  );
 };
 
 export default TestimonialsTab;

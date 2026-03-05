@@ -228,17 +228,63 @@ export async function getAdminSETasksByUserId(
     return [];
   };
 
-  /** Returns true if this raw task belongs to the requested member */
+  /** Returns true if this raw task belongs to the requested member.
+   *  Checks every possible field the backend might use to link a task to a member. */
   const belongsToMember = (t: RawSETask): boolean => {
-    if (userId && t.assignedToUserId === userId) return true;
-    if (memberId && t.assignedToMemberId === memberId) return true;
+    const r = t as Record<string, unknown>;
+    // userId-based checks
+    if (userId) {
+      if (r.assignedToUserId === userId) return true;
+      if (r.userId === userId) return true;
+      if (r.assignedTo === userId) return true;
+      if (
+        r.user &&
+        typeof r.user === "object" &&
+        (r.user as Record<string, unknown>).id === userId
+      )
+        return true;
+    }
+    // memberId-based checks
+    if (memberId) {
+      if (r.assignedToMemberId === memberId) return true;
+      if (r.memberId === memberId) return true;
+      if (r.assignedTo === memberId) return true;
+      if (r.teamMemberId === memberId) return true;
+      if (
+        r.member &&
+        typeof r.member === "object" &&
+        (r.member as Record<string, unknown>).id === memberId
+      )
+        return true;
+    }
     return false;
   };
 
   const seen = new Map<string, SiteEngineerTask>();
 
-  // ── Strategy 1: ?userId=X (admin BDR-style override) ──────────────────────
-  if (userId) {
+  // ── Strategy 1: ?memberId=X (direct member UUID query) ────────────────────
+  if (memberId) {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/site-engineer/tasks?memberId=${encodeURIComponent(memberId)}`,
+        { method: "GET", headers: getAuthHeaders() },
+      );
+      if (res.ok) {
+        const raw = parseEnvelope(await res.json().catch(() => []));
+        // Accept all tasks if the server already filtered, otherwise apply local filter
+        const list =
+          raw.length > 0 && raw.every(belongsToMember)
+            ? raw
+            : raw.filter(belongsToMember);
+        list.map(normaliseTask).forEach((t) => seen.set(t.id, t));
+      }
+    } catch {
+      /* ignore — fall through */
+    }
+  }
+
+  // ── Strategy 2: ?userId=X (admin BDR-style override) ──────────────────────
+  if (userId && seen.size === 0) {
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/site-engineer/tasks?userId=${encodeURIComponent(userId)}`,
@@ -246,18 +292,19 @@ export async function getAdminSETasksByUserId(
       );
       if (res.ok) {
         const raw = parseEnvelope(await res.json().catch(() => []));
-        raw
-          .filter(belongsToMember)
-          .map(normaliseTask)
-          .forEach((t) => seen.set(t.id, t));
+        const list =
+          raw.length > 0 && raw.every(belongsToMember)
+            ? raw
+            : raw.filter(belongsToMember);
+        list.map(normaliseTask).forEach((t) => seen.set(t.id, t));
       }
     } catch {
-      /* ignore — fall through to strategy 2 */
+      /* ignore — fall through to strategy 3 */
     }
   }
 
-  // ── Strategy 2: no filter (admin sees all), filter client-side ─────────────
-  // Only run if strategy 1 found nothing (avoids a redundant call when it works).
+  // ── Strategy 3: no filter (admin sees all), filter client-side ─────────────
+  // Run if both targeted strategies returned nothing.
   if (seen.size === 0) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/site-engineer/tasks`, {
@@ -266,7 +313,6 @@ export async function getAdminSETasksByUserId(
       });
       if (res.ok) {
         const raw = parseEnvelope(await res.json().catch(() => []));
-        // Filter to tasks that belong to this specific member
         raw
           .filter(belongsToMember)
           .map(normaliseTask)

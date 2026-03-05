@@ -8,7 +8,10 @@ export type RoleId =
   | "SUPER_ADMIN"
   | "ADMIN"
   | "BDR"
+  | "SALES"
+  | "HR"
   | "PROJECT_MANAGER"
+  | "LEAD_PROJECT_MANAGER"
   | "ACCOUNTS"
   | "SITE_ENGINEER"
   | "DESIGNER"
@@ -48,22 +51,51 @@ export const ROLES: Record<RoleId, RoleMeta> = {
   },
   BDR: {
     id: "BDR",
-    name: "Business Development Rep",
+    name: "Business Development Representative",
     description:
-      "Lead management and qualification, full CRM pipeline access, follow-up and communication logs, meeting scheduling.",
+      "Lead management and qualification, follow-up and communication logs, meeting scheduling. Can view all project stages and payment phases only (no editing).",
     accessLevel: "Medium",
     color: "text-orange-700",
     bgColor: "bg-orange-100",
     defaultRoute: "/bdr",
   },
+  SALES: {
+    id: "SALES",
+    name: "Sales",
+    description:
+      "Sales team role. Same privileges as BDR — edit Leads, Meetings, and Customers. View all project stages and payment phases only (no editing).",
+    accessLevel: "Medium",
+    color: "text-indigo-700",
+    bgColor: "bg-indigo-100",
+    defaultRoute: "/bdr",
+  },
+  HR: {
+    id: "HR",
+    name: "Human Resources",
+    description: "Can edit Leads, Meetings, Team, and Customers.",
+    accessLevel: "Medium",
+    color: "text-cyan-700",
+    bgColor: "bg-cyan-100",
+    defaultRoute: "/dashboard",
+  },
   PROJECT_MANAGER: {
     id: "PROJECT_MANAGER",
     name: "Project Manager",
     description:
-      "Project creation and lifecycle control, task assignment and monitoring, timeline and milestone tracking.",
+      "Can edit all projects, meetings, and team members, and review Site Engineer performance.",
     accessLevel: "High",
     color: "text-blue-700",
     bgColor: "bg-blue-100",
+    defaultRoute: "/dashboard",
+  },
+  LEAD_PROJECT_MANAGER: {
+    id: "LEAD_PROJECT_MANAGER",
+    name: "Lead Project Manager",
+    description:
+      "Requires ADMIN level permissions. Can edit all projects, meetings, payments, team members, and monitor Project Manager & Site Engineer performance. Full access to the system.",
+    accessLevel: "High",
+    color: "text-slate-700",
+    bgColor: "bg-slate-100",
     defaultRoute: "/dashboard",
   },
   ACCOUNTS: {
@@ -98,9 +130,9 @@ export const ROLES: Record<RoleId, RoleMeta> = {
   },
   DESIGN_HEAD: {
     id: "DESIGN_HEAD",
-    name: "Design Head",
+    name: "Lead Designer",
     description:
-      "Full design department oversight, designer management, design pipeline and deliverable approvals, reporting, and cross-team coordination.",
+      "Can edit all projects and meetings, assign tasks, and review designer performance.",
     accessLevel: "High",
     color: "text-violet-700",
     bgColor: "bg-violet-100",
@@ -148,8 +180,73 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "roles.read",
   ],
 
-  // ── DESIGN_HEAD (admin-level, mirrors ADMIN) ─────────────────────────────
+  // ── DESIGN_HEAD (Lead Designer) ──────────────────────────────────────────
   DESIGN_HEAD: [
+    "projects.*",
+    "meetings.*",
+    "tasks.*",
+    "users.read",
+    "reports.view",
+    "activity.*",
+    "attachments.*",
+    "dashboard.view",
+  ],
+
+  // ── BDR ──────────────────────────────────────────────────────────────────
+  BDR: [
+    "leads.*",
+    "meetings.*",
+    "accounts.*",
+    "contacts.*",
+    "projects.read",
+    "payments.read",
+    "deals.read",
+    "activity.*",
+    "attachments.*",
+    "dashboard.view",
+  ],
+
+  // ── SALES ────────────────────────────────────────────────────────────────
+  SALES: [
+    "leads.*",
+    "meetings.*",
+    "accounts.*",
+    "contacts.*",
+    "projects.read",
+    "payments.read",
+    "deals.read",
+    "activity.*",
+    "attachments.*",
+    "dashboard.view",
+  ],
+
+  // ── HR ───────────────────────────────────────────────────────────────────
+  HR: [
+    "leads.*",
+    "meetings.*",
+    "users.*",
+    "accounts.*",
+    "contacts.*",
+    "activity.*",
+    "attachments.*",
+    "dashboard.view",
+  ],
+
+  // ── PROJECT_MANAGER ───────────────────────────────────────────────────────
+  PROJECT_MANAGER: [
+    "projects.*",
+    "meetings.*",
+    "users.*",
+    "reports.view",
+    "tasks.*",
+    "activity.*",
+    "attachments.*",
+    "products.*",
+    "dashboard.view",
+  ],
+
+  // ── LEAD_PROJECT_MANAGER ─────────────────────────────────────────────────
+  LEAD_PROJECT_MANAGER: [
     "users.*",
     "dashboard.*",
     "reports.*",
@@ -180,113 +277,33 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "roles.read",
   ],
 
-  // ── BDR ──────────────────────────────────────────────────────────────────
-  BDR: [
-    "leads.*",
-    "accounts.*",
-    "contacts.*",
-    "deals.read",
-    "deals.create",
-    "projects.read",
-    "projects.create",
-    "activity.*",
-    "attachments.*",
-    "meetings.*",
-    "tasks.*",
-    "ai.transcripts.read",
-    "communications.*",
-    "followups.*",
-    "emails.*",
-    "dashboard.view",
-    "payments.read",
-  ],
-
-  // ── PROJECT_MANAGER ───────────────────────────────────────────────────────
-  PROJECT_MANAGER: [
-    "users.read",
-    "leads.*",
-    "accounts.*",
-    "contacts.*",
-    "deals.*",
-    "payments.*",
-    "activity.*",
-    "attachments.*",
-    "meetings.*",
-    "projects.*",
-    "tasks.*",
-    "products.*",
-    "emails.*",
-    "reports.view",
-    "reports.export",
-    "dashboard.view",
-  ],
-
   // ── ACCOUNTS / FINANCE ────────────────────────────────────────────────────
-  ACCOUNTS: [
-    "payments.*",
-    "deals.read",
-    "deals.update",
-    "projects.read",
-    "projects.update",
-    "leads.read",
-    "accounts.read",
-    "contacts.read",
-    "activity.read",
-    "activity.create",
-    "attachments.read",
-    "attachments.create",
-    "reports.view",
-    "reports.export",
-    "emails.read",
-    "dashboard.view",
-    "meetings.read",
-  ],
+  ACCOUNTS: ["payments.*", "projects.read", "reports.view", "dashboard.view"],
 
   // ── DESIGNER ──────────────────────────────────────────────────────────────
   DESIGNER: [
-    "users.read",
-    "leads.*",
-    "accounts.*",
-    "contacts.*",
-    "deals.*",
-    "payments.*",
-    "activity.*",
-    "attachments.*",
+    "projects.read",
+    "projects.update",
     "meetings.*",
-    "projects.*",
     "tasks.read",
     "tasks.create",
-    "products.*",
-    "emails.*",
-    "reports.view",
-    "reports.export",
+    "tasks.update",
+    "activity.*",
+    "attachments.*",
     "dashboard.view",
   ],
 
   // ── SITE_ENGINEER ─────────────────────────────────────────────────────────
   SITE_ENGINEER: [
-    "leads.read",
-    "accounts.read",
-    "contacts.read",
-    "deals.read",
-    "deals.update",
     "projects.read",
-    "projects.update",
+    "tasks.read",
+    "tasks.update",
     "activity.read",
     "activity.create",
     "attachments.read",
     "attachments.create",
     "meetings.read",
-    "meetings.create",
-    "site.*",
-    "tasks.read",
-    "tasks.update",
-    "tasks.create",
-    "payments.read",
-    "images.upload",
-    "issues.report",
-    "quality.submit",
-    "defects.report",
+    "dashboard.view",
   ],
 };
 
@@ -364,8 +381,11 @@ export const NAV_ITEMS: NavItemConfig[] = [
       "ADMIN",
       "DESIGN_HEAD",
       "PROJECT_MANAGER",
+      "LEAD_PROJECT_MANAGER",
       "ACCOUNTS",
       "BDR",
+      "SALES",
+      "HR",
       "SITE_ENGINEER",
     ],
   },
@@ -416,7 +436,15 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/marketing",
     icon: "TrendingUp",
     section: "business",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD", "BDR"],
+    allowedRoles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "DESIGN_HEAD",
+      "LEAD_PROJECT_MANAGER",
+      "BDR",
+      "SALES",
+      "HR",
+    ],
   },
   {
     id: "analytics",
@@ -429,6 +457,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
       "ADMIN",
       "DESIGN_HEAD",
       "PROJECT_MANAGER",
+      "LEAD_PROJECT_MANAGER",
       "ACCOUNTS",
     ],
   },
@@ -438,7 +467,14 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/email-editor",
     icon: "Mail",
     section: "business",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD", "BDR"],
+    allowedRoles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "DESIGN_HEAD",
+      "LEAD_PROJECT_MANAGER",
+      "BDR",
+      "SALES",
+    ],
   },
   // ── Account ────────────────────────────────────────────────
   {
@@ -455,7 +491,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/users",
     icon: "Shield",
     section: "account",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER", "HR"],
   },
   {
     id: "settings",
@@ -510,11 +546,11 @@ export function normalizeRole(raw: string): RoleId {
   const aliases: Record<string, RoleId> = {
     MANAGER: "PROJECT_MANAGER",
     PM: "PROJECT_MANAGER",
+    LEAD_PM: "LEAD_PROJECT_MANAGER",
     ENGINEER: "SITE_ENGINEER",
     FINANCE: "ACCOUNTS",
     ACCOUNTANT: "ACCOUNTS",
-    SALES: "BDR",
-    SALES_EXECUTIVE: "BDR",
+    SALES_EXECUTIVE: "SALES",
     BDR: "BDR",
     FOUNDER_ARCHITECT: "SUPER_ADMIN",
     SUPER_ADMIN: "SUPER_ADMIN",

@@ -1382,48 +1382,7 @@ const LeadDetails: React.FC = () => {
 
           {/* Right Column - Sidebar */}
           <div className="space-y-4">
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-900 text-sm">
-                  Quick Actions
-                </h3>
-              </div>
-              <div className="p-2">
-                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-orange-50 text-left transition-colors group">
-                  <div className="w-7 h-7 rounded-md bg-orange-100 flex items-center justify-center">
-                    <Calendar className="w-3.5 h-3.5 text-orange-600" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700">
-                    Schedule Meeting
-                  </span>
-                </button>
-                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-blue-50 text-left transition-colors group">
-                  <div className="w-7 h-7 rounded-md bg-blue-100 flex items-center justify-center">
-                    <Send className="w-3.5 h-3.5 text-blue-600" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700">
-                    Send Quotation
-                  </span>
-                </button>
-                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-purple-50 text-left transition-colors group">
-                  <div className="w-7 h-7 rounded-md bg-purple-100 flex items-center justify-center">
-                    <Home className="w-3.5 h-3.5 text-purple-600" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700">
-                    Schedule Site Visit
-                  </span>
-                </button>
-                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-green-50 text-left transition-colors group">
-                  <div className="w-7 h-7 rounded-md bg-green-100 flex items-center justify-center">
-                    <FileText className="w-3.5 h-3.5 text-green-600" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700">
-                    Share Portfolio
-                  </span>
-                </button>
-              </div>
-            </div>
+            
 
             {/* Timeline */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

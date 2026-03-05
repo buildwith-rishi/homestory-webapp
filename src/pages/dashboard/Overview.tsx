@@ -552,7 +552,7 @@ export const DashboardOverview: React.FC = () => {
                   <div>
                     <p className="text-sm font-semibold text-gray-900">
                       {roleId === "DESIGN_HEAD"
-                        ? "Design Head Overview"
+                        ? "Lead Designer Overview"
                         : "Designer Workspace"}
                     </p>
                     <p className="text-xs text-gray-600">
@@ -584,7 +584,7 @@ export const DashboardOverview: React.FC = () => {
             </div>
           )}
 
-          {roleId === "BDR" && (
+          {(roleId === "BDR" || roleId === "SALES") && (
             <div className="bg-gradient-to-r from-orange-50 to-amber-100 border border-orange-200 rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -593,7 +593,7 @@ export const DashboardOverview: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-900">
-                      BDR Workspace
+                      {roleId === "SALES" ? "Sales Workspace" : "BDR Workspace"}
                     </p>
                     <p className="text-xs text-gray-600">
                       Lead pipeline, follow-ups, and meeting scheduling
@@ -615,7 +615,7 @@ export const DashboardOverview: React.FC = () => {
                     onClick={() => navigate("/bdr")}
                     className="rounded-xl"
                   >
-                    Open BDR App
+                    {roleId === "SALES" ? "Open Sales App" : "Open BDR App"}
                   </Button>
                 </div>
               </div>

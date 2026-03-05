@@ -51,25 +51,19 @@ type ViewMode = "grid" | "list";
 type AddMode = "link" | "upload" | "quotation" | null;
 
 const CATEGORY_COLORS: Record<string, string> = {
-  "Living Room": "bg-blue-100 text-blue-700",
-  Bedroom: "bg-purple-100 text-purple-700",
-  Kitchen: "bg-orange-100 text-orange-700",
-  Bathroom: "bg-cyan-100 text-cyan-700",
-  "Dining Room": "bg-amber-100 text-amber-700",
-  "Study/Office": "bg-indigo-100 text-indigo-700",
-  "Kids Room": "bg-pink-100 text-pink-700",
-  "Balcony/Terrace": "bg-green-100 text-green-700",
-  "Entryway/Foyer": "bg-teal-100 text-teal-700",
-  "Color Palette": "bg-rose-100 text-rose-700",
-  "Furniture Style": "bg-yellow-100 text-yellow-700",
-  Lighting: "bg-amber-100 text-amber-700",
-  Flooring: "bg-stone-100 text-stone-700",
-  "Wall Treatment": "bg-lime-100 text-lime-700",
-  Storage: "bg-slate-100 text-slate-700",
-  Outdoor: "bg-emerald-100 text-emerald-700",
-  "General Inspiration": "bg-violet-100 text-violet-700",
-  Other: "bg-gray-100 text-gray-600",
+  REFERENCES: "bg-blue-100 text-blue-700",
+  ESTIMATION_VALUE: "bg-amber-100 text-amber-700",
+  DESIGN_PRESENTATION: "bg-violet-100 text-violet-700",
 };
+
+const CATEGORY_LABELS: Record<string, string> = {
+  REFERENCES: "References",
+  ESTIMATION_VALUE: "Estimation Value",
+  DESIGN_PRESENTATION: "Design Presentation",
+};
+
+const getCategoryLabel = (cat: string | null): string =>
+  cat ? (CATEGORY_LABELS[cat] ?? cat) : "";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   LINK: <Globe className="w-4 h-4" />,
@@ -111,11 +105,32 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [addMode, setAddMode] = useState<AddMode>(null);
-  const [categories] = useState<string[]>([
-    "References",
-    "Estimation Value",
-    "Design Presentation",
-  ]);
+  const categories: { value: string; label: string }[] = [
+    { value: "REFERENCES", label: "References" },
+    { value: "ESTIMATION_VALUE", label: "Estimation Value" },
+    { value: "DESIGN_PRESENTATION", label: "Design Presentation" },
+  ];
+
+  const subCategories: { value: string; label: string }[] = [
+    { value: "Living Room", label: "Living Room" },
+    { value: "Bedroom", label: "Bedroom" },
+    { value: "Kitchen", label: "Kitchen" },
+    { value: "Bathroom", label: "Bathroom" },
+    { value: "Dining Room", label: "Dining Room" },
+    { value: "Study/Office", label: "Study/Office" },
+    { value: "Kids Room", label: "Kids Room" },
+    { value: "Balcony/Terrace", label: "Balcony/Terrace" },
+    { value: "Entryway/Foyer", label: "Entryway/Foyer" },
+    { value: "Color Palette", label: "Color Palette" },
+    { value: "Furniture Style", label: "Furniture Style" },
+    { value: "Lighting", label: "Lighting" },
+    { value: "Flooring", label: "Flooring" },
+    { value: "Wall Treatment", label: "Wall Treatment" },
+    { value: "Storage", label: "Storage" },
+    { value: "Outdoor", label: "Outdoor" },
+    { value: "General Inspiration", label: "General Inspiration" },
+    { value: "Other", label: "Other" },
+  ];
   const [referenceTypes, setReferenceTypes] = useState<
     OptionItemWithDescription[]
   >([]);
@@ -125,6 +140,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     linkUrl: "",
     linkTitle: "",
     category: "",
+    subCategory: "",
     tags: "",
   });
   const [isAddingLink, setIsAddingLink] = useState(false);
@@ -133,6 +149,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadForm, setUploadForm] = useState({
     category: "",
+    subCategory: "",
     notes: "",
     tags: "",
   });
@@ -151,6 +168,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     linkTitle: "",
     notes: "",
     category: "",
+    subCategory: "",
   });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
@@ -237,10 +255,17 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
         linkUrl: linkForm.linkUrl,
         linkTitle: linkForm.linkTitle,
         category: linkForm.category,
+        subCategory: linkForm.subCategory || undefined,
         tags,
       });
       toast.success("Link reference added!");
-      setLinkForm({ linkUrl: "", linkTitle: "", category: "", tags: "" });
+      setLinkForm({
+        linkUrl: "",
+        linkTitle: "",
+        category: "",
+        subCategory: "",
+        tags: "",
+      });
       setAddMode(null);
       fetchReferences();
     } catch (error) {
@@ -272,10 +297,11 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
         uploadForm.category,
         uploadForm.notes || undefined,
         tags,
+        uploadForm.subCategory || undefined,
       );
       toast.success("File uploaded successfully!");
       setUploadFile(null);
-      setUploadForm({ category: "", notes: "", tags: "" });
+      setUploadForm({ category: "", subCategory: "", notes: "", tags: "" });
       setAddMode(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       fetchReferences();
@@ -328,6 +354,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
         linkTitle: editForm.linkTitle || undefined,
         notes: editForm.notes || undefined,
         category: editForm.category || undefined,
+        subCategory: editForm.subCategory || undefined,
       });
       toast.success("Reference updated!");
       setEditingRef(null);
@@ -383,8 +410,9 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     setEditingRef(ref);
     setEditForm({
       linkTitle: ref.linkTitle || ref.title || "",
-      notes: ref.description || "",
+      notes: ref.notes || ref.description || "",
       category: ref.category || "",
+      subCategory: ref.subCategory || "",
     });
   };
 
@@ -437,130 +465,132 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       </div>
 
       {/* ── Upload Quotation Modal ── */}
-      {addMode === "quotation" && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-                    <Receipt className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      Upload Quotation
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      PDF, Word, Excel documents
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAddMode(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {/* Drop zone */}
-                <div
-                  onClick={() => quotationFileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-all"
-                >
-                  {quotationFile ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                        {quotationFile.type === "application/pdf" ? (
-                          <FileText className="w-5 h-5 text-red-600" />
-                        ) : (
-                          <File className="w-5 h-5 text-green-600" />
-                        )}
-                      </div>
-                      <div className="text-left flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                          {quotationFile.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatFileSize(quotationFile.size)}
-                        </p>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQuotationFile(null);
-                          if (quotationFileInputRef.current)
-                            quotationFileInputRef.current.value = "";
-                        }}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg"
-                      >
-                        <X className="w-4 h-4 text-gray-400" />
-                      </button>
+      {addMode === "quotation" &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                      <Receipt className="w-5 h-5 text-green-600" />
                     </div>
-                  ) : (
-                    <>
-                      <Receipt className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-gray-700">
-                        Click to select quotation document
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        Upload Quotation
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        PDF, Word, Excel documents
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        PDF, DOC, DOCX, XLS, XLSX
-                      </p>
-                    </>
-                  )}
-                  <input
-                    ref={quotationFileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setQuotationFile(file);
-                    }}
-                  />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAddMode(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Notes
-                  </label>
-                  <textarea
-                    value={quotationNotes}
-                    onChange={(e) => setQuotationNotes(e.target.value)}
-                    rows={2}
-                    placeholder="e.g., Revised quotation v2, includes GST..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm resize-none"
-                  />
-                </div>
-              </div>
+                <div className="space-y-4">
+                  {/* Drop zone */}
+                  <div
+                    onClick={() => quotationFileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-all"
+                  >
+                    {quotationFile ? (
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                          {quotationFile.type === "application/pdf" ? (
+                            <FileText className="w-5 h-5 text-red-600" />
+                          ) : (
+                            <File className="w-5 h-5 text-green-600" />
+                          )}
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {quotationFile.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatFileSize(quotationFile.size)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQuotationFile(null);
+                            if (quotationFileInputRef.current)
+                              quotationFileInputRef.current.value = "";
+                          }}
+                          className="p-1.5 hover:bg-gray-100 rounded-lg"
+                        >
+                          <X className="w-4 h-4 text-gray-400" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <Receipt className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-gray-700">
+                          Click to select quotation document
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          PDF, DOC, DOCX, XLS, XLSX
+                        </p>
+                      </>
+                    )}
+                    <input
+                      ref={quotationFileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setQuotationFile(file);
+                      }}
+                    />
+                  </div>
 
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setAddMode(null)}
-                  disabled={isUploadingQuotation}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                  onClick={handleUploadQuotation}
-                  disabled={isUploadingQuotation}
-                >
-                  {isUploadingQuotation ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Receipt className="w-4 h-4 mr-2" />
-                  )}
-                  Upload Quotation
-                </Button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Notes
+                    </label>
+                    <textarea
+                      value={quotationNotes}
+                      onChange={(e) => setQuotationNotes(e.target.value)}
+                      rows={2}
+                      placeholder="e.g., Revised quotation v2, includes GST..."
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setAddMode(null)}
+                    disabled={isUploadingQuotation}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    onClick={handleUploadQuotation}
+                    disabled={isUploadingQuotation}
+                  >
+                    {isUploadingQuotation ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Receipt className="w-4 h-4 mr-2" />
+                    )}
+                    Upload Quotation
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>,
-      document.body)}
+          </div>,
+          document.body,
+        )}
 
       {/* ── Category Pills ── */}
       {Object.keys(categoryCounts).length > 0 && (
@@ -587,7 +617,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                   : CATEGORY_COLORS[cat] || "bg-gray-100 text-gray-600"
               }`}
             >
-              {cat} ({count})
+              {getCategoryLabel(cat)} ({count})
             </button>
           ))}
         </div>
@@ -651,26 +681,24 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
               ? "Try changing your search or filter criteria."
               : "Add design inspirations, Pinterest links, mood board images and documents for this project."}
           </p>
-          {!searchQuery &&
-            categoryFilter === "all" &&
-            typeFilter === "all" && (
-              <div className="flex items-center justify-center gap-3">
-                <Button
-                  onClick={() => setAddMode("link")}
-                  className="bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-xl"
-                >
-                  <Link2 className="w-4 h-4 mr-1.5" />
-                  Add a Link
-                </Button>
-                <Button
-                  onClick={() => setAddMode("upload")}
-                  className="bg-orange-500 hover:bg-orange-600 text-white text-sm rounded-xl"
-                >
-                  <Upload className="w-4 h-4 mr-1.5" />
-                  Upload File
-                </Button>
-              </div>
-            )}
+          {!searchQuery && categoryFilter === "all" && typeFilter === "all" && (
+            <div className="flex items-center justify-center gap-3">
+              <Button
+                onClick={() => setAddMode("link")}
+                className="bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-xl"
+              >
+                <Link2 className="w-4 h-4 mr-1.5" />
+                Add a Link
+              </Button>
+              <Button
+                onClick={() => setAddMode("upload")}
+                className="bg-orange-500 hover:bg-orange-600 text-white text-sm rounded-xl"
+              >
+                <Upload className="w-4 h-4 mr-1.5" />
+                Upload File
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -732,564 +760,689 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       )}
 
       {/* ── Add Link Modal ── */}
-      {addMode === "link" && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                    <Link2 className="w-5 h-5 text-blue-600" />
+      {addMode === "link" &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                      <Link2 className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        Add Link Reference
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Pinterest, Instagram, websites
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      Add Link Reference
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      Pinterest, Instagram, websites
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAddMode(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    URL <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={linkForm.linkUrl}
-                    onChange={(e) =>
-                      setLinkForm({ ...linkForm, linkUrl: e.target.value })
-                    }
-                    placeholder="https://pinterest.com/pin/..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Title <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={linkForm.linkTitle}
-                    onChange={(e) =>
-                      setLinkForm({ ...linkForm, linkTitle: e.target.value })
-                    }
-                    placeholder="e.g., Modern Kitchen Idea"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Category <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={linkForm.category}
-                    onChange={(e) =>
-                      setLinkForm({ ...linkForm, category: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  <button
+                    onClick={() => setAddMode(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
                   >
-                    <option value="">Select category</option>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Tags{" "}
-                    <span className="text-gray-400 font-normal">
-                      (comma-separated)
-                    </span>
-                  </label>
-                  <input
-                    type="text"
-                    value={linkForm.tags}
-                    onChange={(e) =>
-                      setLinkForm({ ...linkForm, tags: e.target.value })
-                    }
-                    placeholder="modern, minimalist, white"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  />
-                </div>
-              </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      URL <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="url"
+                      value={linkForm.linkUrl}
+                      onChange={(e) =>
+                        setLinkForm({ ...linkForm, linkUrl: e.target.value })
+                      }
+                      placeholder="https://pinterest.com/pin/..."
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
 
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setAddMode(null)}
-                  disabled={isAddingLink}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
-                  onClick={handleAddLink}
-                  disabled={isAddingLink}
-                >
-                  {isAddingLink ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Link2 className="w-4 h-4 mr-2" />
-                  )}
-                  Add Link
-                </Button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={linkForm.linkTitle}
+                      onChange={(e) =>
+                        setLinkForm({ ...linkForm, linkTitle: e.target.value })
+                      }
+                      placeholder="e.g., Modern Kitchen Idea"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Category <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={linkForm.category}
+                      onChange={(e) =>
+                        setLinkForm({ ...linkForm, category: e.target.value })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    >
+                      <option value="">Select category</option>
+                      {categories.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Sub Category{" "}
+                      <span className="text-gray-400 font-normal">
+                        (optional)
+                      </span>
+                    </label>
+                    <select
+                      value={linkForm.subCategory}
+                      onChange={(e) =>
+                        setLinkForm({
+                          ...linkForm,
+                          subCategory: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    >
+                      <option value="">Select sub category</option>
+                      {subCategories.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Tags{" "}
+                      <span className="text-gray-400 font-normal">
+                        (comma-separated)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={linkForm.tags}
+                      onChange={(e) =>
+                        setLinkForm({ ...linkForm, tags: e.target.value })
+                      }
+                      placeholder="modern, minimalist, white"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setAddMode(null)}
+                    disabled={isAddingLink}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                    onClick={handleAddLink}
+                    disabled={isAddingLink}
+                  >
+                    {isAddingLink ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Link2 className="w-4 h-4 mr-2" />
+                    )}
+                    Add Link
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>,
-      document.body)}
+          </div>,
+          document.body,
+        )}
 
       {/* ── Upload File Modal ── */}
-      {addMode === "upload" && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
-                    <Upload className="w-5 h-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      Upload File
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      Images, PDFs, documents
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAddMode(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {/* Drop zone */}
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-all"
-                >
-                  {uploadFile ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
-                        {uploadFile.type.startsWith("image/") ? (
-                          <Image className="w-5 h-5 text-orange-600" />
-                        ) : uploadFile.type === "application/pdf" ? (
-                          <FileText className="w-5 h-5 text-red-600" />
-                        ) : (
-                          <File className="w-5 h-5 text-purple-600" />
-                        )}
-                      </div>
-                      <div className="text-left flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                          {uploadFile.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatFileSize(uploadFile.size)}
-                        </p>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setUploadFile(null);
-                          if (fileInputRef.current)
-                            fileInputRef.current.value = "";
-                        }}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg"
-                      >
-                        <X className="w-4 h-4 text-gray-400" />
-                      </button>
+      {addMode === "upload" &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                      <Upload className="w-5 h-5 text-orange-600" />
                     </div>
-                  ) : (
-                    <>
-                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-gray-700">
-                        Click to select a file
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        Upload File
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Images, PDFs, documents
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        JPG, PNG, WebP, PDF, DOC, XLSX
-                      </p>
-                    </>
-                  )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setUploadFile(file);
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Category <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={uploadForm.category}
-                    onChange={(e) =>
-                      setUploadForm({
-                        ...uploadForm,
-                        category: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAddMode(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
                   >
-                    <option value="">Select category</option>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Notes
-                  </label>
-                  <textarea
-                    value={uploadForm.notes}
-                    onChange={(e) =>
-                      setUploadForm({ ...uploadForm, notes: e.target.value })
-                    }
-                    rows={2}
-                    placeholder="Client likes this design..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
-                  />
+                <div className="space-y-4">
+                  {/* Drop zone */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-all"
+                  >
+                    {uploadFile ? (
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          {uploadFile.type.startsWith("image/") ? (
+                            <Image className="w-5 h-5 text-orange-600" />
+                          ) : uploadFile.type === "application/pdf" ? (
+                            <FileText className="w-5 h-5 text-red-600" />
+                          ) : (
+                            <File className="w-5 h-5 text-purple-600" />
+                          )}
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {uploadFile.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatFileSize(uploadFile.size)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadFile(null);
+                            if (fileInputRef.current)
+                              fileInputRef.current.value = "";
+                          }}
+                          className="p-1.5 hover:bg-gray-100 rounded-lg"
+                        >
+                          <X className="w-4 h-4 text-gray-400" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-gray-700">
+                          Click to select a file
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          JPG, PNG, WebP, PDF, DOC, XLSX
+                        </p>
+                      </>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setUploadFile(file);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Category <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={uploadForm.category}
+                      onChange={(e) =>
+                        setUploadForm({
+                          ...uploadForm,
+                          category: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    >
+                      <option value="">Select category</option>
+                      {categories.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Sub Category{" "}
+                      <span className="text-gray-400 font-normal">
+                        (optional)
+                      </span>
+                    </label>
+                    <select
+                      value={uploadForm.subCategory}
+                      onChange={(e) =>
+                        setUploadForm({
+                          ...uploadForm,
+                          subCategory: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    >
+                      <option value="">Select sub category</option>
+                      {subCategories.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Notes
+                    </label>
+                    <textarea
+                      value={uploadForm.notes}
+                      onChange={(e) =>
+                        setUploadForm({ ...uploadForm, notes: e.target.value })
+                      }
+                      rows={2}
+                      placeholder="Client likes this design..."
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Tags{" "}
+                      <span className="text-gray-400 font-normal">
+                        (comma-separated)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadForm.tags}
+                      onChange={(e) =>
+                        setUploadForm({ ...uploadForm, tags: e.target.value })
+                      }
+                      placeholder="modern, minimalist"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Tags{" "}
-                    <span className="text-gray-400 font-normal">
-                      (comma-separated)
-                    </span>
-                  </label>
-                  <input
-                    type="text"
-                    value={uploadForm.tags}
-                    onChange={(e) =>
-                      setUploadForm({ ...uploadForm, tags: e.target.value })
-                    }
-                    placeholder="modern, minimalist"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                  />
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setAddMode(null)}
+                    disabled={isUploading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={handleUpload}
+                    disabled={isUploading || !uploadFile}
+                  >
+                    {isUploading ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Upload className="w-4 h-4 mr-2" />
+                    )}
+                    Upload
+                  </Button>
                 </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setAddMode(null)}
-                  disabled={isUploading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                  onClick={handleUpload}
-                  disabled={isUploading || !uploadFile}
-                >
-                  {isUploading ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Upload className="w-4 h-4 mr-2" />
-                  )}
-                  Upload
-                </Button>
               </div>
             </div>
-          </div>
-        </div>,
-      document.body)}
+          </div>,
+          document.body,
+        )}
 
       {/* ── Edit Modal ── */}
-      {editingRef && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-gray-900">
-                  Edit Reference
-                </h3>
-                <button
-                  onClick={() => setEditingRef(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.linkTitle}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, linkTitle: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Category
-                  </label>
-                  <select
-                    value={editForm.category}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, category: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+      {editingRef &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Edit Reference
+                  </h3>
+                  <button
+                    onClick={() => setEditingRef(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
                   >
-                    <option value="">Select category</option>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Notes
-                  </label>
-                  <textarea
-                    value={editForm.notes}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, notes: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
-                  />
-                </div>
-              </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.linkTitle}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, linkTitle: e.target.value })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    />
+                  </div>
 
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setEditingRef(null)}
-                  disabled={isSavingEdit}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                  onClick={handleSaveEdit}
-                  disabled={isSavingEdit}
-                >
-                  {isSavingEdit ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
-                  )}
-                  Save Changes
-                </Button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Category
+                    </label>
+                    <select
+                      value={editForm.category}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, category: e.target.value })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    >
+                      <option value="">Select category</option>
+                      {categories.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Sub Category{" "}
+                      <span className="text-gray-400 font-normal">
+                        (optional)
+                      </span>
+                    </label>
+                    <select
+                      value={editForm.subCategory}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          subCategory: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                    >
+                      <option value="">Select sub category</option>
+                      {subCategories.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Notes
+                    </label>
+                    <textarea
+                      value={editForm.notes}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, notes: e.target.value })
+                      }
+                      rows={3}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setEditingRef(null)}
+                    disabled={isSavingEdit}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={handleSaveEdit}
+                    disabled={isSavingEdit}
+                  >
+                    {isSavingEdit ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>,
-      document.body)}
+          </div>,
+          document.body,
+        )}
 
       {/* ── Delete Confirm ── */}
-      {deletingId && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full">
-            <div className="p-6 text-center">
-              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-6 h-6 text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-1">
-                Delete Reference?
-              </h3>
-              <p className="text-sm text-gray-500 mb-6">
-                This action cannot be undone.
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setDeletingId(null)}
-                  disabled={isDeleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Trash2 className="w-4 h-4 mr-2" />
-                  )}
-                  Delete
-                </Button>
+      {deletingId &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full">
+              <div className="p-6 text-center">
+                <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-6 h-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">
+                  Delete Reference?
+                </h3>
+                <p className="text-sm text-gray-500 mb-6">
+                  This action cannot be undone.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setDeletingId(null)}
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-2" />
+                    )}
+                    Delete
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>,
-      document.body)}
+          </div>,
+          document.body,
+        )}
 
       {/* ── Preview Modal ── */}
-      {previewRef && createPortal(
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${TYPE_COLORS[previewRef.referenceType] || "bg-gray-50 text-gray-600 border-gray-200"}`}
-                  >
-                    {TYPE_ICONS[previewRef.referenceType]}
-                    {previewRef.referenceType}
-                  </span>
-                  {previewRef.category && (
+      {previewRef &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
                     <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${CATEGORY_COLORS[previewRef.category] || "bg-gray-100 text-gray-600"}`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${TYPE_COLORS[previewRef.referenceType] || "bg-gray-50 text-gray-600 border-gray-200"}`}
                     >
-                      {previewRef.category}
+                      {TYPE_ICONS[previewRef.referenceType]}
+                      {previewRef.referenceType}
                     </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => setPreviewRef(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              <h3 className="text-xl font-bold text-gray-900 mb-3">
-                {previewRef.linkTitle || previewRef.title || previewRef.fileName || "Untitled"}
-              </h3>
-
-              {previewRef.description && (
-                <p className="text-sm text-gray-600 mb-4">
-                  {previewRef.description}
-                </p>
-              )}
-
-              {/* Link URL */}
-              {previewRef.linkUrl && (
-                <a
-                  href={previewRef.linkUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl text-blue-600 hover:bg-blue-100 transition-colors mb-4 text-sm"
-                >
-                  <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">{previewRef.linkUrl}</span>
-                </a>
-              )}
-
-              {/* File info */}
-              {previewRef.fileName && (
-                <div className="p-3 bg-gray-50 rounded-xl mb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <File className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-700">
-                        {previewRef.fileName}
-                      </span>
-                    </div>
-                    {previewRef.fileSize && (
-                      <span className="text-xs text-gray-500">
-                        {formatFileSize(previewRef.fileSize)}
+                    {previewRef.category && (
+                      <span
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${CATEGORY_COLORS[previewRef.category] || "bg-gray-100 text-gray-600"}`}
+                      >
+                        {getCategoryLabel(previewRef.category)}
                       </span>
                     )}
                   </div>
+                  <button
+                    onClick={() => setPreviewRef(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
                 </div>
-              )}
 
-              {/* Tags */}
-              {previewRef.tags && previewRef.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {previewRef.tags.map((tag, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
+                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                  {previewRef.linkTitle ||
+                    previewRef.title ||
+                    previewRef.fileName ||
+                    "Untitled"}
+                </h3>
 
-              {/* Meta */}
-              <div className="flex items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-100">
-                <span className="flex items-center gap-1">
-                  <User className="w-3.5 h-3.5" />
-                  {previewRef.uploadedBy?.name || "Unknown"}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {formatDate(previewRef.createdAt)}
-                </span>
-              </div>
+                {/* Image preview for PHOTO type */}
+                {previewRef.referenceType === "PHOTO" &&
+                  previewRef.storageUrl && (
+                    <div className="relative mb-4 rounded-xl overflow-hidden bg-gray-100">
+                      <img
+                        src={previewRef.storageUrl}
+                        alt={
+                          previewRef.linkTitle ||
+                          previewRef.fileName ||
+                          "Reference image"
+                        }
+                        className="w-full max-h-72 object-contain"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display =
+                            "none";
+                        }}
+                      />
+                    </div>
+                  )}
 
-              {/* Actions */}
-              <div className="flex gap-2 mt-5">
+                {(previewRef.notes || previewRef.description) && (
+                  <p className="text-sm text-gray-600 mb-4">
+                    {previewRef.notes || previewRef.description}
+                  </p>
+                )}
+
+                {/* Link URL */}
                 {previewRef.linkUrl && (
                   <a
                     href={previewRef.linkUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1"
+                    className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl text-blue-600 hover:bg-blue-100 transition-colors mb-4 text-sm"
                   >
-                    <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white text-sm">
-                      <ExternalLink className="w-4 h-4 mr-1.5" />
-                      Open Link
-                    </Button>
+                    <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{previewRef.linkUrl}</span>
                   </a>
                 )}
+
+                {/* File info */}
                 {previewRef.fileName && (
-                  <Button
-                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white text-sm"
-                    onClick={() => {
-                      handleDownload(previewRef);
-                      setPreviewRef(null);
-                    }}
-                  >
-                    <Download className="w-4 h-4 mr-1.5" />
-                    Download
-                  </Button>
+                  <div className="p-3 bg-gray-50 rounded-xl mb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <File className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm font-medium text-gray-700">
+                          {previewRef.fileName}
+                        </span>
+                      </div>
+                      {previewRef.fileSize && (
+                        <span className="text-xs text-gray-500">
+                          {formatFileSize(previewRef.fileSize)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 )}
+
+                {/* Tags */}
+                {previewRef.tags && previewRef.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {previewRef.tags.map((tag, i) => (
+                      <span
+                        key={i}
+                        className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Meta */}
+                <div className="flex items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-100">
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5" />
+                    {previewRef.uploadedBy?.name || "Unknown"}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" />
+                    {formatDate(previewRef.createdAt)}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 mt-5">
+                  {previewRef.linkUrl && (
+                    <a
+                      href={previewRef.linkUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1"
+                    >
+                      <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white text-sm">
+                        <ExternalLink className="w-4 h-4 mr-1.5" />
+                        Open Link
+                      </Button>
+                    </a>
+                  )}
+                  {previewRef.storageUrl &&
+                    previewRef.referenceType !== "LINK" && (
+                      <a
+                        href={previewRef.storageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1"
+                      >
+                        <Button className="w-full bg-green-500 hover:bg-green-600 text-white text-sm">
+                          <Eye className="w-4 h-4 mr-1.5" />
+                          View File
+                        </Button>
+                      </a>
+                    )}
+                  {previewRef.fileName && (
+                    <Button
+                      className="flex-1 bg-orange-500 hover:bg-orange-600 text-white text-sm"
+                      onClick={() => {
+                        handleDownload(previewRef);
+                        setPreviewRef(null);
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-1.5" />
+                      Download
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </div>,
-      document.body)}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };
@@ -1317,18 +1470,49 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all group overflow-hidden">
-      {/* Top colored bar */}
-      <div
-        className={`h-1.5 ${
-          reference.referenceType === "LINK"
-            ? "bg-blue-500"
-            : reference.referenceType === "PHOTO"
-              ? "bg-green-500"
-              : reference.referenceType === "PDF"
-                ? "bg-red-500"
-                : "bg-purple-500"
-        }`}
-      />
+      {/* Image thumbnail for PHOTO type, colored bar for others */}
+      {reference.referenceType === "PHOTO" && reference.storageUrl ? (
+        <div
+          className="relative h-40 bg-gray-100 cursor-pointer overflow-hidden"
+          onClick={onPreview}
+        >
+          <img
+            src={reference.storageUrl}
+            alt={reference.linkTitle || reference.fileName || "Reference"}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+              (e.currentTarget.parentElement as HTMLElement).classList.add(
+                "flex",
+                "items-center",
+                "justify-center",
+              );
+            }}
+          />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreview();
+            }}
+            className="absolute top-2 right-2 p-1.5 bg-white/80 hover:bg-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+          >
+            <Eye className="w-3.5 h-3.5 text-gray-700" />
+          </button>
+        </div>
+      ) : (
+        <div
+          className={`h-1.5 ${
+            reference.referenceType === "LINK"
+              ? "bg-blue-500"
+              : reference.referenceType === "PHOTO"
+                ? "bg-green-500"
+                : reference.referenceType === "PDF"
+                  ? "bg-red-500"
+                  : "bg-purple-500"
+          }`}
+        />
+      )}
 
       <div className="p-4">
         {/* Type badge & category */}
@@ -1343,7 +1527,7 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
             <span
               className={`px-2 py-0.5 rounded-md text-xs font-semibold ${CATEGORY_COLORS[reference.category] || "bg-gray-100 text-gray-600"}`}
             >
-              {reference.category}
+              {getCategoryLabel(reference.category)}
             </span>
           )}
         </div>
@@ -1378,9 +1562,9 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
         )}
 
         {/* Description */}
-        {reference.description && (
+        {(reference.notes || reference.description) && (
           <p className="text-xs text-gray-500 mb-2 line-clamp-2">
-            {reference.description}
+            {reference.notes || reference.description}
           </p>
         )}
 
@@ -1425,6 +1609,17 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
                 rel="noopener noreferrer"
                 className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
                 title="Open link"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+              </a>
+            )}
+            {!isLink && reference.storageUrl && (
+              <a
+                href={reference.storageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                title="View file"
               >
                 <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
               </a>
@@ -1527,7 +1722,7 @@ const ReferenceRow: React.FC<ReferenceItemProps> = ({
           <span
             className={`px-2 py-0.5 rounded-md text-xs font-semibold ${CATEGORY_COLORS[reference.category] || "bg-gray-100 text-gray-600"}`}
           >
-            {reference.category}
+            {getCategoryLabel(reference.category)}
           </span>
         ) : (
           <span className="text-xs text-gray-400">—</span>

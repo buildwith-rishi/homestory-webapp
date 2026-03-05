@@ -1085,6 +1085,17 @@ export async function addLinkReference(
 }
 
 /**
+ * Determine referenceType from a File's MIME type
+ */
+export function getReferenceTypeFromFile(
+  file: File,
+): "PHOTO" | "PDF" | "DOCUMENT" {
+  if (file.type.startsWith("image/")) return "PHOTO";
+  if (file.type === "application/pdf") return "PDF";
+  return "DOCUMENT";
+}
+
+/**
  * Upload a file reference (image, PDF, document)
  * POST /api/projects/:projectId/references/upload
  * Uses multipart/form-data
@@ -1095,12 +1106,16 @@ export async function uploadFileReference(
   category: string,
   notes?: string,
   tags?: string[],
+  subCategory?: string,
 ): Promise<ProjectReference> {
   try {
     const token = localStorage.getItem("auth_token");
+    const referenceType = getReferenceTypeFromFile(file);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("category", category);
+    formData.append("referenceType", referenceType);
+    if (subCategory) formData.append("subCategory", subCategory);
     if (notes) formData.append("notes", notes);
     if (tags && tags.length > 0) formData.append("tags", tags.join(","));
 

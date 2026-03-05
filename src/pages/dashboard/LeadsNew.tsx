@@ -482,34 +482,7 @@ export const LeadModal: React.FC<{
                   </select>
                 </div>
 
-                {/* Source Campaign */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Source Campaign
-                  </label>
-                  <input
-                    type="text"
-                    value={srcCampaign}
-                    onChange={(e) => setSrcCampaign(e.target.value)}
-                    placeholder="e.g., google_ads"
-                    className={inputClass()}
-                  />
-                </div>
-
-                {/* Source Medium */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Source Medium
-                  </label>
-                  <input
-                    type="text"
-                    value={srcMedium}
-                    onChange={(e) => setSrcMedium(e.target.value)}
-                    placeholder="e.g., cpc"
-                    className={inputClass()}
-                  />
-                </div>
-
+                
                 {/* Score */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">

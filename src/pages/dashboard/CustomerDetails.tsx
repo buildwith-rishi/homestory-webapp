@@ -29,8 +29,9 @@ import {
 } from "lucide-react";
 import { Button, Badge, Card } from "../../components/ui";
 import toast from "react-hot-toast";
-import { ContactsList } from "../../components/customers";
 import ContactAPI, { type Contact } from "../../services/contactApi";
+import LeadAPI, { type Lead as LeadOption } from "../../services/leadApi";
+import { fetchAPI } from "../../services/api";
 import CustomerAPI, {
   Customer as APICustomer,
   type CustomerContact,
@@ -322,7 +323,6 @@ export const CustomerDetails: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<
     | "overview"
-    | "contacts"
     | "family"
     | "dates"
     | "referrals"
@@ -338,7 +338,10 @@ export const CustomerDetails: React.FC = () => {
 
   // Contacts state
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loadingContacts, setLoadingContacts] = useState(false);
+
+  // API referrals state
+  const [apiReferrals, setApiReferrals] = useState<any[]>([]);
+  const [loadingReferrals, setLoadingReferrals] = useState(false);
 
   // Modal states
   const [showFamilyModal, setShowFamilyModal] = useState(false);
@@ -369,12 +372,9 @@ export const CustomerDetails: React.FC = () => {
     reminderDays: 7,
     notes: "",
   });
-  const [referralForm, setReferralForm] = useState({
-    name: "",
-    phone: "",
-    status: "pending" as "contacted" | "converted" | "pending",
-    date: new Date().toISOString().split("T")[0],
-  });
+  const [referralForm, setReferralForm] = useState({ leadId: "" });
+  const [allLeads, setAllLeads] = useState<LeadOption[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
   const [noteForm, setNoteForm] = useState({
     content: "",
   });
@@ -591,11 +591,52 @@ export const CustomerDetails: React.FC = () => {
     };
   }, [setCurrentCustomer]);
 
+  // Fetch referrals from API
+  const fetchReferrals = useCallback(async () => {
+    if (!customerId) return;
+    setLoadingReferrals(true);
+    try {
+      const data = await fetchAPI<any>(
+        `/api/referrals/customer/${customerId}/leads`,
+        { method: "GET" },
+      );
+      // Handle { referredLeads: [...] } shape from API
+      const list = Array.isArray(data)
+        ? data
+        : data?.referredLeads ||
+          data?.referrals ||
+          data?.leads ||
+          data?.data ||
+          [];
+      setApiReferrals(list);
+    } catch (err) {
+      console.error("Failed to fetch referrals:", err);
+    } finally {
+      setLoadingReferrals(false);
+    }
+  }, [customerId]);
+
+  // Fetch referrals when the referrals tab is active
+  useEffect(() => {
+    if (activeTab === "referrals") {
+      fetchReferrals();
+    }
+  }, [activeTab, fetchReferrals]);
+
+  // Load leads list when referral modal opens
+  useEffect(() => {
+    if (!showReferralModal) return;
+    setLoadingLeads(true);
+    LeadAPI.listLeads({ limit: 200 })
+      .then((res) => setAllLeads(res.leads || []))
+      .catch(() => toast.error("Failed to load leads"))
+      .finally(() => setLoadingLeads(false));
+  }, [showReferralModal]);
+
   // Fetch contacts from API
   const fetchContacts = useCallback(async () => {
     if (!customerData?.id) return;
 
-    setLoadingContacts(true);
     try {
       // Use the customer's leadId if available, otherwise use customer ID
       const leadIdToUse = customerData.leadId || String(customerData.id);
@@ -620,8 +661,6 @@ export const CustomerDetails: React.FC = () => {
     } catch (error) {
       console.error("Failed to fetch contacts:", error);
       // Don't show error toast on initial load - contacts may not exist yet
-    } finally {
-      setLoadingContacts(false);
     }
   }, [customerData?.id, customerData?.leadId]);
 
@@ -891,53 +930,25 @@ export const CustomerDetails: React.FC = () => {
   };
 
   const handleAddReferral = async () => {
-    if (!customer || !referralForm.name || !referralForm.phone) return;
+    if (!referralForm.leadId || !customerId) return;
 
-    const newReferral = {
-      name: referralForm.name,
-      phone: referralForm.phone,
-      status: referralForm.status,
-      date: referralForm.date,
-    };
-
-    // For now, store referrals in notes since backend doesn't have referral field
-    const referralNote = `Referral: ${newReferral.name} (${newReferral.phone}) - ${newReferral.status}`;
-    const existingNotes = customer.notes || [];
-    const updatedNotes = [
-      ...existingNotes,
-      {
-        id: Date.now(),
-        content: referralNote,
-        createdBy: "Current User",
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    // Also update referrals array for UI
-    const updatedReferrals = [...(customer.referrals || []), newReferral];
-
-    // Optimistic update for UI
-    setCustomerData((prev) =>
-      prev
-        ? {
-            ...prev,
-            referrals: updatedReferrals,
-            notes: updatedNotes,
-          }
-        : prev,
-    );
-
-    const success = await handleSaveCustomer({ notes: updatedNotes });
-
-    if (success) {
-      setReferralForm({
-        name: "",
-        phone: "",
-        status: "pending",
-        date: new Date().toISOString().split("T")[0],
+    try {
+      await fetchAPI("/api/referrals/refer-lead", {
+        method: "POST",
+        body: JSON.stringify({
+          leadId: referralForm.leadId,
+          customerId,
+        }),
       });
+
+      setReferralForm({ leadId: "" });
       setShowReferralModal(false);
       toast.success("Referral added successfully!");
+      // Refresh the list from API
+      fetchReferrals();
+    } catch (err) {
+      console.error("Failed to add referral:", err);
+      toast.error("Failed to add referral. Please try again.");
     }
   };
 
@@ -1636,52 +1647,6 @@ export const CustomerDetails: React.FC = () => {
                   </div>
                 </div>
               )}
-
-              {/* Contacts — embedded in Overview */}
-              <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                    Contacts
-                    {contacts.length > 0 && (
-                      <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-orange-100 text-orange-700 rounded-full">
-                        {contacts.length}
-                      </span>
-                    )}
-                  </h3>
-                  <button
-                    onClick={() => {
-                      if (editingTab === "contacts") {
-                        setEditingTab(null);
-                        toast.success("Changes saved!");
-                      } else {
-                        setEditingTab("contacts");
-                      }
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                      editingTab === "contacts"
-                        ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {editingTab === "contacts" ? (
-                      <Save className="w-3 h-3" />
-                    ) : (
-                      <Edit2 className="w-3 h-3" />
-                    )}
-                    {editingTab === "contacts" ? "Save" : "Edit"}
-                  </button>
-                </div>
-                <ContactsList
-                  leadId={
-                    customerData?.leadId ||
-                    String(customerData?.id || customerId || "")
-                  }
-                  contacts={contacts}
-                  isLoading={loadingContacts}
-                  isEditable={editingTab === "contacts"}
-                  onContactsChanged={fetchContacts}
-                />
-              </div>
             </>
           )}
 
@@ -1939,74 +1904,119 @@ export const CustomerDetails: React.FC = () => {
           {activeTab === "referrals" && (
             <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
                   Referrals
+                  {apiReferrals.length > 0 && (
+                    <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-orange-100 text-orange-700 rounded-full">
+                      {apiReferrals.length}
+                    </span>
+                  )}
                 </h3>
                 <button
-                  onClick={() => {
-                    if (editingTab === "referrals") {
-                      setEditingTab(null);
-                      toast.success("Changes saved!");
-                    } else {
-                      setEditingTab("referrals");
-                    }
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                    editingTab === "referrals"
-                      ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
+                  onClick={() => setShowReferralModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
                 >
-                  {editingTab === "referrals" ? (
-                    <Save className="w-3 h-3" />
-                  ) : (
-                    <Edit2 className="w-3 h-3" />
-                  )}
-                  {editingTab === "referrals" ? "Save" : "Edit"}
+                  <Plus className="w-3 h-3" />
+                  Add Referral
                 </button>
               </div>
-              {customer.referrals && customer.referrals.length > 0 ? (
+
+              {loadingReferrals ? (
+                <div className="flex items-center justify-center py-10 gap-2 text-sm text-gray-400">
+                  <span className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                  Loading referrals…
+                </div>
+              ) : apiReferrals.length > 0 ? (
                 <div className="space-y-3">
-                  {customer.referrals.map((referral, index) => {
-                    const statusStyles = {
-                      converted: {
-                        bg: "bg-green-50",
-                        text: "text-green-700",
-                        dot: "bg-green-500",
-                      },
-                      contacted: {
-                        bg: "bg-blue-50",
-                        text: "text-blue-700",
-                        dot: "bg-blue-500",
-                      },
-                      pending: {
-                        bg: "bg-gray-50",
-                        text: "text-gray-600",
-                        dot: "bg-gray-400",
-                      },
-                    };
-                    const style = statusStyles[referral.status];
+                  {apiReferrals.map((lead: any, index: number) => {
+                    const name = lead?.name || "Unnamed Lead";
+                    const statusRaw = (lead?.status || "PENDING").toUpperCase();
+                    const statusLabel =
+                      statusRaw === "CONVERTED"
+                        ? "Converted"
+                        : statusRaw === "CONTACTED"
+                          ? "Contacted"
+                          : statusRaw === "NEW"
+                            ? "New"
+                            : statusRaw
+                                .toLowerCase()
+                                .replace(/_/g, " ")
+                                .replace(/\b\w/g, (c: string) =>
+                                  c.toUpperCase(),
+                                );
+                    const statusColor =
+                      statusRaw === "CONVERTED"
+                        ? {
+                            bg: "bg-green-50",
+                            text: "text-green-700",
+                            dot: "bg-green-500",
+                          }
+                        : statusRaw === "CONTACTED"
+                          ? {
+                              bg: "bg-blue-50",
+                              text: "text-blue-700",
+                              dot: "bg-blue-500",
+                            }
+                          : {
+                              bg: "bg-gray-100",
+                              text: "text-gray-600",
+                              dot: "bg-gray-400",
+                            };
                     return (
                       <div
-                        key={index}
-                        className="p-4 bg-gray-50/80 rounded-xl flex items-center justify-between"
+                        key={lead?.id || index}
+                        className="p-4 bg-gray-50/80 rounded-xl flex items-start justify-between gap-4"
                       >
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {referral.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {referral.phone} \u00b7{" "}
-                            {new Date(referral.date).toLocaleDateString()}
-                          </p>
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                            {name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {name}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                              {lead?.phone && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                  <Phone className="w-3 h-3" />
+                                  {lead.phone}
+                                </span>
+                              )}
+                              {lead?.email && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                  <Mail className="w-3 h-3" />
+                                  {lead.email}
+                                </span>
+                              )}
+                              {lead?.city && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {lead.city}
+                                </span>
+                              )}
+                            </div>
+                            {lead?.createdAt && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                Referred{" "}
+                                {new Date(lead.createdAt).toLocaleDateString(
+                                  "en-IN",
+                                  {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  },
+                                )}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full ${style.bg} ${style.text}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full flex-shrink-0 ${statusColor.bg} ${statusColor.text}`}
                         >
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${style.dot}`}
+                            className={`w-1.5 h-1.5 rounded-full ${statusColor.dot}`}
                           />
-                          {referral.status}
+                          {statusLabel}
                         </span>
                       </div>
                     );
@@ -2017,15 +2027,6 @@ export const CustomerDetails: React.FC = () => {
                   <UserPlus className="w-8 h-8 text-gray-200 mx-auto mb-2" />
                   <p className="text-sm text-gray-400">No referrals yet</p>
                 </div>
-              )}
-              {editingTab === "referrals" && (
-                <button
-                  onClick={() => setShowReferralModal(true)}
-                  className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-orange-600 border border-dashed border-orange-300 rounded-xl hover:bg-orange-50 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Referral
-                </button>
               )}
             </div>
           )}
@@ -2728,56 +2729,29 @@ export const CustomerDetails: React.FC = () => {
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name *
+                    Select Lead *
                   </label>
-                  <input
-                    type="text"
-                    value={referralForm.name}
-                    onChange={(e) =>
-                      setReferralForm({ ...referralForm, name: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="Enter name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone *
-                  </label>
-                  <input
-                    type="tel"
-                    value={referralForm.phone}
-                    onChange={(e) =>
-                      setReferralForm({
-                        ...referralForm,
-                        phone: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={referralForm.status}
-                    onChange={(e) =>
-                      setReferralForm({
-                        ...referralForm,
-                        status: e.target.value as
-                          | "contacted"
-                          | "converted"
-                          | "pending",
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="contacted">Contacted</option>
-                    <option value="converted">Converted</option>
-                  </select>
+                  {loadingLeads ? (
+                    <div className="w-full px-4 py-2 border border-gray-300 rounded-xl text-sm text-gray-400">
+                      Loading leads…
+                    </div>
+                  ) : (
+                    <select
+                      value={referralForm.leadId}
+                      onChange={(e) =>
+                        setReferralForm({ leadId: e.target.value })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                    >
+                      <option value="">-- Choose a lead --</option>
+                      {allLeads.map((lead) => (
+                        <option key={lead.id} value={lead.id}>
+                          {lead.name || "Unnamed Lead"}
+                          {lead.phone ? ` · ${lead.phone}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
@@ -2785,12 +2759,7 @@ export const CustomerDetails: React.FC = () => {
                   variant="secondary"
                   onClick={() => {
                     setShowReferralModal(false);
-                    setReferralForm({
-                      name: "",
-                      phone: "",
-                      status: "pending",
-                      date: new Date().toISOString().split("T")[0],
-                    });
+                    setReferralForm({ leadId: "" });
                   }}
                   className="flex-1"
                 >
@@ -2799,7 +2768,7 @@ export const CustomerDetails: React.FC = () => {
                 <Button
                   onClick={handleAddReferral}
                   className="flex-1 bg-orange-500 hover:bg-orange-600"
-                  disabled={!referralForm.name || !referralForm.phone}
+                  disabled={!referralForm.leadId}
                 >
                   Add Referral
                 </Button>

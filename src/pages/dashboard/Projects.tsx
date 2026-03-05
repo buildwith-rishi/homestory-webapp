@@ -27,6 +27,7 @@ import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
 
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useProjectStore } from "../../stores/projectStore";
+import { useAuth } from "../../contexts/AuthContext";
 import type { Project, CreateProjectRequest } from "../../types";
 import toast from "react-hot-toast";
 

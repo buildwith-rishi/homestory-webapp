@@ -23,9 +23,14 @@ import {
   Briefcase,
   UserCircle,
 } from "lucide-react";
-import { Card, Button, Badge, SectionLoader, Spinner } from "../../components/ui";
+import {
+  Card,
+  Button,
+  Badge,
+  SectionLoader,
+  Spinner,
+} from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
-import { useMeetingRoomStore } from "../../stores/meetingRoomStore";
 import { useMeetingStore } from "../../stores/meetingStore";
 import {
   ScheduleMeetingModal,
@@ -103,12 +108,8 @@ export const MeetingsPage: React.FC = () => {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [expandedMeetingHistory, setExpandedMeetingHistory] = useState<
-    string | null
-  >(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const { selectedProject } = useProjectFilter();
-  const { completedMeetings } = useMeetingRoomStore();
   const {
     meetings: apiMeetings,
     isLoading,
@@ -887,177 +888,6 @@ export const MeetingsPage: React.FC = () => {
           </>,
           document.body,
         )}
-
-      {/* Meeting History with Notes */}
-      {completedMeetings.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">
-              Past Meeting Notes
-            </h2>
-            <span className="text-sm text-gray-500">
-              {completedMeetings.length} meetings with notes
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            {completedMeetings.map((meeting) => (
-              <Card
-                key={meeting.id}
-                className={`rounded-xl overflow-hidden transition-all duration-300 ${
-                  expandedMeetingHistory === meeting.id
-                    ? "ring-2 ring-orange-500"
-                    : ""
-                }`}
-              >
-                {/* Meeting Header */}
-                <button
-                  onClick={() =>
-                    setExpandedMeetingHistory(
-                      expandedMeetingHistory === meeting.id ? null : meeting.id,
-                    )
-                  }
-                  className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
-                      <CheckCircle2 className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="text-left">
-                      <h3 className="font-semibold text-gray-900">
-                        {meeting.title}
-                      </h3>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-sm text-gray-500 flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {formatDate(meeting.date)}
-                        </span>
-                        <span className="text-sm text-gray-500 flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {meeting.duration}
-                        </span>
-                        <span className="text-sm text-gray-500 flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5" />
-                          {meeting.participants.length} attendees
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    {meeting.notes.length > 0 && (
-                      <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-                        <FileText className="w-3 h-3 mr-1" />
-                        {meeting.notes.length} notes
-                      </Badge>
-                    )}
-                    {meeting.transcript.length > 0 && (
-                      <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                        <MessageSquare className="w-3 h-3 mr-1" />
-                        Transcribed
-                      </Badge>
-                    )}
-                    {expandedMeetingHistory === meeting.id ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    )}
-                  </div>
-                </button>
-
-                {/* Expanded Content */}
-                {expandedMeetingHistory === meeting.id && (
-                  <div className="border-t border-gray-200 bg-gray-50/50">
-                    <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {/* Notes Section */}
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-orange-500" />
-                          Meeting Notes
-                        </h4>
-                        {meeting.notes.length === 0 ? (
-                          <p className="text-sm text-gray-500 italic">
-                            No notes were taken during this meeting
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {meeting.notes.map((note) => (
-                              <div
-                                key={note.id}
-                                className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm"
-                              >
-                                <p className="text-sm text-gray-700">
-                                  {note.content}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  {formatTime(note.timestamp)}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Transcript Section */}
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4 text-blue-500" />
-                          Transcript Highlights
-                        </h4>
-                        {meeting.transcript.length === 0 ? (
-                          <p className="text-sm text-gray-500 italic">
-                            No transcript available
-                          </p>
-                        ) : (
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {meeting.transcript.slice(0, 5).map((entry) => (
-                              <div
-                                key={entry.id}
-                                className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm"
-                              >
-                                <p className="text-xs font-medium text-blue-600 mb-1">
-                                  {entry.speaker}
-                                </p>
-                                <p className="text-sm text-gray-700">
-                                  {entry.text}
-                                </p>
-                              </div>
-                            ))}
-                            {meeting.transcript.length > 5 && (
-                              <p className="text-sm text-gray-500 text-center py-2">
-                                +{meeting.transcript.length - 5} more entries
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Participants */}
-                    <div className="px-4 pb-4">
-                      <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                        <Users className="w-4 h-4 text-purple-500" />
-                        Participants
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {meeting.participants.map((participant, idx) => (
-                          <span
-                            key={idx}
-                            className="px-3 py-1.5 bg-white rounded-full text-sm text-gray-700 border border-gray-200"
-                          >
-                            {participant}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Empty State */}
       {!isLoading && !error && filteredMeetings.length === 0 && (

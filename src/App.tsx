@@ -216,7 +216,7 @@ function App() {
               }
             />
 
-            {/* Marketing – restricted to SUPER_ADMIN, ADMIN, DESIGN_HEAD, BDR */}
+            {/* Marketing – BDR, SALES, HR, LEAD_PROJECT_MANAGER, DESIGN_HEAD, ADMIN, SUPER_ADMIN */}
             <Route
               path="marketing"
               element={
@@ -225,7 +225,10 @@ function App() {
                     "SUPER_ADMIN",
                     "ADMIN",
                     "DESIGN_HEAD",
+                    "LEAD_PROJECT_MANAGER",
+                    "HR",
                     "BDR",
+                    "SALES",
                   ]}
                 >
                   <Marketing />
@@ -233,7 +236,7 @@ function App() {
               }
             />
 
-            {/* Analytics / Reports – not accessible to DESIGNER */}
+            {/* Analytics / Reports – not accessible to BDR/SALES/DESIGNER/SITE_ENGINEER */}
             <Route
               path="analytics"
               element={
@@ -242,6 +245,7 @@ function App() {
                     "SUPER_ADMIN",
                     "ADMIN",
                     "DESIGN_HEAD",
+                    "LEAD_PROJECT_MANAGER",
                     "PROJECT_MANAGER",
                     "ACCOUNTS",
                   ]}
@@ -260,8 +264,9 @@ function App() {
                     "SUPER_ADMIN",
                     "ADMIN",
                     "DESIGN_HEAD",
+                    "LEAD_PROJECT_MANAGER",
                     "BDR",
-                    "PROJECT_MANAGER",
+                    "SALES",
                   ]}
                 >
                   <EmailEditor />
@@ -272,12 +277,17 @@ function App() {
             {/* Settings – everyone can access their own settings */}
             <Route path="settings" element={<SettingsPage />} />
 
-            {/* User Management – admin + design head */}
+            {/* User Management – admin + lead_pm + hr */}
             <Route
               path="users"
               element={
                 <ProtectedRoute
-                  allowedRoleIds={["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD"]}
+                  allowedRoleIds={[
+                    "SUPER_ADMIN",
+                    "ADMIN",
+                    "LEAD_PROJECT_MANAGER",
+                    "HR",
+                  ]}
                 >
                   <UserManagement />
                 </ProtectedRoute>
@@ -289,7 +299,14 @@ function App() {
             path="/instagram"
             element={
               <ProtectedRoute
-                allowedRoleIds={["SUPER_ADMIN", "ADMIN", "DESIGN_HEAD", "BDR"]}
+                allowedRoleIds={[
+                  "SUPER_ADMIN",
+                  "ADMIN",
+                  "DESIGN_HEAD",
+                  "LEAD_PROJECT_MANAGER",
+                  "BDR",
+                  "SALES",
+                ]}
               >
                 <InstagramPage />
               </ProtectedRoute>
@@ -386,7 +403,7 @@ function App() {
             path="/bdr"
             element={
               <ProtectedRoute
-                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                allowedRoleIds={["BDR", "SALES", "SUPER_ADMIN", "ADMIN"]}
                 loginRedirect="/bdr/login"
               >
                 <BDRAppShell>
@@ -399,7 +416,7 @@ function App() {
             path="/bdr/tasks"
             element={
               <ProtectedRoute
-                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                allowedRoleIds={["BDR", "SALES", "SUPER_ADMIN", "ADMIN"]}
                 loginRedirect="/bdr/login"
               >
                 <BDRAppShell>
@@ -412,7 +429,7 @@ function App() {
             path="/bdr/profile"
             element={
               <ProtectedRoute
-                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                allowedRoleIds={["BDR", "SALES", "SUPER_ADMIN", "ADMIN"]}
                 loginRedirect="/bdr/login"
               >
                 <BDRAppShell>
@@ -426,7 +443,7 @@ function App() {
             path="/bdr/leads"
             element={
               <ProtectedRoute
-                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                allowedRoleIds={["BDR", "SALES", "SUPER_ADMIN", "ADMIN"]}
                 loginRedirect="/bdr/login"
               >
                 <BDRAppShell>
@@ -439,7 +456,7 @@ function App() {
             path="/bdr/meetings"
             element={
               <ProtectedRoute
-                allowedRoleIds={["BDR", "SUPER_ADMIN", "ADMIN"]}
+                allowedRoleIds={["BDR", "SALES", "SUPER_ADMIN", "ADMIN"]}
                 loginRedirect="/bdr/login"
               >
                 <BDRAppShell>

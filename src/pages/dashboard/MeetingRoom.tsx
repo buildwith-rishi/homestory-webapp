@@ -81,14 +81,14 @@ export const MeetingRoom: React.FC = () => {
   const meetingIdFromState = (location.state as { meetingId?: string })
     ?.meetingId;
 
-  const [activeTab, setActiveTab] = useState<"transcript" | "notes">(
-    "transcript",
-  );
+  const [activeTab, setActiveTab] = useState<"transcript" | "notes">("notes");
   const [newNote, setNewNote] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState("");
   const [newCheckpoint, setNewCheckpoint] = useState("");
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  // Guard so auto-start fires only once per session
+  const hasAutoStartedRef = useRef(false);
 
   // Recording indicator state
   const [showRecordingIndicator, setShowRecordingIndicator] = useState(false);
@@ -203,6 +203,22 @@ export const MeetingRoom: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ─── Auto-start recording the moment the meeting is ready ───────────
+  useEffect(() => {
+    if (
+      isInMeeting &&
+      !isRecording &&
+      !hasAutoStartedRef.current &&
+      meetingIdFromState
+    ) {
+      hasAutoStartedRef.current = true;
+      startRecording().catch((err) => {
+        console.error("[MeetingRoom] Auto-start recording failed:", err);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInMeeting]);
+
   // Auto-scroll transcripts
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -225,11 +241,12 @@ export const MeetingRoom: React.FC = () => {
 
   const handleEndMeeting = async () => {
     const currentId = meetingIdFromState;
+    // Always stop recording first — this uploads audio and triggers transcription
     if (isRecording) {
-      stopRecording();
+      stopRecording(); // synchronous — triggers async upload internally
     }
     await endMeeting();
-    // Navigate to meeting details so user can see transcript once it's ready
+    // Navigate to meeting details — that page polls until the transcript is ready
     if (currentId) {
       navigate(`/dashboard/meetings/${currentId}`);
     } else {
@@ -873,30 +890,33 @@ export const MeetingRoom: React.FC = () => {
                 </span>
               </button>
 
-              {/* Recording Button */}
-              <button
-                onClick={handleToggleRecording}
-                className="relative group flex flex-col items-center gap-1"
-              >
+              {/* Recording Status (auto-managed) */}
+              <div className="relative group flex flex-col items-center gap-1">
                 <div
                   className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
                     isRecording
-                      ? "bg-red-500 hover:bg-red-600 text-white"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      ? "bg-red-100 text-red-600"
+                      : connectionState === "connecting"
+                        ? "bg-yellow-100 text-yellow-600"
+                        : "bg-gray-100 text-gray-400"
                   }`}
                 >
                   {connectionState === "connecting" ? (
                     <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : isRecording ? (
+                    <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse" />
                   ) : (
-                    <Circle
-                      className={`w-6 h-6 ${isRecording ? "fill-current" : ""}`}
-                    />
+                    <Circle className="w-6 h-6" />
                   )}
                 </div>
                 <span className="text-xs text-gray-500 font-medium">
-                  {isRecording ? "Stop Rec" : "Record"}
+                  {isRecording
+                    ? "Recording"
+                    : connectionState === "connecting"
+                      ? "Starting..."
+                      : "Stopped"}
                 </span>
-              </button>
+              </div>
 
               {/* Transcription Toggle */}
               <button
@@ -963,56 +983,20 @@ export const MeetingRoom: React.FC = () => {
 
         {/* Right Sidebar - Notes & Transcript */}
         <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab("transcript")}
-              className={`flex-1 py-4 text-sm font-medium transition-all relative ${
-                activeTab === "transcript"
-                  ? "text-orange-600"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <MessageSquare className="w-4 h-4" />
-                Transcript
-                {transcripts.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 text-xs">
-                    {transcripts.filter((t) => t.isFinal).length}
-                  </span>
-                )}
-              </div>
-              {activeTab === "transcript" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("notes")}
-              className={`flex-1 py-4 text-sm font-medium transition-all relative ${
-                activeTab === "notes"
-                  ? "text-orange-600"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <FileText className="w-4 h-4" />
-                Notes
-                {notes.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 text-xs">
-                    {notes.length}
-                  </span>
-                )}
-              </div>
-              {activeTab === "notes" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
-              )}
-            </button>
+          {/* Header */}
+          <div className="flex items-center gap-2 px-4 py-4 border-b border-gray-200">
+            <FileText className="w-4 h-4 text-orange-600" />
+            <span className="text-sm font-semibold text-gray-800">Notes</span>
+            {notes.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 text-xs">
+                {notes.length}
+              </span>
+            )}
           </div>
 
           {/* Content */}
           <div className="flex-1 overflow-hidden flex flex-col">
-            {/* Transcript Tab */}
+            {/* Transcript Tab (hidden) */}
             {activeTab === "transcript" && (
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {/* Transcription Processing Indicator */}

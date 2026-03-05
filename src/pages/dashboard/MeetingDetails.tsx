@@ -35,12 +35,16 @@ import {
   ChevronDown,
   Search,
 } from "lucide-react";
-import { Card, Button, Badge, SectionLoader, Spinner } from "../../components/ui";
-import * as meetingAPI from "../../services/meetingApi";
 import {
-  getAllTeamMembers,
-  type TeamMember,
-} from "../../services/teamApi";
+  Card,
+  Button,
+  Badge,
+  SectionLoader,
+  Spinner,
+} from "../../components/ui";
+import * as meetingAPI from "../../services/meetingApi";
+import { sendEmail } from "../../services/emailSendApi";
+import { getAllTeamMembers, type TeamMember } from "../../services/teamApi";
 import type {
   Meeting,
   MeetingNote,
@@ -222,7 +226,9 @@ const ParticipantModal: React.FC<{
               <h2 className="text-lg font-semibold text-gray-900">
                 Add Participant
               </h2>
-              <p className="text-xs text-gray-500">Add a team member or external guest</p>
+              <p className="text-xs text-gray-500">
+                Add a team member or external guest
+              </p>
             </div>
           </div>
           <button
@@ -281,12 +287,16 @@ const ParticipantModal: React.FC<{
                     type="button"
                     onClick={() => {
                       if (triggerRef.current) {
-                        setDropdownRect(triggerRef.current.getBoundingClientRect());
+                        setDropdownRect(
+                          triggerRef.current.getBoundingClientRect(),
+                        );
                       }
                       setDropdownOpen(!dropdownOpen);
                     }}
                     className={`w-full flex items-center justify-between px-4 py-3 border rounded-xl bg-white text-left focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
-                      errors.userId ? "border-red-300" : "border-gray-300 hover:border-gray-400"
+                      errors.userId
+                        ? "border-red-300"
+                        : "border-gray-300 hover:border-gray-400"
                     }`}
                   >
                     {selectedTeamMember ? (
@@ -299,13 +309,18 @@ const ParticipantModal: React.FC<{
                             {selectedTeamMember.name}
                           </span>
                           <span className="text-xs text-gray-400">
-                            {selectedTeamMember.role || selectedTeamMember.email}
+                            {selectedTeamMember.role ||
+                              selectedTeamMember.email}
                           </span>
                         </div>
                       </div>
                     ) : (
-                      <span className={`text-sm ${teamLoading ? "text-gray-400" : "text-gray-500"}`}>
-                        {teamLoading ? "Loading team members..." : "Choose a team member..."}
+                      <span
+                        className={`text-sm ${teamLoading ? "text-gray-400" : "text-gray-500"}`}
+                      >
+                        {teamLoading
+                          ? "Loading team members..."
+                          : "Choose a team member..."}
                       </span>
                     )}
                     <ChevronDown
@@ -313,68 +328,70 @@ const ParticipantModal: React.FC<{
                     />
                   </button>
 
-                  {dropdownOpen && dropdownRect && createPortal(
-                    <div
-                      style={{
-                        position: "fixed",
-                        top: dropdownRect.bottom + 4,
-                        left: dropdownRect.left,
-                        width: dropdownRect.width,
-                        zIndex: 9999,
-                      }}
-                      className="bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden"
-                    >
-                      <div className="p-2 border-b border-gray-100">
-                        <div className="relative">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search team members..."
-                            className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400"
-                            autoFocus
-                          />
+                  {dropdownOpen &&
+                    dropdownRect &&
+                    createPortal(
+                      <div
+                        style={{
+                          position: "fixed",
+                          top: dropdownRect.bottom + 4,
+                          left: dropdownRect.left,
+                          width: dropdownRect.width,
+                          zIndex: 9999,
+                        }}
+                        className="bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden"
+                      >
+                        <div className="p-2 border-b border-gray-100">
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="text"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder="Search team members..."
+                              className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              autoFocus
+                            />
+                          </div>
                         </div>
-                      </div>
-                      <div className="max-h-52 overflow-y-auto">
-                        {filteredMembers.length === 0 ? (
-                          <p className="text-sm text-gray-500 text-center py-4">
-                            No team members found
-                          </p>
-                        ) : (
-                          filteredMembers.map((member) => (
-                            <button
-                              key={member.id}
-                              type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                setSelectedTeamMember(member);
-                                setDropdownOpen(false);
-                                setSearchQuery("");
-                                setErrors({});
-                              }}
-                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-orange-50 text-left transition-colors"
-                            >
-                              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                                <User className="w-4 h-4 text-orange-600" />
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {member.name}
+                        <div className="max-h-52 overflow-y-auto">
+                          {filteredMembers.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-4">
+                              No team members found
+                            </p>
+                          ) : (
+                            filteredMembers.map((member) => (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setSelectedTeamMember(member);
+                                  setDropdownOpen(false);
+                                  setSearchQuery("");
+                                  setErrors({});
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-orange-50 text-left transition-colors"
+                              >
+                                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                  <User className="w-4 h-4 text-orange-600" />
                                 </div>
-                                <div className="text-xs text-gray-500">
-                                  {member.email}
-                                  {member.role ? ` · ${member.role}` : ""}
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {member.name}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {member.email}
+                                    {member.role ? ` · ${member.role}` : ""}
+                                  </div>
                                 </div>
-                              </div>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </div>,
-                    document.body
-                  )}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>,
+                      document.body,
+                    )}
                 </div>
                 {errors.userId && (
                   <p className="mt-1 text-sm text-red-600">{errors.userId}</p>
@@ -415,7 +432,9 @@ const ParticipantModal: React.FC<{
                     }
                     placeholder="John Doe"
                     className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
-                      errors.name ? "border-red-300" : "border-gray-300 hover:border-gray-400"
+                      errors.name
+                        ? "border-red-300"
+                        : "border-gray-300 hover:border-gray-400"
                     }`}
                   />
                 </div>
@@ -670,6 +689,23 @@ export const MeetingDetailsPage: React.FC = () => {
   const [showSpeakerModal, setShowSpeakerModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Edit AI Summary states
+  const [showEditSummaryModal, setShowEditSummaryModal] = useState(false);
+  const [editedSummaryText, setEditedSummaryText] = useState("");
+  const [isSavingSummary, setIsSavingSummary] = useState(false);
+
+  // Manual refresh state
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  // Email compose modal states
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSentSuccess, setEmailSentSuccess] = useState(false);
+  const [emailSendError, setEmailSendError] = useState<string | null>(null);
+
   // Editing states
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState("");
@@ -801,32 +837,28 @@ export const MeetingDetailsPage: React.FC = () => {
     }, 5000);
   }, [meetingId, triggerRegeneration]);
 
-  // Fetch meeting data
-  useEffect(() => {
-    const fetchMeetingData = async () => {
+  // Fetch meeting data — extracted to a reusable callback for manual refresh
+  const fetchMeetingData = useCallback(
+    async (showFullLoader = false) => {
       if (!meetingId) return;
 
-      setIsLoading(true);
+      if (showFullLoader) setIsLoading(true);
       setError(null);
 
       try {
-        // Fetch meeting details
         const meetingData = await meetingAPI.getMeetingById(meetingId);
         setMeeting(meetingData);
-        setCurrentMeeting(meetingData); // Update store for breadcrumb
+        setCurrentMeeting(meetingData);
 
-        // Extract participants from meeting data if available
         if (
           (meetingData as any).participants &&
           Array.isArray((meetingData as any).participants)
         ) {
           setParticipants((meetingData as any).participants);
         } else {
-          console.log("No participants found in meeting data");
           setParticipants([]);
         }
 
-        // Fetch notes
         try {
           const notesData = await meetingAPI.getNotes(meetingId);
           setNotes(notesData);
@@ -839,12 +871,49 @@ export const MeetingDetailsPage: React.FC = () => {
           err instanceof Error ? err.message : "Failed to load meeting";
         setError(errorMessage);
       } finally {
-        setIsLoading(false);
+        if (showFullLoader) setIsLoading(false);
       }
-    };
+    },
+    [meetingId, setCurrentMeeting],
+  );
 
-    fetchMeetingData();
-  }, [meetingId]);
+  // Initial load
+  useEffect(() => {
+    fetchMeetingData(true);
+  }, [fetchMeetingData]);
+
+  // Manual refresh handler
+  const handleManualRefresh = useCallback(async () => {
+    if (isManualRefreshing || isPollingTranscript) return;
+    setIsManualRefreshing(true);
+    try {
+      await fetchMeetingData(false);
+      // If meeting is completed but still no transcript, kick off auto-polling
+      setMeeting((prev) => {
+        if (!prev) return prev;
+        const isDone =
+          prev.status === "completed" ||
+          prev.status === "COMPLETED" ||
+          prev.status === "PROCESSING";
+        const hasTranscript =
+          (prev.transcription && prev.transcription.length > 0) ||
+          (prev.transcriptText && prev.transcriptText.length > 0) ||
+          (prev.transcriptJson && prev.transcriptJson.length > 0);
+        const hasSummary = prev.summary || prev.aiAnalysis;
+        if (isDone && !hasTranscript && !hasSummary) {
+          startTranscriptPolling();
+        }
+        return prev;
+      });
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  }, [
+    isManualRefreshing,
+    isPollingTranscript,
+    fetchMeetingData,
+    startTranscriptPolling,
+  ]);
 
   // Auto-start polling when meeting is loaded and transcript is empty but meeting is done
   useEffect(() => {
@@ -856,8 +925,10 @@ export const MeetingDetailsPage: React.FC = () => {
       meeting.status === "PROCESSING";
     const hasTranscript =
       (meeting.transcription && meeting.transcription.length > 0) ||
-      (meeting.transcriptText && meeting.transcriptText.length > 0) ||
-      (meeting.transcriptJson && meeting.transcriptJson.length > 0);
+      ((meeting as any).transcriptText &&
+        (meeting as any).transcriptText.length > 0) ||
+      ((meeting as any).transcriptJson &&
+        (meeting as any).transcriptJson.length > 0);
     const hasSummary = meeting.summary || meeting.aiAnalysis;
 
     if (isDone && !hasTranscript && !hasSummary && !pollTimerRef.current) {
@@ -1107,7 +1178,7 @@ export const MeetingDetailsPage: React.FC = () => {
     window.open(whatsappUrl, "_blank");
   };
 
-  // Share AI Summary via Email
+  // Share AI Summary via Email — opens compose modal
   const handleShareEmail = () => {
     if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
 
@@ -1117,34 +1188,72 @@ export const MeetingDetailsPage: React.FC = () => {
     const actionItems =
       meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
 
-    const subject = `Meeting Summary: ${meeting.title}`;
-    let body = `Meeting: ${meeting.title}\n`;
-    body += `Date: ${scheduledDate ? new Date(scheduledDate).toLocaleDateString() : "N/A"}\n\n`;
-    body += `AI SUMMARY:\n${summary}\n\n`;
+    const subjectLine = `Meeting Summary: ${meeting.title}`;
+
+    let body = `<p><strong>Meeting:</strong> ${meeting.title}</p>`;
+    body += `<p><strong>Date:</strong> ${scheduledDate ? new Date(scheduledDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "N/A"}</p>`;
+    body += `<br/>`;
+    body += `<h3 style="margin-bottom:6px;">AI Summary</h3>`;
+    body += `<p>${summary}</p>`;
 
     if (keyPoints.length > 0) {
-      body += `KEY POINTS:\n`;
-      keyPoints.forEach((point: any, idx: number) => {
+      body += `<br/><h3 style="margin-bottom:6px;">Key Points</h3><ul>`;
+      keyPoints.forEach((point: any) => {
         const text =
           typeof point === "string" ? point : point?.text || point?.point;
-        body += `${idx + 1}. ${text}\n`;
+        body += `<li>${text}</li>`;
       });
-      body += `\n`;
+      body += `</ul>`;
     }
 
     if (actionItems.length > 0) {
-      body += `ACTION ITEMS:\n`;
+      body += `<br/><h3 style="margin-bottom:6px;">Action Items</h3><ul>`;
       actionItems.forEach((item: any) => {
         const text =
           typeof item === "string"
             ? item
             : item?.task || item?.text || item?.action;
-        body += `✓ ${text}\n`;
+        body += `<li>✓ ${text}</li>`;
       });
+      body += `</ul>`;
     }
 
-    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoUrl;
+    setEmailTo("");
+    setEmailSubject(subjectLine);
+    setEmailBody(body);
+    setEmailSentSuccess(false);
+    setEmailSendError(null);
+    setShowEmailModal(true);
+  };
+
+  // Open edit summary modal
+  const handleOpenEditSummary = () => {
+    const currentSummary =
+      meeting?.aiAnalysis?.summary || (meeting as any)?.summary || "";
+    setEditedSummaryText(currentSummary);
+    setShowEditSummaryModal(true);
+  };
+
+  // Save edited summary
+  const handleSaveSummary = async () => {
+    if (!meeting) return;
+    setIsSavingSummary(true);
+    try {
+      // Optimistic local update
+      setMeeting((prev) => {
+        if (!prev) return prev;
+        if (prev.aiAnalysis) {
+          return {
+            ...prev,
+            aiAnalysis: { ...prev.aiAnalysis, summary: editedSummaryText },
+          };
+        }
+        return { ...prev, summary: editedSummaryText } as any;
+      });
+      setShowEditSummaryModal(false);
+    } finally {
+      setIsSavingSummary(false);
+    }
   };
 
   // Loading state
@@ -1226,6 +1335,25 @@ export const MeetingDetailsPage: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Auto-refresh indicator */}
+          {isPollingTranscript && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              Auto-refreshing…
+            </div>
+          )}
+          {/* Manual refresh button */}
+          <button
+            onClick={handleManualRefresh}
+            disabled={isManualRefreshing || isPollingTranscript}
+            title="Refresh meeting data"
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${isManualRefreshing ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </button>
           <Badge
             className={`${statusColor.bg} ${statusColor.text} border ${statusColor.border} rounded-lg px-3 py-1`}
           >
@@ -1243,6 +1371,32 @@ export const MeetingDetailsPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Auto-refresh banner — shown when transcription is still being processed */}
+      {isPollingTranscript && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-900">
+              Processing your meeting transcription…
+            </p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              This page will automatically update once your transcription and AI
+              summary are ready. Usually takes 1–3 minutes.
+            </p>
+          </div>
+          <button
+            onClick={handleManualRefresh}
+            disabled={isManualRefreshing}
+            className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isManualRefreshing ? "animate-spin" : ""}`}
+            />
+            Refresh now
+          </button>
+        </div>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -1386,6 +1540,14 @@ export const MeetingDetailsPage: React.FC = () => {
                   AI Summary
                 </h2>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleOpenEditSummary}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
+                    title="Edit AI Summary"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    Edit
+                  </button>
                   <button
                     onClick={handleShareWhatsApp}
                     className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
@@ -1764,6 +1926,291 @@ export const MeetingDetailsPage: React.FC = () => {
         transcript={meeting.transcription}
         isLoading={actionLoading === "speakerMap"}
       />
+
+      {/* Edit AI Summary Modal */}
+      {showEditSummaryModal &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowEditSummaryModal(false)}
+            />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-600" />
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Edit AI Summary
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setShowEditSummaryModal(false)}
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Summary Text
+                </label>
+                <textarea
+                  value={editedSummaryText}
+                  onChange={(e) => setEditedSummaryText(e.target.value)}
+                  rows={12}
+                  className="w-full px-4 py-3 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all leading-relaxed"
+                  placeholder="Enter AI summary..."
+                  autoFocus
+                />
+                <p className="text-xs text-gray-400 mt-2">
+                  {editedSummaryText.length} characters
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+                <button
+                  onClick={() => setShowEditSummaryModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveSummary}
+                  disabled={isSavingSummary || !editedSummaryText.trim()}
+                  className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg transition-colors"
+                >
+                  {isSavingSummary ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Email Compose Modal */}
+      {showEmailModal &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => {
+                if (!isSendingEmail) setShowEmailModal(false);
+              }}
+            />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Compose Email
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setShowEmailModal(false)}
+                  disabled={isSendingEmail}
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Fields */}
+              <div className="flex-1 overflow-y-auto">
+                {/* To */}
+                <div className="flex items-center gap-3 px-6 py-3 border-b border-gray-100">
+                  <span className="text-sm font-medium text-gray-500 w-16 flex-shrink-0">
+                    To
+                  </span>
+                  <input
+                    type="email"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                    placeholder="recipient@example.com"
+                    className="flex-1 text-sm text-gray-800 bg-transparent focus:outline-none placeholder-gray-400"
+                  />
+                </div>
+
+                {/* Subject */}
+                <div className="flex items-center gap-3 px-6 py-3 border-b border-gray-100">
+                  <span className="text-sm font-medium text-gray-500 w-16 flex-shrink-0">
+                    Subject
+                  </span>
+                  <input
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Subject"
+                    className="flex-1 text-sm text-gray-800 bg-transparent focus:outline-none placeholder-gray-400"
+                  />
+                </div>
+
+                {/* Rich-text body */}
+                <div className="px-6 pt-4 pb-2">
+                  {/* Mini toolbar */}
+                  <div className="flex items-center gap-1 mb-2 pb-2 border-b border-gray-100">
+                    {[
+                      { label: "B", cmd: "bold", title: "Bold" },
+                      { label: "I", cmd: "italic", title: "Italic" },
+                      { label: "U", cmd: "underline", title: "Underline" },
+                    ].map(({ label, cmd, title }) => (
+                      <button
+                        key={cmd}
+                        type="button"
+                        title={title}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          document.execCommand(cmd, false);
+                        }}
+                        className="w-7 h-7 flex items-center justify-center text-xs font-semibold rounded hover:bg-gray-100 text-gray-600 transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <div className="w-px h-5 bg-gray-200 mx-1" />
+                    {[
+                      { label: "H1", cmd: "formatBlock", val: "H1" },
+                      { label: "H2", cmd: "formatBlock", val: "H2" },
+                    ].map(({ label, cmd, val }) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          document.execCommand(cmd, false, val);
+                        }}
+                        className="px-2 h-7 flex items-center justify-center text-xs font-semibold rounded hover:bg-gray-100 text-gray-600 transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <div className="w-px h-5 bg-gray-200 mx-1" />
+                    <button
+                      type="button"
+                      title="Bullet List"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        document.execCommand("insertUnorderedList", false);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center text-xs rounded hover:bg-gray-100 text-gray-600 transition-colors"
+                    >
+                      •≡
+                    </button>
+                    <button
+                      type="button"
+                      title="Numbered List"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        document.execCommand("insertOrderedList", false);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center text-xs rounded hover:bg-gray-100 text-gray-600 transition-colors"
+                    >
+                      1≡
+                    </button>
+                    <div className="w-px h-5 bg-gray-200 mx-1" />
+                    <button
+                      type="button"
+                      title="Clear Formatting"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        document.execCommand("removeFormat", false);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center text-xs rounded hover:bg-gray-100 text-gray-400 transition-colors"
+                    >
+                      Tx
+                    </button>
+                  </div>
+
+                  {/* Editable body */}
+                  <div
+                    contentEditable
+                    suppressContentEditableWarning
+                    dangerouslySetInnerHTML={{ __html: emailBody }}
+                    onInput={(e) =>
+                      setEmailBody(
+                        (e.currentTarget as HTMLDivElement).innerHTML,
+                      )
+                    }
+                    className="min-h-[280px] text-sm text-gray-800 focus:outline-none leading-relaxed [&_h3]:font-semibold [&_h3]:text-gray-900 [&_h3]:mt-3 [&_h3]:mb-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
+                    style={{ whiteSpace: "pre-wrap" }}
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+                {emailSentSuccess ? (
+                  <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-600">
+                    <Check className="w-4 h-4" />
+                    Email sent successfully!
+                  </span>
+                ) : emailSendError ? (
+                  <span className="inline-flex items-center gap-2 text-sm font-medium text-red-600">
+                    <AlertCircle className="w-4 h-4" />
+                    {emailSendError}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">
+                    Fill in the recipient and send.
+                  </span>
+                )}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowEmailModal(false)}
+                    disabled={isSendingEmail}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!emailTo.trim()) return;
+                      setIsSendingEmail(true);
+                      setEmailSendError(null);
+                      try {
+                        await sendEmail({
+                          to: emailTo.trim(),
+                          subject: emailSubject.trim(),
+                          htmlBody: emailBody,
+                          emailType: "MEETING_SUMMARY",
+                        });
+                        setEmailSentSuccess(true);
+                        setTimeout(() => setShowEmailModal(false), 1800);
+                      } catch (err: unknown) {
+                        const msg =
+                          err instanceof Error
+                            ? err.message
+                            : "Failed to send email. Please try again.";
+                        setEmailSendError(msg);
+                      } finally {
+                        setIsSendingEmail(false);
+                      }
+                    }}
+                    disabled={isSendingEmail || !emailTo.trim()}
+                    className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg transition-colors"
+                  >
+                    {isSendingEmail ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    Send Email
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

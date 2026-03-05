@@ -37,6 +37,44 @@ export interface UpdateTeamMemberPayload {
   isActive?: boolean;
 }
 
+/** A single day-plan task as returned by GET /api/team/:id */
+export interface DayTask {
+  id: string;
+  title: string;
+  status: string; // "TODO" | "PENDING" | "IN_PROGRESS" | "COMPLETED"
+  taskDate?: string;
+  dayNumber?: number;
+  categoryName?: string;
+  project?: {
+    id: string;
+    projectName: string;
+    projectNumber?: string;
+  };
+}
+
+export interface TeamMemberMetrics {
+  totalTasksAssigned: number;
+  completedTasks: number;
+  totalDayTasks: number;
+  completedDayTasks: number;
+  projectsAsDesigner: number;
+  projectsAsPM: number;
+  assignedLeads: number;
+  convertedLeads: number;
+  newLeads: number;
+}
+
+/** Full profile response from GET /api/team/:id */
+export interface TeamMemberProfile {
+  memberInfo: TeamMember;
+  tasks: unknown[];
+  dayTasks: DayTask[];
+  projects: unknown[];
+  leads: unknown[];
+  attachments: unknown[];
+  metrics: TeamMemberMetrics;
+}
+
 const getAuthHeaders = (): HeadersInit => {
   const token = localStorage.getItem("auth_token");
   return {
@@ -84,12 +122,62 @@ export async function getAllTeamMembers(): Promise<TeamMember[]> {
   return extractList(data);
 }
 
-/** GET /api/team/:id – Fetch team member by ID */
-export async function getTeamMemberById(id: string): Promise<TeamMember> {
+/** Extract a single TeamMember from a potentially-wrapped API response */
+function extractMember(data: unknown): TeamMember {
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    // The team detail endpoint returns { memberInfo: {...}, dayTasks: [...], ... }
+    if (obj.memberInfo && typeof obj.memberInfo === "object")
+      return obj.memberInfo as TeamMember;
+    // Other common wrapper shapes
+    if (obj.data && typeof obj.data === "object" && !Array.isArray(obj.data))
+      return obj.data as TeamMember;
+    if (obj.member && typeof obj.member === "object")
+      return obj.member as TeamMember;
+    if (obj.teamMember && typeof obj.teamMember === "object")
+      return obj.teamMember as TeamMember;
+  }
+  return data as TeamMember;
+}
+
+/** GET /api/team/:id – Fetch the full team member profile (memberInfo + tasks + metrics) */
+export async function getTeamMemberProfile(
+  id: string,
+): Promise<TeamMemberProfile> {
   const response = await fetch(`${API_BASE_URL}/api/team/${id}`, {
     headers: getAuthHeaders(),
   });
-  return handleResponse<TeamMember>(response);
+  const data = await handleResponse<Record<string, unknown>>(response);
+  // Normalise: if the server returns the raw member object instead of the profile shape,
+  // wrap it so callers always get a consistent TeamMemberProfile.
+  if (!data.memberInfo) {
+    return {
+      memberInfo: data as unknown as TeamMember,
+      tasks: [],
+      dayTasks: [],
+      projects: [],
+      leads: [],
+      attachments: [],
+      metrics: {
+        totalTasksAssigned: 0,
+        completedTasks: 0,
+        totalDayTasks: 0,
+        completedDayTasks: 0,
+        projectsAsDesigner: 0,
+        projectsAsPM: 0,
+        assignedLeads: 0,
+        convertedLeads: 0,
+        newLeads: 0,
+      },
+    };
+  }
+  return data as unknown as TeamMemberProfile;
+}
+
+/** GET /api/team/:id – Fetch a single team member by their UUID (member fields only) */
+export async function getTeamMemberById(id: string): Promise<TeamMember> {
+  const profile = await getTeamMemberProfile(id);
+  return profile.memberInfo;
 }
 
 /** POST /api/team – Create a new team member */

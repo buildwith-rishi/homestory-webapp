@@ -490,26 +490,6 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                         className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                         placeholder="Task title..."
                       />
-                      <div className="flex items-center gap-1">
-                        <label className="text-[10px] text-gray-400">Day</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={totalDays}
-                          value={task.dayNumber}
-                          onChange={(e) =>
-                            updateTask(
-                              idx,
-                              "dayNumber",
-                              Math.min(
-                                totalDays,
-                                Math.max(1, Number(e.target.value)),
-                              ),
-                            )
-                          }
-                          className="w-14 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                        />
-                      </div>
                       <button
                         type="button"
                         onClick={() => removeTask(idx)}

@@ -14,6 +14,7 @@ import {
   Mail,
   Send,
   Bell,
+  User,
 } from "lucide-react";
 import { Card, Button } from "../../ui";
 import type { MatrixTask, MatrixCategory } from "../../../types";
@@ -25,6 +26,7 @@ import {
 import { sendEmail } from "../../../services/emailSendApi";
 import { RichTextEditor } from "./RichTextEditor";
 import { NewTaskModal } from "./NewTaskModal";
+import { useAuth } from "../../../contexts/AuthContext";
 import toast from "react-hot-toast";
 
 interface DayTasksPanelProps {
@@ -122,6 +124,13 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   onStatusChange,
   updatingTaskId,
 }) => {
+  const { user, roleId } = useAuth();
+
+  // "My Tasks" filter: shows only tasks assigned to the current user.
+  // Auto-enabled for DESIGNER and SITE_ENGINEER (field roles).
+  const isFieldRole = roleId === "DESIGNER" || roleId === "SITE_ENGINEER";
+  const [myTasksOnly, setMyTasksOnly] = useState(() => isFieldRole);
+
   const [tasks, setTasks] = useState<MatrixTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
@@ -361,8 +370,20 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     if (filterStatus && t.status !== filterStatus) {
       return false;
     }
+    // "My Tasks" filter: keep only tasks assigned to the current user
+    if (myTasksOnly && user?.id) {
+      const assignedId = t.assignedToId ?? t.assignedTo?.id;
+      if (assignedId !== user.id) return false;
+    }
     return true;
   });
+
+  /** Helper: is this task assigned to the currently logged-in user? */
+  const isMyTask = (task: MatrixTask): boolean => {
+    if (!user?.id) return false;
+    const assignedId = task.assignedToId ?? task.assignedTo?.id;
+    return assignedId === user.id;
+  };
 
   // Group by category
   const tasksByCategory: Record<string, MatrixTask[]> = {};
@@ -377,6 +398,10 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     completed: tasks.filter((t) => t.status === "COMPLETED").length,
     inProgress: tasks.filter((t) => t.status === "IN_PROGRESS").length,
     pending: tasks.filter((t) => t.status === "PENDING").length,
+    myTasks: user?.id
+      ? tasks.filter((t) => (t.assignedToId ?? t.assignedTo?.id) === user.id)
+          .length
+      : 0,
   };
 
   if (loading) {
@@ -419,6 +444,20 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
             <Plus className="w-3.5 h-3.5 mr-1" />
             Add Task
           </Button>
+
+          {/* My Tasks toggle */}
+          <button
+            onClick={() => setMyTasksOnly((v) => !v)}
+            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md border transition-colors ${
+              myTasksOnly
+                ? "bg-orange-100 text-orange-700 border-orange-300"
+                : "bg-white text-gray-500 border-gray-200 hover:border-orange-300 hover:text-orange-600"
+            }`}
+            title="Toggle to show only tasks assigned to you"
+          >
+            <User className="w-3 h-3" />
+            My Tasks
+          </button>
 
           {/* Status filter */}
           <select
@@ -480,12 +519,35 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
         </div>
       </div>
 
+      {/* "Assigned to me" callout — shown when the current user has tasks this day */}
+      {statusCounts.myTasks > 0 && (
+        <button
+          onClick={() => setMyTasksOnly((v) => !v)}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+            myTasksOnly
+              ? "bg-orange-50 border-orange-300 text-orange-700"
+              : "bg-white border-orange-200 text-orange-600 hover:bg-orange-50"
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5" />
+            {statusCounts.myTasks} task{statusCounts.myTasks !== 1 ? "s" : ""}{" "}
+            assigned to you today
+          </span>
+          <span className="text-[10px] opacity-70">
+            {myTasksOnly ? "Show all" : "Show mine only"}
+          </span>
+        </button>
+      )}
+
       {/* Tasks grouped by category */}
       {filteredTasks.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-6 italic">
           {tasks.length === 0
             ? "No tasks for this day yet."
-            : "No tasks match the selected filters."}
+            : myTasksOnly
+              ? "No tasks assigned to you for this day."
+              : "No tasks match the selected filters."}
         </p>
       ) : (
         <div className="space-y-3">
@@ -551,15 +613,24 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                             className="flex-1 min-w-0 cursor-pointer"
                             onClick={() => onTaskClick(task.id, task)}
                           >
-                            <p
-                              className={`text-sm font-medium ${
-                                task.status === "COMPLETED"
-                                  ? "text-gray-400 line-through"
-                                  : "text-gray-900"
-                              }`}
-                            >
-                              {task.title}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p
+                                className={`text-sm font-medium ${
+                                  task.status === "COMPLETED"
+                                    ? "text-gray-400 line-through"
+                                    : "text-gray-900"
+                                }`}
+                              >
+                                {task.title}
+                              </p>
+                              {/* "Mine" badge for tasks assigned to current user */}
+                              {isMyTask(task) && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 flex-shrink-0">
+                                  <User className="w-2.5 h-2.5" />
+                                  Mine
+                                </span>
+                              )}
+                            </div>
                             {task.description && (
                               <p className="text-xs text-gray-400 truncate mt-0.5">
                                 {task.description}

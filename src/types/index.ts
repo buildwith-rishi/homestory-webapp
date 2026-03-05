@@ -3,7 +3,10 @@ export enum UserRole {
   SUPER_ADMIN = "SUPER_ADMIN",
   ADMIN = "ADMIN",
   BDR = "BDR",
+  SALES = "SALES",
+  HR = "HR",
   PROJECT_MANAGER = "PROJECT_MANAGER",
+  LEAD_PROJECT_MANAGER = "LEAD_PROJECT_MANAGER",
   ACCOUNTS = "ACCOUNTS",
   SITE_ENGINEER = "SITE_ENGINEER",
   DESIGNER = "DESIGNER",
@@ -502,7 +505,9 @@ export interface ProjectReference {
   linkTitle: string | null;
   title: string | null;
   description: string | null;
+  notes: string | null;
   category: string | null;
+  subCategory: string | null;
   tags: string[];
   uploadedById: string;
   createdAt: string;
@@ -530,6 +535,7 @@ export interface AddLinkReferenceRequest {
   linkUrl: string;
   linkTitle: string;
   category: string;
+  subCategory?: string;
   tags?: string[];
 }
 
@@ -546,6 +552,7 @@ export interface UpdateReferenceRequest {
   linkTitle?: string;
   notes?: string;
   category?: string;
+  subCategory?: string;
   tags?: string[];
 }
 
@@ -1056,7 +1063,10 @@ export interface AdminUser {
     | "SUPER_ADMIN"
     | "ADMIN"
     | "BDR"
+    | "SALES"
+    | "HR"
     | "PROJECT_MANAGER"
+    | "LEAD_PROJECT_MANAGER"
     | "ACCOUNTS"
     | "SITE_ENGINEER"
     | "DESIGNER"
@@ -1079,7 +1089,10 @@ export interface CreateUserRequest {
     | "SUPER_ADMIN"
     | "ADMIN"
     | "BDR"
+    | "SALES"
+    | "HR"
     | "PROJECT_MANAGER"
+    | "LEAD_PROJECT_MANAGER"
     | "ACCOUNTS"
     | "SITE_ENGINEER"
     | "DESIGNER"
@@ -1688,8 +1701,8 @@ export interface ProjectTestimonial {
   videoFileName: string | null;
   audioUrl: string | null;
   audioFileName: string | null;
-  photoUrls: string[];
-  customerName: string;
+  photoUrls: string[] | null;
+  customerName: string | null;
   customerDesignation: string | null;
   customerCompany: string | null;
   customerCity: string | null;
@@ -1712,7 +1725,7 @@ export interface CreateTestimonialRequest {
   capturedByDesignerId: string;
   rating: number;
   testimonialText: string;
-  customerName: string;
+  customerName?: string;
   canSharePublicly?: boolean;
   canUsePhoto?: boolean;
   canUseName?: boolean;
@@ -1786,11 +1799,12 @@ export interface UpdateHandoverActivityRequest {
 export interface HandoverPhoto {
   id: string;
   projectId: string;
-  url: string;
+  fileUrl: string;
+  fileName: string;
   caption: string | null;
   isPublic: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 // ==========================================
