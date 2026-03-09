@@ -11,6 +11,9 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, Button, Input } from "../../ui";
 import { WidgetProps } from "./index";
+import { createLead } from "../../../services/leadApi";
+import { createAccount } from "../../../services/accountApi";
+import { createMeeting } from "../../../services/meetingApi";
 
 type QuickAddType = "lead" | "customer" | "meeting";
 
@@ -25,6 +28,7 @@ const QuickAddWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const typeOptions = [
     {
@@ -52,17 +56,42 @@ const QuickAddWidget: React.FC<WidgetProps> = ({ onRemove }) => {
     if (!formData.name) return;
 
     setIsSubmitting(true);
+    setError(null);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      if (activeType === "lead") {
+        await createLead({
+          name: formData.name,
+          email: formData.email || undefined,
+          phone: formData.phone || undefined,
+          source: "DIRECT",
+        });
+      } else if (activeType === "customer") {
+        await createAccount({
+          id: "",
+          name: formData.name,
+          email: formData.email || undefined,
+          phone: formData.phone || undefined,
+        });
+      } else if (activeType === "meeting") {
+        const scheduledAt = formData.date
+          ? new Date(`${formData.date}T${formData.time || "09:00"}`).toISOString()
+          : new Date().toISOString();
+        await createMeeting({
+          title: formData.name,
+          entityType: "LEAD",
+          scheduledAt,
+        });
+      }
 
-    setIsSubmitting(false);
-    setShowSuccess(true);
-    setFormData({ name: "", email: "", phone: "", date: "", time: "" });
-
-    setTimeout(() => {
-      setShowSuccess(false);
-    }, 2000);
+      setShowSuccess(true);
+      setFormData({ name: "", email: "", phone: "", date: "", time: "" });
+      setTimeout(() => setShowSuccess(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -229,6 +258,9 @@ const QuickAddWidget: React.FC<WidgetProps> = ({ onRemove }) => {
                   </>
                 )}
               </Button>
+              {error && (
+                <p className="text-xs text-red-600 text-center mt-1">{error}</p>
+              )}
             </motion.form>
           )}
         </AnimatePresence>

@@ -1,12 +1,72 @@
-import React from "react";
-import { X, Target, TrendingUp } from "lucide-react";
+import React, { useEffect, useState, useMemo } from "react";
+import { X, Target, TrendingUp, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { WidgetProps } from "./index";
+import { getAllPayments, ProjectPayment } from "../../../services/projectApi";
 
 const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const currentRevenue = 4520000; // ₹45.2L
-  const targetRevenue = 6000000; // ₹60L
-  const percentage = Math.round((currentRevenue / targetRevenue) * 100);
+  const [thisMonthPayments, setThisMonthPayments] = useState<ProjectPayment[]>([]);
+  const [lastMonthPayments, setLastMonthPayments] = useState<ProjectPayment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const today = new Date();
+    const thisStart = format(startOfMonth(today), "yyyy-MM-dd");
+    const thisEnd = format(endOfMonth(today), "yyyy-MM-dd");
+    const lastMonthDate = subMonths(today, 1);
+    const lastStart = format(startOfMonth(lastMonthDate), "yyyy-MM-dd");
+    const lastEnd = format(endOfMonth(lastMonthDate), "yyyy-MM-dd");
+
+    Promise.all([
+      getAllPayments({ dateFrom: thisStart, dateTo: thisEnd, limit: 500 }),
+      getAllPayments({ dateFrom: lastStart, dateTo: lastEnd, limit: 500 }),
+    ])
+      .then(([thisP, lastP]) => {
+        if (!cancelled) {
+          setThisMonthPayments(thisP);
+          setLastMonthPayments(lastP);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setThisMonthPayments([]);
+          setLastMonthPayments([]);
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const COLLECTED_STATUSES = ["COLLECTED", "PAID"];
+
+  const currentRevenue = useMemo(() => {
+    return thisMonthPayments
+      .filter((p) => COLLECTED_STATUSES.includes((p.status || "").toUpperCase()))
+      .reduce((sum, p) => sum + (parseFloat(String(p.actualAmount || p.expectedAmount || 0)) || 0), 0);
+  }, [thisMonthPayments]);
+
+  const targetRevenue = useMemo(() => {
+    const total = thisMonthPayments.reduce(
+      (sum, p) => sum + (parseFloat(String(p.expectedAmount || p.actualAmount || 0)) || 0),
+      0
+    );
+    // target = max of pipeline total or current, minimum ₹1L to avoid division by zero
+    return Math.max(total, currentRevenue, 100000);
+  }, [thisMonthPayments, currentRevenue]);
+
+  const lastMonthRevenue = useMemo(() => {
+    return lastMonthPayments
+      .filter((p) => COLLECTED_STATUSES.includes((p.status || "").toUpperCase()))
+      .reduce((sum, p) => sum + (parseFloat(String(p.actualAmount || p.expectedAmount || 0)) || 0), 0);
+  }, [lastMonthPayments]);
+
+  const percentage = Math.min(100, Math.round((currentRevenue / targetRevenue) * 100));
+  const growth = lastMonthRevenue > 0
+    ? (((currentRevenue - lastMonthRevenue) / lastMonthRevenue) * 100).toFixed(1)
+    : null;
 
   // SVG semi-circle gauge
   const radius = 54;
@@ -58,12 +118,13 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-md">
             <Target className="w-5 h-5 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h3 className="font-bold text-gray-900 text-sm">
               Revenue vs Target
             </h3>
             <p className="text-xs text-gray-400 font-medium">This Month</p>
           </div>
+          {loading && <Loader2 className="w-4 h-4 text-orange-400 animate-spin" />}
         </div>
       </div>
 
@@ -142,7 +203,7 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
             Last Month
           </p>
           <p className="text-base font-extrabold text-gray-800 leading-tight mt-0.5">
-            ₹38.5L
+            {lastMonthRevenue > 0 ? `₹${(lastMonthRevenue / 100000).toFixed(1)}L` : "—"}
           </p>
         </div>
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
@@ -151,8 +212,10 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
               Growth
             </p>
           </div>
-          <p className="text-base font-extrabold text-emerald-700 leading-tight mt-0.5">
-            +17.4%
+          <p className={`text-base font-extrabold leading-tight mt-0.5 ${
+            growth === null ? "text-gray-400" : parseFloat(growth) >= 0 ? "text-emerald-700" : "text-red-600"
+          }`}>
+            {growth === null ? "—" : `${parseFloat(growth) >= 0 ? "+" : ""}${growth}%`}
           </p>
         </div>
       </div>

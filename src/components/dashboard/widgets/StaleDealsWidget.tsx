@@ -1,13 +1,17 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   X,
   AlertTriangle,
   ArrowRight,
   TrendingDown,
   Flame,
+  Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { differenceInDays, parseISO } from "date-fns";
 import { WidgetProps } from "./index";
+import { useProjectStore } from "../../../stores/projectStore";
 
 interface StaleDeal {
   id: string;
@@ -16,45 +20,59 @@ interface StaleDeal {
   value: number;
   daysStuck: number;
   stage: string;
-  owner: string;
 }
 
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
   Proposal: { bg: "bg-blue-50", text: "text-blue-700" },
   Negotiation: { bg: "bg-purple-50", text: "text-purple-700" },
+  Design: { bg: "bg-indigo-50", text: "text-indigo-700" },
+  Execution: { bg: "bg-amber-50", text: "text-amber-700" },
   default: { bg: "bg-gray-100", text: "text-gray-600" },
 };
 
 const StaleDealsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const staleDeals: StaleDeal[] = [
-    {
-      id: "1",
-      name: "Luxury Villa Project",
-      company: "Kumar Residence",
-      value: 4500000,
-      daysStuck: 21,
-      stage: "Proposal",
-      owner: "Rahul K.",
-    },
-    {
-      id: "2",
-      name: "Modern Office Interior",
-      company: "TechStart Inc",
-      value: 2800000,
-      daysStuck: 18,
-      stage: "Proposal",
-      owner: "Priya S.",
-    },
-    {
-      id: "3",
-      name: "3BHK Renovation",
-      company: "Gupta Family",
-      value: 1500000,
-      daysStuck: 15,
-      stage: "Negotiation",
-      owner: "Amit P.",
-    },
-  ];
+  const navigate = useNavigate();
+  const { projects, isLoading } = useProjectStore();
+
+  const staleDeals = useMemo<StaleDeal[]>(() => {
+    const today = new Date();
+    return projects
+      .filter(
+        (p) =>
+          p.status !== "COMPLETED" &&
+          p.status !== "CANCELLED" &&
+          p.status !== "ON_HOLD",
+      )
+      .map((p) => {
+        const updated = p.updatedAt
+          ? parseISO(p.updatedAt)
+          : new Date(p.createdAt);
+        const days = differenceInDays(today, updated);
+        const company =
+          p.account?.name || p.lead?.name || "Unknown";
+        const value =
+          typeof p.totalValue === "string"
+            ? parseFloat(p.totalValue) || 0
+            : p.totalValue || 0;
+        const rawStage =
+          p.currentStageCode || p.currentPhase || p.status || "Active";
+        // Convert snake_case codes to readable labels
+        const stage = rawStage
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c: string) => c.toUpperCase());
+        return {
+          id: p.id,
+          name: p.projectName || p.name || "Untitled Project",
+          company,
+          value,
+          daysStuck: days,
+          stage,
+        };
+      })
+      .filter((d) => d.daysStuck >= 14)
+      .sort((a, b) => b.daysStuck - a.daysStuck)
+      .slice(0, 5);
+  }, [projects]);
 
   const totalAtRisk = staleDeals.reduce((sum, deal) => sum + deal.value, 0);
 
@@ -131,7 +149,19 @@ const StaleDealsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
 
       {/* Deal List */}
       <div className="flex-1 px-4 pt-3 pb-2 space-y-1.5 overflow-y-auto">
-        {staleDeals.map((deal, index) => {
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+          </div>
+        ) : staleDeals.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mb-2">
+              <TrendingDown className="w-5 h-5 text-green-600" />
+            </div>
+            <p className="text-sm font-medium text-gray-700">No stale deals</p>
+            <p className="text-xs text-gray-400 mt-1">All projects are moving forward!</p>
+          </div>
+        ) : staleDeals.map((deal, index) => {
           const urgency = getUrgencyConfig(deal.daysStuck);
           const stageStyle = STAGE_COLORS[deal.stage] || STAGE_COLORS.default;
           return (
@@ -140,6 +170,7 @@ const StaleDealsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.08 }}
+              onClick={() => navigate(`/dashboard/projects/${deal.id}`)}
               className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group/item"
             >
               {/* Days Badge */}
@@ -183,7 +214,10 @@ const StaleDealsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
 
       {/* Footer */}
       <div className="px-4 pb-4 pt-1">
-        <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-orange-200 text-orange-600 text-sm font-semibold hover:bg-orange-50 transition-colors">
+        <button
+          onClick={() => navigate("/dashboard/projects")}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-orange-200 text-orange-600 text-sm font-semibold hover:bg-orange-50 transition-colors"
+        >
           Review All Stale Deals <ArrowRight className="w-4 h-4" />
         </button>
       </div>

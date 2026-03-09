@@ -1,7 +1,9 @@
-import React from "react";
-import { X, BarChart3, ArrowRight } from "lucide-react";
+import React, { useEffect, useState, useMemo } from "react";
+import { X, BarChart3, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { WidgetProps } from "./index";
+import { listLeads, Lead } from "../../../services/leadApi";
 
 interface FunnelStage {
   name: string;
@@ -12,52 +14,94 @@ interface FunnelStage {
   percentage: number;
 }
 
-const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const stages: FunnelStage[] = [
-    {
-      name: "New Leads",
-      count: 145,
-      color: "#3B82F6",
-      gradientFrom: "from-blue-400",
-      gradientTo: "to-blue-600",
-      percentage: 100,
-    },
-    {
-      name: "Qualified",
-      count: 98,
-      color: "#06B6D4",
-      gradientFrom: "from-cyan-400",
-      gradientTo: "to-cyan-600",
-      percentage: 68,
-    },
-    {
-      name: "Meeting",
-      count: 54,
-      color: "#8B5CF6",
-      gradientFrom: "from-violet-400",
-      gradientTo: "to-purple-600",
-      percentage: 37,
-    },
-    {
-      name: "Proposal",
-      count: 28,
-      color: "#F59E0B",
-      gradientFrom: "from-amber-400",
-      gradientTo: "to-orange-500",
-      percentage: 19,
-    },
-    {
-      name: "Won",
-      count: 12,
-      color: "#10B981",
-      gradientFrom: "from-emerald-400",
-      gradientTo: "to-emerald-600",
-      percentage: 8,
-    },
-  ];
+const STAGE_CONFIG: Array<{
+  label: string;
+  keys: string[];
+  color: string;
+  gradientFrom: string;
+  gradientTo: string;
+}> = [
+  {
+    label: "New Leads",
+    keys: ["NEW_LEAD", "NEW", "CONTACTED", "OPEN", "FRESH"],
+    color: "#3B82F6",
+    gradientFrom: "from-blue-400",
+    gradientTo: "to-blue-600",
+  },
+  {
+    label: "Qualified",
+    keys: ["QUALIFIED", "INTERESTED"],
+    color: "#06B6D4",
+    gradientFrom: "from-cyan-400",
+    gradientTo: "to-cyan-600",
+  },
+  {
+    label: "Meeting",
+    keys: ["MEETING_SCHEDULED", "MEETING", "SITE_VISIT", "FOLLOW_UP"],
+    color: "#8B5CF6",
+    gradientFrom: "from-violet-400",
+    gradientTo: "to-purple-600",
+  },
+  {
+    label: "Proposal",
+    keys: ["PROPOSAL_SENT", "PROPOSAL", "NEGOTIATION", "QUOTATION_SENT"],
+    color: "#F59E0B",
+    gradientFrom: "from-amber-400",
+    gradientTo: "to-orange-500",
+  },
+  {
+    label: "Won",
+    keys: ["WON", "CONVERTED", "CLOSED_WON"],
+    color: "#10B981",
+    gradientFrom: "from-emerald-400",
+    gradientTo: "to-emerald-600",
+  },
+];
 
-  const conversionRate = Math.round((stages[4].count / stages[0].count) * 100);
-  const totalValue = 12400000;
+const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
+  const navigate = useNavigate();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAll = async () => {
+      try {
+        const results: Lead[] = [];
+        let page = 1;
+        while (true) {
+          const res = await listLeads({ limit: 200, page });
+          results.push(...res.leads);
+          if (results.length >= res.total || res.leads.length < 200) break;
+          page++;
+        }
+        if (!cancelled) setLeads(results);
+      } catch {
+        if (!cancelled) setLeads([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchAll();
+    return () => { cancelled = true; };
+  }, []);
+
+  const stages: FunnelStage[] = useMemo(() => {
+    const counts = STAGE_CONFIG.map((cfg) => {
+      const count = leads.filter((l) => {
+        const val = ((l.stage || l.status || "") as string).toUpperCase();
+        return cfg.keys.some((k) => val === k || val.startsWith(k));
+      }).length;
+      return { ...cfg, count };
+    });
+    const maxCount = counts[0]?.count || 1;
+    return counts.map((s) => ({ ...s, name: s.label, percentage: maxCount > 0 ? Math.round((s.count / maxCount) * 100) : 0 }));
+  }, [leads]);
+
+  const conversionRate = stages[0]?.count > 0
+    ? Math.round(((stages[4]?.count || 0) / stages[0].count) * 100)
+    : 0;
+  const totalLeads = leads.length;
 
   return (
     <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 group relative overflow-hidden flex flex-col">
@@ -76,10 +120,11 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md">
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h3 className="font-bold text-gray-900 text-sm">Sales Pipeline</h3>
             <p className="text-xs text-gray-400 font-medium">Funnel Overview</p>
           </div>
+          {loading && <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />}
         </div>
       </div>
 
@@ -129,12 +174,15 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
             {conversionRate}%
           </p>
         </div>
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+        <div
+          className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center cursor-pointer hover:bg-blue-100 transition-colors"
+          onClick={() => navigate("/dashboard/leads")}
+        >
           <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">
-            Pipeline Value
+            Total Leads
           </p>
           <p className="text-xl font-extrabold text-blue-700 leading-tight mt-0.5">
-            ₹{(totalValue / 100000).toFixed(1)}L
+            {totalLeads}
           </p>
         </div>
       </div>

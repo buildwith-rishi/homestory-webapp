@@ -1,15 +1,19 @@
-import React from "react";
-import { X, Trophy, TrendingUp, TrendingDown, Crown } from "lucide-react";
+import React, { useEffect, useState, useMemo } from "react";
+import { X, Trophy, Crown, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { WidgetProps } from "./index";
+import {
+  getAllTeamMembers,
+  TeamMember as ApiTeamMember,
+} from "../../../services/teamApi";
+import { useProjectStore } from "../../../stores/projectStore";
 
-interface TeamMember {
+interface LeaderboardEntry {
   id: string;
   name: string;
   avatar: string;
-  dealsClosedThisMonth: number;
+  projectCount: number;
   revenueGenerated: number;
-  trend: number;
 }
 
 const AVATAR_GRADIENTS = [
@@ -21,50 +25,49 @@ const AVATAR_GRADIENTS = [
 ];
 
 const LeaderboardWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const teamMembers: TeamMember[] = [
-    {
-      id: "1",
-      name: "Rahul Kumar",
-      avatar: "RK",
-      dealsClosedThisMonth: 12,
-      revenueGenerated: 8500000,
-      trend: 15,
-    },
-    {
-      id: "2",
-      name: "Priya Sharma",
-      avatar: "PS",
-      dealsClosedThisMonth: 10,
-      revenueGenerated: 7200000,
-      trend: 8,
-    },
-    {
-      id: "3",
-      name: "Amit Patel",
-      avatar: "AP",
-      dealsClosedThisMonth: 8,
-      revenueGenerated: 5100000,
-      trend: -3,
-    },
-    {
-      id: "4",
-      name: "Neha Gupta",
-      avatar: "NG",
-      dealsClosedThisMonth: 7,
-      revenueGenerated: 4800000,
-      trend: 12,
-    },
-    {
-      id: "5",
-      name: "Vikram Singh",
-      avatar: "VS",
-      dealsClosedThisMonth: 5,
-      revenueGenerated: 3200000,
-      trend: -5,
-    },
-  ];
+  const [apiMembers, setApiMembers] = useState<ApiTeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { projects } = useProjectStore();
 
-  const maxRevenue = teamMembers[0].revenueGenerated;
+  useEffect(() => {
+    getAllTeamMembers()
+      .then(setApiMembers)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const teamMembers = useMemo<LeaderboardEntry[]>(() => {
+    const scored = apiMembers.map((member) => {
+      const mid = member.userId || member.id;
+      const assignedProjects = projects.filter(
+        (p) => p.assignedPMId === mid || p.assignedDesignerId === mid,
+      );
+      const revenue = assignedProjects.reduce((sum, p) => {
+        const val =
+          typeof p.totalValue === "string"
+            ? parseFloat(p.totalValue) || 0
+            : p.totalValue || 0;
+        return sum + val;
+      }, 0);
+      return {
+        id: member.id,
+        name: member.name,
+        avatar: member.name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
+        projectCount: assignedProjects.length,
+        revenueGenerated: revenue,
+      };
+    });
+    return scored
+      .sort((a, b) => b.revenueGenerated - a.revenueGenerated)
+      .slice(0, 5);
+  }, [apiMembers, projects]);
+
+  const maxRevenue = teamMembers[0]?.revenueGenerated || 1;
 
   const getRankLabel = (rank: number) => {
     if (rank === 1) return <Crown className="w-3.5 h-3.5 text-yellow-500" />;
@@ -103,7 +106,15 @@ const LeaderboardWidget: React.FC<WidgetProps> = ({ onRemove }) => {
 
       {/* Leaderboard */}
       <div className="flex-1 px-4 pb-5 space-y-1.5 overflow-y-auto">
-        {teamMembers.map((member, index) => {
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+          </div>
+        ) : teamMembers.length === 0 ? (
+          <div className="flex items-center justify-center py-8 text-gray-400 text-sm">
+            No team data available
+          </div>
+        ) : teamMembers.map((member, index) => {
           const rank = index + 1;
           const barPct = Math.round(
             (member.revenueGenerated / maxRevenue) * 100,
@@ -127,31 +138,18 @@ const LeaderboardWidget: React.FC<WidgetProps> = ({ onRemove }) => {
 
               {/* Avatar */}
               <div
-                className={`w-9 h-9 rounded-full bg-gradient-to-br ${AVATAR_GRADIENTS[index]} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm`}
+                className={`w-9 h-9 rounded-full bg-gradient-to-br ${
+                  AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]
+                } flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm`}
               >
                 {member.avatar}
               </div>
 
               {/* Info + Bar */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-semibold text-gray-900 truncate">
-                    {member.name}
-                  </p>
-                  <span
-                    className={`text-xs font-bold flex items-center gap-0.5 ml-2 flex-shrink-0 ${
-                      member.trend >= 0 ? "text-emerald-600" : "text-red-500"
-                    }`}
-                  >
-                    {member.trend >= 0 ? (
-                      <TrendingUp className="w-3 h-3" />
-                    ) : (
-                      <TrendingDown className="w-3 h-3" />
-                    )}
-                    {member.trend >= 0 ? "+" : ""}
-                    {member.trend}%
-                  </span>
-                </div>
+                <p className="text-sm font-semibold text-gray-900 truncate mb-1">
+                  {member.name}
+                </p>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <motion.div
@@ -162,11 +160,13 @@ const LeaderboardWidget: React.FC<WidgetProps> = ({ onRemove }) => {
                         duration: 0.5,
                         ease: "easeOut",
                       }}
-                      className={`h-full rounded-full bg-gradient-to-r ${AVATAR_GRADIENTS[index]}`}
+                      className={`h-full rounded-full bg-gradient-to-r ${
+                        AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]
+                      }`}
                     />
                   </div>
                   <span className="text-[11px] text-gray-500 font-medium flex-shrink-0">
-                    {member.dealsClosedThisMonth}d · ₹
+                    {member.projectCount}p · ₹
                     {(member.revenueGenerated / 100000).toFixed(1)}L
                   </span>
                 </div>

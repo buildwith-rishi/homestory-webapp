@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Calendar, dateFnsLocalizer, SlotInfo } from "react-big-calendar";
 import {
@@ -243,10 +244,10 @@ const MeetingModal: React.FC<{
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
       />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden">
@@ -533,7 +534,8 @@ const MeetingModal: React.FC<{
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -557,13 +559,13 @@ const MeetingDetailPopup: React.FC<{
   const TypeIcon = typeConfig.icon;
   const status = statusConfig[meeting.status] || statusConfig.scheduled; // Fallback to scheduled if status not found
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
         {/* Colored header based on type */}
         <div
           className="px-6 py-5"
@@ -610,7 +612,7 @@ const MeetingDetailPopup: React.FC<{
         </div>
 
         {/* Details */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
           <div className="flex items-center gap-3 text-gray-700">
             <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
               <CalendarIcon className="w-5 h-5 text-gray-500" />
@@ -672,7 +674,7 @@ const MeetingDetailPopup: React.FC<{
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
           <button
             onClick={onViewDetails}
             disabled={isLoading}
@@ -709,7 +711,8 @@ const MeetingDetailPopup: React.FC<{
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -1013,10 +1016,7 @@ export const MeetingsCalendarPage: React.FC = () => {
 
       {/* Calendar */}
       {isLoading ? (
-        <Card
-          className="rounded-xl"
-          style={{ minHeight: "600px" }}
-        >
+        <Card className="rounded-xl" style={{ minHeight: "600px" }}>
           <SectionLoader size="lg" message="Loading meetings..." />
         </Card>
       ) : (

@@ -41,7 +41,9 @@ const ATTACHMENT_TYPES: { label: string; value: AttachmentType }[] = [
 interface LeadReferencesManagerProps {
   leadId: string;
   references: LeadReference[];
-  onAddReference: (reference: Omit<LeadReference, "id" | "leadId" | "uploadedAt">) => void;
+  onAddReference: (
+    reference: Omit<LeadReference, "id" | "leadId" | "uploadedAt">,
+  ) => void;
   onDeleteReference: (referenceId: string) => void;
   readOnly?: boolean;
 }
@@ -53,13 +55,11 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
   onDeleteReference,
   readOnly = false,
 }) => {
-  const [isAddingLink, setIsAddingLink] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("");
-  const [linkTitle, setLinkTitle] = useState("");
-  const [linkDescription, setLinkDescription] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<LeadReference["category"]>("Inspiration");
+  const [selectedCategory, setSelectedCategory] =
+    useState<LeadReference["category"]>("Inspiration");
   const [isUploading, setIsUploading] = useState(false);
-  const [selectedAttachmentType, setSelectedAttachmentType] = useState<AttachmentType>("OTHER");
+  const [selectedAttachmentType, setSelectedAttachmentType] =
+    useState<AttachmentType>("OTHER");
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [viewingIds, setViewingIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
@@ -96,11 +96,11 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
   // Download the file. Fetches the attachment to get download URL and triggers download.
   const handleDownload = async (reference: LeadReference) => {
     if (reference.id.startsWith("ref-")) return; // temp link id, nothing to fetch
-    
+
     setDownloadingIds((prev) => new Set(prev).add(reference.id));
     try {
       let url: string | undefined;
-      
+
       // If URL is already stored, use it
       if (reference.url && reference.type !== ReferenceType.LINK) {
         url = reference.url;
@@ -109,12 +109,12 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
         const attachment = await getAttachment(reference.id);
         url = attachment.downloadUrl || attachment.fileUrl;
       }
-      
+
       if (!url) {
         toast.error("Download URL not available");
         return;
       }
-      
+
       // Create a temporary link element and trigger download
       const link = document.createElement("a");
       link.href = url;
@@ -124,7 +124,7 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       toast.success("Download started");
     } catch (err) {
       console.error("Download error:", err);
@@ -188,7 +188,9 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
         onAddReference({
           type: refType,
           title: file.name,
-          description: attachment.notes || `${attachmentType.replace(/_/g, " ")} — ${file.type}`,
+          description:
+            attachment.notes ||
+            `${attachmentType.replace(/_/g, " ")} — ${file.type}`,
           url: attachment.downloadUrl || attachment.fileUrl || "",
           fileSize: file.size,
           fileName: file.name,
@@ -209,35 +211,6 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
 
     setIsUploading(false);
     e.target.value = "";
-  };
-
-  const handleAddLink = () => {
-    if (!linkUrl) {
-      toast.error("Please enter a URL");
-      return;
-    }
-
-    try {
-      new URL(linkUrl);
-
-      onAddReference({
-        type: ReferenceType.LINK,
-        title: linkTitle || linkUrl,
-        description: linkDescription,
-        url: linkUrl,
-        category: selectedCategory,
-        uploadedBy: "Current User",
-        tags: [],
-      });
-
-      toast.success("Link added successfully!");
-      setLinkUrl("");
-      setLinkTitle("");
-      setLinkDescription("");
-      setIsAddingLink(false);
-    } catch {
-      toast.error("Please enter a valid URL");
-    }
   };
 
   const handleDelete = async (referenceId: string) => {
@@ -298,19 +271,24 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
-  const groupedReferences = references.reduce((acc, ref) => {
-    const category = ref.category || "Other";
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(ref);
-    return acc;
-  }, {} as Record<string, LeadReference[]>);
+  const groupedReferences = references.reduce(
+    (acc, ref) => {
+      const category = ref.category || "Other";
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(ref);
+      return acc;
+    },
+    {} as Record<string, LeadReference[]>,
+  );
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">References & Inspirations</h3>
+          <h3 className="text-lg font-semibold text-gray-900">
+            References & Inspirations
+          </h3>
           <p className="text-sm text-gray-500 mt-1">
             Upload images, documents, and links for reference
           </p>
@@ -372,108 +350,7 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
               </div>
             </label>
           </div>
-
-          {/* Add Link */}
-          <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 hover:border-blue-400 hover:bg-blue-50/30 transition-all">
-            <button
-              onClick={() => setIsAddingLink(!isAddingLink)}
-              className="w-full flex flex-col items-center gap-3"
-            >
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center shadow-sm">
-                <LinkIcon className="w-7 h-7 text-blue-600" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-gray-700">Add Link</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Pinterest, Houzz, Instagram, etc.
-                </p>
-              </div>
-            </button>
-          </div>
         </div>
-      )}
-
-      {/* Add Link Form */}
-      {isAddingLink && (
-        <Card className="p-5 bg-blue-50 border-blue-200">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                URL <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="url"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://pinterest.com/pin/..."
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Title (Optional)
-              </label>
-              <input
-                type="text"
-                value={linkTitle}
-                onChange={(e) => setLinkTitle(e.target.value)}
-                placeholder="Modern Kitchen Design"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Category
-              </label>
-              <div className="flex gap-2">
-                {["Inspiration", "Requirement", "Reference", "Competitor"].map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setSelectedCategory(cat as LeadReference["category"])}
-                    className={`px-3 py-1.5 rounded-lg border-2 text-xs font-medium transition-all ${
-                      selectedCategory === cat
-                        ? getCategoryColor(cat)
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Description (Optional)
-              </label>
-              <textarea
-                value={linkDescription}
-                onChange={(e) => setLinkDescription(e.target.value)}
-                placeholder="Notes about this reference..."
-                rows={2}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleAddLink} className="flex-1">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Link
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setIsAddingLink(false);
-                  setLinkUrl("");
-                  setLinkTitle("");
-                  setLinkDescription("");
-                }}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </Card>
       )}
 
       {/* References List */}
@@ -492,7 +369,9 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
           {Object.entries(groupedReferences).map(([category, refs]) => (
             <div key={category}>
               <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <span className={`px-2.5 py-1 rounded-full text-xs ${getCategoryColor(category)}`}>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs ${getCategoryColor(category)}`}
+                >
                   {category}
                 </span>
                 <span className="text-gray-400">({refs.length})</span>
@@ -504,7 +383,8 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
                     className="p-4 hover:shadow-lg transition-all group"
                   >
                     {/* Preview */}
-                    {reference.type === ReferenceType.IMAGE && reference.thumbnailUrl ? (
+                    {reference.type === ReferenceType.IMAGE &&
+                    reference.thumbnailUrl ? (
                       <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-3">
                         <img
                           src={reference.thumbnailUrl}
@@ -590,7 +470,8 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
                       <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
                         <span className="flex items-center gap-1">
                           {getIconForType(reference.type)}
-                          {reference.fileSize && formatFileSize(reference.fileSize)}
+                          {reference.fileSize &&
+                            formatFileSize(reference.fileSize)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
