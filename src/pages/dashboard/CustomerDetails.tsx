@@ -131,41 +131,6 @@ interface Customer {
   updatedAt?: string;
 }
 
-// Mock projects list - in production, this would come from API
-const mockProjectsList: AssignedProject[] = [
-  {
-    id: "p1",
-    name: "Villa Renovation - HSR Layout",
-    status: "active",
-    progress: 65,
-  },
-  {
-    id: "p2",
-    name: "Modern Home - Whitefield",
-    status: "active",
-    progress: 30,
-  },
-  {
-    id: "p3",
-    name: "Office Interior - Koramangala",
-    status: "completed",
-    progress: 100,
-  },
-  {
-    id: "p4",
-    name: "Apartment Design - Indiranagar",
-    status: "on_hold",
-    progress: 45,
-  },
-  {
-    id: "p5",
-    name: "Farmhouse Project - Devanahalli",
-    status: "active",
-    progress: 15,
-  },
-  { id: "p6", name: "Retail Store - MG Road", status: "active", progress: 80 },
-];
-
 // Mock data - in production, this would come from API
 const mockCustomers: Customer[] = [
   {
@@ -359,7 +324,6 @@ export const CustomerDetails: React.FC = () => {
   const [showDateModal, setShowDateModal] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
-  const [showProjectModal, setShowProjectModal] = useState(false);
 
   // Form states
   const [familyForm, setFamilyForm] = useState({
@@ -388,7 +352,6 @@ export const CustomerDetails: React.FC = () => {
   const [noteForm, setNoteForm] = useState({
     content: "",
   });
-  const [selectedProjectId, setSelectedProjectId] = useState("");
 
   // Local customer data (in production, this would sync with backend)
   const [customerData, setCustomerData] = useState<Customer | null>(null);
@@ -1063,68 +1026,6 @@ export const CustomerDetails: React.FC = () => {
       setIsDeleting(false);
     }
   };
-
-  // Handle assign project
-  const handleAssignProject = () => {
-    if (!customer || !selectedProjectId) return;
-
-    // Check if project is already assigned
-    const isAlreadyAssigned = customer.assignedProjects?.some(
-      (p) => p.id === selectedProjectId,
-    );
-
-    if (isAlreadyAssigned) {
-      toast.error("This project is already assigned to this customer");
-      return;
-    }
-
-    const projectToAssign = mockProjectsList.find(
-      (p) => p.id === selectedProjectId,
-    );
-
-    if (!projectToAssign) return;
-
-    // Note: Project assignment is handled server-side through project management
-    // This is just updating the local UI
-    setCustomerData((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        assignedProjects: [...(prev.assignedProjects || []), projectToAssign],
-        projects: (prev.projects || 0) + 1,
-      };
-    });
-    setSelectedProjectId("");
-    setShowProjectModal(false);
-    toast.success(`Project "${projectToAssign.name}" assigned successfully!`);
-    // TODO: Call backend API to assign project when endpoint is available
-  };
-
-  // Handle remove project
-  const handleRemoveProject = (projectId: string) => {
-    if (!customer) return;
-
-    // Note: Project removal is handled server-side through project management
-    // This is just updating the local UI
-    setCustomerData((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        assignedProjects: prev.assignedProjects?.filter(
-          (p) => p.id !== projectId,
-        ),
-        projects: Math.max((prev.projects || 0) - 1, 0),
-      };
-    });
-    toast.success("Project removed from customer");
-    // TODO: Call backend API to unassign project when endpoint is available
-  };
-
-  // Get available projects (not already assigned)
-  // Note: For now, we show all projects that could potentially be assigned
-  const availableProjects = mockProjectsList.filter(
-    (p) => !customerProjects?.some((cp) => cp.id === p.id),
-  );
 
   // Find customer by ID
   // const customer = mockCustomers.find((c) => c.id === Number(customerId));
@@ -2447,91 +2348,11 @@ export const CustomerDetails: React.FC = () => {
           {/* Projects Tab */}
           {activeTab === "projects" && (
             <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-5">
+              <div className="mb-5">
                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
                   Assigned Projects
                 </h3>
-                <div className="flex items-center gap-2">
-                  {editingTab === "projects" && (
-                    <button
-                      onClick={() => setShowProjectModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Assign
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      if (editingTab === "projects") {
-                        setEditingTab(null);
-                        toast.success("Changes saved!");
-                      } else {
-                        setEditingTab("projects");
-                      }
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                      editingTab === "projects"
-                        ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {editingTab === "projects" ? (
-                      <Save className="w-3 h-3" />
-                    ) : (
-                      <Edit2 className="w-3 h-3" />
-                    )}
-                    {editingTab === "projects" ? "Save" : "Edit"}
-                  </button>
-                </div>
               </div>
-
-              {/* Project Selection Dropdown (when in edit mode) */}
-              {showProjectModal && editingTab === "projects" && (
-                <div className="mb-6 p-4 bg-orange-50 rounded-xl border border-orange-200">
-                  <h4 className="font-medium text-gray-900 mb-3">
-                    Select a project to assign
-                  </h4>
-                  <div className="space-y-3">
-                    <select
-                      value={selectedProjectId}
-                      onChange={(e) => setSelectedProjectId(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    >
-                      <option value="">-- Select a Project --</option>
-                      {availableProjects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name} ({project.status})
-                        </option>
-                      ))}
-                    </select>
-                    {availableProjects.length === 0 && (
-                      <p className="text-sm text-gray-500">
-                        All projects have been assigned to this customer.
-                      </p>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        className="flex-1 bg-orange-500 hover:bg-orange-600"
-                        disabled={!selectedProjectId}
-                        onClick={handleAssignProject}
-                      >
-                        Assign
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="flex-1"
-                        onClick={() => {
-                          setShowProjectModal(false);
-                          setSelectedProjectId("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Assigned Projects List */}
               {projectsLoading ? (
@@ -2610,25 +2431,8 @@ export const CustomerDetails: React.FC = () => {
                   <p className="text-gray-500">
                     No projects found for this customer
                   </p>
-                  {editingTab === "projects" && (
-                    <Button
-                      className="mt-4 bg-orange-500 hover:bg-orange-600"
-                      onClick={() => setShowProjectModal(true)}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Assign First Project
-                    </Button>
-                  )}
                 </div>
               )}
-
-              {!editingTab &&
-                customer.assignedProjects &&
-                customer.assignedProjects.length > 0 && (
-                  <p className="text-sm text-gray-500 mt-4 text-center">
-                    Click "Edit" to manage project assignments
-                  </p>
-                )}
             </div>
           )}
         </div>

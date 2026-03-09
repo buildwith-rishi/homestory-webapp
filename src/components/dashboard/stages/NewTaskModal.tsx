@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import ReactDOM from "react-dom";
 import {
   X,
@@ -9,6 +9,7 @@ import {
   Check,
   Search,
   User,
+  Users,
 } from "lucide-react";
 import type { MatrixCategory, AdminUser } from "../../../types";
 import { adminAPI } from "../../../services/api";
@@ -49,7 +50,6 @@ const toDateInputValue = (dateStr: string): string => {
 
 // Helper to compute task date from day number
 const getTaskDate = (startDate: string, dayNum: number): string => {
-  // Handle ISO strings like "2026-02-11T00:00:00.000Z" and plain "2026-02-11"
   const dateOnly = startDate.includes("T")
     ? startDate.split("T")[0]
     : startDate;
@@ -66,6 +66,13 @@ const formatDateForDisplay = (isoDate: string): string => {
     year: "numeric",
   });
 };
+
+// Format role enum → readable label
+const formatRole = (role: string): string =>
+  role
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
 export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   matrixId,
@@ -84,9 +91,18 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
+
+  // categoryAssignees: { [categoryId]: userId }
   const [categoryAssignees, setCategoryAssignees] = useState<
     Record<string, string>
   >({});
+
+  // categoryRoles: { [categoryId]: roleName } — selected role per category
+  const [categoryRoles, setCategoryRoles] = useState<Record<string, string>>(
+    {},
+  );
+
+  // which category's member picker is open
   const [openAssigneeFor, setOpenAssigneeFor] = useState<string | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -112,7 +128,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       .catch(() => {});
   }, []);
 
-  // Close dropdown on outside click
+  // Close member picker on outside click
   useEffect(() => {
     if (!openAssigneeFor) return;
     const handler = (e: MouseEvent) => {
@@ -128,6 +144,12 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [openAssigneeFor]);
 
+  // Unique roles derived from the fetched users list
+  const uniqueRoles = useMemo(
+    () => [...new Set(users.map((u) => u.role))].sort(),
+    [users],
+  );
+
   const toggleCategory = (categoryId: string) => {
     setCategoryAssignees((prev) => {
       const next = { ...prev };
@@ -142,6 +164,20 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       }
       return next;
     });
+    // Clear role selection when deselecting a category
+    setCategoryRoles((prev) => {
+      const next = { ...prev };
+      delete next[categoryId];
+      return next;
+    });
+  };
+
+  const selectRole = (categoryId: string, role: string) => {
+    setCategoryRoles((prev) => ({ ...prev, [categoryId]: role }));
+    // Clear assigned user when role changes
+    setCategoryAssignees((prev) => ({ ...prev, [categoryId]: "" }));
+    setOpenAssigneeFor(null);
+    setAssigneeSearch("");
   };
 
   const selectAssignee = (categoryId: string, userId: string) => {
@@ -153,11 +189,17 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     setAssigneeSearch("");
   };
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.name.toLowerCase().includes(assigneeSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(assigneeSearch.toLowerCase()),
-  );
+  // Users filtered by the role selected for the currently-open category
+  const filteredUsers = useMemo(() => {
+    const role = openAssigneeFor ? categoryRoles[openAssigneeFor] : null;
+    const byRole = role ? users.filter((u) => u.role === role) : users;
+    if (!assigneeSearch.trim()) return byRole;
+    const q = assigneeSearch.toLowerCase();
+    return byRole.filter(
+      (u) =>
+        u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
+    );
+  }, [users, openAssigneeFor, categoryRoles, assigneeSearch]);
 
   const getUserInitials = (name: string) =>
     name
@@ -321,19 +363,25 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <span className="text-red-500">*</span>
             </label>
             <p className="text-xs text-gray-400 mb-3">
-              Select categories and optionally assign a team member to each
+              Select a category, choose a role, then assign a team member
             </p>
 
             <div className="space-y-2">
               {categories.map((category) => {
                 const isSelected = category.id in categoryAssignees;
+                const selectedRole = categoryRoles[category.id] || "";
                 const assignedUserId = categoryAssignees[category.id] || "";
                 const assignedUser = users.find((u) => u.id === assignedUserId);
-                const isOpen = openAssigneeFor === category.id;
+                const isMemberPickerOpen = openAssigneeFor === category.id;
+
+                // Count of members for the selected role
+                const membersInRole = selectedRole
+                  ? users.filter((u) => u.role === selectedRole)
+                  : [];
 
                 return (
                   <div key={category.id}>
-                    {/* Category row */}
+                    {/* ── Category row ── */}
                     <div
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all select-none ${
                         isSelected
@@ -342,7 +390,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                       }`}
                       onClick={() => toggleCategory(category.id)}
                     >
-                      {/* Custom checkbox */}
+                      {/* Checkbox */}
                       <div
                         className={`w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
                           isSelected
@@ -364,7 +412,8 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                           {category.name}
                         </p>
                       </div>
-                      {/* Assignee chip — shown when category is selected and user assigned */}
+
+                      {/* Assigned member chip */}
                       {isSelected && assignedUser && (
                         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200 rounded-full flex-shrink-0">
                           <div className="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
@@ -377,130 +426,198 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                           </span>
                         </div>
                       )}
-                      {/* Assign button — shown when selected but no assignee yet */}
-                      {isSelected && !assignedUser && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenAssigneeFor(isOpen ? null : category.id);
-                            setAssigneeSearch("");
-                          }}
-                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-full hover:border-orange-300 hover:text-orange-600 transition-colors flex-shrink-0"
-                        >
-                          <User className="w-3 h-3" />
-                          Assign
-                        </button>
-                      )}
-                      {/* Change assignee button — shown when assigned */}
-                      {isSelected && assignedUser && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenAssigneeFor(isOpen ? null : category.id);
-                            setAssigneeSearch("");
-                          }}
-                          className="p-1 text-gray-400 hover:text-orange-500 transition-colors flex-shrink-0"
-                          title="Change assignee"
-                        >
-                          <ChevronDown
-                            className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                          />
-                        </button>
-                      )}
                     </div>
 
-                    {/* Inline assignee picker — expands below the category row */}
-                    {isSelected && isOpen && (
+                    {/* ── Expanded section: role selector + member picker ── */}
+                    {isSelected && (
                       <div
-                        ref={dropdownRef}
-                        className="mt-1 ml-8 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+                        className="mt-1.5 ml-8 space-y-2"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {/* Search */}
-                        <div className="p-2.5 border-b border-gray-100">
-                          <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                            <input
-                              type="text"
-                              value={assigneeSearch}
+                        {/* Step 1 — Role dropdown */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Users className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                              Role
+                            </span>
+                          </div>
+                          <div className="relative flex-1">
+                            <select
+                              value={selectedRole}
                               onChange={(e) =>
-                                setAssigneeSearch(e.target.value)
+                                selectRole(category.id, e.target.value)
                               }
-                              onClick={(e) => e.stopPropagation()}
-                              placeholder="Search team members..."
-                              autoFocus
-                              className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400/30 focus:border-orange-400"
-                            />
+                              className={`w-full appearance-none pl-3 pr-8 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 transition-colors ${
+                                selectedRole
+                                  ? "border-orange-300 bg-orange-50 text-orange-800 font-medium"
+                                  : "border-gray-200 bg-white text-gray-500"
+                              }`}
+                            >
+                              <option value="">
+                                {users.length === 0
+                                  ? "Loading roles..."
+                                  : "Select a role..."}
+                              </option>
+                              {uniqueRoles.map((role) => {
+                                const count = users.filter(
+                                  (u) => u.role === role,
+                                ).length;
+                                return (
+                                  <option key={role} value={role}>
+                                    {formatRole(role)} ({count})
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                           </div>
                         </div>
 
-                        {/* "No assignee" option */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            selectAssignee(category.id, "");
-                          }}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 ${
-                            !assignedUserId ? "bg-orange-50" : ""
-                          }`}
-                        >
-                          <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                            <User className="w-3.5 h-3.5 text-gray-400" />
-                          </div>
-                          <span className="text-sm text-gray-500 italic">
-                            No assignee
-                          </span>
-                          {!assignedUserId && (
-                            <Check className="w-3.5 h-3.5 text-orange-500 ml-auto" />
-                          )}
-                        </button>
-
-                        {/* User list */}
-                        <div className="max-h-44 overflow-y-auto">
-                          {filteredUsers.length === 0 ? (
-                            <p className="px-4 py-3 text-sm text-gray-400 text-center">
-                              No users found
-                            </p>
-                          ) : (
-                            filteredUsers.map((u) => (
+                        {/* Step 2 — Member picker (only after role is selected) */}
+                        {selectedRole && (
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <User className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                Assignee
+                              </span>
+                            </div>
+                            <div
+                              className="relative flex-1"
+                              ref={isMemberPickerOpen ? dropdownRef : undefined}
+                            >
+                              {/* Trigger button */}
                               <button
-                                key={u.id}
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  selectAssignee(category.id, u.id);
+                                onClick={() => {
+                                  setOpenAssigneeFor(
+                                    isMemberPickerOpen ? null : category.id,
+                                  );
+                                  setAssigneeSearch("");
                                 }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-orange-50/60 transition-colors ${
-                                  assignedUserId === u.id ? "bg-orange-50" : ""
+                                className={`w-full flex items-center justify-between pl-3 pr-2.5 py-2 text-sm border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500/20 ${
+                                  assignedUser
+                                    ? "border-orange-300 bg-orange-50"
+                                    : "border-gray-200 bg-white hover:border-orange-300"
                                 }`}
                               >
-                                {/* Avatar */}
-                                <div
-                                  className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                                    assignedUserId === u.id
-                                      ? "bg-orange-500 text-white"
-                                      : "bg-gray-200 text-gray-600"
-                                  }`}
-                                >
-                                  {getUserInitials(u.name)}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-gray-800 truncate">
-                                    {u.name}
-                                  </p>
-                                  <p className="text-xs text-gray-400 truncate">
-                                    {u.email}
-                                  </p>
-                                </div>
-                                {assignedUserId === u.id && (
-                                  <Check className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
+                                {assignedUser ? (
+                                  <span className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                                      <span className="text-[8px] font-bold text-white">
+                                        {getUserInitials(assignedUser.name)}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium text-orange-800 truncate">
+                                      {assignedUser.name}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 italic">
+                                    Select member
+                                    {membersInRole.length > 0 &&
+                                      ` (${membersInRole.length} available)`}
+                                    …
+                                  </span>
                                 )}
+                                <ChevronDown
+                                  className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${isMemberPickerOpen ? "rotate-180" : ""}`}
+                                />
                               </button>
-                            ))
-                          )}
-                        </div>
+
+                              {/* Member picker dropdown */}
+                              {isMemberPickerOpen && (
+                                <div className="absolute z-10 top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                                  {/* Search */}
+                                  <div className="p-2 border-b border-gray-100">
+                                    <div className="relative">
+                                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                      <input
+                                        type="text"
+                                        value={assigneeSearch}
+                                        onChange={(e) =>
+                                          setAssigneeSearch(e.target.value)
+                                        }
+                                        placeholder={`Search ${formatRole(selectedRole)}s…`}
+                                        autoFocus
+                                        className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400/30 focus:border-orange-400"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* "No assignee" option */}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      selectAssignee(category.id, "")
+                                    }
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 ${
+                                      !assignedUserId ? "bg-orange-50" : ""
+                                    }`}
+                                  >
+                                    <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                      <User className="w-3.5 h-3.5 text-gray-400" />
+                                    </div>
+                                    <span className="text-sm text-gray-500 italic">
+                                      No assignee
+                                    </span>
+                                    {!assignedUserId && (
+                                      <Check className="w-3.5 h-3.5 text-orange-500 ml-auto" />
+                                    )}
+                                  </button>
+
+                                  {/* Filtered member list */}
+                                  <div className="max-h-44 overflow-y-auto">
+                                    {filteredUsers.length === 0 ? (
+                                      <p className="px-4 py-3 text-sm text-gray-400 text-center">
+                                        No{" "}
+                                        {formatRole(selectedRole).toLowerCase()}
+                                        s found
+                                      </p>
+                                    ) : (
+                                      filteredUsers.map((u) => (
+                                        <button
+                                          key={u.id}
+                                          type="button"
+                                          onClick={() =>
+                                            selectAssignee(category.id, u.id)
+                                          }
+                                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-orange-50/60 transition-colors ${
+                                            assignedUserId === u.id
+                                              ? "bg-orange-50"
+                                              : ""
+                                          }`}
+                                        >
+                                          <div
+                                            className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                                              assignedUserId === u.id
+                                                ? "bg-orange-500 text-white"
+                                                : "bg-gray-200 text-gray-600"
+                                            }`}
+                                          >
+                                            {getUserInitials(u.name)}
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium text-gray-800 truncate">
+                                              {u.name}
+                                            </p>
+                                            <p className="text-xs text-gray-400 truncate">
+                                              {u.email}
+                                            </p>
+                                          </div>
+                                          {assignedUserId === u.id && (
+                                            <Check className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
+                                          )}
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -38,6 +38,7 @@ import {
 } from "../../components/dashboard/ScheduleMeetingModal";
 import { listLeads } from "../../services/leadApi";
 import { listProjects } from "../../services/projectApi";
+import * as meetingAPI from "../../services/meetingApi";
 import type { Lead, Project } from "../../types";
 
 type MeetingDisplayStatus =
@@ -347,7 +348,21 @@ export const MeetingsPage: React.FC = () => {
         leadId: selectedProject?.id, // Link to selected project if available
       };
 
-      await createMeeting(meetingData);
+      const newMeeting = await createMeeting(meetingData);
+
+      // Add selected team members as participants
+      if (
+        newMeeting?.id &&
+        formData.teamMemberIds &&
+        formData.teamMemberIds.length > 0
+      ) {
+        await Promise.allSettled(
+          formData.teamMemberIds.map((userId) =>
+            meetingAPI.addParticipant(newMeeting.id, { userId }),
+          ),
+        );
+      }
+
       // Refresh meetings list after creation
       await fetchMeetings();
       setShowScheduleModal(false);

@@ -740,7 +740,8 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
                       {completingId === activity.id && (
                         <div className="mt-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200 space-y-2">
                           <label className="text-xs font-medium text-emerald-700">
-                            Completion Notes (optional)
+                            Completion Notes{" "}
+                            <span className="text-red-500">*</span>
                           </label>
                           <textarea
                             value={completionNotes}
@@ -752,8 +753,9 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
                           <div className="flex items-center gap-2">
                             <Button
                               size="sm"
+                              disabled={!completionNotes.trim()}
                               onClick={() => handleConfirmComplete(activity.id)}
-                              className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                              className="bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                               Mark Complete

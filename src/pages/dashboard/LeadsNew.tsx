@@ -482,7 +482,6 @@ export const LeadModal: React.FC<{
                   </select>
                 </div>
 
-                
                 {/* Score */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -493,8 +492,11 @@ export const LeadModal: React.FC<{
                     type="number"
                     min={0}
                     max={100}
-                    value={formData.score ?? 0}
-                    onChange={(e) => f("score", parseInt(e.target.value) || 0)}
+                    value={formData.score ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      f("score", raw === "" ? undefined : parseInt(raw, 10));
+                    }}
                     className={inputClass()}
                   />
                 </div>

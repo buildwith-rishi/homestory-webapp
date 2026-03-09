@@ -58,10 +58,7 @@ import toast from "react-hot-toast";
 import { getSourceLabel } from "../../utils/leadHelpers";
 import { LeadReferencesManager } from "../../components/leads";
 import { LeadReference } from "../../types";
-import {
-  listAttachments,
-  Attachment,
-} from "../../services/attachmentApi";
+import { listAttachments, Attachment } from "../../services/attachmentApi";
 
 const LeadDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -122,7 +119,9 @@ const LeadDetails: React.FC = () => {
     const fetchUsers = async () => {
       try {
         const response = await adminAPI.getAllUsers();
-        const usersArray = Array.isArray(response) ? response : (response as any)?.users || [];
+        const usersArray = Array.isArray(response)
+          ? response
+          : (response as any)?.users || [];
         const seen = new Set<string>();
         const unique: AdminUser[] = [];
         for (const u of usersArray) {
@@ -355,10 +354,10 @@ const LeadDetails: React.FC = () => {
   const handleEditSave = async (updatedData: Omit<APILead, "id">) => {
     const leadId = lead?.id || id;
     if (!leadId) throw new Error("No lead ID found");
-    const updated = await updateLead(leadId, updatedData);
-    setLead({ ...lead!, ...updated });
+    await updateLead(leadId, updatedData);
     setShowEditModal(false);
     toast.success("Lead updated successfully");
+    fetchLeadDetails();
   };
 
   const handleDeleteLead = async () => {
@@ -923,8 +922,7 @@ const LeadDetails: React.FC = () => {
                             }`}
                           >
                             <MessageCircle className="w-3 h-3" />
-                            WhatsApp:{" "}
-                            {lead.canWhatsApp ? "Yes" : "No"}
+                            WhatsApp: {lead.canWhatsApp ? "Yes" : "No"}
                           </span>
                         )}
                         {lead.wantsExperienceCenterVisit !== undefined && (
@@ -955,8 +953,7 @@ const LeadDetails: React.FC = () => {
               lead.budgetRange ||
               lead.timeline ||
               (lead.scopeOfWork && lead.scopeOfWork.length > 0) ||
-              (lead.servicesInterested &&
-                lead.servicesInterested.length > 0) ||
+              (lead.servicesInterested && lead.servicesInterested.length > 0) ||
               lead.serviceInterest ||
               lead.homeType ||
               lead.projectType ||
@@ -1087,9 +1084,7 @@ const LeadDetails: React.FC = () => {
                   )}
 
                   {/* Budget */}
-                  {(lead.budgetComfort ||
-                    lead.budgetRange ||
-                    lead.budget) && (
+                  {(lead.budgetComfort || lead.budgetRange || lead.budget) && (
                     <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
                       <IndianRupee className="w-5 h-5 text-green-600" />
                       <div>
@@ -1107,8 +1102,7 @@ const LeadDetails: React.FC = () => {
 
                   {/* Project Scope */}
                   {(lead.projectScope ||
-                    (lead.scopeOfWork &&
-                      lead.scopeOfWork.length > 0)) && (
+                    (lead.scopeOfWork && lead.scopeOfWork.length > 0)) && (
                     <div>
                       <p className="text-xs font-semibold text-gray-600 mb-2">
                         Project Scope
@@ -1382,8 +1376,6 @@ const LeadDetails: React.FC = () => {
 
           {/* Right Column - Sidebar */}
           <div className="space-y-4">
-            
-
             {/* Timeline */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">

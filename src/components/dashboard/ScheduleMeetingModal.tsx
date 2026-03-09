@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import {
   X,
@@ -11,8 +11,11 @@ import {
   FileText,
   Copy,
   Check,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 import { Button, Input } from "../ui";
+import { getAllTeamMembers, TeamMember } from "../../services/teamApi";
 
 interface ScheduleMeetingModalProps {
   isOpen: boolean;
@@ -31,6 +34,7 @@ export interface MeetingFormData {
   meetingLink?: string;
   notes?: string;
   attendees?: string[];
+  teamMemberIds: string[];
 }
 
 export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
@@ -48,6 +52,7 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
     location: "",
     notes: "",
     attendees: [],
+    teamMemberIds: [],
   });
 
   const [errors, setErrors] = useState<
@@ -55,6 +60,39 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
   >({});
   const [meetingLink, setMeetingLink] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // Team member dropdown state
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [memberSearch, setMemberSearch] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch team members when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    setTeamMembersLoading(true);
+    getAllTeamMembers()
+      .then((members) =>
+        setTeamMembers(members.filter((m) => m.isActive !== false)),
+      )
+      .catch(() => setTeamMembers([]))
+      .finally(() => setTeamMembersLoading(false));
+  }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const generateMeetingLink = () => {
     const randomId = Math.random().toString(36).substring(2, 15);
@@ -79,6 +117,21 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: "" }));
     }
+  };
+
+  const toggleTeamMember = (memberId: string) => {
+    const current = formData.teamMemberIds;
+    const updated = current.includes(memberId)
+      ? current.filter((id) => id !== memberId)
+      : [...current, memberId];
+    setFormData((prev) => ({ ...prev, teamMemberIds: updated }));
+  };
+
+  const removeMember = (memberId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      teamMemberIds: prev.teamMemberIds.filter((id) => id !== memberId),
+    }));
   };
 
   const validate = (): boolean => {
@@ -113,9 +166,12 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
         location: "",
         notes: "",
         attendees: [],
+        teamMemberIds: [],
       });
       setMeetingLink("");
       setErrors({});
+      setMemberSearch("");
+      setDropdownOpen(false);
       onClose();
     }
   };
@@ -148,7 +204,18 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
 
   const durations = ["15", "30", "45", "60", "90", "120"];
 
-  if (!isOpen) return null;
+  const filteredMembers = teamMembers.filter((m) => {
+    const q = memberSearch.toLowerCase();
+    return (
+      m.name.toLowerCase().includes(q) ||
+      m.role.toLowerCase().includes(q) ||
+      m.department?.toLowerCase().includes(q)
+    );
+  });
+
+  const selectedMembers = teamMembers.filter((m) =>
+    formData.teamMemberIds.includes(m.id),
+  );
 
   const modalContent = (
     <>
@@ -248,6 +315,121 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
                 />
                 {errors.client && (
                   <p className="text-red-500 text-xs mt-1">{errors.client}</p>
+                )}
+              </div>
+
+              {/* Team Members */}
+              <div ref={dropdownRef}>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Team Members (Optional)
+                  </div>
+                </label>
+
+                {/* Selected member chips */}
+                {selectedMembers.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {selectedMembers.map((m) => (
+                      <span
+                        key={m.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded-lg font-medium"
+                      >
+                        {m.name}
+                        <button
+                          type="button"
+                          onClick={() => removeMember(m.id)}
+                          className="hover:text-orange-900 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Dropdown trigger */}
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen((o) => !o)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:border-orange-400 hover:bg-orange-50/30 transition-all focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <span className="text-gray-500">
+                    {teamMembersLoading
+                      ? "Loading team members..."
+                      : "Select team members..."}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {/* Dropdown panel */}
+                {dropdownOpen && (
+                  <div className="mt-1 border border-gray-200 rounded-xl shadow-lg bg-white z-10 relative overflow-hidden">
+                    {/* Search */}
+                    <div className="p-2 border-b border-gray-100">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                        <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <input
+                          type="text"
+                          value={memberSearch}
+                          onChange={(e) => setMemberSearch(e.target.value)}
+                          placeholder="Search by name or role..."
+                          className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
+                    {/* Member list */}
+                    <div className="max-h-48 overflow-y-auto">
+                      {filteredMembers.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-4">
+                          No team members found
+                        </p>
+                      ) : (
+                        filteredMembers.map((member) => {
+                          const isSelected = formData.teamMemberIds.includes(
+                            member.id,
+                          );
+                          return (
+                            <button
+                              key={member.id}
+                              type="button"
+                              onClick={() => toggleTeamMember(member.id)}
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-orange-50 transition-colors ${
+                                isSelected ? "bg-orange-50" : ""
+                              }`}
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                {member.name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .substring(0, 2)
+                                  .toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {member.name}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {member.role}
+                                  {member.department
+                                    ? ` · ${member.department}`
+                                    : ""}
+                                </p>
+                              </div>
+                              {isSelected && (
+                                <Check className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 

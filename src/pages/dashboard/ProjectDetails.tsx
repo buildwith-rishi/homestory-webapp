@@ -1759,23 +1759,12 @@ export const ProjectDetails: React.FC = () => {
                     />
                   )}
 
-                  {/* Linked Account / Client */}
-                  {project.account && (
-                    <TeamMember
-                      name={project.account.name || "Unknown Account"}
-                      role="Client / Account"
-                      email={project.account.email || undefined}
-                      phone={project.account.phone || undefined}
-                    />
-                  )}
-
                   {/* Empty state */}
                   {!project.assignedDesigner &&
                     !project.assignedPM &&
                     !(project.designTeam || []).filter(Boolean).length &&
                     !(project.executionTeam || []).filter(Boolean).length &&
-                    !project.siteContactName &&
-                    !project.account && (
+                    !project.siteContactName && (
                       <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-xl">
                         <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                         <p className="text-sm text-gray-500">
@@ -2590,6 +2579,7 @@ export const ProjectDetails: React.FC = () => {
                           status: "PENDING",
                         }));
                         setShowAddPaymentModal(true);
+                        if (projectId) fetchProjectStages(projectId);
                       }}
                       className={`text-white text-sm px-4 py-2 ${
                         paymentPhaseTab === "DESIGN"
@@ -2739,71 +2729,53 @@ export const ProjectDetails: React.FC = () => {
                   />
                 </div>
 
-                {/* Phase Type + Stage Code row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phase Type *
-                    </label>
-                    <select
-                      value={newPaymentForm.phaseType}
-                      onChange={(e) => {
-                        const phase = e.target.value;
-                        const nextStage =
-                          projectPayments.filter((p) => p.phaseType === phase)
-                            .length + 1;
-                        setNewPaymentForm({
-                          ...newPaymentForm,
-                          phaseType: phase,
-                          stageCode: "",
-                          paymentStage: nextStage,
-                        });
-                      }}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
-                    >
-                      <option value="DESIGN">Design</option>
-                      <option value="EXECUTION">Execution</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Project Stage
-                      <span className="text-gray-400 font-normal ml-1">
-                        (optional)
-                      </span>
-                    </label>
-                    <select
-                      value={newPaymentForm.stageCode}
-                      onChange={(e) => {
-                        const code = e.target.value;
-                        const matched = projectStages.find(
-                          (s) => s.stageCode === code,
-                        );
-                        setNewPaymentForm({
-                          ...newPaymentForm,
-                          stageCode: code,
-                          projectStageId: matched ? matched.id : "",
-                          ...(matched
-                            ? {
-                                phaseType: matched.phaseType,
-                                paymentStage:
-                                  projectPayments.filter(
-                                    (p) => p.phaseType === matched.phaseType,
-                                  ).length + 1,
-                              }
-                            : {}),
-                        });
-                      }}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
-                    >
-                      <option value="">— None —</option>
-                      {projectStages.map((stage) => (
-                        <option key={stage.id} value={stage.stageCode}>
-                          {stage.stageName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Stage Code */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Project Stage
+                    <span className="text-gray-400 font-normal ml-1">
+                      (optional)
+                    </span>
+                  </label>
+                  <select
+                    value={newPaymentForm.stageCode}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      const matched = projectStages.find(
+                        (s) => s.stageCode === code,
+                      );
+                      setNewPaymentForm({
+                        ...newPaymentForm,
+                        stageCode: code,
+                        projectStageId: matched ? matched.id : "",
+                        ...(matched
+                          ? {
+                              phaseType: matched.phaseType,
+                              paymentStage:
+                                projectPayments.filter(
+                                  (p) => p.phaseType === matched.phaseType,
+                                ).length + 1,
+                            }
+                          : {}),
+                      });
+                    }}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                  >
+                    {projectStages.length === 0 ? (
+                      <option value="" disabled>
+                        Loading stages…
+                      </option>
+                    ) : (
+                      <>
+                        <option value="">— Select a Stage —</option>
+                        {projectStages.map((stage) => (
+                          <option key={stage.id} value={stage.stageCode}>
+                            {stage.stageName}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
                 </div>
 
                 {/* Payment Stage + Percentage row */}

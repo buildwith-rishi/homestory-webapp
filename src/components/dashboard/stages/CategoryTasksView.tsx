@@ -374,7 +374,8 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
                         {completionDialog?.taskId === task.id && (
                           <div className="px-2 pb-3 pt-2 bg-green-50 border-t border-green-100">
                             <p className="text-[11px] font-semibold text-green-700 mb-1.5">
-                              Completion notes (optional)
+                              Completion Notes{" "}
+                              <span className="text-red-500">*</span>
                             </p>
                             <div className="flex gap-2">
                               <input
@@ -388,16 +389,18 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
                                   })
                                 }
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
+                                  if (
+                                    e.key === "Enter" &&
+                                    completionDialog.notes.trim()
+                                  ) {
                                     onStatusChange(
                                       task.id,
                                       "COMPLETED",
-                                      completionDialog.notes || undefined,
+                                      completionDialog.notes,
                                     );
                                     setCompletionDialog(null);
                                   }
                                   if (e.key === "Escape") {
-                                    onStatusChange(task.id, "COMPLETED");
                                     setCompletionDialog(null);
                                   }
                                 }}
@@ -406,27 +409,31 @@ export const CategoryTasksView: React.FC<CategoryTasksViewProps> = ({
                               />
                               <button
                                 type="button"
+                                disabled={!completionDialog.notes.trim()}
                                 onClick={() => {
                                   onStatusChange(
                                     task.id,
                                     "COMPLETED",
-                                    completionDialog.notes || undefined,
+                                    completionDialog.notes,
                                   );
                                   setCompletionDialog(null);
                                 }}
-                                className="text-xs px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-md font-medium transition-colors"
+                                className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                                  completionDialog.notes.trim()
+                                    ? "bg-green-500 hover:bg-green-600 text-white"
+                                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                }`}
                               >
                                 Done
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  onStatusChange(task.id, "COMPLETED");
                                   setCompletionDialog(null);
                                 }}
                                 className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md font-medium transition-colors"
                               >
-                                Skip
+                                Cancel
                               </button>
                             </div>
                           </div>

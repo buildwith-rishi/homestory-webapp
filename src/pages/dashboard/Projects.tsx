@@ -580,7 +580,8 @@ export const ProjectsPage: React.FC = () => {
             const team = getTeamMembers(project);
             const displayName =
               project.projectName || project.name || "Untitled";
-            const clientName = project.lead?.name || "\u2014";
+            const clientName =
+              project.lead?.name || project.account?.name || "\u2014";
 
             return (
               <Card
@@ -730,7 +731,8 @@ export const ProjectsPage: React.FC = () => {
                   const propertyTypeInfo = getPropertyTypeDisplay(project);
                   const displayName =
                     project.projectName || project.name || "Untitled";
-                  const clientName = project.lead?.name || "\u2014";
+                  const clientName =
+                    project.lead?.name || project.account?.name || "\u2014";
 
                   return (
                     <tr

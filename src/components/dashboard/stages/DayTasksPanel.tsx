@@ -17,12 +17,14 @@ import {
   User,
 } from "lucide-react";
 import { Card, Button } from "../../ui";
-import type { MatrixTask, MatrixCategory } from "../../../types";
+import type { MatrixTask, MatrixCategory, AdminUser } from "../../../types";
 import {
   getMatrixDayTasks,
   getCategoryTasks,
   getProjectById,
 } from "../../../services/projectApi";
+import { adminAPI } from "../../../services/api";
+import { getAllTeamMembers, TeamMember } from "../../../services/teamApi";
 import { sendEmail } from "../../../services/emailSendApi";
 import { RichTextEditor } from "./RichTextEditor";
 import { NewTaskModal } from "./NewTaskModal";
@@ -136,6 +138,8 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [completionDialog, setCompletionDialog] = useState<{
     taskId: string;
     notes: string;
@@ -186,6 +190,24 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   useEffect(() => {
     fetchDayTasks();
   }, [fetchDayTasks]);
+
+  // Fetch users and team members once so we can resolve assignee names by ID
+  useEffect(() => {
+    adminAPI
+      .getAllUsers()
+      .then((res: unknown) => {
+        if (Array.isArray(res)) setUsers(res as AdminUser[]);
+        else if (Array.isArray((res as { users: AdminUser[] }).users))
+          setUsers((res as { users: AdminUser[] }).users);
+      })
+      .catch(() => {
+        /* non-critical — assignee names just won't resolve */
+      });
+
+    getAllTeamMembers()
+      .then((members) => setTeamMembers(members))
+      .catch(() => {});
+  }, []);
 
   // Auto-uncheck tasks that are no longer COMPLETED
   useEffect(() => {
@@ -385,6 +407,38 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     return assignedId === user.id;
   };
 
+  /** Resolve the display name for a task's assignee. */
+  const getAssigneeName = (task: MatrixTask): string | null => {
+    // 1. Prefer the nested object the API may return directly
+    if (task.assignedTo?.name) return task.assignedTo.name;
+
+    // 2. Collect every possible ID field the backend/API might use
+    //    MatrixTask type uses assignedToId but Prisma FK may be assignedToUserId
+    const t = task as unknown as Record<string, unknown>;
+    const id =
+      task.assignedToId ||
+      (t.assignedToUserId as string | undefined) ||
+      (t.assigned_to_user_id as string | undefined) ||
+      (t.assignedTo as Record<string, string> | null)?.id ||
+      null;
+
+    if (!id) return null;
+
+    // 3. User table lookup  (assignedToUserId path)
+    const byUser = users.find((u) => u.id === id);
+    if (byUser?.name) return byUser.name;
+
+    // 4. TeamMember table lookup by PK  (assignedToMemberId path)
+    const byMemberId = teamMembers.find((m) => m.id === id);
+    if (byMemberId?.name) return byMemberId.name;
+
+    // 5. TeamMember table lookup via User FK
+    const byMemberUserId = teamMembers.find((m) => m.userId === id);
+    if (byMemberUserId?.name) return byMemberUserId.name;
+
+    return null;
+  };
+
   // Group by category
   const tasksByCategory: Record<string, MatrixTask[]> = {};
   for (const task of filteredTasks) {
@@ -577,6 +631,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                     const cfg =
                       taskStatusConfig[task.status] || taskStatusConfig.PENDING;
                     const isUpdating = updatingTaskId === task.id;
+                    const assigneeName = getAssigneeName(task);
 
                     return (
                       <div key={task.id} className="rounded-lg overflow-hidden">
@@ -631,6 +686,13 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                                 </span>
                               )}
                             </div>
+                            {/* Assigned team member name */}
+                            {assigneeName && (
+                              <p className="inline-flex items-center gap-1 text-[11px] font-medium text-orange-600 bg-orange-50 border border-orange-100 rounded-md px-1.5 py-0.5 mt-0.5">
+                                <User className="w-2.5 h-2.5 flex-shrink-0" />
+                                {assigneeName}
+                              </p>
+                            )}
                             {task.description && (
                               <p className="text-xs text-gray-400 truncate mt-0.5">
                                 {task.description}
@@ -727,7 +789,8 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                         {completionDialog?.taskId === task.id && (
                           <div className="px-3 pb-3 pt-2 bg-green-50 border-t border-green-100">
                             <p className="text-[11px] font-semibold text-green-700 mb-1.5">
-                              Completion notes (optional)
+                              Completion Notes{" "}
+                              <span className="text-red-500">*</span>
                             </p>
                             <div className="flex gap-2">
                               <input
@@ -741,16 +804,18 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                                   })
                                 }
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
+                                  if (
+                                    e.key === "Enter" &&
+                                    completionDialog.notes.trim()
+                                  ) {
                                     onStatusChange(
                                       task.id,
                                       "COMPLETED",
-                                      completionDialog.notes || undefined,
+                                      completionDialog.notes,
                                     );
                                     setCompletionDialog(null);
                                   }
                                   if (e.key === "Escape") {
-                                    onStatusChange(task.id, "COMPLETED");
                                     setCompletionDialog(null);
                                   }
                                 }}
@@ -759,27 +824,31 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                               />
                               <button
                                 type="button"
+                                disabled={!completionDialog.notes.trim()}
                                 onClick={() => {
                                   onStatusChange(
                                     task.id,
                                     "COMPLETED",
-                                    completionDialog.notes || undefined,
+                                    completionDialog.notes,
                                   );
                                   setCompletionDialog(null);
                                 }}
-                                className="text-xs px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-md font-medium transition-colors"
+                                className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                                  completionDialog.notes.trim()
+                                    ? "bg-green-500 hover:bg-green-600 text-white"
+                                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                }`}
                               >
                                 Done
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  onStatusChange(task.id, "COMPLETED");
                                   setCompletionDialog(null);
                                 }}
                                 className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md font-medium transition-colors"
                               >
-                                Skip
+                                Cancel
                               </button>
                             </div>
                           </div>
