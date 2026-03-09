@@ -74,13 +74,18 @@ const MonthlyTrendWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
   const avgRevenue = data.length > 0 ? totalRevenue / data.length : 0;
   const lastWeekRevenue = data.slice(-7).reduce((sum, d) => sum + d.revenue, 0);
-  const prevWeekRevenue = data.slice(-14, -7).reduce((sum, d) => sum + d.revenue, 0);
+  const prevWeekRevenue = data
+    .slice(-14, -7)
+    .reduce((sum, d) => sum + d.revenue, 0);
   const weekGrowth =
     prevWeekRevenue > 0
       ? ((lastWeekRevenue - prevWeekRevenue) / prevWeekRevenue) * 100
       : 0;
   const maxDay = Math.max(...data.map((d) => d.revenue), 0);
-  const minDay = Math.min(...data.filter((d) => d.revenue > 0).map((d) => d.revenue), 0);
+  const minDay = Math.min(
+    ...data.filter((d) => d.revenue > 0).map((d) => d.revenue),
+    0,
+  );
 
   interface TooltipProps {
     active?: boolean;

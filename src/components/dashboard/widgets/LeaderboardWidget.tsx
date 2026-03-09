@@ -114,66 +114,68 @@ const LeaderboardWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           <div className="flex items-center justify-center py-8 text-gray-400 text-sm">
             No team data available
           </div>
-        ) : teamMembers.map((member, index) => {
-          const rank = index + 1;
-          const barPct = Math.round(
-            (member.revenueGenerated / maxRevenue) * 100,
-          );
-          return (
-            <motion.div
-              key={member.id}
-              initial={{ opacity: 0, x: -16 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.07, duration: 0.3 }}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
-                rank === 1
-                  ? "bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200"
-                  : "hover:bg-gray-50"
-              }`}
-            >
-              {/* Rank */}
-              <div className="w-6 flex items-center justify-center flex-shrink-0">
-                {getRankLabel(rank)}
-              </div>
-
-              {/* Avatar */}
-              <div
-                className={`w-9 h-9 rounded-full bg-gradient-to-br ${
-                  AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]
-                } flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm`}
+        ) : (
+          teamMembers.map((member, index) => {
+            const rank = index + 1;
+            const barPct = Math.round(
+              (member.revenueGenerated / maxRevenue) * 100,
+            );
+            return (
+              <motion.div
+                key={member.id}
+                initial={{ opacity: 0, x: -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.07, duration: 0.3 }}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                  rank === 1
+                    ? "bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200"
+                    : "hover:bg-gray-50"
+                }`}
               >
-                {member.avatar}
-              </div>
-
-              {/* Info + Bar */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate mb-1">
-                  {member.name}
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${barPct}%` }}
-                      transition={{
-                        delay: index * 0.07 + 0.2,
-                        duration: 0.5,
-                        ease: "easeOut",
-                      }}
-                      className={`h-full rounded-full bg-gradient-to-r ${
-                        AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]
-                      }`}
-                    />
-                  </div>
-                  <span className="text-[11px] text-gray-500 font-medium flex-shrink-0">
-                    {member.projectCount}p · ₹
-                    {(member.revenueGenerated / 100000).toFixed(1)}L
-                  </span>
+                {/* Rank */}
+                <div className="w-6 flex items-center justify-center flex-shrink-0">
+                  {getRankLabel(rank)}
                 </div>
-              </div>
-            </motion.div>
-          );
-        })}
+
+                {/* Avatar */}
+                <div
+                  className={`w-9 h-9 rounded-full bg-gradient-to-br ${
+                    AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]
+                  } flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm`}
+                >
+                  {member.avatar}
+                </div>
+
+                {/* Info + Bar */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate mb-1">
+                    {member.name}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${barPct}%` }}
+                        transition={{
+                          delay: index * 0.07 + 0.2,
+                          duration: 0.5,
+                          ease: "easeOut",
+                        }}
+                        className={`h-full rounded-full bg-gradient-to-r ${
+                          AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]
+                        }`}
+                      />
+                    </div>
+                    <span className="text-[11px] text-gray-500 font-medium flex-shrink-0">
+                      {member.projectCount}p · ₹
+                      {(member.revenueGenerated / 100000).toFixed(1)}L
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })
+        )}
       </div>
     </div>
   );

@@ -48,8 +48,7 @@ const StaleDealsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           ? parseISO(p.updatedAt)
           : new Date(p.createdAt);
         const days = differenceInDays(today, updated);
-        const company =
-          p.account?.name || p.lead?.name || "Unknown";
+        const company = p.account?.name || p.lead?.name || "Unknown";
         const value =
           typeof p.totalValue === "string"
             ? parseFloat(p.totalValue) || 0
@@ -159,57 +158,61 @@ const StaleDealsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
               <TrendingDown className="w-5 h-5 text-green-600" />
             </div>
             <p className="text-sm font-medium text-gray-700">No stale deals</p>
-            <p className="text-xs text-gray-400 mt-1">All projects are moving forward!</p>
+            <p className="text-xs text-gray-400 mt-1">
+              All projects are moving forward!
+            </p>
           </div>
-        ) : staleDeals.map((deal, index) => {
-          const urgency = getUrgencyConfig(deal.daysStuck);
-          const stageStyle = STAGE_COLORS[deal.stage] || STAGE_COLORS.default;
-          return (
-            <motion.div
-              key={deal.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.08 }}
-              onClick={() => navigate(`/dashboard/projects/${deal.id}`)}
-              className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group/item"
-            >
-              {/* Days Badge */}
-              <div
-                className={`w-11 h-11 rounded-xl ${urgency.bg} flex flex-col items-center justify-center flex-shrink-0 shadow-sm`}
+        ) : (
+          staleDeals.map((deal, index) => {
+            const urgency = getUrgencyConfig(deal.daysStuck);
+            const stageStyle = STAGE_COLORS[deal.stage] || STAGE_COLORS.default;
+            return (
+              <motion.div
+                key={deal.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.08 }}
+                onClick={() => navigate(`/dashboard/projects/${deal.id}`)}
+                className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group/item"
               >
-                <span className="text-sm font-extrabold text-white leading-none">
-                  {deal.daysStuck}
-                </span>
-                <span className="text-[9px] text-white/80 font-medium">
-                  days
-                </span>
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate group-hover/item:text-orange-600 transition-colors">
-                  {deal.name}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-xs text-gray-500 truncate">
-                    {deal.company}
+                {/* Days Badge */}
+                <div
+                  className={`w-11 h-11 rounded-xl ${urgency.bg} flex flex-col items-center justify-center flex-shrink-0 shadow-sm`}
+                >
+                  <span className="text-sm font-extrabold text-white leading-none">
+                    {deal.daysStuck}
                   </span>
-                  <span className="text-gray-300">•</span>
-                  <span className="text-xs font-bold text-gray-800">
-                    ₹{(deal.value / 100000).toFixed(1)}L
+                  <span className="text-[9px] text-white/80 font-medium">
+                    days
                   </span>
                 </div>
-              </div>
 
-              {/* Stage */}
-              <span
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${stageStyle.bg} ${stageStyle.text}`}
-              >
-                {deal.stage}
-              </span>
-            </motion.div>
-          );
-        })}
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate group-hover/item:text-orange-600 transition-colors">
+                    {deal.name}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-xs text-gray-500 truncate">
+                      {deal.company}
+                    </span>
+                    <span className="text-gray-300">•</span>
+                    <span className="text-xs font-bold text-gray-800">
+                      ₹{(deal.value / 100000).toFixed(1)}L
+                    </span>
+                  </div>
+                </div>
+
+                {/* Stage */}
+                <span
+                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${stageStyle.bg} ${stageStyle.text}`}
+                >
+                  {deal.stage}
+                </span>
+              </motion.div>
+            );
+          })
+        )}
       </div>
 
       {/* Footer */}

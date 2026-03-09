@@ -33,12 +33,17 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
       }
     };
     fetch();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const hotLeads = useMemo(() => {
     return allLeads
-      .filter((l) => (l.score !== undefined && l.score >= 70) || (l.priority === "high"))
+      .filter(
+        (l) =>
+          (l.score !== undefined && l.score >= 70) || l.priority === "high",
+      )
       .sort((a, b) => (b.score || 0) - (a.score || 0))
       .slice(0, 4);
   }, [allLeads]);
@@ -111,7 +116,12 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
               >
                 {/* Avatar */}
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                  {(lead.name || "?").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                  {(lead.name || "?")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
                 </div>
 
                 {/* Info */}
@@ -123,8 +133,13 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
                     <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />
                   </div>
                   <p className="text-xs text-gray-500 truncate">
-                    {lead.propertyType || lead.projectType || lead.source || "—"}
-                    {lead.budget ? ` • ₹${(parseFloat(lead.budget) / 100000).toFixed(1)}L` : ""}
+                    {lead.propertyType ||
+                      lead.projectType ||
+                      lead.source ||
+                      "—"}
+                    {lead.budget
+                      ? ` • ₹${(parseFloat(lead.budget) / 100000).toFixed(1)}L`
+                      : ""}
                   </p>
                 </div>
 
@@ -132,7 +147,9 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
                 <div
                   className={`px-2 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${getScoreColor(lead.score || 0)}`}
                 >
-                  {lead.score !== undefined ? `${lead.score}%` : lead.priority || "—"}
+                  {lead.score !== undefined
+                    ? `${lead.score}%`
+                    : lead.priority || "—"}
                 </div>
               </motion.div>
             ))}

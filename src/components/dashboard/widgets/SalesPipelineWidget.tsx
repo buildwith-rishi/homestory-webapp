@@ -83,7 +83,9 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
       }
     };
     fetchAll();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const stages: FunnelStage[] = useMemo(() => {
@@ -95,12 +97,17 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
       return { ...cfg, count };
     });
     const maxCount = counts[0]?.count || 1;
-    return counts.map((s) => ({ ...s, name: s.label, percentage: maxCount > 0 ? Math.round((s.count / maxCount) * 100) : 0 }));
+    return counts.map((s) => ({
+      ...s,
+      name: s.label,
+      percentage: maxCount > 0 ? Math.round((s.count / maxCount) * 100) : 0,
+    }));
   }, [leads]);
 
-  const conversionRate = stages[0]?.count > 0
-    ? Math.round(((stages[4]?.count || 0) / stages[0].count) * 100)
-    : 0;
+  const conversionRate =
+    stages[0]?.count > 0
+      ? Math.round(((stages[4]?.count || 0) / stages[0].count) * 100)
+      : 0;
   const totalLeads = leads.length;
 
   return (
@@ -124,7 +131,9 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
             <h3 className="font-bold text-gray-900 text-sm">Sales Pipeline</h3>
             <p className="text-xs text-gray-400 font-medium">Funnel Overview</p>
           </div>
-          {loading && <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />}
+          {loading && (
+            <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+          )}
         </div>
       </div>
 

@@ -5,10 +5,22 @@ import { WidgetProps } from "./index";
 import { listLeads, Lead } from "../../../services/leadApi";
 
 const SOURCE_CONFIG: Array<{ label: string; keys: string[]; color: string }> = [
-  { label: "Website",      keys: ["WEBSITE", "WEB", "ONLINE"],              color: "#DC5800" },
-  { label: "Referrals",    keys: ["REFERRAL", "REFERRALS", "REFERENCE"],    color: "#F59E0B" },
-  { label: "Social Media", keys: ["SOCIAL_MEDIA", "SOCIAL", "INSTAGRAM", "FACEBOOK", "LINKEDIN"], color: "#10B981" },
-  { label: "Direct",       keys: ["DIRECT", "WALK_IN", "COLD_CALL"],        color: "#3B82F6" },
+  { label: "Website", keys: ["WEBSITE", "WEB", "ONLINE"], color: "#DC5800" },
+  {
+    label: "Referrals",
+    keys: ["REFERRAL", "REFERRALS", "REFERENCE"],
+    color: "#F59E0B",
+  },
+  {
+    label: "Social Media",
+    keys: ["SOCIAL_MEDIA", "SOCIAL", "INSTAGRAM", "FACEBOOK", "LINKEDIN"],
+    color: "#10B981",
+  },
+  {
+    label: "Direct",
+    keys: ["DIRECT", "WALK_IN", "COLD_CALL"],
+    color: "#3B82F6",
+  },
 ];
 
 const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
@@ -35,7 +47,9 @@ const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
       }
     };
     fetch();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const data = useMemo(() => {
@@ -43,16 +57,22 @@ const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
     let othersCount = 0;
     leads.forEach((l) => {
       const src = (l.source || "").toUpperCase();
-      const cfg = SOURCE_CONFIG.find((c) => c.keys.some((k) => src === k || src.includes(k)));
+      const cfg = SOURCE_CONFIG.find((c) =>
+        c.keys.some((k) => src === k || src.includes(k)),
+      );
       if (cfg) {
         counts[cfg.label] = (counts[cfg.label] || 0) + 1;
       } else {
         othersCount++;
       }
     });
-    const result = SOURCE_CONFIG.map((c) => ({ name: c.label, value: counts[c.label] || 0, color: c.color }))
-      .filter((d) => d.value > 0);
-    if (othersCount > 0) result.push({ name: "Others", value: othersCount, color: "#8B5CF6" });
+    const result = SOURCE_CONFIG.map((c) => ({
+      name: c.label,
+      value: counts[c.label] || 0,
+      color: c.color,
+    })).filter((d) => d.value > 0);
+    if (othersCount > 0)
+      result.push({ name: "Others", value: othersCount, color: "#8B5CF6" });
     return result.sort((a, b) => b.value - a.value);
   }, [leads]);
 
@@ -113,7 +133,9 @@ const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
               Distribution by channel
             </p>
           </div>
-          {loading && <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />}
+          {loading && (
+            <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+          )}
         </div>
       </div>
 
@@ -163,7 +185,8 @@ const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           {/* Legend with bars */}
           <div className="flex-1 px-5 pb-5 space-y-2">
             {data.map((entry) => {
-              const pct = total > 0 ? Math.round((entry.value / total) * 100) : 0;
+              const pct =
+                total > 0 ? Math.round((entry.value / total) * 100) : 0;
               return (
                 <div key={entry.name} className="flex items-center gap-2.5">
                   <div

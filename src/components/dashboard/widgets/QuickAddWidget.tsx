@@ -75,7 +75,9 @@ const QuickAddWidget: React.FC<WidgetProps> = ({ onRemove }) => {
         });
       } else if (activeType === "meeting") {
         const scheduledAt = formData.date
-          ? new Date(`${formData.date}T${formData.time || "09:00"}`).toISOString()
+          ? new Date(
+              `${formData.date}T${formData.time || "09:00"}`,
+            ).toISOString()
           : new Date().toISOString();
         await createMeeting({
           title: formData.name,
@@ -88,7 +90,11 @@ const QuickAddWidget: React.FC<WidgetProps> = ({ onRemove }) => {
       setFormData({ name: "", email: "", phone: "", date: "", time: "" });
       setTimeout(() => setShowSuccess(false), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }

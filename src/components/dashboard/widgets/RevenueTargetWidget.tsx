@@ -6,8 +6,12 @@ import { WidgetProps } from "./index";
 import { getAllPayments, ProjectPayment } from "../../../services/projectApi";
 
 const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const [thisMonthPayments, setThisMonthPayments] = useState<ProjectPayment[]>([]);
-  const [lastMonthPayments, setLastMonthPayments] = useState<ProjectPayment[]>([]);
+  const [thisMonthPayments, setThisMonthPayments] = useState<ProjectPayment[]>(
+    [],
+  );
+  const [lastMonthPayments, setLastMonthPayments] = useState<ProjectPayment[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,23 +39,36 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           setLastMonthPayments([]);
         }
       })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const COLLECTED_STATUSES = ["COLLECTED", "PAID"];
 
   const currentRevenue = useMemo(() => {
     return thisMonthPayments
-      .filter((p) => COLLECTED_STATUSES.includes((p.status || "").toUpperCase()))
-      .reduce((sum, p) => sum + (parseFloat(String(p.actualAmount || p.expectedAmount || 0)) || 0), 0);
+      .filter((p) =>
+        COLLECTED_STATUSES.includes((p.status || "").toUpperCase()),
+      )
+      .reduce(
+        (sum, p) =>
+          sum +
+          (parseFloat(String(p.actualAmount || p.expectedAmount || 0)) || 0),
+        0,
+      );
   }, [thisMonthPayments]);
 
   const targetRevenue = useMemo(() => {
     const total = thisMonthPayments.reduce(
-      (sum, p) => sum + (parseFloat(String(p.expectedAmount || p.actualAmount || 0)) || 0),
-      0
+      (sum, p) =>
+        sum +
+        (parseFloat(String(p.expectedAmount || p.actualAmount || 0)) || 0),
+      0,
     );
     // target = max of pipeline total or current, minimum ₹1L to avoid division by zero
     return Math.max(total, currentRevenue, 100000);
@@ -59,14 +76,28 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
 
   const lastMonthRevenue = useMemo(() => {
     return lastMonthPayments
-      .filter((p) => COLLECTED_STATUSES.includes((p.status || "").toUpperCase()))
-      .reduce((sum, p) => sum + (parseFloat(String(p.actualAmount || p.expectedAmount || 0)) || 0), 0);
+      .filter((p) =>
+        COLLECTED_STATUSES.includes((p.status || "").toUpperCase()),
+      )
+      .reduce(
+        (sum, p) =>
+          sum +
+          (parseFloat(String(p.actualAmount || p.expectedAmount || 0)) || 0),
+        0,
+      );
   }, [lastMonthPayments]);
 
-  const percentage = Math.min(100, Math.round((currentRevenue / targetRevenue) * 100));
-  const growth = lastMonthRevenue > 0
-    ? (((currentRevenue - lastMonthRevenue) / lastMonthRevenue) * 100).toFixed(1)
-    : null;
+  const percentage = Math.min(
+    100,
+    Math.round((currentRevenue / targetRevenue) * 100),
+  );
+  const growth =
+    lastMonthRevenue > 0
+      ? (
+          ((currentRevenue - lastMonthRevenue) / lastMonthRevenue) *
+          100
+        ).toFixed(1)
+      : null;
 
   // SVG semi-circle gauge
   const radius = 54;
@@ -124,7 +155,9 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
             </h3>
             <p className="text-xs text-gray-400 font-medium">This Month</p>
           </div>
-          {loading && <Loader2 className="w-4 h-4 text-orange-400 animate-spin" />}
+          {loading && (
+            <Loader2 className="w-4 h-4 text-orange-400 animate-spin" />
+          )}
         </div>
       </div>
 
@@ -203,7 +236,9 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
             Last Month
           </p>
           <p className="text-base font-extrabold text-gray-800 leading-tight mt-0.5">
-            {lastMonthRevenue > 0 ? `₹${(lastMonthRevenue / 100000).toFixed(1)}L` : "—"}
+            {lastMonthRevenue > 0
+              ? `₹${(lastMonthRevenue / 100000).toFixed(1)}L`
+              : "—"}
           </p>
         </div>
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
@@ -212,10 +247,18 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
               Growth
             </p>
           </div>
-          <p className={`text-base font-extrabold leading-tight mt-0.5 ${
-            growth === null ? "text-gray-400" : parseFloat(growth) >= 0 ? "text-emerald-700" : "text-red-600"
-          }`}>
-            {growth === null ? "—" : `${parseFloat(growth) >= 0 ? "+" : ""}${growth}%`}
+          <p
+            className={`text-base font-extrabold leading-tight mt-0.5 ${
+              growth === null
+                ? "text-gray-400"
+                : parseFloat(growth) >= 0
+                  ? "text-emerald-700"
+                  : "text-red-600"
+            }`}
+          >
+            {growth === null
+              ? "—"
+              : `${parseFloat(growth) >= 0 ? "+" : ""}${growth}%`}
           </p>
         </div>
       </div>
