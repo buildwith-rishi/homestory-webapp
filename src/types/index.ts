@@ -1070,7 +1070,12 @@ export interface AdminUser {
     | "ACCOUNTS"
     | "SITE_ENGINEER"
     | "DESIGNER"
-    | "DESIGN_HEAD";
+    | "DESIGN_HEAD"
+    | "CIVIL"
+    | "PAINTER"
+    | "ELECTRICIAN"
+    | "PLUMBER"
+    | "CARPENTER";
   phone?: string;
   avatar?: string;
   isBanned: boolean;
@@ -1096,7 +1101,12 @@ export interface CreateUserRequest {
     | "ACCOUNTS"
     | "SITE_ENGINEER"
     | "DESIGNER"
-    | "DESIGN_HEAD";
+    | "DESIGN_HEAD"
+    | "CIVIL"
+    | "PAINTER"
+    | "ELECTRICIAN"
+    | "PLUMBER"
+    | "CARPENTER";
   phone?: string;
 }
 
@@ -1207,6 +1217,25 @@ export interface ProjectPayment {
     name: string;
     email: string;
   } | null;
+
+  // Receipt / document
+  receiptUrl?: string | null;
+  receiptFileName?: string | null;
+  // Multiple documents (returned by API if backend supports it)
+  documents?: Array<{
+    id?: string;
+    url: string;
+    fileName?: string;
+    fileType?: string;
+    documentType: string;
+    createdAt?: string;
+  }>;
+
+  // Invoice metadata
+  invoiceNumber?: string | null;
+  invoiceDate?: string | null;
+  invoiceSentAt?: string | null;
+  invoiceSentToEmail?: string | null;
 
   // Legacy fields for backward compatibility
   milestoneName?: string;

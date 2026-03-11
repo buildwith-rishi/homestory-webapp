@@ -279,12 +279,14 @@ export interface UpdateMeetingRequest {
   attendees?: string[];
   status?: MeetingStatus;
   recordingUrl?: string;
+  leadId?: string;
+  projectId?: string;
 }
 
 // Request payload for adding participants
 export interface AddParticipantRequest {
-  userId?: string;   // For team members — auto-fills name/email/phone
-  name?: string;     // Required if no userId (external participant)
+  userId?: string; // For team members — auto-fills name/email/phone
+  name?: string; // Required if no userId (external participant)
   email?: string;
   phone?: string;
   contactId?: string; // Optional link to a CRM contact
@@ -1003,6 +1005,61 @@ export async function updateDiscussionPoint(
   }
 }
 
+/**
+ * Import a meeting transcript (Minutes of Meeting)
+ * POST /api/meetings/import-transcript (multipart/form-data)
+ */
+export async function importTranscript(params: {
+  title: string;
+  description?: string;
+  meetingType: string;
+  entityType: string;
+  scheduledAt: string;
+  transcript?: File;
+  transcriptText?: string;
+  participants?: string;
+}): Promise<any> {
+  try {
+    const token = localStorage.getItem("auth_token");
+    const formData = new FormData();
+    formData.append("title", params.title);
+    if (params.description) formData.append("description", params.description);
+    formData.append("meetingType", params.meetingType);
+    formData.append("entityType", params.entityType);
+    formData.append("scheduledAt", params.scheduledAt);
+    if (params.transcript) formData.append("transcript", params.transcript);
+    if (params.transcriptText)
+      formData.append("transcriptText", params.transcriptText);
+    if (params.participants)
+      formData.append("participants", params.participants);
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/meetings/import-transcript`,
+      {
+        method: "POST",
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: formData,
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.message ||
+          errorData.error ||
+          `Import failed: ${response.status}`,
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error importing transcript:", error);
+    throw error;
+  }
+}
+
 // Export all functions as a default object for easier imports
 const MeetingAPI = {
   listMeetings,
@@ -1027,6 +1084,7 @@ const MeetingAPI = {
   getMeetingTypes,
   getDiscussionPoints,
   updateDiscussionPoint,
+  importTranscript,
   DEFAULT_MEETING_STATUSES,
 };
 

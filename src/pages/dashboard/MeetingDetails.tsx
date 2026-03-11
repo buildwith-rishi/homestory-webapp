@@ -34,6 +34,8 @@ import {
   Share2,
   ChevronDown,
   Search,
+  Download,
+  Upload,
 } from "lucide-react";
 import {
   Card,
@@ -54,6 +56,11 @@ import type {
 } from "../../types";
 import { LeadReferencesManager } from "../../components/leads";
 import { useMeetingStore } from "../../stores/meetingStore";
+import {
+  listAttachments,
+  getAttachment,
+  type Attachment,
+} from "../../services/attachmentApi";
 
 const statusColors: Record<
   string,
@@ -119,13 +126,16 @@ const ParticipantModal: React.FC<{
   const [participantType, setParticipantType] = useState<"team" | "external">(
     "team",
   );
+  // Team member state
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [selectedTeamMember, setSelectedTeamMember] =
     useState<TeamMember | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // External participant state
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -205,6 +215,11 @@ const ParticipantModal: React.FC<{
 
   if (!isOpen) return null;
 
+  const tabs: { key: "team" | "external"; label: string }[] = [
+    { key: "team", label: "Team Member" },
+    { key: "external", label: "External" },
+  ];
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       {/* Backdrop — covers every pixel */}
@@ -224,10 +239,10 @@ const ParticipantModal: React.FC<{
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
-                Add Participant
+                Add to Meeting
               </h2>
               <p className="text-xs text-gray-500">
-                Add a team member or external guest
+                Link a team member or external guest
               </p>
             </div>
           </div>
@@ -240,43 +255,34 @@ const ParticipantModal: React.FC<{
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="flex-1 p-6 space-y-5">
-          {/* Type Toggle */}
-          <div className="flex rounded-lg bg-gray-100 p-1">
-            <button
-              type="button"
-              onClick={() => {
-                setParticipantType("team");
-                setErrors({});
-                setSelectedTeamMember(null);
-              }}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all ${
-                participantType === "team"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              Team Member
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setParticipantType("external");
-                setErrors({});
-              }}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all ${
-                participantType === "external"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              External Participant
-            </button>
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 p-6 space-y-5 overflow-y-auto"
+        >
+          {/* Type Toggle — 4 tabs */}
+          <div className="flex rounded-lg bg-gray-100 p-1 gap-0.5">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => {
+                  setParticipantType(tab.key);
+                  setErrors({});
+                }}
+                className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
+                  participantType === tab.key
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {participantType === "team" ? (
+          {/* ── Team Member ── */}
+          {participantType === "team" && (
             <div className="space-y-4">
-              {/* Team Member Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Select Team Member *
@@ -415,7 +421,10 @@ const ParticipantModal: React.FC<{
                 </div>
               )}
             </div>
-          ) : (
+          )}
+
+          {/* ── External ── */}
+          {participantType === "external" && (
             <div className="space-y-4">
               {/* Name */}
               <div>
@@ -706,6 +715,14 @@ export const MeetingDetailsPage: React.FC = () => {
   const [emailSentSuccess, setEmailSentSuccess] = useState(false);
   const [emailSendError, setEmailSendError] = useState<string | null>(null);
 
+  // MOM attachments state
+  const [momAttachments, setMomAttachments] = useState<Attachment[]>([]);
+  const [isFetchingAttachments, setIsFetchingAttachments] = useState(false);
+  const [attViewingIds, setAttViewingIds] = useState<Set<string>>(new Set());
+  const [attDownloadingIds, setAttDownloadingIds] = useState<Set<string>>(
+    new Set(),
+  );
+
   // Editing states
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState("");
@@ -723,6 +740,71 @@ export const MeetingDetailsPage: React.FC = () => {
       setCurrentMeeting(null);
     };
   }, [setCurrentMeeting]);
+
+  // Fetch MOM attachments for this meeting
+  useEffect(() => {
+    if (!meetingId) return;
+    setIsFetchingAttachments(true);
+    listAttachments("MEETING", meetingId)
+      .then((data) =>
+        // Filter client-side in case the API returns all meeting attachments
+        setMomAttachments(data.filter((a) => a.entityId === meetingId)),
+      )
+      .catch(() => setMomAttachments([]))
+      .finally(() => setIsFetchingAttachments(false));
+  }, [meetingId]);
+
+  // View a MOM attachment — fetch fresh signed downloadUrl first
+  const handleViewMomAtt = async (att: Attachment) => {
+    setAttViewingIds((prev) => new Set(prev).add(att.id));
+    try {
+      const fresh = await getAttachment(att.id);
+      const url = fresh.downloadUrl || fresh.fileUrl || fresh.storageUrl;
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      const url = att.downloadUrl || att.fileUrl || att.storageUrl;
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    } finally {
+      setAttViewingIds((prev) => {
+        const n = new Set(prev);
+        n.delete(att.id);
+        return n;
+      });
+    }
+  };
+
+  // Download a MOM attachment — fetch fresh signed downloadUrl first
+  const handleDownloadMomAtt = async (att: Attachment) => {
+    setAttDownloadingIds((prev) => new Set(prev).add(att.id));
+    try {
+      const fresh = await getAttachment(att.id);
+      const url = fresh.downloadUrl || fresh.fileUrl || fresh.storageUrl;
+      if (!url) return;
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objUrl;
+        a.download = att.fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objUrl);
+      } catch {
+        window.open(url, "_blank");
+      }
+    } catch {
+      const url = att.downloadUrl || att.fileUrl || att.storageUrl;
+      if (url) window.open(url, "_blank");
+    } finally {
+      setAttDownloadingIds((prev) => {
+        const n = new Set(prev);
+        n.delete(att.id);
+        return n;
+      });
+    }
+  };
 
   // Trigger server-side regeneration to kick off transcription
   const triggerRegeneration = useCallback(async (id: string) => {
@@ -954,11 +1036,9 @@ export const MeetingDetailsPage: React.FC = () => {
       const newParticipant = await meetingAPI.addParticipant(meetingId, data);
       setParticipants([...participants, newParticipant]);
 
-      // Also refresh meeting data to get updated participants
+      // Refresh meeting data
       const updatedMeeting = await meetingAPI.getMeetingById(meetingId);
       setMeeting(updatedMeeting);
-
-      // Extract participants from updated meeting data if available
       if (
         (updatedMeeting as any).participants &&
         Array.isArray((updatedMeeting as any).participants)
@@ -1299,6 +1379,43 @@ export const MeetingDetailsPage: React.FC = () => {
 
   const statusColor = statusColors[meeting.status] || statusColors.scheduled;
   const scheduledDate = meeting.scheduledAt || meeting.scheduledDate;
+
+  // Resolve linked entity (Lead or Project) for the header chip
+  const entityLabel = (() => {
+    const m = meeting as any;
+    const nameFromTitle = meeting.title?.includes(" - ")
+      ? meeting.title.split(" - ").slice(1).join(" - ").trim()
+      : undefined;
+    if (meeting.leadId) {
+      return {
+        type: "Lead" as const,
+        name: m.lead?.name || nameFromTitle,
+        id: meeting.leadId,
+      };
+    }
+    if (meeting.projectId) {
+      return {
+        type: "Project" as const,
+        name: m.project?.projectName || m.project?.name || nameFromTitle,
+        id: meeting.projectId,
+      };
+    }
+    if (meeting.entityType === "LEAD" && meeting.entityId) {
+      return {
+        type: "Lead" as const,
+        name: m.lead?.name || nameFromTitle,
+        id: meeting.entityId,
+      };
+    }
+    if (meeting.entityType === "PROJECT" && meeting.entityId) {
+      return {
+        type: "Project" as const,
+        name: m.project?.projectName || m.project?.name || nameFromTitle,
+        id: meeting.entityId,
+      };
+    }
+    return null;
+  })();
   const formattedDate = scheduledDate
     ? new Date(scheduledDate).toLocaleDateString("en-US", {
         weekday: "long",
@@ -1332,6 +1449,28 @@ export const MeetingDetailsPage: React.FC = () => {
             <p className="text-gray-600 mt-1">
               {meeting.description || "No description"}
             </p>
+            {entityLabel && (
+              <div className="mt-2">
+                <button
+                  onClick={() =>
+                    navigate(
+                      entityLabel.type === "Lead"
+                        ? `/dashboard/leads/${entityLabel.id}`
+                        : `/dashboard/projects/${entityLabel.id}`,
+                    )
+                  }
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-colors hover:opacity-80 ${
+                    entityLabel.type === "Lead"
+                      ? "bg-orange-50 text-orange-700 border-orange-200"
+                      : "bg-blue-50 text-blue-700 border-blue-200"
+                  }`}
+                >
+                  <User className="w-3 h-3" />
+                  {entityLabel.type}
+                  {entityLabel.name ? ` · ${entityLabel.name}` : ""}
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -1810,6 +1949,94 @@ export const MeetingDetailsPage: React.FC = () => {
                 ))
               )}
             </div>
+          </Card>
+
+          {/* MOM Attachments Card */}
+          <Card className="p-6 rounded-xl">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Upload className="w-5 h-5 text-purple-600" />
+              Minutes of Meeting (MOM)
+            </h2>
+
+            {isFetchingAttachments ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+              </div>
+            ) : momAttachments.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500">No MOM documents uploaded yet</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Upload MOM documents from the Meetings page using the MOM
+                  button.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {momAttachments.map((att) => (
+                  <div
+                    key={att.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100"
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {att.fileName}
+                        </p>
+                        {att.notes && (
+                          <p className="text-xs text-gray-400 mt-0.5 truncate">
+                            {att.notes}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {att.uploadedByUser
+                            ? `${att.uploadedByUser.name} · `
+                            : ""}
+                          {new Date(
+                            att.uploadedAt ?? att.createdAt ?? Date.now(),
+                          ).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleViewMomAtt(att)}
+                        disabled={attViewingIds.has(att.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-60"
+                      >
+                        {attViewingIds.has(att.id) ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5" />
+                        )}
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleDownloadMomAtt(att)}
+                        disabled={attDownloadingIds.has(att.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-60"
+                      >
+                        {attDownloadingIds.has(att.id) ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Download className="w-3.5 h-3.5" />
+                        )}
+                        Download
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Transcript Card */}

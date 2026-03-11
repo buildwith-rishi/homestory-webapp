@@ -37,6 +37,7 @@ export interface Attachment {
   storageUrl?: string;
   downloadUrl?: string;
   fileUrl?: string; // legacy alias
+  url?: string; // some endpoints return this
   notes?: string | null;
   uploadedAt?: string;
   createdAt?: string;
@@ -151,6 +152,38 @@ export async function listAttachments(
   if (Array.isArray(obj.data)) return obj.data as Attachment[];
   if (Array.isArray(obj.attachments)) return obj.attachments as Attachment[];
   return [];
+}
+
+export interface CreateAttachmentPayload {
+  entityType: AttachmentEntityType;
+  entityId: string;
+  attachmentType?: AttachmentType;
+  fileName: string;
+  fileType: string;
+  storageUrl: string;
+  fileSize?: number;
+}
+
+/** POST /api/attachments/create — Create an attachment record with an existing URL (e.g. a link) */
+export async function createAttachmentWithUrl(
+  payload: CreateAttachmentPayload,
+): Promise<Attachment> {
+  const response = await fetch(`${API_BASE_URL}/api/attachments/create`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await handleResponse<Record<string, unknown>>(response);
+  const attachment = (data.attachment ?? data) as Attachment;
+  // Normalise whichever URL field the server returns so callers always have fileUrl
+  if (!attachment.fileUrl) {
+    attachment.fileUrl =
+      attachment.storageUrl ||
+      attachment.downloadUrl ||
+      (attachment as unknown as Record<string, string>).url ||
+      payload.storageUrl;
+  }
+  return attachment;
 }
 
 /** Helper: convert a File object to a base64 string */

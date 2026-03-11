@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -22,6 +22,10 @@ import {
   Trash2,
   Briefcase,
   UserCircle,
+  User,
+  Upload,
+  Eye,
+  Download,
 } from "lucide-react";
 import {
   Card,
@@ -39,7 +43,14 @@ import {
 import { listLeads } from "../../services/leadApi";
 import { listProjects } from "../../services/projectApi";
 import * as meetingAPI from "../../services/meetingApi";
+import {
+  uploadAttachment,
+  listAttachments,
+  getAttachment,
+  type Attachment,
+} from "../../services/attachmentApi";
 import type { Lead, Project } from "../../types";
+import toast from "react-hot-toast";
 
 type MeetingDisplayStatus =
   | "scheduled"
@@ -55,6 +66,10 @@ type MeetingDisplayType =
 interface MeetingDisplay {
   id: number | string;
   projectId?: string;
+  leadId?: string;
+  customerId?: string;
+  linkedEntityType?: "Lead" | "Project" | "Customer";
+  linkedEntityName?: string;
   title: string;
   client?: string;
   date: string;
@@ -117,11 +132,41 @@ export const MeetingsPage: React.FC = () => {
     error,
     fetchMeetings,
     createMeeting,
+    updateMeeting,
     deleteMeeting,
   } = useMeetingStore();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMeetingTypeModal, setShowMeetingTypeModal] = useState(false);
+
+  // MOM (Minutes of Meeting) state
+  const [showMomModal, setShowMomModal] = useState(false);
+  const [momMeetingId, setMomMeetingId] = useState<string | null>(null);
+  const [momMeetingTitle, setMomMeetingTitle] = useState<string>("");
+  const [momFile, setMomFile] = useState<File | null>(null);
+  const [momNotes, setMomNotes] = useState("");
+  const [isUploadingMom, setIsUploadingMom] = useState(false);
+  const [momAttachments, setMomAttachments] = useState<Attachment[]>([]);
+  const [isFetchingMomAttachments, setIsFetchingMomAttachments] =
+    useState(false);
+  const [momViewingIds, setMomViewingIds] = useState<Set<string>>(new Set());
+  const [momDownloadingIds, setMomDownloadingIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const momFileInputRef = useRef<HTMLInputElement>(null);
+
+  // MOM import-transcript fields
+  const [momTitle, setMomTitle] = useState("");
+  const [momDescription, setMomDescription] = useState("");
+  const [momMeetingType, setMomMeetingType] = useState<
+    "RESIDENTIAL" | "COMMERCIAL"
+  >("RESIDENTIAL");
+  const [momEntityType, setMomEntityType] = useState<"PROJECT" | "LEAD">(
+    "PROJECT",
+  );
+  const [momScheduledAt, setMomScheduledAt] = useState("");
+  const [momTranscriptText, setMomTranscriptText] = useState("");
+  const [momParticipants, setMomParticipants] = useState("");
 
   // New state for lead/project selection
   const [selectedMeetingType, setSelectedMeetingType] = useState<
@@ -138,15 +183,30 @@ export const MeetingsPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingEntities, setLoadingEntities] = useState(false);
 
-  // Fetch leads and projects
+  // Fetch leads + projects on mount (for entity name lookups in meeting cards)
+  useEffect(() => {
+    (async () => {
+      try {
+        const [leadsData, projectsData] = await Promise.all([
+          listLeads({ limit: 200 }),
+          listProjects({ limit: 200 }),
+        ]);
+        setLeads(leadsData.leads || []);
+        setProjects(projectsData.projects || []);
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch leads and projects when creation modal opens (refresh)
   useEffect(() => {
     const fetchEntities = async () => {
       if (showMeetingTypeModal && !showEntitySelection) {
         setLoadingEntities(true);
         try {
           const [leadsData, projectsData] = await Promise.all([
-            listLeads({ limit: 100 }),
-            listProjects({ limit: 100 }),
+            listLeads({ limit: 200 }),
+            listProjects({ limit: 200 }),
           ]);
           setLeads(leadsData.leads || []);
           setProjects(projectsData.projects || []);
@@ -227,9 +287,53 @@ export const MeetingsPage: React.FC = () => {
         }
       }
 
+      // Resolve linked entity type and name from IDs
+      let linkedEntityType: "Lead" | "Project" | "Customer" | undefined;
+      let linkedEntityName: string | undefined;
+
+      if (meeting.leadId) {
+        linkedEntityType = "Lead";
+        const lead = leads.find((l) => l.id === meeting.leadId);
+        linkedEntityName = lead?.name;
+      } else if (meeting.projectId) {
+        linkedEntityType = "Project";
+        const project = projects.find((p) => p.id === meeting.projectId);
+        linkedEntityName = project?.projectName || project?.name;
+      } else if (meeting.customerId) {
+        linkedEntityType = "Customer";
+      }
+
+      // Also check generic entityType/entityId fields
+      if (!linkedEntityType && meeting.entityType && meeting.entityId) {
+        if (meeting.entityType === "LEAD") {
+          linkedEntityType = "Lead";
+          const lead = leads.find((l) => l.id === meeting.entityId);
+          linkedEntityName = lead?.name;
+        } else if (meeting.entityType === "PROJECT") {
+          linkedEntityType = "Project";
+          const project = projects.find((p) => p.id === meeting.entityId);
+          linkedEntityName = project?.projectName || project?.name;
+        } else if (meeting.entityType === "CUSTOMER") {
+          linkedEntityType = "Customer";
+        }
+      }
+
+      // Fall back: if name was extracted from title parsing, use it
+      if (
+        linkedEntityType &&
+        !linkedEntityName &&
+        displayTitle !== meeting.title
+      ) {
+        linkedEntityName = displayTitle;
+      }
+
       return {
         id: meeting.id,
         projectId: meeting.projectId || meeting.entityId,
+        leadId: meeting.leadId,
+        customerId: meeting.customerId,
+        linkedEntityType,
+        linkedEntityName,
         title: displayTitle,
         client: displaySubtitle,
         date: date.toISOString().split("T")[0],
@@ -252,7 +356,7 @@ export const MeetingsPage: React.FC = () => {
         attendees: meeting.attendees || [],
       };
     });
-  }, [apiMeetings]);
+  }, [apiMeetings, leads, projects]);
 
   const handleStartMeeting = () => {
     setShowMeetingTypeModal(true);
@@ -325,6 +429,177 @@ export const MeetingsPage: React.FC = () => {
 
   const handleOpenCalendar = () => {
     navigate("/dashboard/meetings/calendar");
+  };
+
+  const handleOpenMom = async (meetingId: string, meetingTitle: string) => {
+    setMomMeetingId(meetingId);
+    setMomMeetingTitle(meetingTitle);
+    setMomFile(null);
+    setMomNotes("");
+    setShowMomModal(true);
+    setIsFetchingMomAttachments(true);
+    try {
+      const attachments = await listAttachments("MEETING", meetingId);
+      // Filter client-side in case the API returns all meeting attachments
+      setMomAttachments(attachments.filter((a) => a.entityId === meetingId));
+    } catch {
+      setMomAttachments([]);
+    } finally {
+      setIsFetchingMomAttachments(false);
+    }
+  };
+
+  const handleMomFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setMomFile(file);
+  };
+
+  const fetchMomAttachments = async (meetingId: string) => {
+    setIsFetchingMomAttachments(true);
+    try {
+      const atts = await listAttachments("MEETING", meetingId);
+      // Filter client-side in case the API returns all meeting attachments
+      setMomAttachments(atts.filter((a) => a.entityId === meetingId));
+    } catch {
+      setMomAttachments([]);
+    } finally {
+      setIsFetchingMomAttachments(false);
+    }
+  };
+
+  const handleUploadMom = async () => {
+    if (!momTitle.trim()) return;
+    if (!momFile && !momTranscriptText.trim()) return;
+    if (!momScheduledAt) return;
+    setIsUploadingMom(true);
+    try {
+      // Convert comma-separated participants to JSON array
+      let participantsJson: string | undefined;
+      if (momParticipants.trim()) {
+        const names = momParticipants
+          .split(",")
+          .map((n) => n.trim())
+          .filter(Boolean);
+        participantsJson = JSON.stringify(names.map((name) => ({ name })));
+      }
+
+      await meetingAPI.importTranscript({
+        title: momTitle.trim(),
+        description: momDescription.trim() || undefined,
+        meetingType: momMeetingType,
+        entityType: momEntityType,
+        scheduledAt: new Date(momScheduledAt).toISOString(),
+        transcript: momFile || undefined,
+        transcriptText: momTranscriptText.trim() || undefined,
+        participants: participantsJson,
+      });
+      // Reset form
+      setMomTitle("");
+      setMomDescription("");
+      setMomScheduledAt("");
+      setMomTranscriptText("");
+      setMomParticipants("");
+      setMomFile(null);
+      setMomNotes("");
+      if (momFileInputRef.current) momFileInputRef.current.value = "";
+      // Close modal and refresh meetings
+      setShowMomModal(false);
+      fetchMeetings();
+      toast.success("Meeting transcript imported successfully!");
+    } catch (err: any) {
+      console.error("Error importing transcript:", err);
+      toast.error(err?.message || "Failed to import transcript");
+    } finally {
+      setIsUploadingMom(false);
+    }
+  };
+
+  const handleDownloadAttachment = async (url: string, fileName: string) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
+  // View a MOM attachment — fetch fresh signed downloadUrl first
+  const handleViewMomAtt = async (att: Attachment) => {
+    setMomViewingIds((prev) => new Set(prev).add(att.id));
+    try {
+      const fresh = await getAttachment(att.id);
+      const url = fresh.downloadUrl || fresh.fileUrl || fresh.storageUrl;
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      // fallback to cached URL
+      const url = att.downloadUrl || att.fileUrl || att.storageUrl;
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    } finally {
+      setMomViewingIds((prev) => {
+        const n = new Set(prev);
+        n.delete(att.id);
+        return n;
+      });
+    }
+  };
+
+  // Download a MOM attachment — fetch fresh signed downloadUrl first
+  const handleDownloadMomAtt = async (att: Attachment) => {
+    setMomDownloadingIds((prev) => new Set(prev).add(att.id));
+    try {
+      const fresh = await getAttachment(att.id);
+      const url = fresh.downloadUrl || fresh.fileUrl || fresh.storageUrl;
+      if (!url) return;
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = att.fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objectUrl);
+      } catch {
+        window.open(url, "_blank");
+      }
+    } catch {
+      // fallback to cached URL
+      const url = att.downloadUrl || att.fileUrl || att.storageUrl;
+      if (url) window.open(url, "_blank");
+    } finally {
+      setMomDownloadingIds((prev) => {
+        const n = new Set(prev);
+        n.delete(att.id);
+        return n;
+      });
+    }
+  };
+
+  const handleStartScheduledMeeting = async (
+    e: React.MouseEvent,
+    meeting: MeetingDisplay,
+  ) => {
+    e.stopPropagation();
+    try {
+      await updateMeeting(meeting.id.toString(), { status: "in_progress" });
+    } catch (err) {
+      console.error("Error updating meeting status:", err);
+    }
+    navigate("/dashboard/meeting-room", {
+      state: { meetingId: meeting.id },
+    });
   };
 
   const handleScheduleMeeting = async (formData: MeetingFormData) => {
@@ -461,18 +736,18 @@ export const MeetingsPage: React.FC = () => {
           <Button
             variant="secondary"
             className="rounded-xl"
-            onClick={handleOpenCalendar}
+            onClick={() => {
+              // Open MOM for the first meeting or a generic modal without a pre-selected meeting
+              setMomMeetingId(null);
+              setMomMeetingTitle("All Meetings");
+              setMomFile(null);
+              setMomNotes("");
+              setMomAttachments([]);
+              setShowMomModal(true);
+            }}
           >
-            <Calendar className="w-4 h-4" />
-            View Calendar
-          </Button>
-          <Button
-            variant="secondary"
-            className="rounded-xl"
-            onClick={() => setShowScheduleModal(true)}
-          >
-            <Plus className="w-4 h-4" />
-            Schedule Meeting
+            <FileText className="w-4 h-4" />
+            MOM
           </Button>
           <Button className="rounded-xl" onClick={handleStartMeeting}>
             <Video className="w-4 h-4" />
@@ -640,6 +915,46 @@ export const MeetingsPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Linked Entity Chips */}
+                {meeting.linkedEntityType && meeting.linkedEntityName && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {meeting.linkedEntityType === "Lead" && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-700 rounded-lg text-xs font-medium border border-orange-200">
+                        <User className="w-3.5 h-3.5" />
+                        <span className="text-orange-400 font-normal">
+                          Lead
+                        </span>
+                        <span className="font-semibold">
+                          {meeting.linkedEntityName}
+                        </span>
+                      </div>
+                    )}
+                    {meeting.linkedEntityType === "Project" && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
+                        <Briefcase className="w-3.5 h-3.5" />
+                        <span className="text-blue-400 font-normal">
+                          Project
+                        </span>
+                        <span className="font-semibold">
+                          {meeting.linkedEntityName}
+                        </span>
+                      </div>
+                    )}
+                    {meeting.linkedEntityType === "Customer" &&
+                      meeting.linkedEntityName && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-medium border border-purple-200">
+                          <UserCircle className="w-3.5 h-3.5" />
+                          <span className="text-purple-400 font-normal">
+                            Customer
+                          </span>
+                          <span className="font-semibold">
+                            {meeting.linkedEntityName}
+                          </span>
+                        </div>
+                      )}
+                  </div>
+                )}
+
                 {/* Details */}
                 <div className="space-y-2.5 mb-4">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -684,6 +999,25 @@ export const MeetingsPage: React.FC = () => {
                       <Badge className="text-xs bg-blue-50 text-blue-700 rounded-lg">
                         {meeting.actionItems} tasks
                       </Badge>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenMom(meeting.id.toString(), meeting.title);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold rounded-lg border border-gray-200 transition-colors"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      MOM
+                    </button>
+                    {meeting.status === "scheduled" && (
+                      <button
+                        onClick={(e) => handleStartScheduledMeeting(e, meeting)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        Start
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1312,6 +1646,266 @@ export const MeetingsPage: React.FC = () => {
         onClose={() => setShowScheduleModal(false)}
         onSubmit={handleScheduleMeeting}
       />
+
+      {/* MOM (Minutes of Meeting) Modal */}
+      {showMomModal &&
+        ReactDOM.createPortal(
+          <>
+            <div
+              onClick={() => setShowMomModal(false)}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                backgroundColor: "rgba(17, 24, 39, 0.5)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+                zIndex: 9998,
+              }}
+            />
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: 9999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "1rem",
+                pointerEvents: "none",
+              }}
+            >
+              <Card
+                className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl"
+                style={{ pointerEvents: "auto" }}
+              >
+                {/* Modal Header */}
+                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">
+                        Import Meeting Transcript
+                      </h2>
+                      <p className="text-xs text-gray-500">
+                        Minutes of Meeting
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowMomModal(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-5">
+                  {/* Title */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                      Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={momTitle}
+                      onChange={(e) => setMomTitle(e.target.value)}
+                      placeholder="e.g. Imported Meeting MoM"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                      Description{" "}
+                      <span className="text-xs font-normal text-gray-400">
+                        (optional)
+                      </span>
+                    </label>
+                    <textarea
+                      value={momDescription}
+                      onChange={(e) => setMomDescription(e.target.value)}
+                      placeholder="Brief description of this meeting..."
+                      rows={2}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                    />
+                  </div>
+
+                  {/* Meeting Type & Entity Type */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                        Meeting Type <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={momMeetingType}
+                        onChange={(e) =>
+                          setMomMeetingType(
+                            e.target.value as "RESIDENTIAL" | "COMMERCIAL",
+                          )
+                        }
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      >
+                        <option value="RESIDENTIAL">Residential</option>
+                        <option value="COMMERCIAL">Commercial</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                        Entity Type <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={momEntityType}
+                        onChange={(e) =>
+                          setMomEntityType(e.target.value as "PROJECT" | "LEAD")
+                        }
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      >
+                        <option value="PROJECT">Project</option>
+                        <option value="LEAD">Lead</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Scheduled At */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                      Scheduled Date & Time{" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={momScheduledAt}
+                      onChange={(e) => setMomScheduledAt(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+
+                  {/* Transcript File Upload */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                      Transcript File{" "}
+                      <span className="text-xs font-normal text-gray-400">
+                        (upload .txt or text file)
+                      </span>
+                    </label>
+                    <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-indigo-200 rounded-xl cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 transition-colors">
+                      <div className="flex flex-col items-center gap-1.5">
+                        <Upload className="w-6 h-6 text-indigo-400" />
+                        {momFile ? (
+                          <span className="text-sm font-medium text-indigo-700 text-center px-2">
+                            {momFile.name}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-sm font-medium text-indigo-600">
+                              Click to select file
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              .txt, .doc, .docx, .pdf
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <input
+                        ref={momFileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept=".txt,.doc,.docx,.pdf"
+                        onChange={handleMomFileChange}
+                      />
+                    </label>
+                    {momFile && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMomFile(null);
+                          if (momFileInputRef.current)
+                            momFileInputRef.current.value = "";
+                        }}
+                        className="mt-1.5 text-xs text-red-500 hover:text-red-700"
+                      >
+                        Remove file
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Transcript Text (alternative) */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                      Transcript Text{" "}
+                      <span className="text-xs font-normal text-gray-400">
+                        (alternative to file — paste text here)
+                      </span>
+                    </label>
+                    <textarea
+                      value={momTranscriptText}
+                      onChange={(e) => setMomTranscriptText(e.target.value)}
+                      placeholder="Paste transcript text here..."
+                      rows={4}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                    />
+                  </div>
+
+                  {/* Participants */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                      Participants{" "}
+                      <span className="text-xs font-normal text-gray-400">
+                        (optional — comma-separated names)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={momParticipants}
+                      onChange={(e) => setMomParticipants(e.target.value)}
+                      placeholder="e.g. John Doe, Jane Smith"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    onClick={handleUploadMom}
+                    disabled={
+                      !momTitle.trim() ||
+                      (!momFile && !momTranscriptText.trim()) ||
+                      !momScheduledAt ||
+                      isUploadingMom
+                    }
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+                  >
+                    {isUploadingMom ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Import Transcript
+                      </>
+                    )}
+                  </button>
+                  {!momTitle.trim() && !momScheduledAt && (
+                    <p className="text-xs text-gray-400 text-center">
+                      Fill in the required fields to import.
+                    </p>
+                  )}
+                </div>
+              </Card>
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 };

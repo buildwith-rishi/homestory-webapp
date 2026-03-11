@@ -246,7 +246,7 @@ export const UserManagement: React.FC = () => {
       setActionLoading(true);
       await adminAPI.updateUser(selectedUser.id, {
         name: editForm.name,
-        role: editForm.role,
+        role: editForm.role.toUpperCase(),
         phone: editForm.phone || undefined,
       });
       setShowEditModal(false);
@@ -585,7 +585,8 @@ export const UserManagement: React.FC = () => {
                             setSelectedUser(user);
                             setEditForm({
                               name: user.name,
-                              role: user.role,
+                              role: (user.role?.toUpperCase() ||
+                                "BDR") as AdminUser["role"],
                               phone: user.phone || "",
                             });
                             setShowEditModal(true);
@@ -755,6 +756,11 @@ export const UserManagement: React.FC = () => {
               <option value="ACCOUNTS">Accounts / Finance</option>
               <option value="DESIGNER">Designer</option>
               <option value="DESIGN_HEAD">Lead Designer</option>
+              <option value="CIVIL">Civil</option>
+              <option value="PAINTER">Painter</option>
+              <option value="ELECTRICIAN">Electrician</option>
+              <option value="PLUMBER">Plumber</option>
+              <option value="CARPENTER">Carpenter</option>
               <option value="ADMIN">Admin</option>
               <option value="SUPER_ADMIN">Super Admin</option>
             </select>
@@ -1028,6 +1034,11 @@ export const UserManagement: React.FC = () => {
               <option value="ACCOUNTS">Accounts / Finance</option>
               <option value="DESIGNER">Designer</option>
               <option value="DESIGN_HEAD">Lead Designer</option>
+              <option value="CIVIL">Civil</option>
+              <option value="PAINTER">Painter</option>
+              <option value="ELECTRICIAN">Electrician</option>
+              <option value="PLUMBER">Plumber</option>
+              <option value="CARPENTER">Carpenter</option>
               <option value="ADMIN">Admin</option>
               <option value="SUPER_ADMIN">Super Admin</option>
             </select>

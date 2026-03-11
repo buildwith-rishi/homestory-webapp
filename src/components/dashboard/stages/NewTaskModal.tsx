@@ -349,10 +349,9 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
             </label>
             <input
               type="date"
-              value={selectedStartDate}
-              onChange={(e) => setSelectedStartDate(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-colors"
-              required
+              value={toDateInputValue(taskDate)}
+              readOnly
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-700 cursor-default transition-colors"
             />
           </div>
 
@@ -623,19 +622,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                   </div>
                 );
               })}
-            </div>
-          </div>
-
-          {/* Task Date Info */}
-          <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>
-                Start Date:{" "}
-                <strong>{formatDateForDisplay(normalizedStartDate)}</strong>
-                {" · "}Task scheduled for <strong>Day {dayNumber}</strong> on{" "}
-                <strong>{formatDateForDisplay(taskDate)}</strong>
-              </span>
             </div>
           </div>
         </form>

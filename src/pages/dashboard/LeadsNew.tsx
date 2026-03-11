@@ -54,6 +54,14 @@ const stageColors: Record<string, string> = {
   Won: "bg-emerald-100 text-emerald-700 border-emerald-200",
 };
 
+/** Converts any role string to consistent Title Case display name. */
+function formatRoleName(role: string): string {
+  return role
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // Add/Edit Lead Modal Component
 export const LeadModal: React.FC<{
   isOpen: boolean;
@@ -81,9 +89,7 @@ export const LeadModal: React.FC<{
 
   const availableSources = sources.length > 0 ? sources : defaultSources;
 
-  const [activeTab, setActiveTab] = useState<"basic" | "property" | "referral">(
-    "basic",
-  );
+  const [activeTab, setActiveTab] = useState<"basic" | "property">("basic");
 
   const emptyForm: Omit<Lead, "id"> = {
     name: "",
@@ -120,6 +126,7 @@ export const LeadModal: React.FC<{
   };
 
   const [formData, setFormData] = useState<Omit<Lead, "id">>(emptyForm);
+  const [assignedToRole, setAssignedToRole] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [floorPlanFile, setFloorPlanFile] = useState<File | null>(null);
@@ -174,6 +181,7 @@ export const LeadModal: React.FC<{
       setFormData(emptyForm);
       setSrcCampaign("");
       setSrcMedium("");
+      setAssignedToRole("");
     }
     setErrors({});
     setFloorPlanFile(null);
@@ -297,10 +305,9 @@ export const LeadModal: React.FC<{
         : "border-gray-200 hover:border-gray-300"
     }`;
 
-  const tabs: { key: "basic" | "property" | "referral"; label: string }[] = [
+  const tabs: { key: "basic" | "property"; label: string }[] = [
     { key: "basic", label: "Basic Info" },
     { key: "property", label: "Property & Project" },
-    { key: "referral", label: "Referral & Agent" },
   ];
 
   return ReactDOM.createPortal(
@@ -502,22 +509,53 @@ export const LeadModal: React.FC<{
                 </div>
 
                 {/* Assigned To */}
-                <div>
+                <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Assigned To
                   </label>
-                  <select
-                    value={formData.assignedToId || ""}
-                    onChange={(e) => f("assignedToId", e.target.value || null)}
-                    className={selectClass()}
-                  >
-                    <option value="">— Unassigned —</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name || u.email}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Step 1: pick a role */}
+                    <select
+                      value={assignedToRole}
+                      onChange={(e) => {
+                        setAssignedToRole(e.target.value);
+                        f("assignedToId", null);
+                      }}
+                      className={selectClass()}
+                    >
+                      <option value="">— Select Role —</option>
+                      {Array.from(new Set(users.map((u) => u.role)))
+                        .sort()
+                        .map((role) => (
+                          <option key={role} value={role}>
+                            {formatRoleName(role)}
+                          </option>
+                        ))}
+                    </select>
+
+                    {/* Step 2: pick a member of that role */}
+                    <select
+                      value={formData.assignedToId || ""}
+                      onChange={(e) =>
+                        f("assignedToId", e.target.value || null)
+                      }
+                      className={selectClass()}
+                      disabled={!assignedToRole}
+                    >
+                      <option value="">
+                        {assignedToRole
+                          ? "— Select Member —"
+                          : "— Select role first —"}
                       </option>
-                    ))}
-                  </select>
+                      {users
+                        .filter((u) => u.role === assignedToRole)
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name || u.email}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -599,7 +637,7 @@ export const LeadModal: React.FC<{
                     className={selectClass(errors.propertyType)}
                   >
                     <option value="">Select...</option>
-                    <option value="HOME">Home</option>
+
                     <option value="RESIDENTIAL">Residential</option>
                     <option value="COMMERCIAL">Commercial</option>
                     <option value="MIXED_USE">Mixed Use</option>
@@ -611,6 +649,30 @@ export const LeadModal: React.FC<{
                       {errors.propertyType}
                     </p>
                   )}
+                </div>
+
+                {/* Project Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Project Type
+                  </label>
+                  <select
+                    value={formData.projectType || ""}
+                    onChange={(e) => f("projectType", e.target.value)}
+                    className={selectClass()}
+                  >
+                    <option value="">Select...</option>
+                    <option value="APARTMENT">Apartment</option>
+                    <option value="VILLA">Villa</option>
+                    <option value="ROW_HOUSE">Row House</option>
+                    <option value="PENTHOUSE">Penthouse</option>
+                    <option value="DUPLEX">Duplex</option>
+                    <option value="STUDIO">Studio</option>
+                    <option value="OFFICE">Office</option>
+                    <option value="RETAIL">Retail</option>
+                    <option value="WAREHOUSE">Warehouse</option>
+                    <option value="OTHER">Other</option>
+                  </select>
                 </div>
 
                 {/* Home Type */}
@@ -640,30 +702,6 @@ export const LeadModal: React.FC<{
                       <AlertCircle className="w-3.5 h-3.5" /> {errors.homeType}
                     </p>
                   )}
-                </div>
-
-                {/* Project Type */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Project Type
-                  </label>
-                  <select
-                    value={formData.projectType || ""}
-                    onChange={(e) => f("projectType", e.target.value)}
-                    className={selectClass()}
-                  >
-                    <option value="">Select...</option>
-                    <option value="APARTMENT">Apartment</option>
-                    <option value="VILLA">Villa</option>
-                    <option value="ROW_HOUSE">Row House</option>
-                    <option value="PENTHOUSE">Penthouse</option>
-                    <option value="DUPLEX">Duplex</option>
-                    <option value="STUDIO">Studio</option>
-                    <option value="OFFICE">Office</option>
-                    <option value="RETAIL">Retail</option>
-                    <option value="WAREHOUSE">Warehouse</option>
-                    <option value="OTHER">Other</option>
-                  </select>
                 </div>
 
                 {/* Property Project Type */}
@@ -826,7 +864,7 @@ export const LeadModal: React.FC<{
                     <option value="">Select...</option>
                     <option value="NOT_SURE">Not Sure</option>
                     <option value="TURNKEY">Turnkey</option>
-                    <option value="DESIGN_ONLY">Design Only</option>
+
                     <option value="KITCHEN_WARDROBES">
                       Kitchen &amp; Wardrobes
                     </option>
@@ -927,91 +965,6 @@ export const LeadModal: React.FC<{
                     placeholder="e.g., 3BHK full interior design"
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all resize-none"
                   />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Tab 3: Referral & Agent ── */}
-          {activeTab === "referral" && (
-            <div className="space-y-4">
-              {/* Referrer section */}
-              <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl">
-                <h4 className="text-sm font-semibold text-orange-900 mb-3 flex items-center gap-2">
-                  <Users className="w-4 h-4" /> Referrer Details
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Referrer Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.referrerName || ""}
-                      onChange={(e) => f("referrerName", e.target.value)}
-                      placeholder="e.g., Referrer Name"
-                      className={inputClass()}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Referrer Phone
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.referrerPhone || ""}
-                      onChange={(e) => f("referrerPhone", e.target.value)}
-                      placeholder="+91 98765 43211"
-                      className={inputClass()}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Referrer Project Number
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.referrerProjectNumber || ""}
-                      onChange={(e) =>
-                        f("referrerProjectNumber", e.target.value)
-                      }
-                      placeholder="e.g., GHS-24-0001"
-                      className={inputClass()}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Agent / Agency section */}
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                  <Building2 className="w-4 h-4" /> Agent / Agency Details
-                </h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Agency Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.agentAgencyName || ""}
-                      onChange={(e) => f("agentAgencyName", e.target.value)}
-                      placeholder="e.g., Agency Name"
-                      className={inputClass()}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Agency Details
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={formData.agentAgencyDetails || ""}
-                      onChange={(e) => f("agentAgencyDetails", e.target.value)}
-                      placeholder="Agency details here"
-                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all resize-none"
-                    />
-                  </div>
                 </div>
               </div>
             </div>
@@ -1280,8 +1233,12 @@ export const LeadsPage: React.FC = () => {
   const [bdrDropdownPos, setBdrDropdownPos] = useState<{
     top: number;
     left: number;
+    openUpward?: boolean;
   } | null>(null);
+  const [bdrSearch, setBdrSearch] = useState("");
   const bdrButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const bdrDropdownRef = useRef<HTMLDivElement | null>(null);
+  const bulkBdrDropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Bulk Selection State
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(
@@ -1707,19 +1664,29 @@ export const LeadsPage: React.FC = () => {
     const btn = bdrButtonRefs.current[leadId];
     if (btn) {
       const rect = btn.getBoundingClientRect();
-      const scrollY = window.scrollY || document.documentElement.scrollTop;
-      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      const dropdownHeight = 300;
+      const dropdownWidth = 240;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUpward = spaceBelow < dropdownHeight + 8;
+      // Clamp left so dropdown never overflows the right edge
+      const left = Math.min(rect.left, window.innerWidth - dropdownWidth - 8);
       setBdrDropdownPos({
-        top: rect.bottom + scrollY + 4,
-        left: rect.left + scrollX,
+        top: openUpward ? rect.top - 4 : rect.bottom + 4,
+        left,
+        openUpward,
       });
     }
+    setBdrSearch("");
     setBdrDropdownOpen((prev) => (prev === leadId ? null : leadId));
   };
 
-  // Close dropdowns on scroll to prevent detachment issues
+  // Close dropdowns on scroll to prevent detachment issues,
+  // but ignore scrolls that originate inside the dropdown itself.
   useEffect(() => {
-    const handleScroll = () => {
+    const handleScroll = (e: Event) => {
+      const target = e.target as Node;
+      if (bdrDropdownRef.current?.contains(target)) return;
+      if (bulkBdrDropdownRef.current?.contains(target)) return;
       if (bdrDropdownOpen) {
         setBdrDropdownOpen(null);
         setBdrDropdownPos(null);
@@ -2606,65 +2573,127 @@ export const LeadsPage: React.FC = () => {
       {bdrDropdownOpen &&
         bdrDropdownPos &&
         ReactDOM.createPortal(
-          <div
-            className="absolute z-[70] bg-white rounded-xl shadow-2xl border border-gray-200 py-1 w-56 max-h-64 overflow-y-auto"
-            style={{ top: bdrDropdownPos.top, left: bdrDropdownPos.left }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-3 py-2 border-b border-gray-100">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Assign BDR
-              </p>
-            </div>
-            {/* Unassign option */}
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isAssigning}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAssignBDR(bdrDropdownOpen, null);
-              }}
-            >
-              {isAssigning ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
-                  <X className="w-3.5 h-3.5 text-gray-400" />
-                </div>
-              )}
-              <span>Unassigned</span>
-            </button>
-            <div className="border-t border-gray-100" />
-            {bdrUsers.map((user) => (
-              <button
-                key={user.id}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isAssigning}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAssignBDR(bdrDropdownOpen, user.id);
+          (() => {
+            const activeLead = displayLeads.find(
+              (l) => l.id === bdrDropdownOpen,
+            );
+            const currentBdrId = activeLead?.assignedTo?.id ?? null;
+            const filteredBdrUsers = bdrSearch.trim()
+              ? bdrUsers.filter((u) =>
+                  u.name.toLowerCase().includes(bdrSearch.toLowerCase()),
+                )
+              : bdrUsers;
+            return (
+              <div
+                ref={bdrDropdownRef}
+                className="fixed z-[70] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
+                style={{
+                  top: bdrDropdownPos.top,
+                  left: bdrDropdownPos.left,
+                  width: 240,
+                  ...(bdrDropdownPos.openUpward
+                    ? { transform: "translateY(-100%)" }
+                    : {}),
                 }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-xs font-bold">
-                  {user.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()
-                    .slice(0, 2)}
+                {/* Header */}
+                <div className="px-3 pt-3 pb-2">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
+                    Assign BDR
+                  </p>
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search..."
+                      value={bdrSearch}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setBdrSearch(e.target.value);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400 transition-all"
+                      autoFocus
+                    />
+                  </div>
                 </div>
-                <div className="text-left">
-                  <p className="font-medium">{user.name}</p>
-                  <p className="text-xs text-gray-400">{user.role}</p>
+                {/* List */}
+                <div className="max-h-52 overflow-y-auto pb-1">
+                  {/* Unassign option — only show when not filtering */}
+                  {!bdrSearch && (
+                    <button
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        currentBdrId === null
+                          ? "bg-gray-50 text-gray-700"
+                          : "text-gray-500 hover:bg-red-50 hover:text-red-600"
+                      }`}
+                      disabled={isAssigning}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAssignBDR(bdrDropdownOpen, null);
+                      }}
+                    >
+                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        {isAssigning ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                        ) : (
+                          <X className="w-3.5 h-3.5 text-gray-400" />
+                        )}
+                      </div>
+                      <span className="font-medium">Unassigned</span>
+                      {currentBdrId === null && (
+                        <Check className="w-3.5 h-3.5 text-gray-400 ml-auto" />
+                      )}
+                    </button>
+                  )}
+                  {filteredBdrUsers.length > 0 ? (
+                    filteredBdrUsers.map((user) => {
+                      const isActive = user.id === currentBdrId;
+                      return (
+                        <button
+                          key={user.id}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isActive
+                              ? "bg-orange-50 text-orange-700"
+                              : "text-gray-700 hover:bg-orange-50 hover:text-orange-700"
+                          }`}
+                          disabled={isAssigning}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAssignBDR(bdrDropdownOpen, user.id);
+                          }}
+                        >
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {user.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2)}
+                          </div>
+                          <div className="text-left min-w-0">
+                            <p className="font-medium truncate">{user.name}</p>
+                            <p className="text-xs text-gray-400 truncate">
+                              {user.role.replace(/_/g, " ")}
+                            </p>
+                          </div>
+                          {isActive && (
+                            <Check className="w-3.5 h-3.5 text-orange-500 ml-auto flex-shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="px-3 py-4 text-center text-sm text-gray-400">
+                      {bdrSearch ? "No matches" : "No users available"}
+                    </div>
+                  )}
                 </div>
-              </button>
-            ))}
-            {bdrUsers.length === 0 && (
-              <div className="px-3 py-4 text-center text-sm text-gray-400">
-                No users available
               </div>
-            )}
-          </div>,
+            );
+          })(),
           document.body,
         )}
 

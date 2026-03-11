@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { X, User, Phone, Mail, Plus, Loader2, Briefcase } from 'lucide-react';
-import { Button, Input } from '../ui';
-import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
-import { createTeamMember } from '../../services/teamApi';
+import React, { useState } from "react";
+import { X, User, Phone, Mail, Plus, Loader2, Briefcase } from "lucide-react";
+import { Button, Input } from "../ui";
+import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
+import { createTeamMember } from "../../services/teamApi";
 
 interface AddEngineerModalProps {
   isOpen: boolean;
@@ -17,44 +17,35 @@ export interface NewEngineer {
   phone: string;
   role: string;
   department: string;
-  memberType: string;
 }
 
 const roleOptions = [
-  'Lead Carpenter',
-  'Carpenter',
-  'Electrician',
-  'Plumber',
-  'Painter',
-  'Mason',
-  'Welder',
-  'HVAC Technician',
-  'Tile Setter',
-  'Flooring Specialist',
-  'General Contractor',
-  'Site Manager',
-  'Project Manager',
-  'Designer',
-  'Other',
-];
-
-const memberTypeOptions = [
-  { value: 'EMPLOYEE', label: 'Employee' },
-  { value: 'CONTRACTOR', label: 'Contractor' },
-  { value: 'FREELANCER', label: 'Freelancer' },
-  { value: 'VENDOR', label: 'Vendor' },
-  { value: 'INTERN', label: 'Intern' },
+  "Lead Carpenter",
+  "Carpenter",
+  "Electrician",
+  "Plumber",
+  "Painter",
+  "Mason",
+  "Welder",
+  "HVAC Technician",
+  "Tile Setter",
+  "Flooring Specialist",
+  "General Contractor",
+  "Site Manager",
+  "Project Manager",
+  "Designer",
+  "Other",
 ];
 
 const departmentOptions = [
-  'Design',
-  'Execution',
-  'Sales',
-  'Management',
-  'Operations',
-  'Finance',
-  'HR',
-  'Other',
+  "Design",
+  "Execution",
+  "Sales",
+  "Management",
+  "Operations",
+  "Finance",
+  "HR",
+  "Other",
 ];
 
 export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
@@ -63,42 +54,41 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
   onAdd,
 }) => {
   const [formData, setFormData] = useState<NewEngineer>({
-    name: '',
-    email: '',
-    phone: '',
-    role: '',
-    department: '',
-    memberType: '',
+    name: "",
+    email: "",
+    phone: "",
+    role: "",
+    department: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<Partial<Record<keyof NewEngineer, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof NewEngineer, string>>
+  >({});
 
   const handleInputChange = (field: keyof NewEngineer, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }));
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof NewEngineer, string>> = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
-    if (!formData.role) newErrors.role = 'Role is required';
-    if (!formData.department) newErrors.department = 'Department is required';
-    if (!formData.memberType) newErrors.memberType = 'Member type is required';
-
+    if (!formData.name.trim()) newErrors.name = "Name is required";
+    if (!formData.role) newErrors.role = "Role is required";
+    if (!formData.department) newErrors.department = "Department is required";
     if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
+      newErrors.phone = "Phone number is required";
     } else if (!/^[+]?[\d\s\-()]+$/.test(formData.phone)) {
-      newErrors.phone = 'Invalid phone number format';
+      newErrors.phone = "Invalid phone number format";
     }
 
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors.email = "Invalid email format";
     }
 
     setErrors(newErrors);
@@ -109,7 +99,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
     e.preventDefault();
 
     if (!validateForm()) {
-      toast.error('Please fill in all required fields correctly');
+      toast.error("Please fill in all required fields correctly");
       return;
     }
 
@@ -121,7 +111,9 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
       onAdd();
       handleClose();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to add team member.');
+      toast.error(
+        error instanceof Error ? error.message : "Failed to add team member.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -129,12 +121,11 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
 
   const handleClose = () => {
     setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      role: '',
-      department: '',
-      memberType: '',
+      name: "",
+      email: "",
+      phone: "",
+      role: "",
+      department: "",
     });
     setErrors({});
     onClose();
@@ -159,7 +150,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: 'spring', duration: 0.5 }}
+          transition={{ type: "spring", duration: 0.5 }}
           className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden z-10"
         >
           {/* Header */}
@@ -169,8 +160,12 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                 <User className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">Add New Team Member</h2>
-                <p className="text-orange-100 text-sm">Fill in the details below</p>
+                <h2 className="text-xl font-bold text-white">
+                  Add New Team Member
+                </h2>
+                <p className="text-orange-100 text-sm">
+                  Fill in the details below
+                </p>
               </div>
             </div>
             <button
@@ -182,7 +177,10 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
           </div>
 
           {/* Form Content */}
-          <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar">
+          <form
+            onSubmit={handleSubmit}
+            className="overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar"
+          >
             <div className="p-6 space-y-6">
               {/* Basic Information */}
               <div>
@@ -202,10 +200,14 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                       type="text"
                       placeholder="e.g., Rajesh Kumar"
                       value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      className={`rounded-xl ${errors.name ? 'border-red-500 focus:ring-red-500' : ''}`}
+                      onChange={(e) =>
+                        handleInputChange("name", e.target.value)
+                      }
+                      className={`rounded-xl ${errors.name ? "border-red-500 focus:ring-red-500" : ""}`}
                     />
-                    {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+                    {errors.name && (
+                      <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+                    )}
                   </div>
 
                   {/* Role */}
@@ -215,17 +217,23 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                     </label>
                     <select
                       value={formData.role}
-                      onChange={(e) => handleInputChange('role', e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("role", e.target.value)
+                      }
                       className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                        errors.role ? 'border-red-500' : 'border-gray-300'
+                        errors.role ? "border-red-500" : "border-gray-300"
                       }`}
                     >
                       <option value="">Select role</option>
-                      {roleOptions.map(role => (
-                        <option key={role} value={role}>{role}</option>
+                      {roleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
                       ))}
                     </select>
-                    {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
+                    {errors.role && (
+                      <p className="text-red-500 text-xs mt-1">{errors.role}</p>
+                    )}
                   </div>
 
                   {/* Phone */}
@@ -239,11 +247,17 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                         type="tel"
                         placeholder="+91 98765 43210"
                         value={formData.phone}
-                        onChange={(e) => handleInputChange('phone', e.target.value)}
-                        className={`pl-10 rounded-xl ${errors.phone ? 'border-red-500 focus:ring-red-500' : ''}`}
+                        onChange={(e) =>
+                          handleInputChange("phone", e.target.value)
+                        }
+                        className={`pl-10 rounded-xl ${errors.phone ? "border-red-500 focus:ring-red-500" : ""}`}
                       />
                     </div>
-                    {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+                    {errors.phone && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.phone}
+                      </p>
+                    )}
                   </div>
 
                   {/* Email */}
@@ -257,11 +271,17 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                         type="email"
                         placeholder="member@example.com"
                         value={formData.email}
-                        onChange={(e) => handleInputChange('email', e.target.value)}
-                        className={`pl-10 rounded-xl ${errors.email ? 'border-red-500 focus:ring-red-500' : ''}`}
+                        onChange={(e) =>
+                          handleInputChange("email", e.target.value)
+                        }
+                        className={`pl-10 rounded-xl ${errors.email ? "border-red-500 focus:ring-red-500" : ""}`}
                       />
                     </div>
-                    {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+                    {errors.email && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.email}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -272,9 +292,9 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                   <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center">
                     <Briefcase className="w-4 h-4 text-blue-600" />
                   </div>
-                  Department & Employment
+                  Department
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   {/* Department */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -282,37 +302,25 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                     </label>
                     <select
                       value={formData.department}
-                      onChange={(e) => handleInputChange('department', e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("department", e.target.value)
+                      }
                       className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                        errors.department ? 'border-red-500' : 'border-gray-300'
+                        errors.department ? "border-red-500" : "border-gray-300"
                       }`}
                     >
                       <option value="">Select department</option>
-                      {departmentOptions.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
+                      {departmentOptions.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
                       ))}
                     </select>
-                    {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
-                  </div>
-
-                  {/* Member Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Member Type <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.memberType}
-                      onChange={(e) => handleInputChange('memberType', e.target.value)}
-                      className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                        errors.memberType ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    >
-                      <option value="">Select type</option>
-                      {memberTypeOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                    {errors.memberType && <p className="text-red-500 text-xs mt-1">{errors.memberType}</p>}
+                    {errors.department && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.department}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

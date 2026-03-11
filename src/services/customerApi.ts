@@ -486,6 +486,137 @@ export async function getImportantDates(
   }
 }
 
+// ─── KYC & Bank Details ─────────────────────────────────────────────────────
+
+export type KycDocType = "AADHAR" | "PAN" | "GST_CERTIFICATE";
+
+export interface KycDocument {
+  id: string;
+  attachmentType: KycDocType;
+  fileName: string;
+  fileType?: string;
+  fileSize?: number;
+  downloadUrl?: string;
+  storageUrl?: string;
+  fileUrl?: string;
+  uploadedAt?: string;
+  createdAt?: string;
+}
+
+/** POST /api/accounts/:id/kyc — Upload a KYC document as multipart/form-data */
+export async function uploadKycDocument(
+  accountId: string,
+  file: File,
+  attachmentType: KycDocType,
+): Promise<KycDocument> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("attachmentType", attachmentType);
+
+  const token = localStorage.getItem("auth_token");
+  const response = await fetch(
+    `${API_BASE_URL}/api/accounts/${accountId}/kyc`,
+    {
+      method: "POST",
+      headers: {
+        // Do NOT set Content-Type — browser sets it automatically with the correct boundary
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    },
+  );
+  if (!response.ok) {
+    let message = `HTTP error ${response.status}`;
+    try {
+      const err = await response.json();
+      message = err.message || err.error || message;
+    } catch {}
+    throw new Error(message);
+  }
+  const data = await response.json();
+  return (data.document ?? data.attachment ?? data) as KycDocument;
+}
+
+/** GET /api/accounts/:id/kyc — Retrieve all KYC documents for an account */
+export async function getKycDocuments(
+  accountId: string,
+): Promise<KycDocument[]> {
+  const token = localStorage.getItem("auth_token");
+  const response = await fetch(
+    `${API_BASE_URL}/api/accounts/${accountId}/kyc`,
+    {
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+    },
+  );
+  if (!response.ok) {
+    if (response.status === 404) return [];
+    let message = `HTTP error ${response.status}`;
+    try {
+      const err = await response.json();
+      message = err.message || err.error || message;
+    } catch {}
+    throw new Error(message);
+  }
+  const data = await response.json();
+  if (Array.isArray(data)) return data as KycDocument[];
+  const obj = data as Record<string, unknown>;
+  if (Array.isArray(obj.documents)) return obj.documents as KycDocument[];
+  if (Array.isArray(obj.attachments)) return obj.attachments as KycDocument[];
+  if (Array.isArray(obj.data)) return obj.data as KycDocument[];
+  return [];
+}
+
+/** POST /api/accounts/:id/bank-details — Save bank details as a free-text string */
+export async function saveBankDetailsApi(
+  accountId: string,
+  bankDetails: string,
+): Promise<void> {
+  const token = localStorage.getItem("auth_token");
+  const response = await fetch(
+    `${API_BASE_URL}/api/accounts/${accountId}/bank-details`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ bankDetails }),
+    },
+  );
+  if (!response.ok) {
+    let message = `HTTP error ${response.status}`;
+    try {
+      const err = await response.json();
+      message = err.message || err.error || message;
+    } catch {}
+    throw new Error(message);
+  }
+}
+
+/** GET /api/accounts/:id/bank-details — Retrieve saved bank details string */
+export async function getBankDetails(accountId: string): Promise<string> {
+  const token = localStorage.getItem("auth_token");
+  const response = await fetch(
+    `${API_BASE_URL}/api/accounts/${accountId}/bank-details`,
+    {
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+    },
+  );
+  if (!response.ok) {
+    if (response.status === 404) return "";
+    let message = `HTTP error ${response.status}`;
+    try {
+      const err = await response.json();
+      message = err.message || err.error || message;
+    } catch {}
+    throw new Error(message);
+  }
+  const data = await response.json();
+  if (typeof data === "string") return data;
+  const obj = data as Record<string, unknown>;
+  return (obj.bankDetails as string) ?? (obj.data as string) ?? "";
+}
+
 // Default export with all functions
 const CustomerAPI = {
   getCustomerTypes,

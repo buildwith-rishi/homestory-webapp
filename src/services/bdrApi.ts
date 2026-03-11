@@ -252,3 +252,40 @@ export const getAdminBDRTasksByUserId = (
     method: "GET",
   });
 };
+
+// ── Lead Creation ─────────────────────────────────────────────────────────────
+
+export interface CreateBDRLeadPayload {
+  name: string;
+  phone: string;
+  email?: string;
+  source?: string;
+  city?: string;
+  requirements?: string;
+  message?: string;
+  assignedToId: string;
+  companyName?: string;
+  serviceInterest?: string;
+  propertyType?: string;
+  area?: string;
+  location?: string;
+  homeType?: string;
+  projectStage?: string;
+  startTimeline?: string;
+  budgetComfort?: string;
+  projectScope?: string;
+  canWhatsApp?: boolean;
+  referrerName?: string;
+}
+
+/** POST /api/leads – create a new lead, auto-assigned to the current BDR */
+export const createBDRLead = async (
+  payload: CreateBDRLeadPayload,
+): Promise<BDRLead> => {
+  const res = await fetchAPI<{ lead: BDRLead }>("/api/leads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return res.lead;
+};

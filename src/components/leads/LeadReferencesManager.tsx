@@ -15,11 +15,12 @@ import {
   Download,
 } from "lucide-react";
 import Spinner from "../ui/Spinner";
-import { Button, Badge, Card } from "../ui";
+import { Button, Badge } from "../ui";
 import { LeadReference, ReferenceType } from "../../types";
 import toast from "react-hot-toast";
 import {
   uploadAttachment,
+  createAttachmentWithUrl,
   deleteAttachment,
   getAttachment,
   fileToBase64,
@@ -63,6 +64,9 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [viewingIds, setViewingIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [linkTitle, setLinkTitle] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [isAddingLink, setIsAddingLink] = useState(false);
 
   // Open the file in a new tab. If url is already stored use it directly;
   // otherwise fetch the single attachment to get a fresh signed downloadUrl.
@@ -135,6 +139,58 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
         next.delete(reference.id);
         return next;
       });
+    }
+  };
+
+  const handleAddLink = async () => {
+    if (!linkUrl.trim()) {
+      toast.error("Please enter a URL");
+      return;
+    }
+    if (!linkTitle.trim()) {
+      toast.error("Please enter a title for the link");
+      return;
+    }
+
+    setIsAddingLink(true);
+    try {
+      const attachment = await createAttachmentWithUrl({
+        entityType: "LEAD",
+        entityId: leadId,
+        attachmentType: selectedAttachmentType,
+        fileName: linkTitle.trim(),
+        fileType: "text/uri-list",
+        storageUrl: linkUrl.trim(),
+      });
+
+      // Resolve the best URL to use for opening the link
+      const resolvedUrl =
+        attachment.downloadUrl ||
+        attachment.storageUrl ||
+        attachment.fileUrl ||
+        linkUrl.trim();
+
+      onAddReference({
+        type: ReferenceType.LINK,
+        title: linkTitle.trim(),
+        description: linkUrl.trim(),
+        url: resolvedUrl,
+        fileName: linkTitle.trim(),
+        mimeType: "text/uri-list",
+        category: "Reference",
+        uploadedBy: "Current User",
+        tags: [selectedAttachmentType],
+        id: attachment.id,
+      } as Omit<LeadReference, "leadId" | "uploadedAt">);
+
+      toast.success("Link added successfully!");
+      setLinkTitle("");
+      setLinkUrl("");
+    } catch (err) {
+      console.error("Add link error:", err);
+      toast.error("Failed to add link");
+    } finally {
+      setIsAddingLink(false);
     }
   };
 
@@ -232,6 +288,32 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
         return next;
       });
     }
+  };
+
+  const getIconBg = (type: ReferenceType) => {
+    switch (type) {
+      case ReferenceType.IMAGE:
+        return "bg-purple-100 text-purple-600";
+      case ReferenceType.PDF:
+        return "bg-red-100 text-red-600";
+      case ReferenceType.VIDEO:
+        return "bg-blue-100 text-blue-600";
+      case ReferenceType.LINK:
+        return "bg-indigo-100 text-indigo-600";
+      default:
+        return "bg-amber-100 text-amber-600";
+    }
+  };
+
+  const getTypeLabel = (reference: LeadReference) => {
+    if (reference.tags?.[0]) return reference.tags[0].replace(/_/g, " ");
+    if (reference.mimeType) {
+      if (reference.mimeType.startsWith("image/")) return "IMAGE";
+      if (reference.mimeType === "application/pdf") return "PDF";
+      if (reference.mimeType.startsWith("video/")) return "VIDEO";
+      if (reference.mimeType === "text/uri-list") return "LINK";
+    }
+    return "FILE";
   };
 
   const getIconForType = (type: ReferenceType) => {
@@ -350,6 +432,43 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
               </div>
             </label>
           </div>
+
+          {/* Add Link */}
+          <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-blue-400 hover:bg-blue-50/30 transition-all flex flex-col gap-3">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center shadow-sm">
+                <LinkIcon className="w-6 h-6 text-blue-600" />
+              </div>
+              <p className="text-sm font-semibold text-gray-700">Add Link</p>
+            </div>
+            <input
+              type="text"
+              placeholder="Link title"
+              value={linkTitle}
+              onChange={(e) => setLinkTitle(e.target.value)}
+              className="w-full pl-3 pr-3 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+            <input
+              type="url"
+              placeholder="https://..."
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddLink()}
+              className="w-full pl-3 pr-3 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+            <button
+              onClick={handleAddLink}
+              disabled={isAddingLink || !linkUrl.trim() || !linkTitle.trim()}
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isAddingLink ? (
+                <Spinner size="xs" color="brand" />
+              ) : (
+                <Plus className="w-3.5 h-3.5" />
+              )}
+              {isAddingLink ? "Adding..." : "Add Link"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -376,110 +495,107 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
                 </span>
                 <span className="text-gray-400">({refs.length})</span>
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="flex flex-col gap-2">
                 {refs.map((reference) => (
-                  <Card
+                  <div
                     key={reference.id}
-                    className="p-4 hover:shadow-lg transition-all group"
+                    className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 hover:border-gray-200 hover:shadow-sm transition-all"
                   >
-                    {/* Preview */}
-                    {reference.type === ReferenceType.IMAGE &&
-                    reference.thumbnailUrl ? (
-                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-3">
-                        <img
-                          src={reference.thumbnailUrl}
-                          alt={reference.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="aspect-video bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg flex items-center justify-center mb-3">
-                        <div className="text-gray-400">
-                          {getIconForType(reference.type)}
-                        </div>
-                      </div>
-                    )}
+                    {/* Icon badge */}
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${getIconBg(reference.type)}`}
+                    >
+                      {getIconForType(reference.type)}
+                    </div>
 
                     {/* Info */}
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <h5 className="font-semibold text-sm text-gray-900 line-clamp-2 flex-1">
-                          {reference.title}
-                        </h5>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {reference.type === ReferenceType.LINK ? (
-                            <a
-                              href={reference.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 hover:bg-blue-100 rounded text-blue-600"
-                              title="Open link"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleView(reference)}
-                                disabled={viewingIds.has(reference.id)}
-                                className="p-1.5 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-50"
-                                title="View"
-                              >
-                                {viewingIds.has(reference.id) ? (
-                                  <Spinner size="xs" color="muted" />
-                                ) : (
-                                  <Eye className="w-4 h-4" />
-                                )}
-                              </button>
-                              <button
-                                onClick={() => handleDownload(reference)}
-                                disabled={downloadingIds.has(reference.id)}
-                                className="p-1.5 hover:bg-green-100 rounded text-green-600 disabled:opacity-50"
-                                title="Download"
-                              >
-                                {downloadingIds.has(reference.id) ? (
-                                  <Spinner size="xs" color="muted" />
-                                ) : (
-                                  <Download className="w-4 h-4" />
-                                )}
-                              </button>
-                            </>
-                          )}
-                          {!readOnly && (
-                            <button
-                              onClick={() => handleDelete(reference.id)}
-                              disabled={deletingIds.has(reference.id)}
-                              className="p-1.5 hover:bg-red-100 rounded text-red-600 disabled:opacity-50"
-                            >
-                              {deletingIds.has(reference.id) ? (
-                                <Spinner size="xs" color="muted" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {reference.description && (
-                        <p className="text-xs text-gray-500 line-clamp-2">
-                          {reference.description}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
-                        <span className="flex items-center gap-1">
-                          {getIconForType(reference.type)}
-                          {reference.fileSize &&
-                            formatFileSize(reference.fileSize)}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-gray-900 truncate leading-tight">
+                        {reference.title}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+                          {getTypeLabel(reference)}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(reference.uploadedAt).toLocaleDateString()}
-                        </span>
+                        {reference.fileSize && (
+                          <>
+                            <span className="text-gray-300 text-xs">·</span>
+                            <span className="text-[10px] text-gray-400">
+                              {formatFileSize(reference.fileSize)}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
-                  </Card>
+
+                    {/* Date */}
+                    <div className="hidden sm:flex items-center gap-1 text-[11px] text-gray-400 flex-shrink-0">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(reference.uploadedAt).toLocaleDateString(
+                        "en-GB",
+                        { day: "2-digit", month: "short", year: "numeric" },
+                      )}
+                    </div>
+
+                    {/* Divider */}
+                    <div className="hidden sm:block w-px h-6 bg-gray-100 flex-shrink-0" />
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      {reference.type === ReferenceType.LINK ? (
+                        <a
+                          href={reference.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-500 transition-colors"
+                          title="Open link"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleView(reference)}
+                            disabled={viewingIds.has(reference.id)}
+                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-40 transition-colors"
+                            title="View"
+                          >
+                            {viewingIds.has(reference.id) ? (
+                              <Spinner size="xs" color="muted" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleDownload(reference)}
+                            disabled={downloadingIds.has(reference.id)}
+                            className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 disabled:opacity-40 transition-colors"
+                            title="Download"
+                          >
+                            {downloadingIds.has(reference.id) ? (
+                              <Spinner size="xs" color="muted" />
+                            ) : (
+                              <Download className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </>
+                      )}
+                      {!readOnly && (
+                        <button
+                          onClick={() => handleDelete(reference.id)}
+                          disabled={deletingIds.has(reference.id)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 disabled:opacity-40 transition-colors"
+                          title="Delete"
+                        >
+                          {deletingIds.has(reference.id) ? (
+                            <Spinner size="xs" color="muted" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

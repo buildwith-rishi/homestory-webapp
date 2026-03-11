@@ -38,6 +38,8 @@ import {
   Paperclip,
   Pencil,
   Eye,
+  UserCircle,
+  ExternalLink,
 } from "lucide-react";
 import {
   Button,
@@ -66,6 +68,7 @@ import {
   uploadPaymentDocument,
   sendPaymentReminder,
 } from "../../services/projectApi";
+import { getLeadById } from "../../services/leadApi";
 import {
   createActivity,
   getActivitiesByEntity,
@@ -195,6 +198,7 @@ export const ProjectDetails: React.FC = () => {
     fetchProjectPayments,
     updateProjectPayment,
     createProjectPayment,
+    deleteProjectPayment,
     updateProject,
     deleteProject,
     clearError,
@@ -285,10 +289,22 @@ export const ProjectDetails: React.FC = () => {
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [uploadDocForm, setUploadDocForm] = useState({
     documentType: "receipt" as "receipt" | "invoice" | "other",
-    fileName: "",
-    fileType: "",
-    fileBase64: "",
   });
+  const [uploadDocFiles, setUploadDocFiles] = useState<
+    Array<{ fileName: string; fileType: string; fileBase64: string }>
+  >([]);
+
+  // View Receipts modal state
+  const [showViewReceiptsModal, setShowViewReceiptsModal] = useState(false);
+  const [viewReceiptsPayment, setViewReceiptsPayment] =
+    useState<ProjectPayment | null>(null);
+  // Tracks all uploaded document URLs per payment in this session
+  const [paymentDocumentsMap, setPaymentDocumentsMap] = useState<
+    Record<
+      string,
+      Array<{ url: string; fileName: string; documentType: string }>
+    >
+  >({});
 
   // Send Reminder modal state
   const [showSendReminderModal, setShowSendReminderModal] = useState(false);
@@ -578,13 +594,30 @@ export const ProjectDetails: React.FC = () => {
   };
 
   // Handle Send Invoice
-  const handleOpenSendInvoice = (payment: ProjectPayment) => {
+  const handleOpenSendInvoice = async (payment: ProjectPayment) => {
     setInvoiceTargetPayment(payment);
+    let toEmail = project?.lead?.email || project?.account?.email || "";
+    let toName = project?.lead?.name || project?.account?.name || "";
+    if (!toEmail && project?.leadId) {
+      try {
+        const lead = await getLeadById(project.leadId);
+        toEmail = lead.email || "";
+        toName = toName || lead.name || "";
+      } catch {
+        // user can fill in manually
+      }
+    }
+    const displayAmount =
+      payment.expectedAmount ??
+      payment.invoiceAmount ??
+      payment.actualAmount ??
+      payment.amount ??
+      "";
     setSendInvoiceForm((prev) => ({
       ...prev,
-      toEmail: project?.lead?.email || "",
-      toName: project?.lead?.name || "",
-      customMessage: `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${payment.expectedAmount}.`,
+      toEmail,
+      toName,
+      customMessage: `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`,
     }));
     setShowSendInvoiceModal(true);
   };
@@ -629,47 +662,75 @@ export const ProjectDetails: React.FC = () => {
   // Handle Upload Document
   const handleOpenUploadDoc = (payment: ProjectPayment) => {
     setDocTargetPayment(payment);
-    setUploadDocForm({
-      documentType: "receipt",
-      fileName: "",
-      fileType: "",
-      fileBase64: "",
-    });
+    setUploadDocForm({ documentType: "receipt" });
+    setUploadDocFiles([]);
     setShowUploadDocModal(true);
   };
 
   const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      setUploadDocForm((prev) => ({
-        ...prev,
-        fileName: file.name,
-        fileType: file.type,
-        fileBase64: base64,
-      }));
-    };
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(",")[1];
+        setUploadDocFiles((prev) => [
+          ...prev,
+          { fileName: file.name, fileType: file.type, fileBase64: base64 },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+    // Reset so the same file can be selected again if removed
+    e.target.value = "";
   };
 
   const handleUploadDoc = async () => {
     if (!docTargetPayment) return;
-    if (!uploadDocForm.fileBase64) {
-      toast.error("Please select a file to upload");
+    if (!uploadDocFiles.length) {
+      toast.error("Please select at least one file to upload");
       return;
     }
     setIsUploadingDoc(true);
     try {
-      await uploadPaymentDocument(docTargetPayment.id, {
-        fileName: uploadDocForm.fileName,
-        fileType: uploadDocForm.fileType,
-        fileBase64: uploadDocForm.fileBase64,
-        documentType: uploadDocForm.documentType,
-      });
-      toast.success("Document uploaded successfully!");
+      const collectedDocs: Array<{
+        url: string;
+        fileName: string;
+        documentType: string;
+      }> = [];
+      for (const file of uploadDocFiles) {
+        const updated = await uploadPaymentDocument(docTargetPayment.id, {
+          fileName: file.fileName,
+          fileType: file.fileType,
+          fileBase64: file.fileBase64,
+          documentType: uploadDocForm.documentType,
+        });
+        // Collect the URL returned by each upload call
+        if (updated.receiptUrl) {
+          collectedDocs.push({
+            url: updated.receiptUrl,
+            fileName: updated.receiptFileName || file.fileName,
+            documentType: uploadDocForm.documentType,
+          });
+        }
+      }
+      // Merge newly collected URLs into the per-payment documents map
+      if (collectedDocs.length > 0) {
+        setPaymentDocumentsMap((prev) => ({
+          ...prev,
+          [docTargetPayment.id]: [
+            ...(prev[docTargetPayment.id] || []),
+            ...collectedDocs,
+          ],
+        }));
+      }
+      toast.success(
+        uploadDocFiles.length === 1
+          ? "Document uploaded successfully!"
+          : `${uploadDocFiles.length} documents uploaded successfully!`,
+      );
       setShowUploadDocModal(false);
+      if (projectId) fetchProjectPayments(projectId);
     } catch {
       toast.error("Failed to upload document");
     } finally {
@@ -678,12 +739,29 @@ export const ProjectDetails: React.FC = () => {
   };
 
   // Handle Send Reminder
-  const handleOpenSendReminder = (payment: ProjectPayment) => {
+  const handleOpenSendReminder = async (payment: ProjectPayment) => {
     setReminderTargetPayment(payment);
+    let toEmail = project?.lead?.email || project?.account?.email || "";
+    let toName = project?.lead?.name || project?.account?.name || "";
+    if (!toEmail && project?.leadId) {
+      try {
+        const lead = await getLeadById(project.leadId);
+        toEmail = lead.email || "";
+        toName = toName || lead.name || "";
+      } catch {
+        // user can fill in manually
+      }
+    }
+    const displayAmount =
+      payment.expectedAmount ??
+      payment.invoiceAmount ??
+      payment.actualAmount ??
+      payment.amount ??
+      "";
     setSendReminderForm({
-      toEmail: project?.lead?.email || "",
-      toName: project?.lead?.name || "",
-      customMessage: `Gentle reminder: Payment of ₹${payment.expectedAmount} for "${payment.title || `Stage ${payment.paymentStage}`}" is pending. Kindly complete the payment at your earliest convenience.`,
+      toEmail,
+      toName,
+      customMessage: `Gentle reminder: Payment of ₹${displayAmount} for "${payment.title || `Stage ${payment.paymentStage}`}" is pending. Kindly complete the payment at your earliest convenience.`,
     });
     setShowSendReminderModal(true);
   };
@@ -1369,10 +1447,22 @@ export const ProjectDetails: React.FC = () => {
                 </Badge>
               </div>
               <div className="flex items-center gap-4 text-gray-600">
-                {project.lead?.name && (
-                  <span className="text-lg font-medium">
-                    {project.lead.name}
-                  </span>
+                {(project.account?.name || project.lead?.name) && (
+                  <button
+                    onClick={() => {
+                      if (project.account?.id) {
+                        navigate(`/dashboard/customers/${project.account.id}`);
+                      } else if (project.lead?.id) {
+                        navigate(`/dashboard/leads/${project.lead.id}`);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 text-base font-semibold text-orange-600 hover:text-orange-700 hover:underline transition-colors group/customer"
+                    title="View customer details"
+                  >
+                    <UserCircle className="w-4 h-4" />
+                    {project.account?.name || project.lead?.name}
+                    <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover/customer:opacity-100 transition-opacity" />
+                  </button>
                 )}
                 {project.propertyCity && (
                   <span className="flex items-center gap-1 text-sm">
@@ -2457,6 +2547,40 @@ export const ProjectDetails: React.FC = () => {
                       <FileUp className="w-3.5 h-3.5" />
                       Upload Receipt
                     </button>
+                    {(payment.receiptUrl ||
+                      (paymentDocumentsMap[payment.id] &&
+                        paymentDocumentsMap[payment.id].length > 0) ||
+                      (payment.documents && payment.documents.length > 0)) && (
+                      <button
+                        onClick={() => {
+                          setViewReceiptsPayment(payment);
+                          setShowViewReceiptsModal(true);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
+                        title="View uploaded receipts / documents"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View Receipts
+                        {(() => {
+                          const apiDocs = payment.documents?.length ?? 0;
+                          const localDocs =
+                            paymentDocumentsMap[payment.id]?.length ?? 0;
+                          const count =
+                            apiDocs > 0
+                              ? apiDocs
+                              : localDocs > 0
+                                ? localDocs
+                                : payment.receiptUrl
+                                  ? 1
+                                  : 0;
+                          return count > 1 ? (
+                            <span className="ml-1 px-1.5 py-0.5 bg-teal-200 text-teal-800 rounded-full text-xs leading-none">
+                              {count}
+                            </span>
+                          ) : null;
+                        })()}
+                      </button>
+                    )}
                     {(payment.status === "PENDING" ||
                       payment.status === "OVERDUE" ||
                       payment.status === "PARTIALLY_PAID") && (
@@ -2469,6 +2593,30 @@ export const ProjectDetails: React.FC = () => {
                         Send Reminder
                       </button>
                     )}
+                    <button
+                      onClick={async () => {
+                        if (
+                          !window.confirm(
+                            "Delete this payment milestone? This cannot be undone.",
+                          )
+                        )
+                          return;
+                        try {
+                          await deleteProjectPayment(
+                            payment.projectId,
+                            payment.id,
+                          );
+                          toast.success("Payment milestone deleted");
+                        } catch {
+                          toast.error("Failed to delete payment milestone");
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors ml-auto"
+                      title="Delete milestone"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
                   </div>
                 </div>
               );
@@ -2768,11 +2916,15 @@ export const ProjectDetails: React.FC = () => {
                     ) : (
                       <>
                         <option value="">— Select a Stage —</option>
-                        {projectStages.map((stage) => (
-                          <option key={stage.id} value={stage.stageCode}>
-                            {stage.stageName}
-                          </option>
-                        ))}
+                        {projectStages
+                          .filter(
+                            (stage) => stage.phaseType === paymentPhaseTab,
+                          )
+                          .map((stage) => (
+                            <option key={stage.id} value={stage.stageCode}>
+                              {stage.stageName}
+                            </option>
+                          ))}
                       </>
                     )}
                   </select>
@@ -3410,37 +3562,63 @@ export const ProjectDetails: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    File *
+                    Files *
                   </label>
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-purple-300 rounded-xl cursor-pointer hover:bg-purple-50 transition-colors">
-                    {uploadDocForm.fileName ? (
-                      <div className="text-center">
-                        <FileText className="w-8 h-8 text-purple-500 mx-auto mb-1" />
-                        <p className="text-sm font-medium text-purple-700">
-                          {uploadDocForm.fileName}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {uploadDocForm.fileType}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500">
-                          Click to select file
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          PDF, JPG, PNG supported
-                        </p>
-                      </div>
-                    )}
+
+                  {/* Drop zone — always visible so more files can be added */}
+                  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-purple-300 rounded-xl cursor-pointer hover:bg-purple-50 transition-colors">
+                    <Upload className="w-7 h-7 text-gray-400 mx-auto mb-1" />
+                    <p className="text-sm text-gray-500">
+                      Click to select files
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      PDF, JPG, PNG supported · multiple allowed
+                    </p>
                     <input
                       type="file"
                       className="hidden"
                       accept=".pdf,.jpg,.jpeg,.png"
+                      multiple
                       onChange={handleDocFileChange}
                     />
                   </label>
+
+                  {/* Selected files list */}
+                  {uploadDocFiles.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        {uploadDocFiles.length} file
+                        {uploadDocFiles.length > 1 ? "s" : ""} selected
+                      </p>
+                      {uploadDocFiles.map((f, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 px-3 py-2.5 bg-purple-50 border border-purple-100 rounded-xl"
+                        >
+                          <FileText className="w-5 h-5 text-purple-500 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-800 truncate">
+                              {f.fileName}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {f.fileType}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setUploadDocFiles((prev) =>
+                                prev.filter((_, i) => i !== idx),
+                              )
+                            }
+                            className="p-1 hover:bg-purple-200 rounded-lg transition-colors flex-shrink-0"
+                          >
+                            <X className="w-4 h-4 text-purple-500" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
@@ -3454,14 +3632,137 @@ export const ProjectDetails: React.FC = () => {
                 <Button
                   className="flex-1 bg-purple-600 hover:bg-purple-700"
                   onClick={handleUploadDoc}
-                  disabled={isUploadingDoc || !uploadDocForm.fileBase64}
+                  disabled={isUploadingDoc || uploadDocFiles.length === 0}
                 >
                   {isUploadingDoc ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <FileUp className="w-4 h-4 mr-2" />
                   )}
-                  {isUploadingDoc ? "Uploading..." : "Upload Document"}
+                  {isUploadingDoc
+                    ? "Uploading..."
+                    : uploadDocFiles.length > 1
+                      ? `Upload ${uploadDocFiles.length} Documents`
+                      : "Upload Document"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Receipts Modal */}
+      {showViewReceiptsModal && viewReceiptsPayment && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Eye className="w-5 h-5 text-teal-600" />
+                    Uploaded Documents
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {viewReceiptsPayment.title ||
+                      `Stage ${viewReceiptsPayment.paymentStage}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowViewReceiptsModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Build deduplicated list: prefer API documents array, then local map, then single receiptUrl */}
+              {(() => {
+                const apiDocs: Array<{
+                  url: string;
+                  fileName: string;
+                  documentType: string;
+                }> =
+                  viewReceiptsPayment.documents &&
+                  viewReceiptsPayment.documents.length > 0
+                    ? viewReceiptsPayment.documents.map((d) => ({
+                        url: d.url,
+                        fileName: d.fileName || "Document",
+                        documentType: d.documentType,
+                      }))
+                    : [];
+
+                const localDocs =
+                  paymentDocumentsMap[viewReceiptsPayment.id] || [];
+
+                // Merge: API docs first, add local ones not already in API docs
+                const merged =
+                  apiDocs.length > 0
+                    ? apiDocs
+                    : localDocs.length > 0
+                      ? localDocs
+                      : viewReceiptsPayment.receiptUrl
+                        ? [
+                            {
+                              url: viewReceiptsPayment.receiptUrl,
+                              fileName:
+                                viewReceiptsPayment.receiptFileName ||
+                                "Receipt",
+                              documentType: "receipt",
+                            },
+                          ]
+                        : [];
+
+                if (merged.length === 0) {
+                  return (
+                    <p className="text-sm text-gray-400 text-center py-6">
+                      No documents found.
+                    </p>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      {merged.length} document{merged.length > 1 ? "s" : ""}
+                    </p>
+                    {merged.map((doc, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl hover:bg-teal-50 hover:border-teal-200 transition-colors"
+                      >
+                        <FileText className="w-5 h-5 text-teal-500 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-800 truncate">
+                            {doc.fileName}
+                          </p>
+                          <p className="text-xs text-gray-400 capitalize">
+                            {doc.documentType}
+                          </p>
+                        </div>
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={doc.fileName}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-100 hover:bg-teal-200 rounded-lg transition-colors flex-shrink-0"
+                          title="Open / download"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          View
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className="mt-6">
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setShowViewReceiptsModal(false)}
+                >
+                  Close
                 </Button>
               </div>
             </div>

@@ -1,10 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, Search, Plus, Phone, Mail, Briefcase, Trash2, Loader2, ChevronRight } from 'lucide-react';
-import { Card, Button, Badge } from '../../components/ui';
-import { AddEngineerModal } from '../../components/dashboard/AddEngineerModal';
-import { getAllTeamMembers, deleteTeamMember, type TeamMember } from '../../services/teamApi';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Users,
+  Search,
+  Plus,
+  Phone,
+  Mail,
+  Briefcase,
+  Trash2,
+  Loader2,
+  ChevronRight,
+} from "lucide-react";
+import { Card, Button, Badge } from "../../components/ui";
+import { AddEngineerModal } from "../../components/dashboard/AddEngineerModal";
+import {
+  getAllTeamMembers,
+  deleteTeamMember,
+  type TeamMember,
+} from "../../services/teamApi";
+import toast from "react-hot-toast";
 
 interface Engineer {
   id: string;
@@ -17,20 +31,26 @@ interface Engineer {
   memberType: string;
 }
 
-const MEMBER_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
-  EMPLOYEE:   { bg: 'bg-blue-50',   text: 'text-blue-700' },
-  CONTRACTOR: { bg: 'bg-orange-50', text: 'text-orange-700' },
-  FREELANCER: { bg: 'bg-purple-50', text: 'text-purple-700' },
-  VENDOR:     { bg: 'bg-yellow-50', text: 'text-yellow-700' },
-  INTERN:     { bg: 'bg-green-50',  text: 'text-green-700' },
-};
+/** Converts any role string to consistent Title Case display name.
+ * e.g. "DESIGN_HEAD" → "Design Head", "Project Manager" → "Project Manager" */
+function formatRoleName(role: string): string {
+  return role
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 function toEngineer(m: TeamMember): Engineer {
   return {
     id: String(m.id),
     name: m.name,
     role: m.role,
-    initials: m.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+    initials: m.name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2),
     phone: m.phone,
     email: m.email,
     department: m.department,
@@ -40,9 +60,8 @@ function toEngineer(m: TeamMember): Engineer {
 
 export const EngineersPage: React.FC = () => {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterRole, setFilterRole] = useState<string>('all');
-  const [filterMemberType, setFilterMemberType] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterRole, setFilterRole] = useState<string>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [rawMembers, setRawMembers] = useState<TeamMember[]>([]);
   const [engineers, setEngineers] = useState<Engineer[]>([]);
@@ -56,31 +75,44 @@ export const EngineersPage: React.FC = () => {
       setRawMembers(members);
       setEngineers(members.map(toEngineer));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to load team members.');
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load team members.",
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     fetchTeamMembers();
   }, [fetchTeamMembers]);
 
-  const uniqueRoles = ['all', ...Array.from(new Set(engineers.map(e => e.role))).sort()];
-  const uniqueMemberTypes = ['all', ...Array.from(new Set(engineers.map(e => e.memberType).filter(Boolean))).sort()];
+  // Normalize role names before deduplication so "PROJECT_MANAGER" and "Project Manager" merge into one.
+  const uniqueRoles = [
+    "all",
+    ...Array.from(new Set(engineers.map((e) => formatRoleName(e.role))))
+      .filter((role) => role !== "Site Manager")
+      .sort(),
+  ];
 
-  const filteredEngineers = engineers.filter(engineer => {
+  const filteredEngineers = engineers.filter((engineer) => {
     const matchesSearch =
-      engineer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      engineer.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      engineer.department.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = filterRole === 'all' || engineer.role === filterRole;
-    const matchesMemberType = filterMemberType === 'all' || engineer.memberType === filterMemberType;
-    return matchesSearch && matchesRole && matchesMemberType;
+      (engineer.name?.toLowerCase() ?? "").includes(
+        searchQuery.toLowerCase(),
+      ) ||
+      (engineer.role?.toLowerCase() ?? "").includes(
+        searchQuery.toLowerCase(),
+      ) ||
+      (engineer.department?.toLowerCase() ?? "").includes(
+        searchQuery.toLowerCase(),
+      );
+    const matchesRole =
+      filterRole === "all" || formatRoleName(engineer.role) === filterRole;
+    return matchesSearch && matchesRole;
   });
 
   const openProfile = (engineer: Engineer) => {
-    const raw = rawMembers.find(m => String(m.id) === engineer.id);
+    const raw = rawMembers.find((m) => String(m.id) === engineer.id);
     navigate(`/dashboard/engineers/${engineer.id}`, { state: { member: raw } });
   };
 
@@ -90,10 +122,14 @@ export const EngineersPage: React.FC = () => {
     try {
       await deleteTeamMember(id);
       toast.success(`${name} has been removed.`);
-      setRawMembers(prev => prev.filter(m => String(m.id) !== id));
-      setEngineers(prev => prev.filter(e => e.id !== id));
+      setRawMembers((prev) => prev.filter((m) => String(m.id) !== id));
+      setEngineers((prev) => prev.filter((e) => e.id !== id));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to remove team member.');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to remove team member.",
+      );
     } finally {
       setDeletingId(null);
     }
@@ -105,7 +141,9 @@ export const EngineersPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Engineers & Team</h1>
-          <p className="text-gray-600 mt-1">Manage your field team and assignments</p>
+          <p className="text-gray-600 mt-1">
+            Manage your field team and assignments
+          </p>
         </div>
         <Button onClick={() => setIsModalOpen(true)} className="rounded-xl">
           <Plus className="w-4 h-4" />
@@ -119,7 +157,9 @@ export const EngineersPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total Members</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{engineers.length}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {engineers.length}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
               <Users className="w-5 h-5 text-blue-600" />
@@ -131,7 +171,7 @@ export const EngineersPage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Roles</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {new Set(engineers.map(e => e.role)).size}
+                {new Set(engineers.map((e) => e.role)).size}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
@@ -158,41 +198,23 @@ export const EngineersPage: React.FC = () => {
 
         {/* Role filter */}
         <div className="flex gap-2 flex-wrap items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Role:</span>
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
+            Role:
+          </span>
           {uniqueRoles.map((role) => (
             <button
               key={role}
               onClick={() => setFilterRole(role)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 filterRole === role
-                  ? 'bg-blue-600 text-white border border-blue-600'
-                  : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50'
+                  ? "bg-blue-600 text-white border border-blue-600"
+                  : "bg-white border border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50"
               }`}
             >
-              {role === 'all' ? 'All Roles' : role}
+              {role === "all" ? "All Roles" : role}
             </button>
           ))}
         </div>
-
-        {/* Member Type filter */}
-        {uniqueMemberTypes.length > 1 && (
-          <div className="flex gap-2 flex-wrap items-center">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Type:</span>
-            {uniqueMemberTypes.map((type) => (
-              <button
-                key={type}
-                onClick={() => setFilterMemberType(type)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  filterMemberType === type
-                    ? 'bg-orange-600 text-white border border-orange-600'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50'
-                }`}
-              >
-                {type === 'all' ? 'All Types' : type.charAt(0) + type.slice(1).toLowerCase()}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Loading state */}
@@ -206,7 +228,6 @@ export const EngineersPage: React.FC = () => {
           {/* Engineers Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredEngineers.map((engineer) => {
-              const memberTypeStyle = MEMBER_TYPE_STYLES[engineer.memberType] ?? { bg: 'bg-gray-50', text: 'text-gray-700' };
               return (
                 <Card
                   key={engineer.id}
@@ -224,35 +245,36 @@ export const EngineersPage: React.FC = () => {
                           {engineer.name}
                           <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-orange-500" />
                         </h3>
-                        <p className="text-sm text-gray-600">{engineer.role}</p>
+                        <p className="text-sm text-gray-600">
+                          {formatRoleName(engineer.role)}
+                        </p>
                       </div>
                     </div>
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteEngineer(engineer.id, engineer.name); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEngineer(engineer.id, engineer.name);
+                      }}
                       disabled={deletingId === engineer.id}
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                       title="Remove member"
                     >
-                      {deletingId === engineer.id
-                        ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : <Trash2 className="w-4 h-4" />
-                      }
+                      {deletingId === engineer.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
 
-                  {/* Department & Member Type badges */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {engineer.department && (
+                  {/* Department badge */}
+                  {engineer.department && (
+                    <div className="flex flex-wrap gap-2 mb-4">
                       <Badge className="text-xs bg-gray-100 text-gray-700 rounded-lg">
                         {engineer.department}
                       </Badge>
-                    )}
-                    {engineer.memberType && (
-                      <Badge className={`text-xs rounded-lg ${memberTypeStyle.bg} ${memberTypeStyle.text}`}>
-                        {engineer.memberType.charAt(0) + engineer.memberType.slice(1).toLowerCase()}
-                      </Badge>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {/* Contact */}
                   <div className="flex gap-2 pt-3 border-t border-gray-100">
@@ -273,7 +295,10 @@ export const EngineersPage: React.FC = () => {
                       Email
                     </a>
                     <button
-                      onClick={(e) => { e.stopPropagation(); openProfile(engineer); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openProfile(engineer);
+                      }}
                       className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
                     >
                       <ChevronRight className="w-4 h-4" />
@@ -292,15 +317,20 @@ export const EngineersPage: React.FC = () => {
                 <Users className="w-8 h-8 text-gray-400" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {engineers.length === 0 ? 'No team members yet' : 'No members found'}
+                {engineers.length === 0
+                  ? "No team members yet"
+                  : "No members found"}
               </h3>
               <p className="text-gray-600 mb-4">
                 {engineers.length === 0
-                  ? 'Add your first team member to get started'
-                  : 'Try adjusting your filters'}
+                  ? "Add your first team member to get started"
+                  : "Try adjusting your filters"}
               </p>
               {engineers.length === 0 && (
-                <Button onClick={() => setIsModalOpen(true)} className="rounded-xl">
+                <Button
+                  onClick={() => setIsModalOpen(true)}
+                  className="rounded-xl"
+                >
                   <Plus className="w-4 h-4" />
                   Add Team Member
                 </Button>

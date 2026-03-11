@@ -105,6 +105,7 @@ const LeadDetails: React.FC = () => {
     setNotes([]);
     setContacts([]);
     setStageHistory([]);
+    setReferences([]);
     setLoading(true);
 
     if (id) {
@@ -299,7 +300,12 @@ const LeadDetails: React.FC = () => {
 
       // Load references — fetch real attachments from API
       try {
-        const attachments: Attachment[] = await listAttachments("LEAD", id);
+        const rawAttachments: Attachment[] = await listAttachments("LEAD", id);
+        // Strictly filter by entityId on the client side to guarantee isolation
+        // between leads even if the backend returns unfiltered results.
+        const attachments = rawAttachments.filter(
+          (a) => !a.entityId || a.entityId === id,
+        );
         const mapped: LeadReference[] = attachments.map((a) => ({
           id: a.id,
           leadId: id,
@@ -704,50 +710,11 @@ const LeadDetails: React.FC = () => {
                       {score}%
                     </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full bg-gradient-to-r ${getScoreBg(score)} transition-all duration-700`}
                       style={{ width: `${score}%` }}
                     ></div>
-                  </div>
-                  {/* Milestones */}
-                  <div className="grid grid-cols-4 gap-2">
-                    <div className="text-center py-2 px-1 bg-emerald-50 rounded-lg">
-                      <CheckCircle className="w-4 h-4 text-emerald-600 mx-auto mb-1" />
-                      <p className="text-[10px] font-medium text-gray-600">
-                        Qualified
-                      </p>
-                    </div>
-                    <div
-                      className={`text-center py-2 px-1 rounded-lg ${lead.meetingScheduled ? "bg-blue-50" : "bg-gray-50"}`}
-                    >
-                      <Calendar
-                        className={`w-4 h-4 mx-auto mb-1 ${lead.meetingScheduled ? "text-blue-600" : "text-gray-400"}`}
-                      />
-                      <p className="text-[10px] font-medium text-gray-600">
-                        Meeting
-                      </p>
-                    </div>
-                    <div
-                      className={`text-center py-2 px-1 rounded-lg ${lead.siteVisitDone ? "bg-purple-50" : "bg-gray-50"}`}
-                    >
-                      <Home
-                        className={`w-4 h-4 mx-auto mb-1 ${lead.siteVisitDone ? "text-purple-600" : "text-gray-400"}`}
-                      />
-                      <p className="text-[10px] font-medium text-gray-600">
-                        Site Visit
-                      </p>
-                    </div>
-                    <div
-                      className={`text-center py-2 px-1 rounded-lg ${lead.quotationSent ? "bg-orange-50" : "bg-gray-50"}`}
-                    >
-                      <FileText
-                        className={`w-4 h-4 mx-auto mb-1 ${lead.quotationSent ? "text-orange-600" : "text-gray-400"}`}
-                      />
-                      <p className="text-[10px] font-medium text-gray-600">
-                        Quotation
-                      </p>
-                    </div>
                   </div>
                 </div>
               </div>

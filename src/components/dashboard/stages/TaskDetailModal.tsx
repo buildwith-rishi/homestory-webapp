@@ -16,6 +16,7 @@ import {
   Video,
   ExternalLink,
   File,
+  Download,
   Edit3,
   Save,
   UserCheck,
@@ -32,6 +33,7 @@ import type {
   NotifyCustomerRequest,
 } from "../../../types";
 import { adminAPI } from "../../../services/api";
+import { getAttachment } from "../../../services/attachmentApi";
 import {
   getMatrixTaskDetails,
   getTaskAttachments,
@@ -160,6 +162,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<
     string | null
   >(null);
+  const [viewingAttachmentId, setViewingAttachmentId] = useState<string | null>(
+    null,
+  );
+  // Resolved signed download URLs keyed by attachment id
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Users list for assignee dropdown
@@ -223,7 +230,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setEditTitle(task.title || "");
     setEditDescription(task.description || "");
     setEditCategoryId(task.categoryId || task.category?.id || "");
-    setEditAssigneeId(task.assignedToId || "");
+    const t = task as unknown as Record<string, unknown>;
+    setEditAssigneeId(
+      task.assignedToId || (t.assignedToUserId as string | undefined) || "",
+    );
     setEditDayNumber(task.dayNumber || 1);
     // Normalize startDate to YYYY-MM-DD for date input
     const sd = task.startDate || "";
@@ -327,10 +337,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       toast.error("Task title is required");
       return;
     }
-    if (!editCompletionNotes.trim()) {
-      toast.error("Completion notes are required");
-      return;
-    }
     setSavingEdit(true);
     try {
       // Compute taskDate from editStartDate + editDayNumber so it stays in sync
@@ -359,17 +365,42 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           : task.startDate || undefined,
         taskDate: computedTaskDate,
         status: editStatus || task.status,
-        completionNotes: editCompletionNotes.trim(),
+        ...(editCompletionNotes.trim() && {
+          completionNotes: editCompletionNotes.trim(),
+        }),
         ...(editAssigneeId
-          ? {
-              assignedToUserId: editAssigneeId,
-              assignedToMemberId: editAssigneeId,
-            }
-          : { assignedToUserId: null, assignedToMemberId: null }),
+          ? { assignedToUserId: editAssigneeId }
+          : { assignedToUserId: null }),
       };
 
-      await updateMatrixTask(taskId, payload);
+      const updatedTask = await updateMatrixTask(taskId, payload);
       toast.success("Task updated successfully");
+
+      // Optimistically apply the updated fields so the UI reflects changes
+      // immediately (title, description, status, etc.) without waiting for
+      // the refetch — critical when the GET returns partial/stale data.
+      setTask((prev) => {
+        if (!prev) return prev;
+        // Prefer server-returned values; fall through to what the user typed.
+        const newTitle = updatedTask?.title || editTitle.trim() || prev.title;
+        const newDescription =
+          updatedTask?.description !== undefined
+            ? updatedTask.description
+            : editDescription.trim() || prev.description;
+        return {
+          ...prev,
+          title: newTitle,
+          description: newDescription,
+          categoryId:
+            editCategoryId || prev.categoryId || prev.category?.id || undefined,
+          dayNumber: editDayNumber || prev.dayNumber,
+          status: editStatus || prev.status,
+          ...(editCompletionNotes.trim() && {
+            completionNotes: editCompletionNotes.trim(),
+          }),
+        };
+      });
+
       setIsEditing(false);
       await fetchTaskDetails();
       onStatusChanged();
@@ -413,6 +444,37 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     fetchTaskDetails();
   }, [taskId]);
 
+  // Resolve signed download URLs for all attachments as soon as the list changes
+  useEffect(() => {
+    if (attachments.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        attachments.map(async (att) => {
+          try {
+            const detail = await getAttachment(att.id);
+            const url =
+              detail.downloadUrl ||
+              detail.storageUrl ||
+              detail.url ||
+              detail.fileUrl ||
+              att.fileUrl ||
+              "";
+            return [att.id, url] as const;
+          } catch {
+            return [att.id, att.fileUrl || ""] as const;
+          }
+        }),
+      );
+      if (!cancelled) {
+        setResolvedUrls(Object.fromEntries(entries));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [attachments]);
+
   const fetchTaskDetails = async () => {
     setLoading(true);
 
@@ -422,7 +484,16 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
     // 1. Fetch task details
     try {
-      taskData = await getMatrixTaskDetails(taskId);
+      const raw = await getMatrixTaskDetails(taskId);
+      // Normalize API response: server may return 'assignedToUser' instead of 'assignedTo'
+      const r = raw as unknown as Record<string, unknown>;
+      taskData = {
+        ...raw,
+        assignedTo:
+          raw.assignedTo ||
+          (r.assignedToUser as MatrixTask["assignedTo"]) ||
+          null,
+      };
       console.log("[TaskDetailModal] Task data:", taskData);
     } catch (err) {
       console.error("[TaskDetailModal] Failed to fetch task details:", err);
@@ -456,6 +527,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       toast.error("Failed to load task details");
     }
     setAttachments(attachData);
+    setResolvedUrls({}); // clear stale URLs when task reloads
 
     setLoading(false);
   };
@@ -497,6 +569,40 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
       setDeletingAttachmentId(null);
+    }
+  };
+
+  /** Open attachment using the resolved URL; falls back to fresh API fetch */
+  const handleViewAttachment = async (att: TaskAttachment) => {
+    // If already resolved, open immediately
+    const cached = resolvedUrls[att.id];
+    if (cached) {
+      window.open(cached, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setViewingAttachmentId(att.id);
+    try {
+      const detail = await getAttachment(att.id);
+      const url =
+        detail.downloadUrl ||
+        detail.storageUrl ||
+        detail.url ||
+        detail.fileUrl ||
+        att.fileUrl;
+      if (url) {
+        setResolvedUrls((prev) => ({ ...prev, [att.id]: url }));
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Unable to retrieve file URL");
+      }
+    } catch {
+      if (att.fileUrl?.startsWith("http")) {
+        window.open(att.fileUrl, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Unable to open attachment");
+      }
+    } finally {
+      setViewingAttachmentId(null);
     }
   };
 
@@ -607,6 +713,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           type="text"
                           value={editTitle}
                           onChange={(e) => setEditTitle(e.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
                           className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
                           placeholder="Task title"
                         />
@@ -726,11 +834,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <Button
                           size="sm"
                           onClick={handleSaveTaskEdit}
-                          disabled={
-                            savingEdit ||
-                            !editTitle.trim() ||
-                            !editCompletionNotes.trim()
-                          }
+                          disabled={savingEdit || !editTitle.trim()}
                           className="bg-orange-500 hover:bg-orange-600 text-white"
                         >
                           {savingEdit ? (
@@ -1192,13 +1296,38 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     <div className="space-y-2">
                       {attachments.map((att) => {
                         const isDeleting = deletingAttachmentId === att.id;
+                        const isViewing = viewingAttachmentId === att.id;
+                        const isImage =
+                          att.attachmentType === "PHOTO" ||
+                          att.fileType?.startsWith("image/");
+                        const resolvedUrl =
+                          resolvedUrls[att.id] || att.fileUrl || "";
                         return (
                           <div
                             key={att.id}
                             className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg group"
                           >
-                            {attachmentTypeIcon[att.attachmentType] ||
-                              attachmentTypeIcon.OTHER}
+                            {/* Thumbnail for images, icon for others */}
+                            {isImage ? (
+                              <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0 bg-gray-200 border border-gray-200">
+                                <img
+                                  src={resolvedUrl}
+                                  alt={att.fileName}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const el = e.currentTarget;
+                                    el.style.display = "none";
+                                    if (el.parentElement) {
+                                      el.parentElement.innerHTML =
+                                        '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-400 m-auto mt-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              attachmentTypeIcon[att.attachmentType] ||
+                              attachmentTypeIcon.OTHER
+                            )}
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">
                                 {att.fileName}
@@ -1217,15 +1346,28 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                               )}
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <a
-                                href={att.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1.5 text-gray-400 hover:text-blue-600 rounded"
-                                title="Open"
+                              <button
+                                onClick={() => handleViewAttachment(att)}
+                                disabled={isViewing}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 rounded disabled:opacity-50"
+                                title="View"
                               >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
+                                {isViewing ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              {resolvedUrl && (
+                                <a
+                                  href={resolvedUrl}
+                                  download={att.fileName}
+                                  className="p-1.5 text-gray-400 hover:text-green-600 rounded"
+                                  title="Download"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </a>
+                              )}
                               <button
                                 onClick={() => handleDeleteAttachment(att.id)}
                                 disabled={isDeleting}

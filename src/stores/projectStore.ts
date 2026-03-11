@@ -71,6 +71,7 @@ interface ProjectState {
     projectId: string,
     data: CreatePaymentRequest,
   ) => Promise<void>;
+  deleteProjectPayment: (projectId: string, paymentId: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
   addProject: (project: CreateProjectRequest) => Promise<Project>;
@@ -378,6 +379,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
+  deleteProjectPayment: async (projectId: string, paymentId: string) => {
+    try {
+      await projectAPI.deleteProjectPayment(paymentId);
+      const response = await projectAPI.getProjectPayments(projectId);
+      set({
+        projectPayments: response.payments || [],
+        totalPaymentValue: response.totalValue || "0",
+        totalPaidAmount: response.paidAmount || "0",
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete payment milestone";
+      throw errorMessage;
+    }
+  },
+
   deleteProject: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -403,6 +422,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const createdProject = await projectAPI.createProject(projectData);
+
+      // Remove any payment milestones the backend auto-seeds on creation
+      // so projects start with a clean, empty payments list
+      try {
+        const paymentsResponse = await projectAPI.getProjectPayments(
+          createdProject.id,
+        );
+        const autoCreated = paymentsResponse.payments || [];
+        await Promise.all(
+          autoCreated.map((p) => projectAPI.deleteProjectPayment(p.id)),
+        );
+      } catch (cleanupErr) {
+        // Non-fatal: log but don't block project creation
+        console.warn(
+          "Could not remove auto-created payment milestones:",
+          cleanupErr,
+        );
+      }
+
       // Re-fetch the projects list to stay in sync
       const response = await projectAPI.listProjects();
       set({ projects: response.projects, isLoading: false });

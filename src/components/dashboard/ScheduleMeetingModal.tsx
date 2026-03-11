@@ -179,13 +179,7 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
   if (!isOpen) return null;
 
   const meetingTypes = [
-    {
-      value: "voice_call",
-      label: "Voice Call",
-      icon: Phone,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-    },
+    
     {
       value: "site_visit",
       label: "Site Visit",
@@ -193,13 +187,7 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
       color: "text-orange-600",
       bg: "bg-orange-50",
     },
-    {
-      value: "consultation",
-      label: "Consultation",
-      icon: Users,
-      color: "text-teal-600",
-      bg: "bg-teal-50",
-    },
+    
   ];
 
   const durations = ["15", "30", "45", "60", "90", "120"];

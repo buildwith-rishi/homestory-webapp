@@ -217,11 +217,18 @@ export function EngineerTasks() {
     if (!selectedTask) return;
     setIsSavingStatus(true);
     try {
-      if (editStatus === "COMPLETED" && workPhoto?.file) {
+      if (
+        (editStatus === "COMPLETED" || editStatus === "IN_PROGRESS") &&
+        workPhoto?.file
+      ) {
+        const photoLabel =
+          editStatus === "COMPLETED"
+            ? `Completion – ${selectedTask.title}`
+            : `Progress – ${selectedTask.title}`;
         await uploadSiteEngineerTaskPhoto(
           selectedTask.id,
           workPhoto.file,
-          `Completion – ${selectedTask.title}`,
+          photoLabel,
         ).catch(() => {});
       }
       await updateSiteEngineerTaskStatus(selectedTask.id, {
@@ -314,10 +321,13 @@ export function EngineerTasks() {
   const selectedStr = toDateStr(selectedDate);
 
   const seTaskIds = new Set(seTasks.map((t) => t.id));
-  const seAsTask: Task[] = seTasks.map((t) => ({
-    ...t,
-    completed: t.status === "COMPLETED",
-  }));
+  // Only show SE tasks that are due on the currently selected date
+  const seAsTask: Task[] = seTasks
+    .filter((t) => t.dueDate === selectedStr)
+    .map((t) => ({
+      ...t,
+      completed: t.status === "COMPLETED",
+    }));
   const storeForDate = (allTasks || []).filter(
     (t) => !seTaskIds.has(t.id) && t.dueDate === selectedStr,
   );
@@ -336,9 +346,9 @@ export function EngineerTasks() {
   const total = allDisplay.length;
   const pct = total > 0 ? Math.round((done.length / total) * 100) : 0;
 
-  // Task dots per date on calendar
+  // Task dots per date on calendar — use all seTasks (not date-filtered) so dots show on every date that has tasks
   const dotMap: Record<string, number> = {};
-  seAsTask.forEach((t) => {
+  seTasks.forEach((t) => {
     if (t.dueDate) dotMap[t.dueDate] = (dotMap[t.dueDate] || 0) + 1;
   });
 
@@ -1058,70 +1068,122 @@ export function EngineerTasks() {
                   </div>
                 </div>
 
-                {/* Photo capture */}
-                <div
-                  className={`rounded-2xl border-2 overflow-hidden transition-all ${editStatus === "COMPLETED" ? "border-green-300 bg-green-50" : "border-dashed border-gray-200 opacity-50"}`}
-                >
-                  <div className="px-4 pt-3.5 pb-2.5">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <Camera
-                        className={`w-4 h-4 ${editStatus === "COMPLETED" ? "text-green-600" : "text-gray-400"}`}
-                      />
-                      <p
-                        className={`text-sm font-bold ${editStatus === "COMPLETED" ? "text-green-800" : "text-gray-400"}`}
-                      >
-                        Completion Photo
-                      </p>
-                    </div>
-                    <p
-                      className={`text-xs ${editStatus === "COMPLETED" ? "text-green-700" : "text-gray-400"}`}
+                {/* Photo capture — enabled for IN_PROGRESS and COMPLETED */}
+                {(() => {
+                  const photoEnabled =
+                    editStatus === "COMPLETED" || editStatus === "IN_PROGRESS";
+                  const isComplete = editStatus === "COMPLETED";
+                  const accent = isComplete
+                    ? {
+                        border: "border-green-300",
+                        bg: "bg-green-50",
+                        icon: "text-green-600",
+                        title: "text-green-800",
+                        sub: "text-green-700",
+                        dashed: "border-green-300 hover:border-green-400",
+                        iconBg: "bg-green-100",
+                        iconColor: "text-green-600",
+                        textColor: "text-green-700",
+                        badge: "bg-green-500",
+                      }
+                    : {
+                        border: "border-blue-300",
+                        bg: "bg-blue-50",
+                        icon: "text-blue-600",
+                        title: "text-blue-800",
+                        sub: "text-blue-700",
+                        dashed: "border-blue-300 hover:border-blue-400",
+                        iconBg: "bg-blue-100",
+                        iconColor: "text-blue-600",
+                        textColor: "text-blue-700",
+                        badge: "bg-blue-500",
+                      };
+                  return (
+                    <div
+                      className={`rounded-2xl border-2 overflow-hidden transition-all ${
+                        photoEnabled
+                          ? `${accent.border} ${accent.bg}`
+                          : "border-dashed border-gray-200 opacity-50"
+                      }`}
                     >
-                      {editStatus === "COMPLETED"
-                        ? "Attach a photo as proof of completed work."
-                        : "Mark as Completed to enable photo."}
-                    </p>
-                  </div>
-                  {editStatus === "COMPLETED" && (
-                    <div className="px-4 pb-4">
-                      {workPhoto ? (
-                        <div className="relative">
-                          <img
-                            src={workPhoto.previewUrl}
-                            alt="Completion"
-                            className="w-full h-44 object-cover rounded-xl"
+                      <div className="px-4 pt-3.5 pb-2.5">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <Camera
+                            className={`w-4 h-4 ${
+                              photoEnabled ? accent.icon : "text-gray-400"
+                            }`}
                           />
-                          <button
-                            onClick={() => setWorkPhoto(null)}
-                            className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"
+                          <p
+                            className={`text-sm font-bold ${
+                              photoEnabled ? accent.title : "text-gray-400"
+                            }`}
                           >
-                            <X className="w-4 h-4 text-white" />
-                          </button>
-                          <div className="absolute bottom-2 left-2 bg-green-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1">
-                            <Check className="w-3 h-3" /> Ready
-                          </div>
-                          <button
-                            onClick={() => cameraInputRef.current?.click()}
-                            className="absolute bottom-2 right-2 bg-white text-gray-700 text-[10px] font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1 border border-gray-200"
-                          >
-                            <Camera className="w-3 h-3" /> Retake
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => cameraInputRef.current?.click()}
-                          className="w-full h-28 flex flex-col items-center justify-center gap-2 bg-white border-2 border-dashed border-green-300 rounded-xl hover:border-green-400 active:scale-[0.98] transition"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                            <Camera className="w-5 h-5 text-green-600" />
-                          </div>
-                          <p className="text-xs font-semibold text-green-700">
-                            Tap to capture / choose photo
+                            {isComplete ? "Completion Photo" : "Progress Photo"}
                           </p>
-                        </button>
+                        </div>
+                        <p
+                          className={`text-xs ${
+                            photoEnabled ? accent.sub : "text-gray-400"
+                          }`}
+                        >
+                          {editStatus === "COMPLETED"
+                            ? "Attach a photo as proof of completed work."
+                            : editStatus === "IN_PROGRESS"
+                              ? "Optionally attach a progress photo."
+                              : "Select In Progress or Completed to upload a photo."}
+                        </p>
+                      </div>
+                      {photoEnabled && (
+                        <div className="px-4 pb-4">
+                          {workPhoto ? (
+                            <div className="relative">
+                              <img
+                                src={workPhoto.previewUrl}
+                                alt="Work photo"
+                                className="w-full h-44 object-cover rounded-xl"
+                              />
+                              <button
+                                onClick={() => setWorkPhoto(null)}
+                                className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"
+                              >
+                                <X className="w-4 h-4 text-white" />
+                              </button>
+                              <div
+                                className={`absolute bottom-2 left-2 ${accent.badge} text-white text-[10px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1`}
+                              >
+                                <Check className="w-3 h-3" /> Ready
+                              </div>
+                              <button
+                                onClick={() => cameraInputRef.current?.click()}
+                                className="absolute bottom-2 right-2 bg-white text-gray-700 text-[10px] font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1 border border-gray-200"
+                              >
+                                <Camera className="w-3 h-3" /> Retake
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => cameraInputRef.current?.click()}
+                              className={`w-full h-28 flex flex-col items-center justify-center gap-2 bg-white border-2 border-dashed ${accent.dashed} rounded-xl active:scale-[0.98] transition`}
+                            >
+                              <div
+                                className={`w-10 h-10 rounded-full ${accent.iconBg} flex items-center justify-center`}
+                              >
+                                <Camera
+                                  className={`w-5 h-5 ${accent.iconColor}`}
+                                />
+                              </div>
+                              <p
+                                className={`text-xs font-semibold ${accent.textColor}`}
+                              >
+                                Tap to capture / choose photo
+                              </p>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Footer */}
@@ -1139,8 +1201,13 @@ export function EngineerTasks() {
                 </button>
                 <button
                   onClick={handleSaveStatus}
-                  disabled={isSavingStatus}
-                  className="flex-1 py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 shadow-md shadow-orange-200 active:scale-[0.97] transition disabled:opacity-60"
+                  disabled={
+                    isSavingStatus ||
+                    ((editStatus === "IN_PROGRESS" ||
+                      editStatus === "COMPLETED") &&
+                      !workPhoto)
+                  }
+                  className="flex-1 py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 shadow-md shadow-orange-200 active:scale-[0.97] transition disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
                     background: "linear-gradient(135deg,#f97316,#dc6a0f)",
                   }}
@@ -1150,7 +1217,11 @@ export function EngineerTasks() {
                   ) : (
                     <Check className="w-4 h-4" />
                   )}
-                  Save Status
+                  {(editStatus === "IN_PROGRESS" ||
+                    editStatus === "COMPLETED") &&
+                  !workPhoto
+                    ? "Upload Photo First"
+                    : "Save Status"}
                 </button>
               </div>
             </div>

@@ -8,11 +8,18 @@ import {
   MapPin,
   ChevronRight,
   AlertCircle,
-  Filter,
+  Plus,
+  X,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { Spinner } from "../../components/ui";
-import { getBDRLeads, BDRLead } from "../../services/bdrApi";
+import {
+  getBDRLeads,
+  createBDRLead,
+  BDRLead,
+  CreateBDRLeadPayload,
+} from "../../services/bdrApi";
+import { useAuthStore } from "../../stores/authStore";
 
 const STAGE_COLORS: Record<string, string> = {
   NEW: "bg-blue-100 text-blue-700",
@@ -41,7 +48,31 @@ function getInitials(name?: string) {
     .slice(0, 2);
 }
 
+const SOURCE_OPTIONS = [
+  { value: "REFERRAL", label: "Referral" },
+  { value: "WALK_IN", label: "Walk-in" },
+  { value: "PHONE_CALL", label: "Phone Call" },
+  { value: "SOCIAL_MEDIA", label: "Social Media" },
+  { value: "WEBSITE", label: "Website" },
+  { value: "HOARDING", label: "Hoarding" },
+  { value: "NEWSPAPER", label: "Newspaper" },
+  { value: "COLD_CALL", label: "Cold Call" },
+  { value: "OTHER", label: "Other" },
+];
+
+const EMPTY_FORM = {
+  name: "",
+  phone: "",
+  email: "",
+  source: "",
+  city: "",
+  requirements: "",
+  message: "",
+  canWhatsApp: false,
+};
+
 export function BDRLeads() {
+  const { user } = useAuthStore();
   const [leads, setLeads] = useState<BDRLead[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -49,6 +80,12 @@ export function BDRLeads() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const LIMIT = 20;
+
+  // Create lead modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
 
   const loadLeads = useCallback(async (offset = 0) => {
     setLoading(true);
@@ -71,6 +108,42 @@ export function BDRLeads() {
   const handleRefresh = () => {
     setPage(0);
     loadLeads(0);
+  };
+
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.id) return;
+    if (!form.name.trim() || !form.phone.trim()) {
+      setCreateError("Name and phone are required.");
+      return;
+    }
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const payload: CreateBDRLeadPayload = {
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        assignedToId: user.id,
+        ...(form.email.trim() && { email: form.email.trim() }),
+        ...(form.source && { source: form.source }),
+        ...(form.city.trim() && { city: form.city.trim() }),
+        ...(form.requirements.trim() && {
+          requirements: form.requirements.trim(),
+        }),
+        ...(form.message.trim() && { message: form.message.trim() }),
+        canWhatsApp: form.canWhatsApp,
+      };
+      await createBDRLead(payload);
+      setShowCreateModal(false);
+      setForm(EMPTY_FORM);
+      handleRefresh();
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create lead",
+      );
+    } finally {
+      setCreating(false);
+    }
   };
 
   const filteredLeads = leads.filter((lead) => {
@@ -308,6 +381,204 @@ export function BDRLeads() {
           </div>
         )}
       </div>
+
+      {/* FAB – Create New Lead */}
+      <button
+        onClick={() => {
+          setCreateError(null);
+          setForm(EMPTY_FORM);
+          setShowCreateModal(true);
+        }}
+        className="fixed bottom-24 right-4 w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all z-30"
+        aria-label="Create new lead"
+      >
+        <Plus className="w-6 h-6 text-white" />
+      </button>
+
+      {/* Create Lead Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          {/* Modal header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white sticky top-0">
+            <button
+              onClick={() => setShowCreateModal(false)}
+              className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 active:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-base font-bold text-gray-900">New Lead</h2>
+            <button
+              form="create-lead-form"
+              type="submit"
+              disabled={creating}
+              className="px-4 py-1.5 bg-orange-500 text-white text-sm font-semibold rounded-xl disabled:opacity-50 active:scale-95 transition-all"
+            >
+              {creating ? "Saving…" : "Save"}
+            </button>
+          </div>
+
+          {/* Form */}
+          <form
+            id="create-lead-form"
+            onSubmit={handleCreateLead}
+            className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+          >
+            {createError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-700">
+                {createError}
+              </div>
+            )}
+
+            {/* Name */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Priya Sharma"
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                required
+              />
+            </div>
+
+            {/* Phone */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Phone <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                placeholder="e.g. 9876543210"
+                value={form.phone}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, phone: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                required
+              />
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. priya@example.com"
+                value={form.email}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
+              />
+            </div>
+
+            {/* Source */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Source
+              </label>
+              <select
+                value={form.source}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, source: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-300 appearance-none"
+              >
+                <option value="">Select source…</option>
+                {SOURCE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* City */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                City
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Bangalore"
+                value={form.city}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, city: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
+              />
+            </div>
+
+            {/* Requirements */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Requirements
+              </label>
+              <textarea
+                rows={2}
+                placeholder="e.g. 3BHK interior, budget ₹15L"
+                value={form.requirements}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, requirements: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none"
+              />
+            </div>
+
+            {/* Message / Notes */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Notes
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Any additional notes…"
+                value={form.message}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, message: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none"
+              />
+            </div>
+
+            {/* WhatsApp */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                onClick={() =>
+                  setForm((f) => ({ ...f, canWhatsApp: !f.canWhatsApp }))
+                }
+                className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
+                  form.canWhatsApp ? "bg-green-500" : "bg-gray-300"
+                } flex items-center px-0.5`}
+              >
+                <div
+                  className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                    form.canWhatsApp ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </div>
+              <span className="text-sm text-gray-700">
+                Can be reached on WhatsApp
+              </span>
+            </label>
+
+            {/* Assigned to (read-only info) */}
+            <div className="bg-orange-50 border border-orange-100 rounded-xl px-3 py-2.5">
+              <p className="text-xs text-orange-700">
+                <span className="font-semibold">Assigned to:</span>{" "}
+                {user?.name || "You"} (self-assigned)
+              </p>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

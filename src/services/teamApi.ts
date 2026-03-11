@@ -203,7 +203,8 @@ export async function updateTeamMember(
     headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
-  return handleResponse<TeamMember>(response);
+  const data = await handleResponse<unknown>(response);
+  return extractMember(data);
 }
 
 /** DELETE /api/team/:id – Delete (soft-delete) a team member.

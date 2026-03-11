@@ -167,7 +167,7 @@ export const ProjectStagesTableView: React.FC<Props> = ({
                 Status
               </th>
               <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Tentative Date
+                Tentative Completion Date
               </th>
               <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Completed Date

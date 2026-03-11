@@ -511,6 +511,32 @@ export async function createProjectPayment(
 }
 
 /**
+ * Delete a payment milestone
+ * DELETE /api/payments/:paymentId
+ */
+export async function deleteProjectPayment(paymentId: string): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/payments/${paymentId}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const error = await response.json();
+        errorMessage = error.message || error.error || errorMessage;
+      } catch {
+        // ignore parse errors
+      }
+      throw new Error(errorMessage);
+    }
+  } catch (error) {
+    console.error("Error deleting payment:", error);
+    throw error;
+  }
+}
+
+/**
  * Get payment options (statuses, methods, phaseTypes)
  * GET /api/payments/options
  */
@@ -607,7 +633,7 @@ export async function sendPaymentInvoice(
 export async function uploadPaymentDocument(
   paymentId: string,
   data: UploadPaymentDocumentRequest,
-): Promise<{ success: boolean; url?: string }> {
+): Promise<ProjectPayment> {
   try {
     const response = await fetch(
       `${API_BASE_URL}/api/payments/${paymentId}/upload-document`,
@@ -617,7 +643,7 @@ export async function uploadPaymentDocument(
         body: JSON.stringify(data),
       },
     );
-    return handleResponse<{ success: boolean; url?: string }>(response);
+    return handleResponse<ProjectPayment>(response);
   } catch (error) {
     console.error("Error uploading payment document:", error);
     throw error;
@@ -2068,7 +2094,7 @@ export async function getMatrixTaskDetails(
   taskId: string,
 ): Promise<MatrixTask> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/matrix-tasks/${taskId}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -2562,6 +2588,7 @@ const ProjectAPI = {
   getProjectPayments,
   updateProjectPayment,
   createProjectPayment,
+  deleteProjectPayment,
   getPaymentOptions,
   sendPaymentInvoice,
   uploadPaymentDocument,

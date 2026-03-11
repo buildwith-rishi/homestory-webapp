@@ -29,6 +29,9 @@ const formatEnumLabel = (value: string): string => {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
+// Stage codes that belong to Architecture (EXECUTION) phase regardless of API data
+const ARCHITECTURE_STAGE_CODES = ["COSTING"];
+
 export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
   project,
 }) => {
@@ -50,9 +53,13 @@ export const ProjectStagesSection: React.FC<ProjectStagesSectionProps> = ({
   const [matrixStage, setMatrixStage] = useState<ProjectStageData | null>(null);
 
   const phaseFilteredStages = useMemo(() => {
-    const sorted = [...projectStages].sort(
-      (a, b) => a.orderIndex - b.orderIndex,
+    // Remap COSTING (and any other architecture-only stages) to EXECUTION phase
+    const remapped = projectStages.map((s) =>
+      ARCHITECTURE_STAGE_CODES.includes(s.stageCode)
+        ? { ...s, phaseType: "EXECUTION" }
+        : s,
     );
+    const sorted = [...remapped].sort((a, b) => a.orderIndex - b.orderIndex);
     if (phaseTab !== "all") {
       return sorted.filter((s) => s.phaseType === phaseTab);
     }

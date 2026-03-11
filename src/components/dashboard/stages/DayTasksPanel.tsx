@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader2,
   CheckCircle2,
@@ -15,6 +15,8 @@ import {
   Send,
   Bell,
   User,
+  Upload,
+  X,
 } from "lucide-react";
 import { Card, Button } from "../../ui";
 import type { MatrixTask, MatrixCategory, AdminUser } from "../../../types";
@@ -22,6 +24,7 @@ import {
   getMatrixDayTasks,
   getCategoryTasks,
   getProjectById,
+  uploadTaskAttachment,
 } from "../../../services/projectApi";
 import { adminAPI } from "../../../services/api";
 import { getAllTeamMembers, TeamMember } from "../../../services/teamApi";
@@ -142,8 +145,13 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [completionDialog, setCompletionDialog] = useState<{
     taskId: string;
+    prevStatus: string;
     notes: string;
+    images: File[];
+    previews: string[];
+    uploading: boolean;
   } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Notify customer state
   const [checkedTaskIds, setCheckedTaskIds] = useState<Set<string>>(new Set());
@@ -173,6 +181,26 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       `<p>If you have any questions or need clarification on anything, please feel free to reply to this email — we're always happy to help!</p>`,
       `<p>Warm regards,<br/>The GoodHomeStory Team</p>`,
     ].join("");
+  };
+
+  /** Upload all staged images then commit the COMPLETED status change */
+  const handleCompletionDone = async () => {
+    if (!completionDialog) return;
+    const { taskId, notes, images, previews } = completionDialog;
+    setCompletionDialog((prev) => (prev ? { ...prev, uploading: true } : null));
+    try {
+      for (const file of images) {
+        await uploadTaskAttachment(taskId, file, "PHOTO");
+      }
+      onStatusChange(taskId, "COMPLETED", notes);
+      previews.forEach((url) => URL.revokeObjectURL(url));
+      setCompletionDialog(null);
+    } catch {
+      toast.error("Failed to upload images. Please try again.");
+      setCompletionDialog((prev) =>
+        prev ? { ...prev, uploading: false } : null,
+      );
+    }
   };
 
   const fetchDayTasks = useCallback(async () => {
@@ -768,7 +796,11 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                                 if (newStatus === "COMPLETED") {
                                   setCompletionDialog({
                                     taskId: task.id,
+                                    prevStatus: task.status,
                                     notes: "",
+                                    images: [],
+                                    previews: [],
+                                    uploading: false,
                                   });
                                 } else {
                                   setCompletionDialog(null);
@@ -785,68 +817,200 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                             </select>
                           )}
                         </div>
-                        {/* Inline completion notes prompt */}
+                        {/* Inline completion: require photo(s) before saving */}
                         {completionDialog?.taskId === task.id && (
                           <div className="px-3 pb-3 pt-2 bg-green-50 border-t border-green-100">
-                            <p className="text-[11px] font-semibold text-green-700 mb-1.5">
-                              Completion Notes{" "}
-                              <span className="text-red-500">*</span>
+                            {/* Hidden multi-image file input */}
+                            <input
+                              ref={imageInputRef}
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => {
+                                const files = Array.from(e.target.files || []);
+                                const newPreviews = files.map((f) =>
+                                  URL.createObjectURL(f),
+                                );
+                                setCompletionDialog((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        images: [...prev.images, ...files],
+                                        previews: [
+                                          ...prev.previews,
+                                          ...newPreviews,
+                                        ],
+                                      }
+                                    : null,
+                                );
+                                if (imageInputRef.current)
+                                  imageInputRef.current.value = "";
+                              }}
+                            />
+
+                            {/* Section header */}
+                            <p className="text-[11px] font-semibold text-green-700 mb-2">
+                              Complete Task{" "}
+                              <span className="font-normal text-gray-500">
+                                — photo(s) required{" "}
+                                <span className="text-red-500">*</span>
+                              </span>
                             </p>
-                            <div className="flex gap-2">
+
+                            {/* Image previews + add-more tile */}
+                            {completionDialog.previews.length > 0 ? (
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                {completionDialog.previews.map((src, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="relative w-16 h-16 rounded-lg overflow-hidden border border-green-200 flex-shrink-0"
+                                  >
+                                    <img
+                                      src={src}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        URL.revokeObjectURL(src);
+                                        setCompletionDialog((prev) =>
+                                          prev
+                                            ? {
+                                                ...prev,
+                                                images: prev.images.filter(
+                                                  (_, i) => i !== idx,
+                                                ),
+                                                previews: prev.previews.filter(
+                                                  (_, i) => i !== idx,
+                                                ),
+                                              }
+                                            : null,
+                                        );
+                                      }}
+                                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600"
+                                    >
+                                      <X className="w-2.5 h-2.5 text-white" />
+                                    </button>
+                                  </div>
+                                ))}
+                                {/* Add more tile */}
+                                <button
+                                  type="button"
+                                  onClick={() => imageInputRef.current?.click()}
+                                  className="w-16 h-16 rounded-lg border-2 border-dashed border-green-300 flex flex-col items-center justify-center text-green-500 hover:border-green-400 hover:bg-green-100 transition-colors flex-shrink-0"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  <span className="text-[9px] mt-0.5">
+                                    More
+                                  </span>
+                                </button>
+                              </div>
+                            ) : (
+                              /* Empty state — big add button */
+                              <button
+                                type="button"
+                                onClick={() => imageInputRef.current?.click()}
+                                className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-lg py-3 mb-2 text-green-600 hover:border-green-400 hover:bg-green-100 transition-colors text-xs font-medium"
+                              >
+                                <Upload className="w-4 h-4" />
+                                Add Photo(s)
+                                <span className="text-red-500 text-[10px]">
+                                  (required)
+                                </span>
+                              </button>
+                            )}
+
+                            {/* Notes + action row */}
+                            <div className="flex gap-2 mt-1">
                               <input
-                                autoFocus
                                 type="text"
                                 value={completionDialog.notes}
                                 onChange={(e) =>
-                                  setCompletionDialog({
-                                    taskId: task.id,
-                                    notes: e.target.value,
-                                  })
+                                  setCompletionDialog((prev) =>
+                                    prev
+                                      ? { ...prev, notes: e.target.value }
+                                      : null,
+                                  )
                                 }
                                 onKeyDown={(e) => {
                                   if (
                                     e.key === "Enter" &&
-                                    completionDialog.notes.trim()
+                                    completionDialog.images.length > 0 &&
+                                    !completionDialog.uploading
                                   ) {
-                                    onStatusChange(
-                                      task.id,
-                                      "COMPLETED",
-                                      completionDialog.notes,
+                                    handleCompletionDone();
+                                  }
+                                  if (e.key === "Escape") {
+                                    setTasks((prev) =>
+                                      prev.map((t) =>
+                                        t.id === task.id
+                                          ? {
+                                              ...t,
+                                              status:
+                                                completionDialog.prevStatus,
+                                            }
+                                          : t,
+                                      ),
+                                    );
+                                    completionDialog.previews.forEach((url) =>
+                                      URL.revokeObjectURL(url),
                                     );
                                     setCompletionDialog(null);
                                   }
-                                  if (e.key === "Escape") {
-                                    setCompletionDialog(null);
-                                  }
                                 }}
-                                placeholder="e.g. Site survey completed, all measurements taken"
+                                placeholder="Completion notes (optional)"
                                 className="flex-1 text-xs border border-green-200 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400/40 bg-white"
                               />
                               <button
                                 type="button"
-                                disabled={!completionDialog.notes.trim()}
-                                onClick={() => {
-                                  onStatusChange(
-                                    task.id,
-                                    "COMPLETED",
-                                    completionDialog.notes,
-                                  );
-                                  setCompletionDialog(null);
-                                }}
-                                className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                                  completionDialog.notes.trim()
+                                disabled={
+                                  completionDialog.images.length === 0 ||
+                                  completionDialog.uploading
+                                }
+                                onClick={handleCompletionDone}
+                                title={
+                                  completionDialog.images.length === 0
+                                    ? "At least 1 photo required"
+                                    : ""
+                                }
+                                className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1 ${
+                                  completionDialog.images.length > 0 &&
+                                  !completionDialog.uploading
                                     ? "bg-green-500 hover:bg-green-600 text-white"
                                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
                                 }`}
                               >
-                                Done
+                                {completionDialog.uploading ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Uploading…
+                                  </>
+                                ) : (
+                                  "Done"
+                                )}
                               </button>
                               <button
                                 type="button"
+                                disabled={completionDialog.uploading}
                                 onClick={() => {
+                                  setTasks((prev) =>
+                                    prev.map((t) =>
+                                      t.id === task.id
+                                        ? {
+                                            ...t,
+                                            status: completionDialog.prevStatus,
+                                          }
+                                        : t,
+                                    ),
+                                  );
+                                  completionDialog.previews.forEach((url) =>
+                                    URL.revokeObjectURL(url),
+                                  );
                                   setCompletionDialog(null);
                                 }}
-                                className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md font-medium transition-colors"
+                                className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md font-medium transition-colors disabled:opacity-50"
                               >
                                 Cancel
                               </button>

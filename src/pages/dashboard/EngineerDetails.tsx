@@ -13,7 +13,6 @@ import {
   Save,
   RotateCcw,
   Trash2,
-  Tag,
   Loader2,
   ClipboardList,
   Flag,
@@ -41,46 +40,20 @@ import toast from "react-hot-toast";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MEMBER_TYPE_META: Record<
-  string,
-  { bg: string; text: string; dot: string; label: string; border: string }
-> = {
-  EMPLOYEE: {
-    bg: "bg-blue-50",
-    text: "text-blue-700",
-    dot: "bg-blue-500",
-    label: "Employee",
-    border: "border-blue-200",
-  },
-  CONTRACTOR: {
-    bg: "bg-orange-50",
-    text: "text-orange-700",
-    dot: "bg-orange-500",
-    label: "Contractor",
-    border: "border-orange-200",
-  },
-  FREELANCER: {
-    bg: "bg-purple-50",
-    text: "text-purple-700",
-    dot: "bg-purple-500",
-    label: "Freelancer",
-    border: "border-purple-200",
-  },
-  VENDOR: {
-    bg: "bg-yellow-50",
-    text: "text-yellow-700",
-    dot: "bg-yellow-500",
-    label: "Vendor",
-    border: "border-yellow-200",
-  },
-  INTERN: {
-    bg: "bg-green-50",
-    text: "text-green-700",
-    dot: "bg-green-500",
-    label: "Intern",
-    border: "border-green-200",
-  },
-};
+// Roles that belong to internal CRM users — role must never be changed here
+const INTERNAL_ROLES = new Set([
+  "SUPER_ADMIN",
+  "ADMIN",
+  "BDR",
+  "HR",
+  "PROJECT_MANAGER",
+  "LEAD_PROJECT_MANAGER",
+  "ACCOUNTS",
+  "SITE_ENGINEER",
+  "DESIGNER",
+  "DESIGN_HEAD",
+  "SALES",
+]);
 
 const ROLE_OPTIONS = [
   "Lead Carpenter",
@@ -98,14 +71,6 @@ const ROLE_OPTIONS = [
   "Project Manager",
   "Designer",
   "Other",
-];
-
-const MEMBER_TYPE_OPTIONS = [
-  { value: "EMPLOYEE", label: "Employee" },
-  { value: "CONTRACTOR", label: "Contractor" },
-  { value: "FREELANCER", label: "Freelancer" },
-  { value: "VENDOR", label: "Vendor" },
-  { value: "INTERN", label: "Intern" },
 ];
 
 const DEPARTMENT_OPTIONS = [
@@ -682,7 +647,7 @@ export const EngineerDetails: React.FC = () => {
       phone: member.phone,
       role: member.role,
       department: member.department,
-      memberType: member.memberType,
+      isActive: member.isActive !== false,
     });
     setIsEditing(true);
   };
@@ -696,7 +661,12 @@ export const EngineerDetails: React.FC = () => {
     if (!member) return;
     setIsSaving(true);
     try {
-      const updated = await updateTeamMember(member.id, editForm);
+      // Never send a role change for internal CRM users
+      const payload: UpdateTeamMemberPayload = { ...editForm };
+      if (INTERNAL_ROLES.has((member.role ?? "").toUpperCase())) {
+        delete payload.role;
+      }
+      const updated = await updateTeamMember(member.id, payload);
       setMember(updated);
       setIsEditing(false);
       setEditForm({});
@@ -744,14 +714,9 @@ export const EngineerDetails: React.FC = () => {
 
   if (!member) return null;
 
-  const typeStyle = MEMBER_TYPE_META[member.memberType] ?? {
-    bg: "bg-gray-50",
-    text: "text-gray-700",
-    dot: "bg-gray-400",
-    label: member.memberType,
-    border: "border-gray-200",
-  };
   const isActive = member.isActive !== false;
+  // Internal CRM users must not have their role changed from this page
+  const isInternalRole = INTERNAL_ROLES.has((member.role ?? "").toUpperCase());
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -844,7 +809,7 @@ export const EngineerDetails: React.FC = () => {
             ) : (
               <h1 className="text-3xl font-bold truncate">{member.name}</h1>
             )}
-            {isEditing ? (
+            {isEditing && !isInternalRole ? (
               <select
                 value={editForm.role ?? ""}
                 onChange={(e) =>
@@ -867,25 +832,46 @@ export const EngineerDetails: React.FC = () => {
 
             {/* Status badges */}
             <div className="flex flex-wrap items-center gap-2 mt-4">
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${isActive ? "bg-white/20 text-white border border-white/30" : "bg-red-100 text-red-700 border border-red-200"}`}
-              >
-                {isActive ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Active
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-3.5 h-3.5" /> Inactive
-                  </>
-                )}
-              </span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30`}
-              >
-                <span className={`w-2 h-2 rounded-full ${typeStyle.dot}`} />
-                {typeStyle.label}
-              </span>
+              {isEditing ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditForm((p) => ({
+                      ...p,
+                      isActive: !(p.isActive ?? isActive),
+                    }))
+                  }
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer transition-all ${
+                    (editForm.isActive ?? isActive)
+                      ? "bg-white/20 text-white border-white/30 hover:bg-white/30"
+                      : "bg-red-100 text-red-700 border-red-200 hover:bg-red-200"
+                  }`}
+                >
+                  {(editForm.isActive ?? isActive) ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3.5 h-3.5" /> Inactive
+                    </>
+                  )}
+                </button>
+              ) : (
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${isActive ? "bg-white/20 text-white border border-white/30" : "bg-red-100 text-red-700 border border-red-200"}`}
+                >
+                  {isActive ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3.5 h-3.5" /> Inactive
+                    </>
+                  )}
+                </span>
+              )}
               {member.department && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30">
                   <Building2 className="w-3.5 h-3.5" />
@@ -1010,7 +996,7 @@ export const EngineerDetails: React.FC = () => {
                   Job Role
                 </span>
               </div>
-              {isEditing ? (
+              {isEditing && !isInternalRole ? (
                 <select
                   value={editForm.role ?? ""}
                   onChange={(e) =>
@@ -1063,42 +1049,6 @@ export const EngineerDetails: React.FC = () => {
                 <p className="text-sm font-semibold text-gray-900">
                   {member.department || "—"}
                 </p>
-              )}
-            </div>
-
-            {/* Member Type */}
-            <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 sm:col-span-2">
-              <div className="flex items-center gap-2 mb-3">
-                <Tag className="w-4 h-4 text-gray-400" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Employment Type
-                </span>
-              </div>
-              {isEditing ? (
-                <div className="flex flex-wrap gap-2">
-                  {MEMBER_TYPE_OPTIONS.map((t) => (
-                    <button
-                      key={t.value}
-                      onClick={() =>
-                        setEditForm((p) => ({ ...p, memberType: t.value }))
-                      }
-                      className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${
-                        editForm.memberType === t.value
-                          ? `${MEMBER_TYPE_META[t.value]?.bg ?? "bg-gray-100"} ${MEMBER_TYPE_META[t.value]?.text ?? "text-gray-700"} ${MEMBER_TYPE_META[t.value]?.border ?? "border-gray-200"} border`
-                          : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <span
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border ${typeStyle.bg} ${typeStyle.text} ${typeStyle.border}`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${typeStyle.dot}`} />
-                  {typeStyle.label}
-                </span>
               )}
             </div>
           </div>

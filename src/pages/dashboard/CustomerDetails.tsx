@@ -26,6 +26,21 @@ import {
   Plus,
   AlertCircle,
   StickyNote,
+  Link2,
+  Download,
+  Image,
+  File,
+  ExternalLink,
+  Home,
+  DollarSign,
+  Layers,
+  Tag,
+  Info,
+  Shield,
+  CreditCard,
+  Building2,
+  BadgeCheck,
+  Pencil,
 } from "lucide-react";
 import { Button, Badge, Card } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -35,7 +50,19 @@ import { fetchAPI } from "../../services/api";
 import CustomerAPI, {
   Customer as APICustomer,
   type CustomerContact,
+  uploadKycDocument,
+  getKycDocuments,
+  saveBankDetailsApi,
+  getBankDetails,
+  type KycDocType,
+  type KycDocument,
 } from "../../services/customerApi";
+import {
+  listAttachments,
+  getAttachment,
+  deleteAttachment,
+  type Attachment,
+} from "../../services/attachmentApi";
 import { useCustomerStore } from "../../stores/customerStore";
 import { listProjects } from "../../services/projectApi";
 import type { Project } from "../../types";
@@ -296,6 +323,8 @@ export const CustomerDetails: React.FC = () => {
     | "notes"
     | "ranking"
     | "projects"
+    | "references"
+    | "kyc"
   >("overview");
   const [editingTab, setEditingTab] = useState<string | null>(null);
   const isEditing = editingTab !== null;
@@ -360,6 +389,111 @@ export const CustomerDetails: React.FC = () => {
   // Customer projects state
   const [customerProjects, setCustomerProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
+
+  // Lead References state (for converted leads)
+  const [leadReferenceData, setLeadReferenceData] = useState<LeadOption | null>(
+    null,
+  );
+  const [leadAttachments, setLeadAttachments] = useState<Attachment[]>([]);
+  const [loadingLeadReferences, setLoadingLeadReferences] = useState(false);
+  // Tracks which attachment is currently being fetched: { id, action }
+  const [attachmentLoading, setAttachmentLoading] = useState<{
+    id: string;
+    action: "view" | "download";
+  } | null>(null);
+
+  // KYC state
+  const kycFileInputRef = useRef<HTMLInputElement>(null);
+  const hasFetchedKyc = useRef(false);
+  const [kycUploadTarget, setKycUploadTarget] = useState<string | null>(null);
+  const [kycAttachments, setKycAttachments] = useState<KycDocument[]>([]);
+  const [loadingKyc, setLoadingKyc] = useState(false);
+  const [kycUploading, setKycUploading] = useState<string | null>(null);
+  const [kycDeleting, setKycDeleting] = useState<string | null>(null);
+  const [kycActionLoading, setKycActionLoading] = useState<{
+    id: string;
+    action: "view" | "download";
+  } | null>(null);
+  const [bankDetails, setBankDetails] = useState("");
+  const [bankDetailsEditing, setBankDetailsEditing] = useState(false);
+  const [bankDetailsSaving, setBankDetailsSaving] = useState(false);
+
+  // Profile edit state (name, type, status)
+  const [profileEditForm, setProfileEditForm] = useState<{
+    name: string;
+    type: string;
+    status: string;
+  }>({ name: "", type: "", status: "" });
+  const [customerTypes, setCustomerTypes] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [customerStatuses, setCustomerStatuses] = useState<
+    { value: string; label: string }[]
+  >([]);
+
+  const KYC_DOCS = [
+    {
+      key: "AADHAR",
+      label: "Aadhar Card",
+      description: "12-digit government issued identity",
+      required: true,
+      icon: BadgeCheck,
+      color: "blue",
+    },
+    {
+      key: "PAN",
+      label: "PAN Card",
+      description: "Permanent Account Number card",
+      required: true,
+      icon: CreditCard,
+      color: "orange",
+    },
+    {
+      key: "GST_CERTIFICATE",
+      label: "GST Certificate",
+      description: "Goods & Services Tax registration",
+      required: false,
+      icon: Shield,
+      color: "green",
+    },
+  ] as const;
+
+  /**
+   * Fetch a fresh signed downloadUrl from GET /api/attachments/:id
+   * then open or download the file.
+   */
+  const handleAttachmentAction = async (
+    attachment: Attachment,
+    action: "view" | "download",
+  ) => {
+    if (attachmentLoading?.id === attachment.id) return; // already in-flight
+    setAttachmentLoading({ id: attachment.id, action });
+    try {
+      const fresh = await getAttachment(attachment.id);
+      const url = fresh.downloadUrl || fresh.fileUrl || fresh.storageUrl || "";
+      if (!url) {
+        toast.error("File URL not available");
+        return;
+      }
+      if (action === "view") {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        // Trigger download via a temporary anchor
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fresh.fileName || attachment.fileName;
+        a.rel = "noopener noreferrer";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (err) {
+      console.error("Failed to fetch attachment URL:", err);
+      toast.error("Failed to load file. Please try again.");
+    } finally {
+      setAttachmentLoading(null);
+    }
+  };
 
   // Initialize customer data from API
   useEffect(() => {
@@ -554,9 +688,39 @@ export const CustomerDetails: React.FC = () => {
     fetchCustomerData();
   }, [customerId, navigate, setCurrentCustomer]);
 
+  // Reset lead reference data whenever the customer changes so stale
+  // files from a previous customer are never shown.
+  useEffect(() => {
+    setLeadReferenceData(null);
+    setLeadAttachments([]);
+  }, [customerId]);
+
   // Load relationship types once on mount
   useEffect(() => {
     CustomerAPI.getFamilyRelationshipTypes().then(setRelationshipTypes);
+  }, []);
+
+  // Load customer types and statuses once on mount
+  useEffect(() => {
+    CustomerAPI.getCustomerTypes()
+      .then(setCustomerTypes)
+      .catch(() =>
+        setCustomerTypes([
+          { value: "RESIDENTIAL", label: "Residential" },
+          { value: "COMMERCIAL", label: "Commercial" },
+          { value: "HOUSEHOLD", label: "Household" },
+          { value: "COMPANY", label: "Company" },
+        ]),
+      );
+    CustomerAPI.getCustomerStatuses()
+      .then(setCustomerStatuses)
+      .catch(() =>
+        setCustomerStatuses([
+          { value: "ACTIVE", label: "Active" },
+          { value: "INACTIVE", label: "Inactive" },
+          { value: "COMPLETED", label: "Completed" },
+        ]),
+      );
   }, []);
 
   // Clear current customer from store when leaving the page
@@ -597,6 +761,151 @@ export const CustomerDetails: React.FC = () => {
       fetchReferrals();
     }
   }, [activeTab, fetchReferrals]);
+
+  // Fetch KYC documents + bank details when the KYC tab is first opened
+  useEffect(() => {
+    if (activeTab !== "kyc") return;
+    if (!customerId) return;
+    if (hasFetchedKyc.current) return;
+    hasFetchedKyc.current = true;
+
+    const fetchKyc = async () => {
+      setLoadingKyc(true);
+      try {
+        const [docs, savedBank] = await Promise.all([
+          getKycDocuments(customerId),
+          getBankDetails(customerId).catch(() => ""),
+        ]);
+        setKycAttachments(docs);
+        if (savedBank) setBankDetails(savedBank);
+      } catch {
+        toast.error("Failed to load KYC documents");
+      } finally {
+        setLoadingKyc(false);
+      }
+    };
+    fetchKyc();
+  }, [activeTab, customerId]);
+
+  const triggerKycUpload = (docType: string) => {
+    setKycUploadTarget(docType);
+    kycFileInputRef.current?.click();
+  };
+
+  const handleKycFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !kycUploadTarget || !customerId) return;
+    const docType = kycUploadTarget as KycDocType;
+    setKycUploadTarget(null);
+    setKycUploading(docType);
+    try {
+      const uploaded = await uploadKycDocument(customerId, file, docType);
+      // Replace any existing doc of the same type
+      setKycAttachments((prev) => [
+        ...prev.filter((a) => a.attachmentType !== docType),
+        uploaded,
+      ]);
+      toast.success(
+        `${KYC_DOCS.find((d) => d.key === docType)?.label ?? docType} uploaded successfully`,
+      );
+    } catch (err) {
+      console.error("KYC upload error:", err);
+      toast.error("Upload failed. Please try again.");
+    } finally {
+      setKycUploading(null);
+    }
+  };
+
+  const handleKycDelete = async (doc: KycDocument) => {
+    if (
+      !window.confirm(
+        `Remove this ${doc.attachmentType.replace(/_/g, " ").toLowerCase()}?`,
+      )
+    )
+      return;
+    setKycDeleting(doc.id);
+    try {
+      await deleteAttachment(doc.id);
+      setKycAttachments((prev) => prev.filter((a) => a.id !== doc.id));
+      toast.success("Document removed");
+    } catch {
+      toast.error("Failed to remove document");
+    } finally {
+      setKycDeleting(null);
+    }
+  };
+
+  const handleKycAction = (doc: KycDocument, action: "view" | "download") => {
+    const url = doc.downloadUrl || doc.storageUrl || doc.fileUrl || "";
+    if (!url) {
+      toast.error("File URL not available");
+      return;
+    }
+    if (action === "view") {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.fileName;
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  const handleSaveBankDetails = async () => {
+    if (!customerId) return;
+    setBankDetailsSaving(true);
+    try {
+      await saveBankDetailsApi(customerId, bankDetails);
+      setBankDetailsEditing(false);
+      toast.success("Bank details saved");
+    } catch {
+      toast.error("Failed to save bank details");
+    } finally {
+      setBankDetailsSaving(false);
+    }
+  };
+
+  // Fetch lead reference data when the references tab is active
+  useEffect(() => {
+    if (activeTab !== "references") return;
+    const leadId = customerData?.leadId;
+    if (!leadId) return;
+    if (leadReferenceData || loadingLeadReferences) return; // already loaded
+
+    const fetchLeadReferences = async () => {
+      setLoadingLeadReferences(true);
+      try {
+        const [lead, rawAttachments] = await Promise.all([
+          LeadAPI.getLeadById(leadId),
+          listAttachments("LEAD", leadId),
+        ]);
+        // Filter client-side to guarantee only this lead's files are shown
+        const attachments = rawAttachments.filter(
+          (a) => !a.entityId || a.entityId === leadId,
+        );
+        setLeadReferenceData(lead);
+        setLeadAttachments(attachments);
+      } catch (err) {
+        console.error("Failed to load lead reference data:", err);
+        toast.error("Failed to load lead reference data");
+      } finally {
+        setLoadingLeadReferences(false);
+      }
+    };
+
+    fetchLeadReferences();
+  }, [
+    activeTab,
+    customerData?.leadId,
+    leadReferenceData,
+    loadingLeadReferences,
+  ]);
 
   // Load leads list when referral modal opens
   useEffect(() => {
@@ -691,6 +1000,8 @@ export const CustomerDetails: React.FC = () => {
       if (updates.name !== undefined) apiUpdates.name = updates.name;
       if (updates.status !== undefined)
         apiUpdates.status = updates.status.toUpperCase();
+      if (updates.type !== undefined)
+        apiUpdates.type = updates.type.toUpperCase();
       if (updates.notes !== undefined) {
         apiUpdates.notes =
           updates.notes && updates.notes.length > 0
@@ -1130,36 +1441,196 @@ export const CustomerDetails: React.FC = () => {
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-                      {customer.name}
-                    </h1>
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor.bg} ${statusColor.text}`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${statusColor.dot}`}
-                      />
-                      {customer.status}
-                    </span>
-                    {rankingColor && (
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full ${rankingColor.bg} ${rankingColor.text}`}
-                      >
-                        {rankingColor.icon} {customer.clientRanking}
-                      </span>
-                    )}
-                  </div>
-                  {(customer.occupation || customer.companyName) && (
-                    <p className="text-sm text-gray-500">
-                      {customer.occupation}
-                      {customer.occupation && customer.companyName
-                        ? " at "
-                        : ""}
-                      {customer.companyName}
-                    </p>
+                <div className="flex-1 min-w-0">
+                  {editingTab !== "profile" ? (
+                    <>
+                      <div className="flex items-center gap-3 mb-1 flex-wrap">
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+                          {customer.name}
+                        </h1>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor.bg} ${statusColor.text}`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${statusColor.dot}`}
+                          />
+                          {customer.status}
+                        </span>
+                        {rankingColor && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full ${rankingColor.bg} ${rankingColor.text}`}
+                          >
+                            {rankingColor.icon} {customer.clientRanking}
+                          </span>
+                        )}
+                        {customer.type && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 capitalize">
+                            {customer.type.toLowerCase()}
+                          </span>
+                        )}
+                      </div>
+                      {(customer.occupation || customer.companyName) && (
+                        <p className="text-sm text-gray-500">
+                          {customer.occupation}
+                          {customer.occupation && customer.companyName
+                            ? " at "
+                            : ""}
+                          {customer.companyName}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <div className="space-y-3 pr-4">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Customer Name
+                        </label>
+                        <input
+                          type="text"
+                          value={profileEditForm.name}
+                          onChange={(e) =>
+                            setProfileEditForm((prev) => ({
+                              ...prev,
+                              name: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                          placeholder="Customer name"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 mb-1 block">
+                            Status
+                          </label>
+                          <select
+                            value={profileEditForm.status}
+                            onChange={(e) =>
+                              setProfileEditForm((prev) => ({
+                                ...prev,
+                                status: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                          >
+                            {(customerStatuses.length > 0
+                              ? customerStatuses
+                              : [
+                                  { value: "ACTIVE", label: "Active" },
+                                  { value: "INACTIVE", label: "Inactive" },
+                                  { value: "COMPLETED", label: "Completed" },
+                                ]
+                            ).map((s) => (
+                              <option key={s.value} value={s.value}>
+                                {s.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 mb-1 block">
+                            Customer Type
+                          </label>
+                          <select
+                            value={profileEditForm.type}
+                            onChange={(e) =>
+                              setProfileEditForm((prev) => ({
+                                ...prev,
+                                type: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                          >
+                            <option value="">Select type...</option>
+                            {(customerTypes.length > 0
+                              ? customerTypes
+                              : [
+                                  {
+                                    value: "RESIDENTIAL",
+                                    label: "Residential",
+                                  },
+                                  {
+                                    value: "COMMERCIAL",
+                                    label: "Commercial",
+                                  },
+                                  { value: "HOUSEHOLD", label: "Household" },
+                                  { value: "COMPANY", label: "Company" },
+                                ]
+                            ).map((t) => (
+                              <option key={t.value} value={t.value}>
+                                {t.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                   )}
+                </div>
+
+                {/* Edit / Save button */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {editingTab === "profile" && (
+                    <button
+                      onClick={() => setEditingTab(null)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-all"
+                    >
+                      <X className="w-3 h-3" />
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    onClick={async () => {
+                      if (editingTab === "profile") {
+                        if (!profileEditForm.name.trim()) {
+                          toast.error("Customer name is required");
+                          return;
+                        }
+                        const updates: Partial<Customer> = {};
+                        if (profileEditForm.name !== customer.name)
+                          updates.name = profileEditForm.name;
+                        if (
+                          profileEditForm.status !==
+                          customer.status.toUpperCase()
+                        )
+                          updates.status =
+                            profileEditForm.status.toLowerCase() as Customer["status"];
+                        if (
+                          profileEditForm.type !==
+                          (customer.type || "").toUpperCase()
+                        )
+                          updates.type = profileEditForm.type;
+                        if (Object.keys(updates).length === 0) {
+                          setEditingTab(null);
+                          return;
+                        }
+                        const success = await handleSaveCustomer(updates);
+                        if (success !== false) setEditingTab(null);
+                      } else {
+                        setProfileEditForm({
+                          name: customer.name,
+                          type: (customer.type || "").toUpperCase(),
+                          status: customer.status.toUpperCase(),
+                        });
+                        setEditingTab("profile");
+                      }
+                    }}
+                    disabled={isSaving && editingTab === "profile"}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all disabled:opacity-50 ${
+                      editingTab === "profile"
+                        ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {isSaving && editingTab === "profile" ? (
+                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : editingTab === "profile" ? (
+                      <Save className="w-3 h-3" />
+                    ) : (
+                      <Pencil className="w-3 h-3" />
+                    )}
+                    {editingTab === "profile" ? "Save" : "Edit"}
+                  </button>
                 </div>
               </div>
 
@@ -1335,50 +1806,29 @@ export const CustomerDetails: React.FC = () => {
                 </p>
               </div>
             )}
-            {(customer.billingAddress || customer.billingCity) && (
+            {(customer.billingAddress ||
+              customer.billingCity ||
+              customer.shippingAddress ||
+              customer.shippingCity) && (
               <div>
                 <p className="text-xs font-medium text-gray-400 mb-1">
-                  Billing Address
+                  Client Address
                 </p>
                 <p className="text-sm text-gray-900">
-                  {customer.billingAddress}
+                  {customer.billingAddress || customer.shippingAddress}
                 </p>
-                {(customer.billingCity ||
-                  customer.billingState ||
-                  customer.billingPincode) && (
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {[
-                      customer.billingCity,
-                      customer.billingState,
-                      customer.billingPincode,
-                    ]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </p>
-                )}
-              </div>
-            )}
-            {(customer.shippingAddress || customer.shippingCity) && (
-              <div>
-                <p className="text-xs font-medium text-gray-400 mb-1">
-                  Shipping Address
-                </p>
-                <p className="text-sm text-gray-900">
-                  {customer.shippingAddress}
-                </p>
-                {(customer.shippingCity ||
-                  customer.shippingState ||
-                  customer.shippingPincode) && (
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {[
-                      customer.shippingCity,
-                      customer.shippingState,
-                      customer.shippingPincode,
-                    ]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </p>
-                )}
+                {(() => {
+                  const city = customer.billingCity || customer.shippingCity;
+                  const state = customer.billingState || customer.shippingState;
+                  const pincode =
+                    customer.billingPincode || customer.shippingPincode;
+                  const parts = [city, state, pincode].filter(Boolean);
+                  return parts.length > 0 ? (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {parts.join(", ")}
+                    </p>
+                  ) : null;
+                })()}
               </div>
             )}
           </div>
@@ -1395,6 +1845,10 @@ export const CustomerDetails: React.FC = () => {
           { key: "notes", label: "Notes", icon: MessageCircle },
           { key: "ranking", label: "Ranking", icon: Award },
           { key: "projects", label: "Projects", icon: FolderOpen },
+          { key: "kyc", label: "KYC", icon: Shield },
+          ...(customerData?.leadId
+            ? [{ key: "references", label: "References", icon: Link2 }]
+            : []),
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -2432,6 +2886,938 @@ export const CustomerDetails: React.FC = () => {
                     No projects found for this customer
                   </p>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* References Tab — Lead data retained after conversion */}
+          {/* KYC Tab */}
+          {activeTab === "kyc" && (
+            <div className="space-y-6">
+              {/* Hidden file input */}
+              <input
+                ref={kycFileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={handleKycFileChange}
+              />
+
+              {/* KYC Documents */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <Shield className="w-4 h-4 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800">
+                        KYC Documents
+                      </h3>
+                      <p className="text-xs text-gray-400">
+                        Select document type and upload the file
+                      </p>
+                    </div>
+                  </div>
+                  {loadingKyc && (
+                    <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                  )}
+                </div>
+
+                {/* Single upload row */}
+                <div className="flex items-center gap-3">
+                  <select
+                    value={kycUploadTarget ?? ""}
+                    onChange={(e) => setKycUploadTarget(e.target.value || null)}
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 bg-white text-gray-700"
+                  >
+                    <option value="">Select document type</option>
+                    <option value="AADHAR">Aadhar Card</option>
+                    <option value="PAN">PAN Card</option>
+                    <option value="GST_CERTIFICATE">GST Certificate</option>
+                  </select>
+                  <button
+                    onClick={() => {
+                      if (kycUploadTarget) kycFileInputRef.current?.click();
+                    }}
+                    disabled={!kycUploadTarget || !!kycUploading}
+                    className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-medium rounded-xl transition-colors whitespace-nowrap"
+                  >
+                    {kycUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Upload File
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-3">
+                  Accepted: JPG, PNG, PDF · Max 10 MB
+                </p>
+
+                {/* Uploaded documents list */}
+                {kycAttachments.length > 0 && (
+                  <div className="mt-5 space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                      Uploaded
+                    </p>
+                    {kycAttachments.map((doc) => {
+                      const label =
+                        doc.attachmentType === "AADHAR"
+                          ? "Aadhar Card"
+                          : doc.attachmentType === "PAN"
+                            ? "PAN Card"
+                            : doc.attachmentType === "GST_CERTIFICATE"
+                              ? "GST Certificate"
+                              : doc.attachmentType;
+                      const isDeleting = kycDeleting === doc.id;
+                      return (
+                        <div
+                          key={doc.id}
+                          className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3"
+                        >
+                          <FileText className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-700">
+                              {label}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">
+                              {doc.fileName}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleKycAction(doc, "view")}
+                              className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-gray-600 transition-colors"
+                              title="View"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleKycAction(doc, "download")}
+                              className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-gray-600 transition-colors"
+                              title="Download"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleKycDelete(doc)}
+                              disabled={isDeleting}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                              title="Remove"
+                            >
+                              {isDeleting ? (
+                                <div className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Bank Details */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                      <Building2 className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800">
+                        Bank Details
+                      </h3>
+                      <p className="text-xs text-gray-400">
+                        Optional · For payment and refund processing
+                      </p>
+                    </div>
+                  </div>
+                  {!bankDetailsEditing && (
+                    <button
+                      onClick={() => setBankDetailsEditing(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      {bankDetails.trim() ? "Edit" : "Add"}
+                    </button>
+                  )}
+                </div>
+
+                {bankDetailsEditing ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                        Bank Details
+                        <span className="ml-1 text-gray-400 font-normal">
+                          (e.g. HDFC Bank, Acc: 123456789, IFSC: HDFC0001234)
+                        </span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={bankDetails}
+                        onChange={(e) => setBankDetails(e.target.value)}
+                        placeholder="Enter bank name, account number, IFSC code, branch..."
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 resize-none"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveBankDetails}
+                        disabled={bankDetailsSaving}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60"
+                      >
+                        {bankDetailsSaving ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            Save
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setBankDetailsEditing(false)}
+                        className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : bankDetails.trim() ? (
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                      {bankDetails}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Building2 className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400">
+                      No bank details added yet
+                    </p>
+                    <button
+                      onClick={() => setBankDetailsEditing(true)}
+                      className="mt-3 text-xs text-orange-500 hover:text-orange-600 font-medium"
+                    >
+                      + Add bank details
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "references" && (
+            <div className="space-y-6">
+              {loadingLeadReferences ? (
+                <div className="bg-white border border-gray-200/80 rounded-2xl p-12 text-center">
+                  <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-3">
+                    <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                  <p className="text-gray-500">Loading lead references...</p>
+                </div>
+              ) : !customerData?.leadId ? (
+                <div className="bg-white border border-gray-200/80 rounded-2xl p-12 text-center">
+                  <Info className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">
+                    No lead reference data
+                  </p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    This customer was not converted from a lead.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Lead Origin Info */}
+                  <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                    <div className="flex items-center gap-2 mb-5">
+                      <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                        <Tag className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                        Lead Information
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {leadReferenceData?.source && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">Source</p>
+                          <p className="text-sm font-medium text-gray-800 capitalize">
+                            {String(leadReferenceData.source).replace(
+                              /_/g,
+                              " ",
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      {leadReferenceData?.status && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">Status</p>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              leadReferenceData.status === "CONVERTED"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {leadReferenceData.status}
+                          </span>
+                        </div>
+                      )}
+                      {leadReferenceData?.stage && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">Stage</p>
+                          <p className="text-sm font-medium text-gray-800 capitalize">
+                            {String(leadReferenceData.stage).replace(/_/g, " ")}
+                          </p>
+                        </div>
+                      )}
+                      {leadReferenceData?.score !== undefined && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">
+                            Lead Score
+                          </p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {leadReferenceData.score}
+                          </p>
+                        </div>
+                      )}
+                      {leadReferenceData?.priority && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">
+                            Priority
+                          </p>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                              leadReferenceData.priority === "high"
+                                ? "bg-red-100 text-red-700"
+                                : leadReferenceData.priority === "medium"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {leadReferenceData.priority}
+                          </span>
+                        </div>
+                      )}
+                      {leadReferenceData?.createdAt && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-0.5">
+                            Lead Created
+                          </p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {new Date(
+                              leadReferenceData.createdAt,
+                            ).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {(leadReferenceData?.message ||
+                      leadReferenceData?.requirements ||
+                      leadReferenceData?.notes) && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <p className="text-xs text-gray-400 mb-1">
+                          Message / Requirements
+                        </p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                          {leadReferenceData.message ||
+                            leadReferenceData.requirements ||
+                            leadReferenceData.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Project Requirements */}
+                  {(leadReferenceData?.projectType ||
+                    leadReferenceData?.propertyType ||
+                    leadReferenceData?.bhkConfig ||
+                    leadReferenceData?.carpetArea ||
+                    leadReferenceData?.location ||
+                    leadReferenceData?.city ||
+                    leadReferenceData?.locality ||
+                    leadReferenceData?.homeType ||
+                    leadReferenceData?.propertyProjectType ||
+                    leadReferenceData?.projectScope ||
+                    leadReferenceData?.projectStage ||
+                    leadReferenceData?.area) && (
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                          <Home className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                          Project Requirements
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {leadReferenceData?.projectType && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Project Type
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.projectType}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.propertyProjectType && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Property / Project Type
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.propertyProjectType}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.propertyType && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Property Type
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.propertyType}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.homeType && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Home Type
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.homeType}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.bhkConfig && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              BHK Config
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.bhkConfig}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.carpetArea && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Carpet Area
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.carpetArea} sq.ft
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.area && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">Area</p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.area} sq.ft
+                            </p>
+                          </div>
+                        )}
+                        {(leadReferenceData?.city ||
+                          leadReferenceData?.locality ||
+                          leadReferenceData?.location) && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Location
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {[
+                                leadReferenceData.locality,
+                                leadReferenceData.city,
+                                leadReferenceData.location,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.projectStage && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Project Stage
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.projectStage}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.projectScope && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Project Scope
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.projectScope}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {leadReferenceData?.scopeOfWork &&
+                        leadReferenceData.scopeOfWork.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <p className="text-xs text-gray-400 mb-2">
+                              Scope of Work
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {leadReferenceData.scopeOfWork.map((item, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium"
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      {leadReferenceData?.servicesInterested &&
+                        leadReferenceData.servicesInterested.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs text-gray-400 mb-2">
+                              Services Interested
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {leadReferenceData.servicesInterested.map(
+                                (item, i) => (
+                                  <span
+                                    key={i}
+                                    className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium"
+                                  >
+                                    {item}
+                                  </span>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  )}
+
+                  {/* Budget & Timeline */}
+                  {(leadReferenceData?.budget ||
+                    leadReferenceData?.budgetRange ||
+                    leadReferenceData?.budgetComfort ||
+                    leadReferenceData?.timeline ||
+                    leadReferenceData?.startTimeline ||
+                    leadReferenceData?.expectedStartDate ||
+                    leadReferenceData?.moveinDate) && (
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                          <DollarSign className="w-4 h-4 text-green-600" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                          Budget & Timeline
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {leadReferenceData?.budget && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Budget
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.budget}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.budgetRange && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Budget Range
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.budgetRange}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.budgetComfort && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Budget Comfort
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.budgetComfort}
+                            </p>
+                          </div>
+                        )}
+                        {(leadReferenceData?.timeline ||
+                          leadReferenceData?.startTimeline) && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Timeline
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.timeline ||
+                                leadReferenceData.startTimeline}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.expectedStartDate && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Expected Start
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {new Date(
+                                leadReferenceData.expectedStartDate,
+                              ).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.moveinDate && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Move-in Date
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {new Date(
+                                leadReferenceData.moveinDate,
+                              ).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Design Preferences */}
+                  {(leadReferenceData?.designStyle?.length ||
+                    leadReferenceData?.colorPreferences?.length ||
+                    leadReferenceData?.serviceInterest) && (
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                          <Layers className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                          Design Preferences
+                        </h3>
+                      </div>
+                      {leadReferenceData?.serviceInterest && (
+                        <div className="mb-4">
+                          <p className="text-xs text-gray-400 mb-0.5">
+                            Service Interest
+                          </p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {leadReferenceData.serviceInterest}
+                          </p>
+                        </div>
+                      )}
+                      {leadReferenceData?.designStyle &&
+                        leadReferenceData.designStyle.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-xs text-gray-400 mb-2">
+                              Design Style
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {leadReferenceData.designStyle.map((s, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2.5 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-medium"
+                                >
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      {leadReferenceData?.colorPreferences &&
+                        leadReferenceData.colorPreferences.length > 0 && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-2">
+                              Color Preferences
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {leadReferenceData.colorPreferences.map(
+                                (c, i) => (
+                                  <span
+                                    key={i}
+                                    className="px-2.5 py-1 bg-pink-50 text-pink-700 rounded-lg text-xs font-medium"
+                                  >
+                                    {c}
+                                  </span>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  )}
+
+                  {/* Referral Info */}
+                  {(leadReferenceData?.referrerName ||
+                    leadReferenceData?.referrerPhone ||
+                    leadReferenceData?.referrerProjectNumber ||
+                    leadReferenceData?.agentAgencyName) && (
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
+                          <UserPlus className="w-4 h-4 text-teal-600" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                          Referral Source
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {leadReferenceData?.referrerName && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Referrer Name
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.referrerName}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.referrerPhone && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Referrer Phone
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.referrerPhone}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.referrerProjectNumber && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Project Number
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.referrerProjectNumber}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.agentAgencyName && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Agent / Agency
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.agentAgencyName}
+                            </p>
+                          </div>
+                        )}
+                        {leadReferenceData?.agentAgencyDetails && (
+                          <div className="col-span-2">
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              Agency Details
+                            </p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {leadReferenceData.agentAgencyDetails}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Floor Plan URL */}
+                  {leadReferenceData?.floorPlanUrl && (
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                          <FileText className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                          Floor Plan
+                        </h3>
+                      </div>
+                      <a
+                        href={leadReferenceData.floorPlanUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-sm font-medium transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        View Floor Plan
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Uploaded Documents & Attachments */}
+                  <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                    <div className="flex items-center gap-2 mb-5">
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                        <File className="w-4 h-4 text-gray-600" />
+                      </div>
+                      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                        Documents & Attachments
+                      </h3>
+                      <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                        {leadAttachments.length} file
+                        {leadAttachments.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    {leadAttachments.length === 0 ? (
+                      <div className="text-center py-8">
+                        <File className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                        <p className="text-gray-400 text-sm">
+                          No documents uploaded during the lead phase
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {leadAttachments.map((attachment) => {
+                          const isImage =
+                            attachment.fileType?.startsWith("image/");
+                          const isPdf =
+                            attachment.fileType === "application/pdf";
+                          const isViewLoading =
+                            attachmentLoading?.id === attachment.id &&
+                            attachmentLoading.action === "view";
+                          const isDownloadLoading =
+                            attachmentLoading?.id === attachment.id &&
+                            attachmentLoading.action === "download";
+                          const fileSizeKB = attachment.fileSize
+                            ? attachment.fileSize > 1024 * 1024
+                              ? `${(attachment.fileSize / (1024 * 1024)).toFixed(1)} MB`
+                              : `${(attachment.fileSize / 1024).toFixed(0)} KB`
+                            : null;
+
+                          return (
+                            <div
+                              key={attachment.id}
+                              className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group"
+                            >
+                              {/* Icon */}
+                              <div
+                                className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                  isImage
+                                    ? "bg-blue-100"
+                                    : isPdf
+                                      ? "bg-red-100"
+                                      : "bg-gray-200"
+                                }`}
+                              >
+                                {isImage ? (
+                                  <Image className="w-5 h-5 text-blue-600" />
+                                ) : isPdf ? (
+                                  <FileText className="w-5 h-5 text-red-600" />
+                                ) : (
+                                  <File className="w-5 h-5 text-gray-600" />
+                                )}
+                              </div>
+
+                              {/* File info */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">
+                                  {attachment.fileName}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-xs text-gray-400 capitalize">
+                                    {attachment.attachmentType
+                                      ?.replace(/_/g, " ")
+                                      .toLowerCase()}
+                                  </span>
+                                  {fileSizeKB && (
+                                    <>
+                                      <span className="text-gray-300">·</span>
+                                      <span className="text-xs text-gray-400">
+                                        {fileSizeKB}
+                                      </span>
+                                    </>
+                                  )}
+                                  {(attachment.uploadedAt ||
+                                    attachment.createdAt) && (
+                                    <>
+                                      <span className="text-gray-300">·</span>
+                                      <span className="text-xs text-gray-400">
+                                        {new Date(
+                                          attachment.uploadedAt ||
+                                            attachment.createdAt ||
+                                            "",
+                                        ).toLocaleDateString("en-IN", {
+                                          day: "2-digit",
+                                          month: "short",
+                                          year: "numeric",
+                                        })}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                                {attachment.notes && (
+                                  <p className="text-xs text-gray-400 mt-0.5 truncate">
+                                    {attachment.notes}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() =>
+                                    handleAttachmentAction(attachment, "view")
+                                  }
+                                  disabled={!!attachmentLoading}
+                                  className="p-1.5 rounded-lg hover:bg-white text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                  title="View"
+                                >
+                                  {isViewLoading ? (
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <ExternalLink className="w-4 h-4" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleAttachmentAction(
+                                      attachment,
+                                      "download",
+                                    )
+                                  }
+                                  disabled={!!attachmentLoading}
+                                  className="p-1.5 rounded-lg hover:bg-white text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                  title="Download"
+                                >
+                                  {isDownloadLoading ? (
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Download className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           )}
