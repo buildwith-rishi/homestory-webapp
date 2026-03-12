@@ -19,7 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { Button, Input } from "../ui";
+import { Button, Input, Toggle } from "../ui";
 import {
   CreateProjectRequest,
   PipelineType,
@@ -111,6 +111,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   );
   const [showMore, setShowMore] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [autoPopulate, setAutoPopulate] = useState(true);
 
   // Fetch project options from API
   const {
@@ -231,6 +232,38 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       (customer.billingCity ?? "").toLowerCase().includes(q)
     );
   });
+
+  const populateFromCustomer = (
+    customer: Customer,
+    shouldPopulate: boolean = autoPopulate,
+  ) => {
+    if (!shouldPopulate) return;
+
+    const primaryContact =
+      customer.contacts?.find((c) => c.isPrimary) ?? customer.contacts?.[0];
+
+    const updates: Partial<FormData> = {};
+
+    if (customer.billingAddress)
+      updates.propertyAddress = customer.billingAddress;
+    if (customer.billingCity) updates.propertyCity = customer.billingCity;
+    if (customer.billingState) updates.propertyState = customer.billingState;
+    if (customer.billingPincode)
+      updates.propertyPincode = customer.billingPincode;
+
+    if (primaryContact) {
+      const parts = [primaryContact.firstName, primaryContact.lastName].filter(
+        Boolean,
+      );
+      if (parts.length > 0) updates.siteContactName = parts.join(" ");
+      if (primaryContact.phone) updates.siteContactPhone = primaryContact.phone;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+  };
 
   const handleChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -419,12 +452,31 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
               {/* Customer Dropdown */}
               <div ref={customerDropdownRef}>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-orange-500" />
+                      Select Customer <span className="text-red-400">*</span>
+                    </div>
+                  </label>
+
                   <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-orange-500" />
-                    Select Customer <span className="text-red-400">*</span>
+                    <span className="text-xs text-gray-500 font-medium">
+                      Auto-fill details
+                    </span>
+                    <Toggle
+                      checked={autoPopulate}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        setAutoPopulate(isChecked);
+                        if (isChecked && selectedCustomer) {
+                          populateFromCustomer(selectedCustomer, true);
+                        }
+                      }}
+                      className="scale-75 origin-right"
+                    />
                   </div>
-                </label>
+                </div>
 
                 {customersError ? (
                   <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
@@ -509,6 +561,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                                   onClick={() => {
                                     setSelectedCustomer(customer);
                                     handleChange("accountId", customer.id);
+                                    populateFromCustomer(customer);
                                     setCustomerSearch("");
                                     setShowCustomerDropdown(false);
                                   }}

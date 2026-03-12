@@ -455,3 +455,29 @@ export async function getSiteEngineerIssues(): Promise<SiteEngineerIssue[]> {
   if ("data" in data && Array.isArray(data.data)) return data.data;
   return [];
 }
+
+// ── Matrix Task Details ──────────────────────────────────────────────────────
+
+export interface DetailedMatrixTaskAttachment {
+  id: string;
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+  attachmentType: "PHOTO" | "DOCUMENT" | "OTHER";
+  description?: string;
+  createdAt?: string;
+}
+
+export interface DetailedMatrixTask extends SiteEngineerTask {
+  attachments?: DetailedMatrixTaskAttachment[];
+}
+
+export async function getMatrixTaskDetails(taskId: string): Promise<DetailedMatrixTask> {
+  const response = await fetch(`${API_BASE_URL}/api/matrix-tasks/${taskId}`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await handleResponse<DetailedMatrixTask>(response);
+  return data;
+}

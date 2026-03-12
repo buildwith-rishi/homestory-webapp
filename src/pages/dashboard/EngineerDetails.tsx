@@ -18,11 +18,13 @@ import {
   Flag,
   CircleDot,
   CheckCheck,
+  Eye,
 } from "lucide-react";
-import { Button, Card } from "../../components/ui";
+import { Button, Card, Modal } from "../../components/ui";
 import { getTasks } from "../../services/tasksApi";
 import {
   getAdminSETasksByUserId,
+  getMatrixTaskDetails,
   type SiteEngineerTask,
 } from "../../services/siteEngineerApi";
 import type { Task } from "../../types";
@@ -230,6 +232,39 @@ const MemberTasksPanel: React.FC<{
   const [activeTab, setActiveTab] = useState<
     "all" | "todo" | "inprogress" | "completed"
   >("all");
+
+  const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
+
+  const handleViewTask = async (taskId: string, taskTitle: string) => {
+    if (viewingTaskId) return;
+    setViewingTaskId(taskId);
+    try {
+      const details = await getMatrixTaskDetails(taskId);
+      if (details.attachments && details.attachments.length > 0) {
+        // Prefer PHOTO type, otherwise take the first one
+        const photo =
+          details.attachments.find((a) => a.attachmentType === "PHOTO") ||
+          details.attachments[0];
+
+        if (photo) {
+          setSelectedImage({ url: photo.fileUrl, title: taskTitle });
+        } else {
+          toast.error("No image found for this task");
+        }
+      } else {
+        toast.error("No attachments found for this task");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load task details");
+    } finally {
+      setViewingTaskId(null);
+    }
+  };
 
   useEffect(() => {
     // If tasks were preloaded from the profile API, use them directly
@@ -514,16 +549,49 @@ const MemberTasksPanel: React.FC<{
                     </div>
                   </div>
 
-                  {/* Created at */}
-                  <span className="text-xs text-gray-400 shrink-0 mt-0.5">
-                    {formatTaskDate(task.createdAt)}
-                  </span>
+                  {/* Created at & Actions */}
+                  <div className="flex flex-col items-end gap-2 shrink-0 mt-0.5">
+                    <span className="text-xs text-gray-400">
+                      {formatTaskDate(task.createdAt)}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewTask(task.id, task.title);
+                      }}
+                      disabled={!!viewingTaskId}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="View attachment"
+                    >
+                      {viewingTaskId === task.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </>
+
+      {selectedImage && (
+        <Modal
+          isOpen={!!selectedImage}
+          onClose={() => setSelectedImage(null)}
+          title={`Attachment: ${selectedImage.title}`}
+        >
+          <div className="flex justify-center bg-gray-50 rounded-lg overflow-hidden p-2">
+            <img
+              src={selectedImage.url}
+              alt={selectedImage.title}
+              className="max-w-full max-h-[80vh] object-contain rounded"
+            />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

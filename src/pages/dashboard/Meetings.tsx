@@ -144,6 +144,7 @@ export const MeetingsPage: React.FC = () => {
   const [momMeetingId, setMomMeetingId] = useState<string | null>(null);
   const [momMeetingTitle, setMomMeetingTitle] = useState<string>("");
   const [momFile, setMomFile] = useState<File | null>(null);
+  const [momFileError, setMomFileError] = useState<string | null>(null);
   const [momNotes, setMomNotes] = useState("");
   const [isUploadingMom, setIsUploadingMom] = useState(false);
   const [momAttachments, setMomAttachments] = useState<Attachment[]>([]);
@@ -451,7 +452,34 @@ export const MeetingsPage: React.FC = () => {
 
   const handleMomFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setMomFile(file);
+    if (!file) return;
+    // Only plain text files are valid — binary files (PDF, DOCX, etc.) contain
+    // null bytes (0x00) that the server's PostgreSQL UTF-8 encoding rejects.
+    const isPlainText =
+      file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt");
+    if (!isPlainText) {
+      setMomFileError(
+        `"${file.name}" is a binary file (${file.type || "unknown type"}). The API only accepts plain text (.txt) files. Please paste the transcript text in the field below instead.`,
+      );
+      setMomFile(null);
+      if (momFileInputRef.current) momFileInputRef.current.value = "";
+      return;
+    }
+    setMomFileError(null);
+    setMomFile(file);
+  };
+
+  const closeMomModal = () => {
+    setShowMomModal(false);
+    setMomTitle("");
+    setMomDescription("");
+    setMomScheduledAt("");
+    setMomTranscriptText("");
+    setMomParticipants("");
+    setMomFile(null);
+    setMomFileError(null);
+    setMomNotes("");
+    if (momFileInputRef.current) momFileInputRef.current.value = "";
   };
 
   const fetchMomAttachments = async (meetingId: string) => {
@@ -500,6 +528,7 @@ export const MeetingsPage: React.FC = () => {
       setMomTranscriptText("");
       setMomParticipants("");
       setMomFile(null);
+      setMomFileError(null);
       setMomNotes("");
       if (momFileInputRef.current) momFileInputRef.current.value = "";
       // Close modal and refresh meetings
@@ -1652,7 +1681,7 @@ export const MeetingsPage: React.FC = () => {
         ReactDOM.createPortal(
           <>
             <div
-              onClick={() => setShowMomModal(false)}
+              onClick={() => closeMomModal()}
               style={{
                 position: "fixed",
                 top: 0,
@@ -1700,7 +1729,7 @@ export const MeetingsPage: React.FC = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() => setShowMomModal(false)}
+                    onClick={() => closeMomModal()}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     <X className="w-5 h-5 text-gray-500" />
@@ -1791,26 +1820,42 @@ export const MeetingsPage: React.FC = () => {
 
                   {/* Transcript File Upload */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                    <label className="block text-sm font-semibold text-gray-900 mb-1">
                       Transcript File{" "}
                       <span className="text-xs font-normal text-gray-400">
-                        (upload .txt or text file)
+                        (plain text .txt only)
                       </span>
                     </label>
-                    <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-indigo-200 rounded-xl cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 transition-colors">
-                      <div className="flex flex-col items-center gap-1.5">
-                        <Upload className="w-6 h-6 text-indigo-400" />
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2">
+                      ⚠️ Only <strong>.txt</strong> plain text files are
+                      supported. PDFs, DOCX, and other binary formats will be
+                      rejected by the server. For those formats, copy-paste the
+                      text below instead.
+                    </p>
+                    <label
+                      className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
+                        momFileError
+                          ? "border-red-300 bg-red-50 hover:bg-red-50"
+                          : momFile
+                            ? "border-green-300 bg-green-50 hover:bg-green-50"
+                            : "border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <Upload
+                          className={`w-5 h-5 ${momFileError ? "text-red-400" : momFile ? "text-green-500" : "text-indigo-400"}`}
+                        />
                         {momFile ? (
-                          <span className="text-sm font-medium text-indigo-700 text-center px-2">
-                            {momFile.name}
+                          <span className="text-sm font-medium text-green-700 text-center px-2">
+                            ✓ {momFile.name}
                           </span>
                         ) : (
                           <>
                             <span className="text-sm font-medium text-indigo-600">
-                              Click to select file
+                              Click to select .txt file
                             </span>
                             <span className="text-xs text-gray-400">
-                              .txt, .doc, .docx, .pdf
+                              Plain text only
                             </span>
                           </>
                         )}
@@ -1819,15 +1864,21 @@ export const MeetingsPage: React.FC = () => {
                         ref={momFileInputRef}
                         type="file"
                         className="hidden"
-                        accept=".txt,.doc,.docx,.pdf"
+                        accept=".txt,text/plain"
                         onChange={handleMomFileChange}
                       />
                     </label>
+                    {momFileError && (
+                      <p className="mt-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        {momFileError}
+                      </p>
+                    )}
                     {momFile && (
                       <button
                         type="button"
                         onClick={() => {
                           setMomFile(null);
+                          setMomFileError(null);
                           if (momFileInputRef.current)
                             momFileInputRef.current.value = "";
                         }}
