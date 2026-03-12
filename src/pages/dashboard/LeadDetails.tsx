@@ -537,17 +537,6 @@ const LeadDetails: React.FC = () => {
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm font-medium">Back to Leads</span>
             </button>
-            <div className="flex items-center gap-2">
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <Bookmark className="w-4 h-4 text-gray-500" />
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <Share2 className="w-4 h-4 text-gray-500" />
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <MoreHorizontal className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
           </div>
 
           {/* Lead Header */}
