@@ -274,8 +274,10 @@ function App() {
               }
             />
 
-            {/* Settings – everyone can access their own settings */}
-            <Route path="settings" element={<SettingsPage />} />
+
+            {/* Settings – routed disabled for now */}
+            {/* <Route path="settings" element={<SettingsPage />} /> */}
+
 
             {/* User Management – admin + lead_pm + hr */}
             <Route

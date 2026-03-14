@@ -493,13 +493,6 @@ export const NAV_ITEMS: NavItemConfig[] = [
     section: "account",
     allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER", "HR"],
   },
-  {
-    id: "settings",
-    label: "Settings",
-    path: "/dashboard/settings",
-    icon: "Settings",
-    section: "account",
-  },
 ];
 
 /**
