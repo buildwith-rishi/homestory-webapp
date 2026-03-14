@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -6,7 +6,7 @@ import {
   Mail,
   Briefcase,
   Building2,
-  Calendar,
+  Calendar as CalendarIcon,
   CheckCircle2,
   XCircle,
   Edit3,
@@ -19,7 +19,13 @@ import {
   CircleDot,
   CheckCheck,
   Eye,
+  List,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+import { Calendar, dateFnsLocalizer } from "react-big-calendar";
+import { format, parse, startOfWeek, getDay } from "date-fns";
+import { enUS } from "date-fns/locale";
 import { Button, Card, Modal } from "../../components/ui";
 import { getTasks } from "../../services/tasksApi";
 import {
@@ -41,6 +47,18 @@ import { useTeamMemberStore } from "../../stores/teamMemberStore";
 import toast from "react-hot-toast";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const locales = {
+  "en-US": enUS,
+};
+
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+});
 
 // Roles that belong to internal CRM users — role must never be changed here
 const INTERNAL_ROLES = new Set([
@@ -221,6 +239,57 @@ function seTaskToTask(t: SiteEngineerTask): Task {
   } as unknown as Task;
 }
 
+const CalendarToolbar = ({ date, onNavigate, onView, view }: any) => {
+  return (
+    <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4 p-1">
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-bold text-gray-900 capitalize">
+          {format(date, "MMMM yyyy")}
+        </h2>
+        <div className="flex items-center gap-1 ml-4 bg-gray-100 rounded-lg p-0.5 border border-gray-200">
+          <button
+            onClick={() => onNavigate("TODAY")}
+            className="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-all shadow-sm"
+          >
+            Today
+          </button>
+          <div className="w-px h-4 bg-gray-300 mx-1" />
+          <button
+            onClick={() => onNavigate("PREV")}
+            className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all text-gray-600 hover:text-gray-900"
+            title="Previous"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onNavigate("NEXT")}
+            className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all text-gray-600 hover:text-gray-900"
+            title="Next"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+        {(["month", "week", "day", "agenda"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => onView(v)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all capitalize font-sans ${
+              view === v
+                ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200"
+                : "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const MemberTasksPanel: React.FC<{
   memberId: string;
   userId?: string;
@@ -232,6 +301,35 @@ const MemberTasksPanel: React.FC<{
   const [activeTab, setActiveTab] = useState<
     "all" | "todo" | "inprogress" | "completed"
   >("all");
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list"); // Default View Mode
+  const [currentDate, setCurrentDate] = useState(new Date()); // State for calendar date
+  const [view, setView] = useState("month"); // State for calendar view
+
+  const onNavigate = useCallback((action: "PREV" | "NEXT" | "TODAY") => {
+    switch (action) {
+      case "PREV":
+        setCurrentDate((prev) => {
+          if (view === "month") return new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
+          if (view === "week") return new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7);
+          if (view === "day") return new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 1);
+          return prev;
+        });
+        break;
+      case "NEXT":
+        setCurrentDate((prev) => {
+           if (view === "month") return new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+           if (view === "week") return new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7);
+           if (view === "day") return new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1);
+           return prev;
+        });
+        break;
+      case "TODAY":
+        setCurrentDate(new Date());
+        break;
+    }
+  }, [view]);
+
+  const onView = useCallback((newView: any) => setView(newView), []);
 
   const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<{
@@ -324,6 +422,11 @@ const MemberTasksPanel: React.FC<{
     };
   }, [memberId, userId, preloadedTasks]);
 
+  // Handle Calendar Navigation
+  const handleNavigate = (_date: Date, _view: string, action: string) => {
+    onNavigate(action as any);
+  };
+
   const normalize = (s: string) => s.toLowerCase().replace(/[_\-\s]/g, "");
   const total = tasks.length;
   const todoCount = tasks.filter(
@@ -352,6 +455,64 @@ const MemberTasksPanel: React.FC<{
     { key: "completed", label: "Completed", count: doneCount },
   ] as const;
 
+  const calendarEvents = useMemo(() => {
+    return tasks
+      .filter((t) => t.dueDate || t.createdAt)
+      .map((t) => {
+        let start = new Date(t.dueDate || t.createdAt);
+        // try to parse time if exists
+        if (t.dueTime) {
+          const timeParts = t.dueTime.match(/(\d+):(\d+)\s?(AM|PM)?/i);
+          if (timeParts) {
+            let hour = parseInt(timeParts[1]);
+            let minute = parseInt(timeParts[2]);
+            const ampm = timeParts[3]?.toUpperCase();
+
+            if (ampm === "PM" && hour < 12) hour += 12;
+            if (ampm === "AM" && hour === 12) hour = 0;
+
+            start.setHours(hour, minute, 0, 0);
+          }
+        }
+
+        const end = new Date(start);
+        end.setHours(start.getHours() + 1);
+
+        const status = normalize(t.status || "todo");
+        let color = "#3b82f6"; // default blue
+        if (status === "completed") color = "#10b981"; // green
+        else if (status === "inprogress") color = "#f97316"; // orange
+        else if (status === "todo" || status === "pending") color = "#8b5cf6"; // purple
+
+        return {
+          id: t.id,
+          title: t.title,
+          start,
+          end,
+          resource: t,
+          status,
+          color,
+          allDay: !t.dueTime,
+        };
+      });
+  }, [tasks]);
+
+  const eventStyleGetter = (event: any) => {
+    // Cleaner style with border on left only, full bg
+    return {
+      style: {
+        backgroundColor: event.color + "15", // Lower opacity for bg
+        color: event.color,
+        borderLeft: `3px solid ${event.color}`,
+        border: "none",
+        fontSize: "0.75rem",
+        borderRadius: "4px",
+        padding: "2px 4px",
+        fontWeight: "600",
+      },
+    };
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -370,13 +531,41 @@ const MemberTasksPanel: React.FC<{
             </p>
           </div>
         </div>
-        {loading && (
-          <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
-        )}
+        <div className="flex items-center gap-3">
+          <div className="flex p-0.5 bg-gray-100 rounded-lg border border-gray-200">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-md transition-all ${
+                viewMode === "list"
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+              title="List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("calendar")}
+              className={`p-1.5 rounded-md transition-all ${
+                viewMode === "calendar"
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+              title="Calendar View"
+            >
+              <CalendarIcon className="w-4 h-4" />
+            </button>
+          </div>
+          {loading && (
+            <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
+          )}
+        </div>
       </div>
 
-      {/* Stats bar */}
-      <div className="grid grid-cols-4 gap-3">
+      {viewMode === "list" ? (
+        <>
+          {/* Stats bar */}
+          <div className="grid grid-cols-4 gap-3">
         {[
           {
             label: "Total",
@@ -519,7 +708,7 @@ const MemberTasksPanel: React.FC<{
                       {/* Due date */}
                       {task.dueDate && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-xs text-gray-600">
-                          <Calendar className="w-3 h-3" />
+                          <CalendarIcon className="w-3 h-3" />
                           {formatTaskDate(task.dueDate)}
                           {task.dueTime && (
                             <span className="text-gray-400">
@@ -576,6 +765,57 @@ const MemberTasksPanel: React.FC<{
           </div>
         )}
       </>
+      </>
+      ) : (
+        <div className="h-[650px] bg-white rounded-xl border p-4 shadow-sm calendar-wrapper">
+          <style>{`
+            .rbc-calendar { font-family: inherit; }
+            .rbc-header { padding: 12px 4px; font-weight: 600; font-size: 0.875rem; color: #4b5563; }
+            .rbc-month-view { border: 1px solid #e5e7eb; border-radius: 0.75rem; overflow: hidden; }
+            .rbc-day-bg { background-color: white; }
+            .rbc-off-range-bg { background-color: #f9fafb; }
+            .rbc-today { background-color: #fff7ed; }
+            .rbc-event { padding: 2px 4px !important; border-radius: 4px !important; }
+          `}</style>
+          <Calendar
+            localizer={localizer}
+            events={calendarEvents}
+            startAccessor="start"
+            endAccessor="end"
+            style={{ height: "100%" }}
+            views={["month", "week", "day", "agenda"]}
+            view={view as any} // Controlled View
+            onView={onView} // Handle view change
+            date={currentDate} // Controlled Date
+            onNavigate={handleNavigate} // Handle navigation
+            defaultView="month"
+            eventPropGetter={eventStyleGetter}
+            components={{
+              toolbar: CalendarToolbar,
+              event: ({ event }) => (
+                <div className="flex items-center gap-1.5 overflow-hidden w-full">
+                  {event.status === "completed" ? (
+                    <CheckCheck className="w-3 h-3 shrink-0" />
+                  ) : (
+                    <CircleDot className="w-3 h-3 shrink-0" />
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span className="truncate text-xs font-bold leading-tight">
+                      {event.title}
+                    </span>
+                    {event.allDay === false && (
+                      <span className="text-[10px] opacity-80 leading-tight">
+                        {format(event.start, "h:mm a")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ),
+            }}
+            onSelectEvent={(event) => handleViewTask(event.id, event.title)}
+          />
+        </div>
+      )}
 
       {selectedImage && (
         <Modal
@@ -609,24 +849,6 @@ function getInitials(name?: string) {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
-
-const InfoRow: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-}> = ({ icon, label, value }) => (
-  <div className="flex items-start gap-4 py-4 border-b border-gray-100 last:border-b-0">
-    <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-      {icon}
-    </div>
-    <div className="flex-1 min-w-0">
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-        {label}
-      </p>
-      <div className="text-sm font-medium text-gray-900">{value}</div>
-    </div>
-  </div>
-);
 
 const SectionTitle: React.FC<{ title: string }> = ({ title }) => (
   <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
