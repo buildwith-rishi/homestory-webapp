@@ -388,6 +388,16 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
 
   // ── Download reference ──
   const handleDownload = async (ref: ProjectReference) => {
+    if (ref.downloadUrl) {
+      const a = document.createElement("a");
+      a.href = ref.downloadUrl;
+      a.download = ref.fileName || `reference-${ref.id}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
     try {
       const blob = await downloadProjectReference(projectId, ref.id);
       const url = window.URL.createObjectURL(blob);
@@ -402,6 +412,31 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to download",
+      );
+    }
+  };
+
+  // ── View file in new tab (uses authenticated download endpoint) ──
+  const handleViewFile = async (ref: ProjectReference) => {
+    if (ref.downloadUrl) {
+      window.open(ref.downloadUrl, "_blank");
+      return;
+    }
+
+    try {
+      const blob = await downloadProjectReference(projectId, ref.id);
+      const url = window.URL.createObjectURL(blob);
+      const newTab = window.open(url, "_blank");
+      // Revoke after a delay to give the browser time to load the file
+      if (newTab) {
+        setTimeout(() => window.URL.revokeObjectURL(url), 30000);
+      } else {
+        window.URL.revokeObjectURL(url);
+        toast.error("Please allow popups to view this file.");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to open file",
       );
     }
   };
@@ -712,6 +747,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
               onEdit={() => openEdit(ref)}
               onDelete={() => setDeletingId(ref.id)}
               onDownload={() => handleDownload(ref)}
+              onViewFile={() => handleViewFile(ref)}
               onPreview={() => setPreviewRef(ref)}
             />
           ))}
@@ -750,6 +786,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                     onEdit={() => openEdit(ref)}
                     onDelete={() => setDeletingId(ref.id)}
                     onDownload={() => handleDownload(ref)}
+                    onViewFile={() => handleViewFile(ref)}
                     onPreview={() => setPreviewRef(ref)}
                   />
                 ))}
@@ -1314,10 +1351,14 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
 
                 {/* Image preview for PHOTO type */}
                 {previewRef.referenceType === "PHOTO" &&
-                  previewRef.storageUrl && (
+                  (previewRef.storageUrl || previewRef.downloadUrl) && (
                     <div className="relative mb-4 rounded-xl overflow-hidden bg-gray-100">
                       <img
-                        src={previewRef.storageUrl}
+                        src={
+                          previewRef.downloadUrl ||
+                          previewRef.storageUrl ||
+                          undefined
+                        }
                         alt={
                           previewRef.linkTitle ||
                           previewRef.fileName ||
@@ -1411,19 +1452,18 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                       </Button>
                     </a>
                   )}
-                  {previewRef.storageUrl &&
+                  {(previewRef.storageUrl || previewRef.downloadUrl) &&
                     previewRef.referenceType !== "LINK" && (
-                      <a
-                        href={previewRef.storageUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1"
+                      <Button
+                        className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm"
+                        onClick={() => {
+                          handleViewFile(previewRef);
+                          setPreviewRef(null);
+                        }}
                       >
-                        <Button className="w-full bg-green-500 hover:bg-green-600 text-white text-sm">
-                          <Eye className="w-4 h-4 mr-1.5" />
-                          View File
-                        </Button>
-                      </a>
+                        <Eye className="w-4 h-4 mr-1.5" />
+                        View File
+                      </Button>
                     )}
                   {previewRef.fileName && (
                     <Button
@@ -1454,6 +1494,7 @@ interface ReferenceItemProps {
   onEdit: () => void;
   onDelete: () => void;
   onDownload: () => void;
+  onViewFile: () => void;
   onPreview: () => void;
 }
 
@@ -1462,6 +1503,7 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
   onEdit,
   onDelete,
   onDownload,
+  onViewFile,
   onPreview,
 }) => {
   const displayTitle =
@@ -1471,13 +1513,14 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
   return (
     <div className="bg-white rounded-xl border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all group overflow-hidden">
       {/* Image thumbnail for PHOTO type, colored bar for others */}
-      {reference.referenceType === "PHOTO" && reference.storageUrl ? (
+      {reference.referenceType === "PHOTO" &&
+      (reference.storageUrl || reference.downloadUrl) ? (
         <div
           className="relative h-40 bg-gray-100 cursor-pointer overflow-hidden"
           onClick={onPreview}
         >
           <img
-            src={reference.storageUrl}
+            src={reference.downloadUrl || reference.storageUrl || undefined}
             alt={reference.linkTitle || reference.fileName || "Reference"}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {
@@ -1613,16 +1656,17 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
                 <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
               </a>
             )}
-            {!isLink && reference.storageUrl && (
-              <a
-                href={reference.storageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+            {!isLink && (reference.storageUrl || reference.downloadUrl) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewFile();
+                }}
                 className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
                 title="View file"
               >
                 <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-              </a>
+              </button>
             )}
             {!isLink && (
               <button
@@ -1661,6 +1705,7 @@ const ReferenceRow: React.FC<ReferenceItemProps> = ({
   onEdit,
   onDelete,
   onDownload,
+  onViewFile,
   onPreview,
 }) => {
   const displayTitle =
@@ -1757,6 +1802,15 @@ const ReferenceRow: React.FC<ReferenceItemProps> = ({
             >
               <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
             </a>
+          )}
+          {!isLink && (reference.storageUrl || reference.downloadUrl) && (
+            <button
+              onClick={onViewFile}
+              className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+              title="View file"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+            </button>
           )}
           {!isLink && (
             <button

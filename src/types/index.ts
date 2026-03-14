@@ -501,6 +501,7 @@ export interface ProjectReference {
   fileType: string | null;
   fileSize: number | null;
   storageUrl: string | null;
+  downloadUrl?: string | null;
   linkUrl: string | null;
   linkTitle: string | null;
   title: string | null;
