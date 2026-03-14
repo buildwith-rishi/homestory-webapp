@@ -384,6 +384,11 @@ export const adminAPI = {
       body: JSON.stringify({ newPassword }),
     });
   },
+
+  // Get all roles from backend
+  getRoles: async () => {
+    return fetchAPI("/api/roles", { method: "GET" });
+  },
 };
 
 export default {

@@ -20,14 +20,22 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   getRoleBadgeClasses,
   getRoleDisplayName,
-  ROLES,
   type RoleId,
 } from "../../config/rbac";
+
+interface ApiRole {
+  id: string;
+  name: string;
+  description: string;
+  accessLevel: string;
+  permissions: string[];
+}
 
 export const UserManagement: React.FC = () => {
   const { roleId } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [apiRoles, setApiRoles] = useState<ApiRole[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "banned">(
@@ -131,9 +139,21 @@ export const UserManagement: React.FC = () => {
     }
   };
 
+  const loadRoles = async () => {
+    try {
+      const response = await adminAPI.getRoles() as any;
+      if (response?.roles && Array.isArray(response.roles)) {
+        setApiRoles(response.roles);
+      }
+    } catch (err) {
+      console.error("Failed to load roles:", err);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       loadUsers();
+      loadRoles();
     }
   }, [isAdmin]);
 
@@ -453,17 +473,11 @@ export const UserManagement: React.FC = () => {
             }}
           >
             <option value="all">All Roles</option>
-            <option value="SUPER_ADMIN">Super Admin</option>
-            <option value="ADMIN">Admin</option>
-            <option value="LEAD_PROJECT_MANAGER">Lead Project Manager</option>
-            <option value="PROJECT_MANAGER">Project Manager</option>
-            <option value="BDR">Business Development Representative</option>
-            <option value="SALES">Sales</option>
-            <option value="HR">Human Resources</option>
-            <option value="ACCOUNTS">Accounts / Finance</option>
-            <option value="SITE_ENGINEER">Site Engineer</option>
-            <option value="DESIGNER">Designer</option>
-            <option value="DESIGN_HEAD">Lead Designer</option>
+            {apiRoles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
           </select>
 
           {/* Status Filter */}
@@ -747,22 +761,11 @@ export const UserManagement: React.FC = () => {
                 backgroundSize: "1.25em 1.25em",
               }}
             >
-              <option value="BDR">Business Development Representative</option>
-              <option value="SALES">Sales</option>
-              <option value="HR">Human Resources</option>
-              <option value="SITE_ENGINEER">Site Engineer</option>
-              <option value="PROJECT_MANAGER">Project Manager</option>
-              <option value="LEAD_PROJECT_MANAGER">Lead Project Manager</option>
-              <option value="ACCOUNTS">Accounts / Finance</option>
-              <option value="DESIGNER">Designer</option>
-              <option value="DESIGN_HEAD">Lead Designer</option>
-              <option value="CIVIL">Civil</option>
-              <option value="PAINTER">Painter</option>
-              <option value="ELECTRICIAN">Electrician</option>
-              <option value="PLUMBER">Plumber</option>
-              <option value="CARPENTER">Carpenter</option>
-              <option value="ADMIN">Admin</option>
-              <option value="SUPER_ADMIN">Super Admin</option>
+              {apiRoles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -783,17 +786,20 @@ export const UserManagement: React.FC = () => {
           </div>
 
           {/* Role Description */}
-          {createForm.role && ROLES[createForm.role as RoleId] && (
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-xs font-medium text-blue-700 mb-1">
-                {getRoleDisplayName(createForm.role as RoleId)} —{" "}
-                {ROLES[createForm.role as RoleId].accessLevel} Access
-              </p>
-              <p className="text-xs text-blue-600">
-                {ROLES[createForm.role as RoleId].description}
-              </p>
-            </div>
-          )}
+          {createForm.role &&
+            apiRoles
+              .filter((r) => r.id === createForm.role)
+              .map((role) => (
+                <div
+                  key={role.id}
+                  className="p-3 bg-blue-50 rounded-lg border border-blue-100"
+                >
+                  <p className="text-xs font-medium text-blue-700 mb-1">
+                    {role.name} — {role.accessLevel} Access
+                  </p>
+                  <p className="text-xs text-blue-600">{role.description}</p>
+                </div>
+              ))}
 
           {/* Modal Footer */}
           <div className="flex gap-3 pt-3 border-t border-gray-100 mt-4">
@@ -1025,22 +1031,11 @@ export const UserManagement: React.FC = () => {
                 backgroundSize: "1.25em 1.25em",
               }}
             >
-              <option value="BDR">Business Development Representative</option>
-              <option value="SALES">Sales</option>
-              <option value="HR">Human Resources</option>
-              <option value="SITE_ENGINEER">Site Engineer</option>
-              <option value="PROJECT_MANAGER">Project Manager</option>
-              <option value="LEAD_PROJECT_MANAGER">Lead Project Manager</option>
-              <option value="ACCOUNTS">Accounts / Finance</option>
-              <option value="DESIGNER">Designer</option>
-              <option value="DESIGN_HEAD">Lead Designer</option>
-              <option value="CIVIL">Civil</option>
-              <option value="PAINTER">Painter</option>
-              <option value="ELECTRICIAN">Electrician</option>
-              <option value="PLUMBER">Plumber</option>
-              <option value="CARPENTER">Carpenter</option>
-              <option value="ADMIN">Admin</option>
-              <option value="SUPER_ADMIN">Super Admin</option>
+              {apiRoles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
             </select>
           </div>
 
