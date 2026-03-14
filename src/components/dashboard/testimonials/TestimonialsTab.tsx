@@ -107,10 +107,10 @@ const STATUS_CONFIG: Record<
     icon: Globe,
   },
   REJECTED: {
-    bg: "bg-rose-50",
-    text: "text-rose-700",
-    border: "border-rose-200",
-    dot: "bg-rose-500",
+    bg: "bg-red-50",
+    text: "text-red-700",
+    border: "border-red-200",
+    dot: "bg-red-500",
     icon: ShieldX,
   },
 };
@@ -457,8 +457,8 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
         createPortal(
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
-              <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-6 h-6 text-rose-500" />
+              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-6 h-6 text-red-500" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
                 Delete Testimonial?
@@ -469,14 +469,16 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
               </p>
               <div className="flex gap-3">
                 <button
+                  type="button"
                   onClick={() => setDeletingId(null)}
                   className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleDelete}
-                  className="flex-1 px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
                 >
                   Delete
                 </button>
@@ -622,7 +624,7 @@ const TestimonialRow: React.FC<TestimonialRowProps> = ({
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={onView}
                   className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -639,7 +641,7 @@ const TestimonialRow: React.FC<TestimonialRowProps> = ({
                 </button>
                 <button
                   onClick={onDelete}
-                  className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="Delete"
                 >
                   <Trash2 className="w-4 h-4" />

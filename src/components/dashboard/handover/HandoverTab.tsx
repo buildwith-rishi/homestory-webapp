@@ -499,32 +499,18 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
       {activeSection === "activities" && (
         <div className="space-y-3">
           {/* Action Buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              onClick={openAddForm}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Activity
-            </Button>
-            {activities.length === 0 && (
+          {activities.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
-                variant="outline"
                 size="sm"
-                onClick={handleSeedActivities}
-                disabled={seeding}
-                className="border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+                onClick={openAddForm}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
               >
-                {seeding ? (
-                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4 mr-1" />
-                )}
-                Add Default Activities
+                <Plus className="w-4 h-4 mr-1" />
+                Add Activity
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Add/Edit Form */}
           {showAddForm && (
