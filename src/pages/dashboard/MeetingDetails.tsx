@@ -6,7 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Calendar,
@@ -672,6 +672,7 @@ const NoteForm: React.FC<{
 
 export const MeetingDetailsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { meetingId } = useParams<{ meetingId: string }>();
   const { setCurrentMeeting } = useMeetingStore();
 
@@ -915,6 +916,23 @@ export const MeetingDetailsPage: React.FC = () => {
     isPollingTranscript,
     fetchMeetingData,
     startTranscriptPolling,
+  ]);
+
+  // Poll immediately if navigating from MeetingRoom (justEnded)
+  useEffect(() => {
+    const justEnded = (location.state as any)?.justEnded;
+    if (justEnded && meetingId && !pollTimerRef.current) {
+      console.log("[MeetingDetails] Just ended — forcing immediate poll");
+      startTranscriptPolling();
+      // Clear location state so we don't re-trigger
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [
+    location.state,
+    meetingId,
+    startTranscriptPolling,
+    navigate,
+    location.pathname,
   ]);
 
   // Auto-start polling when meeting is loaded and transcript is empty but meeting is done

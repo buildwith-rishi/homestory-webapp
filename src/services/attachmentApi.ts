@@ -96,7 +96,15 @@ export async function getAttachment(id: string): Promise<Attachment> {
   const response = await fetch(`${API_BASE_URL}/api/attachments/${id}`, {
     headers: getAuthHeaders(),
   });
-  return handleResponse<Attachment>(response);
+  const data = await handleResponse<any>(response);
+  // If response is wrapped like { attachment: {...}, downloadUrl: "..." }
+  if (data.attachment && data.downloadUrl) {
+    return {
+      ...data.attachment,
+      downloadUrl: data.downloadUrl,
+    };
+  }
+  return data as Attachment;
 }
 
 /** PUT /api/attachments/:id — Update attachment metadata */

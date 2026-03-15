@@ -243,12 +243,14 @@ export const MeetingRoom: React.FC = () => {
     const currentId = meetingIdFromState;
     // Always stop recording first — this uploads audio and triggers transcription
     if (isRecording) {
-      stopRecording(); // synchronous — triggers async upload internally
+      await stopRecording(); // Await upload completion
     }
     await endMeeting();
     // Navigate to meeting details — that page polls until the transcript is ready
     if (currentId) {
-      navigate(`/dashboard/meetings/${currentId}`);
+      navigate(`/dashboard/meetings/${currentId}`, {
+        state: { justEnded: true },
+      });
     } else {
       navigate("/dashboard/meetings");
     }

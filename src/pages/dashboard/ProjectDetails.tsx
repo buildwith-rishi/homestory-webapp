@@ -46,8 +46,6 @@ import {
   Badge,
   Card,
   PageLoader,
-  SectionLoader,
-  Spinner,
 } from "../../components/ui";
 import { ProjectStagesSection } from "../../components/dashboard/stages";
 import { TestimonialsTab } from "../../components/dashboard/testimonials";
@@ -74,6 +72,7 @@ import {
   getActivitiesByEntity,
 } from "../../services/activitiesApi";
 import {
+  getAttachment,
   listAttachments,
   uploadAttachment,
   updateAttachment,
@@ -211,7 +210,6 @@ export const ProjectDetails: React.FC = () => {
     currentProject,
     projectPayments,
     projectStages,
-    isLoading,
     error,
     pauseStatus,
     fetchProjectById,
@@ -440,7 +438,7 @@ export const ProjectDetails: React.FC = () => {
 
       // Sort by creation date and take the latest 10 so pause/resume history is always shown
       const sorted = list.sort(
-        (a, b) =>
+        (a: any, b: any) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
       setRecentActivities(sorted.slice(0, 10));
@@ -680,6 +678,53 @@ export const ProjectDetails: React.FC = () => {
       toast.error(
         error instanceof Error ? error.message : "Failed to delete document",
       );
+    }
+  };
+
+  const handleViewAttachment = async (attachment: Attachment) => {
+    // If we have a direct absolute URL (e.g. from immediate upload response), try opening it.
+    // However, signed URLs expire, so fetching fresh is safer.
+    // We'll try to fetch fresh details first.
+    const toastId = toast.loading("Opening document...");
+    try {
+      const fullAttachment = await getAttachment(attachment.id);
+      const url =
+        fullAttachment.downloadUrl ||
+        fullAttachment.url ||
+        fullAttachment.fileUrl;
+      
+      if (url && (url.startsWith("http") || url.startsWith("//"))) {
+        window.open(url, "_blank");
+        toast.dismiss(toastId);
+      } else {
+        // Fallback to what we have in state if API didn't return a good URL
+        // (unlikely if getAttachment is working correctly)
+        const fallbackUrl =
+          attachment.downloadUrl || attachment.url || attachment.fileUrl;
+        if (
+          fallbackUrl &&
+          (fallbackUrl.startsWith("http") || fallbackUrl.startsWith("//"))
+        ) {
+          window.open(fallbackUrl, "_blank");
+          toast.dismiss(toastId);
+        } else {
+          toast.error("Could not find a valid download link", { id: toastId });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch attachment details:", error);
+      // Try fallback from state
+      const fallbackUrl =
+        attachment.downloadUrl || attachment.url || attachment.fileUrl;
+      if (
+        fallbackUrl &&
+        (fallbackUrl.startsWith("http") || fallbackUrl.startsWith("//"))
+      ) {
+        window.open(fallbackUrl, "_blank");
+        toast.dismiss(toastId);
+      } else {
+        toast.error("Failed to open document", { id: toastId });
+      }
     }
   };
 
@@ -2091,10 +2136,9 @@ export const ProjectDetails: React.FC = () => {
                   <div className="space-y-2">
                     {projectAttachments.map((attachment) => {
                       const isImage = attachment.fileType?.startsWith("image/");
-                      const url =
-                        attachment.downloadUrl ||
-                        attachment.storageUrl ||
-                        attachment.fileUrl;
+                      // Prefer downloadUrl (signed URL). Only use storageUrl/fileUrl if they are absolute URLs.
+                      // Relative storageUrl (e.g. "attachments/...") is not viewable directly.
+
                       return (
                         <div
                           key={attachment.id}
@@ -2123,17 +2167,13 @@ export const ProjectDetails: React.FC = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {url && (
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <button
+                                onClick={() => handleViewAttachment(attachment)}
                                 className="p-1.5 rounded-lg hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
                                 title="View / Download"
                               >
                                 <Eye className="w-3.5 h-3.5" />
-                              </a>
-                            )}
+                              </button>
                             <button
                               onClick={() => {
                                 setEditingAttachment(attachment);
@@ -2260,7 +2300,7 @@ export const ProjectDetails: React.FC = () => {
                     {/* Timeline line */}
                     <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gray-200" />
 
-                    {recentActivities.map((activity, index) => {
+                    {recentActivities.map((activity) => {
                       // Determine specific icon/color for pause/resume actions
                       const isPause =
                         activity.type === "STATUS_CHANGE" &&

@@ -708,8 +708,6 @@ export const CustomerDetails: React.FC = () => {
         setCustomerTypes([
           { value: "RESIDENTIAL", label: "Residential" },
           { value: "COMMERCIAL", label: "Commercial" },
-          { value: "HOUSEHOLD", label: "Household" },
-          { value: "COMPANY", label: "Company" },
         ]),
       );
     CustomerAPI.getCustomerStatuses()
@@ -1553,8 +1551,6 @@ export const CustomerDetails: React.FC = () => {
                                     value: "COMMERCIAL",
                                     label: "Commercial",
                                   },
-                                  { value: "HOUSEHOLD", label: "Household" },
-                                  { value: "COMPANY", label: "Company" },
                                 ]
                             ).map((t) => (
                               <option key={t.value} value={t.value}>

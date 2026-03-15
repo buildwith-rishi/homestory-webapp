@@ -171,7 +171,7 @@ const AddCustomerModal: React.FC<{
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
-    type: "HOUSEHOLD" as string,
+    type: "RESIDENTIAL" as string,
     email: "",
     phone: "",
     taxId: "",
@@ -320,7 +320,7 @@ const AddCustomerModal: React.FC<{
       // Reset form on success
       setFormData({
         name: "",
-        type: "HOUSEHOLD",
+        type: "RESIDENTIAL",
         email: "",
         phone: "",
         taxId: "",
@@ -365,7 +365,7 @@ const AddCustomerModal: React.FC<{
     if (!isOpen) {
       setFormData({
         name: "",
-        type: "HOUSEHOLD",
+        type: "RESIDENTIAL",
         email: "",
         phone: "",
         taxId: "",
@@ -494,8 +494,8 @@ const AddCustomerModal: React.FC<{
                 ))
               ) : (
                 <>
-                  <option value="HOUSEHOLD">🏠 Household</option>
-                  <option value="COMPANY">🏢 Company</option>
+                  <option value="RESIDENTIAL">🏠 Residential</option>
+                  <option value="COMMERCIAL">🏢 Commercial</option>
                 </>
               )}
             </select>
@@ -2525,8 +2525,8 @@ export const Customers: React.FC = () => {
       console.error("Error fetching customer types:", error);
       // Use default types if API fails
       setCustomerTypes([
-        { value: "HOUSEHOLD", label: "Household" },
-        { value: "COMPANY", label: "Company" },
+        { value: "RESIDENTIAL", label: "Residential" },
+        { value: "COMMERCIAL", label: "Commercial" },
       ]);
     }
   };

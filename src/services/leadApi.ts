@@ -162,6 +162,15 @@ export interface LeadNote {
   createdBy?: string;
 }
 
+const mapActivityToLeadNote = (activity: LeadActivity): LeadNote => ({
+  id: activity.id,
+  leadId: activity.entityId || activity.leadId || "",
+  content: activity.notes || activity.title || "",
+  type: activity.activityType || activity.type || "GENERAL",
+  createdAt: activity.occurredAt || activity.createdAt,
+  createdBy: activity.performedByUserId || activity.createdBy,
+});
+
 export interface LeadSource {
   value: string;
   label: string;
@@ -452,7 +461,34 @@ export async function addLeadNote(
     }),
   });
 
-  return handleResponse<LeadNote>(response);
+  const data = await handleResponse<
+    LeadNote | { note?: LeadNote; activity?: LeadActivity; message?: string }
+  >(response);
+
+  // Supported response formats:
+  // 1) LeadNote object
+  // 2) { note: LeadNote }
+  // 3) { activity: LeadActivity, message: string }
+  if ((data as LeadNote).content !== undefined) {
+    return data as LeadNote;
+  }
+
+  const wrapped = data as { note?: LeadNote; activity?: LeadActivity };
+  if (wrapped.note) {
+    return wrapped.note;
+  }
+  if (wrapped.activity) {
+    return mapActivityToLeadNote(wrapped.activity);
+  }
+
+  // Final fallback to keep UI resilient if API shape changes unexpectedly.
+  return {
+    id: `note-${Date.now()}`,
+    leadId: id,
+    content: note.content,
+    type: note.type || "GENERAL",
+    createdAt: new Date().toISOString(),
+  };
 }
 
 /**
@@ -460,20 +496,61 @@ export async function addLeadNote(
  * GET /api/leads/:id/notes
  */
 export async function getLeadNotes(id: string): Promise<LeadNote[]> {
-  const response = await fetch(`${API_BASE_URL}/api/leads/${id}/notes`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/leads/${id}/notes`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
 
-  const data = await handleResponse<{ notes?: LeadNote[] } | LeadNote[]>(
-    response,
-  );
+    const data = await handleResponse<
+      | { notes?: LeadNote[]; activities?: LeadActivity[] }
+      | LeadNote[]
+      | LeadActivity[]
+    >(response);
 
-  // Handle both response formats: { notes: [...] } or [...]
-  if (Array.isArray(data)) {
-    return data;
+    // Handle: [LeadNote]
+    if (Array.isArray(data)) {
+      if (data.length === 0) return [];
+      const first = data[0] as LeadNote | LeadActivity;
+      if ((first as LeadNote).content !== undefined) {
+        return data as LeadNote[];
+      }
+      return (data as LeadActivity[])
+        .filter((a) => (a.activityType || a.type) === "NOTE_ADDED")
+        .map(mapActivityToLeadNote);
+    }
+
+    // Handle: { notes: [...] }
+    if (Array.isArray(data.notes)) {
+      return data.notes;
+    }
+
+    // Handle: { activities: [...] }
+    if (Array.isArray(data.activities)) {
+      return data.activities
+        .filter((a) => (a.activityType || a.type) === "NOTE_ADDED")
+        .map(mapActivityToLeadNote);
+    }
+
+    return [];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+
+    // Current backend may not expose GET /notes yet (404).
+    // Fallback to activities endpoint and derive notes from NOTE_ADDED events.
+    if (/404|not found/i.test(message)) {
+      const activities = await getLeadActivities(id);
+      return activities
+        .filter((a) => (a.activityType || a.type) === "NOTE_ADDED")
+        .map(mapActivityToLeadNote)
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+    }
+
+    throw error;
   }
-  return data.notes || [];
 }
 
 // ==========================================

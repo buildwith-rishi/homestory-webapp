@@ -4,18 +4,18 @@
  */
 
 // Account type enum values as per Prisma schema
-export type AccountTypeValue = 'HOUSEHOLD' | 'COMPANY';
+export type AccountTypeValue = 'RESIDENTIAL' | 'COMMERCIAL';
 
 // Account type display labels
 export const ACCOUNT_TYPE_LABELS: Record<AccountTypeValue, string> = {
-  HOUSEHOLD: 'Household',
-  COMPANY: 'Company',
+  RESIDENTIAL: 'Residential',
+  COMMERCIAL: 'Commercial',
 };
 
 // Account type descriptions
 export const ACCOUNT_TYPE_DESCRIPTIONS: Record<AccountTypeValue, string> = {
-  HOUSEHOLD: 'Individual or family residential account',
-  COMPANY: 'Business or commercial account',
+  RESIDENTIAL: 'Individual or family residential account',
+  COMMERCIAL: 'Business or commercial account',
 };
 
 /**

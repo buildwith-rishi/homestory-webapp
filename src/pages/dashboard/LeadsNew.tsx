@@ -1291,7 +1291,7 @@ export const LeadsPage: React.FC = () => {
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [convertAccountType, setConvertAccountType] =
-    useState<string>("HOUSEHOLD");
+    useState<string>("RESIDENTIAL");
   const [accountTypes, setAccountTypes] = useState<
     { value: string; label: string; description?: string }[]
   >([]);
@@ -1415,17 +1415,17 @@ export const LeadsPage: React.FC = () => {
       // Fallback to default types
       setAccountTypes([
         {
-          value: "HOUSEHOLD",
-          label: "Household",
+          value: "RESIDENTIAL",
+          label: "Residential",
           description: "Individual or family residential customer",
         },
         {
-          value: "COMPANY",
-          label: "Company",
+          value: "COMMERCIAL",
+          label: "Commercial",
           description: "Business or commercial customer",
         },
       ]);
-      setConvertAccountType("HOUSEHOLD");
+      setConvertAccountType("RESIDENTIAL");
     }
   };
 
@@ -1586,7 +1586,7 @@ export const LeadsPage: React.FC = () => {
     // Validate customer type
     if (
       !convertAccountType ||
-      !["HOUSEHOLD", "COMPANY"].includes(convertAccountType)
+      !["RESIDENTIAL", "COMMERCIAL"].includes(convertAccountType)
     ) {
       toast.error("Please select a valid customer type");
       return;
@@ -2999,7 +2999,7 @@ export const LeadsPage: React.FC = () => {
               <Button
                 onClick={() => {
                   setShowConvertModal(false);
-                  setConvertAccountType(accountTypes[0]?.value || "HOUSEHOLD");
+                  setConvertAccountType(accountTypes[0]?.value || "RESIDENTIAL");
                 }}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl"
               >

@@ -623,40 +623,50 @@ export function useMeetingRecording(meetingId: string | null) {
 
   // ─── Stop Recording ───────────────────────────────────────────────────
 
-  const stopRecording = useCallback(() => {
-    const currentMeetingId = meetingId;
+  const stopRecording = useCallback(async (): Promise<void> => {
+    return new Promise((resolve) => {
+      const currentMeetingId = meetingId;
 
-    // Stop MediaRecorder — this triggers the final `dataavailable` event
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
-      // Listen for the final chunk before uploading
-      const recorder = mediaRecorderRef.current;
-      recorder.onstop = () => {
-        // Now all chunks have been collected — upload to server
-        if (currentMeetingId) {
-          uploadAudioAndGetTranscript(currentMeetingId);
-        }
-      };
-      recorder.stop();
-      mediaRecorderRef.current = null;
-    }
+      // Stop MediaRecorder — this triggers the final `dataavailable` event
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
+        // Listen for the final chunk before uploading
+        const recorder = mediaRecorderRef.current;
+        recorder.onstop = async () => {
+          // Now all chunks have been collected — upload to server
+          if (currentMeetingId) {
+            try {
+              await uploadAudioAndGetTranscript(currentMeetingId);
+            } catch (error) {
+              console.error("[Recording] Upload failed during stop:", error);
+            }
+          }
+          resolve(); // Resolve once upload is done
+        };
+        recorder.stop();
+        mediaRecorderRef.current = null;
+      } else {
+        // If not recording, resolve immediately
+        resolve();
+      }
 
-    // Stop media stream tracks (release microphone)
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+      // Stop media stream tracks (release microphone)
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
 
-    // Stop audio metering
-    stopAudioMetering();
+      // Stop audio metering
+      stopAudioMetering();
 
-    // Stop duration timer
-    stopDurationTimer();
+      // Stop duration timer
+      stopDurationTimer();
 
-    setIsRecording(false);
-    console.log("[Recording] Stopped — uploading audio…");
+      setIsRecording(false);
+      console.log("[Recording] Stopped — uploading audio…");
+    });
   }, [
     meetingId,
     stopAudioMetering,
