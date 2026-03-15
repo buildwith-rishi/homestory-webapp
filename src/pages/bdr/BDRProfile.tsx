@@ -102,11 +102,6 @@ export function BDRProfile() {
     },
     { icon: HelpCircle, label: "Help & Support", action: () => {} },
     { icon: Shield, label: "Privacy Policy", action: () => {} },
-    {
-      icon: Settings,
-      label: "Settings",
-      action: () => navigate("/dashboard/settings"),
-    },
   ];
 
   return (

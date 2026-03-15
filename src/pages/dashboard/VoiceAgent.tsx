@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, Play, FileText, User, TrendingUp, TrendingDown, Clock, Settings as SettingsIcon } from 'lucide-react';
+import { Phone, Play, FileText, User, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 import { Card, Button, Badge, Toggle } from '../../components/ui';
 
 interface Call {
@@ -47,10 +47,6 @@ export const VoiceAgentPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Voice Agent</h1>
           <p className="text-gray-600 mt-1">AI-powered phone assistant analytics</p>
         </div>
-        <Button className="rounded-xl">
-          <SettingsIcon className="w-4 h-4" />
-          Settings
-        </Button>
       </div>
 
       {/* Stats Grid */}
