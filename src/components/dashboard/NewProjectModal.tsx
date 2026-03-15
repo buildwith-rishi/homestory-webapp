@@ -30,9 +30,11 @@ import {
 } from "../../types";
 import type { Customer } from "../../types/customer";
 import { listCustomers } from "../../services/customerApi";
+import { listProjects } from "../../services/projectApi";
 import { getAllTeamMembers } from "../../services/teamApi";
 import type { TeamMember } from "../../services/teamApi";
 import { useProjectOptions } from "../../hooks/useProjectOptions";
+import toast from "react-hot-toast";
 
 export interface NewProjectModalProps {
   isOpen: boolean;
@@ -348,7 +350,57 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     if (formData.assignedPMId) request.assignedPMId = formData.assignedPMId;
 
     try {
+      const normalizedNewName = request.projectName.trim().toLowerCase();
+      const normalizedSelectedCustomerName =
+        (selectedCustomer?.name || "").trim().toLowerCase();
+
+      // Server-side duplicate check before create:
+      // same project name + same customer should be blocked.
+      const existingProjects = await listProjects({ limit: 1000 });
+      const duplicateExists = (existingProjects.projects || []).some((p) => {
+        const existingName = (p.projectName || p.name || "").trim().toLowerCase();
+        if (existingName !== normalizedNewName) return false;
+
+        // Primary match by customer/account ID
+        if (request.accountId && p.accountId && p.accountId === request.accountId) {
+          return true;
+        }
+
+        // Fallback match by displayed customer name if accountId is missing in old records
+        const existingCustomerName =
+          (p.account?.name || p.lead?.name || "").trim().toLowerCase();
+        if (normalizedSelectedCustomerName && existingCustomerName) {
+          return existingCustomerName === normalizedSelectedCustomerName;
+        }
+
+        return false;
+      });
+
+      if (duplicateExists) {
+        const message =
+          "Project name and customer already exist. Try a different project name.";
+        setErrors((prev) => ({ ...prev, projectName: message }));
+        toast.error(message);
+        return;
+      }
+
       await onSubmit(request);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to create project";
+
+      if (
+        /already exists|duplicate|unique/i.test(errorMessage) &&
+        /project|name/i.test(errorMessage)
+      ) {
+        const message =
+          "Project name and customer already exist. Try a different project name.";
+        setErrors((prev) => ({ ...prev, projectName: message }));
+        toast.error(message);
+        return;
+      }
+
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }

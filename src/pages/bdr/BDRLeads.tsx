@@ -68,7 +68,6 @@ const EMPTY_FORM = {
   city: "",
   requirements: "",
   message: "",
-  canWhatsApp: false,
 };
 
 export function BDRLeads() {
@@ -547,27 +546,6 @@ export function BDRLeads() {
                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none"
               />
             </div>
-
-            {/* WhatsApp */}
-            <label className="flex items-center gap-3 cursor-pointer">
-              <div
-                onClick={() =>
-                  setForm((f) => ({ ...f, canWhatsApp: !f.canWhatsApp }))
-                }
-                className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                  form.canWhatsApp ? "bg-green-500" : "bg-gray-300"
-                } flex items-center px-0.5`}
-              >
-                <div
-                  className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    form.canWhatsApp ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </div>
-              <span className="text-sm text-gray-700">
-                Can be reached on WhatsApp
-              </span>
-            </label>
 
             {/* Assigned to (read-only info) */}
             <div className="bg-orange-50 border border-orange-100 rounded-xl px-3 py-2.5">

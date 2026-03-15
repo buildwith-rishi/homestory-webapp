@@ -1007,7 +1007,10 @@ export const MeetingDetailsPage: React.FC = () => {
         content,
         timestamp: Date.now() / 1000, // Current timestamp in seconds
       });
-      setNotes([...notes, newNote]);
+      setNotes((prev) => [...prev, newNote]);
+
+      // Refresh meeting section once after note add so all dependent widgets stay in sync.
+      await fetchMeetingData(false);
     } catch (err) {
       console.error("Error adding note:", err);
     } finally {

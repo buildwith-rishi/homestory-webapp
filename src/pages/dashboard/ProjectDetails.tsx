@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -95,6 +95,27 @@ const formatCurrency = (value: number): string => {
     return `₹${(value / 1000).toFixed(1)}K`;
   }
   return `₹${value}`;
+};
+
+type PaymentDocumentListItem = {
+  url: string;
+  fileName: string;
+  documentType: string;
+};
+
+const mergeUniquePaymentDocuments = (
+  existing: PaymentDocumentListItem[],
+  incoming: PaymentDocumentListItem[],
+): PaymentDocumentListItem[] => {
+  if (!incoming.length) return existing;
+  const merged = [...existing];
+  incoming.forEach((doc) => {
+    if (!doc.url) return;
+    if (!merged.some((existingDoc) => existingDoc.url === doc.url)) {
+      merged.push(doc);
+    }
+  });
+  return merged;
 };
 
 // Helper function to format date
@@ -209,6 +230,8 @@ export const ProjectDetails: React.FC = () => {
     cancelProject,
     fetchPauseStatus,
     setCurrentProject,
+    mergePaymentUpdate,
+    fetchPaymentById,
   } = useProjectStore();
 
   // Project options from API
@@ -298,13 +321,16 @@ export const ProjectDetails: React.FC = () => {
   const [showViewReceiptsModal, setShowViewReceiptsModal] = useState(false);
   const [viewReceiptsPayment, setViewReceiptsPayment] =
     useState<ProjectPayment | null>(null);
-  // Tracks all uploaded document URLs per payment in this session
+  const [viewReceiptsLoading, setViewReceiptsLoading] = useState(false);
+  // Tracks all uploaded document URLs per payment
   const [paymentDocumentsMap, setPaymentDocumentsMap] = useState<
-    Record<
-      string,
-      Array<{ url: string; fileName: string; documentType: string }>
-    >
+    Record<string, PaymentDocumentListItem[]>
   >({});
+  const hydratedPaymentsRef = useRef<Record<string, true>>({});
+
+  const paymentDocumentsStorageKey = projectId
+    ? `project-payment-documents:${projectId}`
+    : null;
 
   // Send Reminder modal state
   const [showSendReminderModal, setShowSendReminderModal] = useState(false);
@@ -435,6 +461,126 @@ export const ProjectDetails: React.FC = () => {
       fetchProjectAttachments(projectId);
     }
   }, [projectId, fetchProjectById, fetchProjectStages, fetchProjectPayments]);
+
+  // Reset hydrated tracking when project changes
+  useEffect(() => {
+    hydratedPaymentsRef.current = {};
+  }, [projectId]);
+
+  // Restore per-project uploaded documents from local storage so UI persists on refresh.
+  useEffect(() => {
+    if (!paymentDocumentsStorageKey) return;
+    try {
+      const raw = localStorage.getItem(paymentDocumentsStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const restored: Record<string, PaymentDocumentListItem[]> = {};
+
+      Object.entries(parsed).forEach(([paymentId, docs]) => {
+        if (!Array.isArray(docs)) return;
+        const normalizedDocs = docs
+          .map((doc) => {
+            const item = doc as Partial<PaymentDocumentListItem>;
+            if (!item.url || typeof item.url !== "string") return null;
+            return {
+              url: item.url,
+              fileName:
+                typeof item.fileName === "string" && item.fileName
+                  ? item.fileName
+                  : "Document",
+              documentType:
+                typeof item.documentType === "string" && item.documentType
+                  ? item.documentType
+                  : "other",
+            };
+          })
+          .filter((doc): doc is PaymentDocumentListItem => doc !== null);
+
+        if (normalizedDocs.length) {
+          restored[paymentId] = mergeUniquePaymentDocuments([], normalizedDocs);
+        }
+      });
+
+      if (Object.keys(restored).length) {
+        setPaymentDocumentsMap((prev) => {
+          const next = { ...prev };
+          Object.entries(restored).forEach(([paymentId, docs]) => {
+            next[paymentId] = mergeUniquePaymentDocuments(
+              next[paymentId] || [],
+              docs,
+            );
+          });
+          return next;
+        });
+      }
+    } catch {
+      // Ignore invalid local storage data and continue with API-derived state.
+    }
+  }, [paymentDocumentsStorageKey]);
+
+  // Persist per-project uploaded documents in local storage.
+  useEffect(() => {
+    if (!paymentDocumentsStorageKey) return;
+    try {
+      localStorage.setItem(
+        paymentDocumentsStorageKey,
+        JSON.stringify(paymentDocumentsMap),
+      );
+    } catch {
+      // Ignore storage quota/errors; UI still works from in-memory state.
+    }
+  }, [paymentDocumentsMap, paymentDocumentsStorageKey]);
+
+  // Sync paymentDocumentsMap from projectPayments whenever they load/refresh.
+  // Merges receiptUrl and documents from each payment so uploaded files remain
+  // visible after page reload or any API-triggered payment refresh.
+  useEffect(() => {
+    if (!projectPayments.length) return;
+    setPaymentDocumentsMap((prev) => {
+      const next = { ...prev };
+      projectPayments.forEach((payment) => {
+        const apiDocs: PaymentDocumentListItem[] = [];
+        if (payment.documents?.length) {
+          payment.documents.forEach((d) => {
+            apiDocs.push({
+              url: d.url,
+              fileName: d.fileName || "Document",
+              documentType: d.documentType,
+            });
+          });
+        }
+        if (
+          payment.receiptUrl &&
+          !apiDocs.some((d) => d.url === payment.receiptUrl)
+        ) {
+          apiDocs.push({
+            url: payment.receiptUrl,
+            fileName: payment.receiptFileName || "Receipt",
+            documentType: "receipt",
+          });
+        }
+        if (apiDocs.length) {
+          const existing = next[payment.id] || [];
+          next[payment.id] = mergeUniquePaymentDocuments(existing, apiDocs);
+        }
+      });
+      return next;
+    });
+  }, [projectPayments]);
+
+  // Hydrate each payment from the detail endpoint once so documents[] survives refresh.
+  useEffect(() => {
+    if (!projectPayments.length) return;
+    const pendingHydration = projectPayments.filter(
+      (payment) => !hydratedPaymentsRef.current[payment.id],
+    );
+    if (!pendingHydration.length) return;
+
+    pendingHydration.forEach((payment) => {
+      hydratedPaymentsRef.current[payment.id] = true;
+      void fetchPaymentById(payment.id);
+    });
+  }, [projectPayments, fetchPaymentById]);
 
   const fetchProjectAttachments = async (id: string) => {
     setAttachmentsLoading(true);
@@ -693,11 +839,7 @@ export const ProjectDetails: React.FC = () => {
     }
     setIsUploadingDoc(true);
     try {
-      const collectedDocs: Array<{
-        url: string;
-        fileName: string;
-        documentType: string;
-      }> = [];
+      const collectedDocs: PaymentDocumentListItem[] = [];
       for (const file of uploadDocFiles) {
         const updated = await uploadPaymentDocument(docTargetPayment.id, {
           fileName: file.fileName,
@@ -705,8 +847,28 @@ export const ProjectDetails: React.FC = () => {
           fileBase64: file.fileBase64,
           documentType: uploadDocForm.documentType,
         });
-        // Collect the URL returned by each upload call
-        if (updated.receiptUrl) {
+        // Immediately merge the full upload response into the store so
+        // projectPayments (and thus the useEffect sync) has the documents
+        // from this individual call - even before fetchProjectPayments runs.
+        mergePaymentUpdate(updated);
+        // Collect the URL returned by each upload call.
+        // New-style backends return a documents[] array; legacy backends use receiptUrl.
+        if (updated.documents?.length) {
+          updated.documents.forEach((d) => {
+            if (!collectedDocs.some((cd) => cd.url === d.url)) {
+              collectedDocs.push({
+                url: d.url,
+                fileName: d.fileName || file.fileName,
+                documentType: d.documentType || uploadDocForm.documentType,
+              });
+            }
+          });
+        }
+        // Also capture legacy receiptUrl if not already in collectedDocs
+        if (
+          updated.receiptUrl &&
+          !collectedDocs.some((cd) => cd.url === updated.receiptUrl)
+        ) {
           collectedDocs.push({
             url: updated.receiptUrl,
             fileName: updated.receiptFileName || file.fileName,
@@ -716,13 +878,16 @@ export const ProjectDetails: React.FC = () => {
       }
       // Merge newly collected URLs into the per-payment documents map
       if (collectedDocs.length > 0) {
-        setPaymentDocumentsMap((prev) => ({
-          ...prev,
-          [docTargetPayment.id]: [
-            ...(prev[docTargetPayment.id] || []),
-            ...collectedDocs,
-          ],
-        }));
+        setPaymentDocumentsMap((prev) => {
+          const existing = prev[docTargetPayment.id] || [];
+          return {
+            ...prev,
+            [docTargetPayment.id]: mergeUniquePaymentDocuments(
+              existing,
+              collectedDocs,
+            ),
+          };
+        });
       }
       toast.success(
         uploadDocFiles.length === 1
@@ -1360,8 +1525,10 @@ export const ProjectDetails: React.FC = () => {
     return { totalPaid, totalPending, totalAmount };
   };
 
-  // Loading state
-  if (isLoading && !currentProject) {
+  // Loading state — shown on initial render (before the API call starts) and
+  // during the fetch itself. Using !error as the guard so a 404/network error
+  // falls through to the error block below instead of spinning forever.
+  if (!currentProject && !error) {
     return <PageLoader message="Loading project details..." />;
   }
 
@@ -2552,9 +2719,17 @@ export const ProjectDetails: React.FC = () => {
                         paymentDocumentsMap[payment.id].length > 0) ||
                       (payment.documents && payment.documents.length > 0)) && (
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           setViewReceiptsPayment(payment);
                           setShowViewReceiptsModal(true);
+                          // Fetch the individual payment to get the full
+                          // documents[] array — the list endpoint omits it.
+                          setViewReceiptsLoading(true);
+                          try {
+                            await fetchPaymentById(payment.id);
+                          } finally {
+                            setViewReceiptsLoading(false);
+                          }
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
                         title="View uploaded receipts / documents"
@@ -3677,14 +3852,19 @@ export const ProjectDetails: React.FC = () => {
 
               {/* Build deduplicated list: prefer API documents array, then local map, then single receiptUrl */}
               {(() => {
+                // Always read the live payment from the store so any mergePaymentUpdate
+                // call (from an upload) is reflected without needing to re-open the modal.
+                const livePayment =
+                  projectPayments.find(
+                    (p) => p.id === viewReceiptsPayment.id,
+                  ) ?? viewReceiptsPayment;
                 const apiDocs: Array<{
                   url: string;
                   fileName: string;
                   documentType: string;
                 }> =
-                  viewReceiptsPayment.documents &&
-                  viewReceiptsPayment.documents.length > 0
-                    ? viewReceiptsPayment.documents.map((d) => ({
+                  livePayment.documents && livePayment.documents.length > 0
+                    ? livePayment.documents.map((d) => ({
                         url: d.url,
                         fileName: d.fileName || "Document",
                         documentType: d.documentType,
@@ -3694,26 +3874,54 @@ export const ProjectDetails: React.FC = () => {
                 const localDocs =
                   paymentDocumentsMap[viewReceiptsPayment.id] || [];
 
-                // Merge: API docs first, add local ones not already in API docs
-                const merged =
-                  apiDocs.length > 0
-                    ? apiDocs
-                    : localDocs.length > 0
-                      ? localDocs
-                      : viewReceiptsPayment.receiptUrl
-                        ? [
-                            {
-                              url: viewReceiptsPayment.receiptUrl,
-                              fileName:
-                                viewReceiptsPayment.receiptFileName ||
-                                "Receipt",
-                              documentType: "receipt",
-                            },
-                          ]
-                        : [];
+                // Merge: Combine all document sources
+                const merged = [...apiDocs];
+
+                // Add local docs if not already present by URL
+                localDocs.forEach((ld) => {
+                  if (!merged.some((d) => d.url === ld.url)) {
+                    merged.push(ld);
+                  }
+                });
+
+                // Add legacy receiptUrl if not present
+                if (
+                  livePayment.receiptUrl &&
+                  !merged.some((d) => d.url === livePayment.receiptUrl)
+                ) {
+                  merged.push({
+                    url: livePayment.receiptUrl,
+                    fileName: livePayment.receiptFileName || "Receipt",
+                    documentType: "receipt",
+                  });
+                }
 
                 if (merged.length === 0) {
-                  return (
+                  return viewReceiptsLoading ? (
+                    <div className="flex items-center justify-center py-8 gap-2 text-gray-400 text-sm">
+                      <svg
+                        className="animate-spin h-4 w-4 text-teal-500"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8z"
+                        />
+                      </svg>
+                      Loading documents…
+                    </div>
+                  ) : (
                     <p className="text-sm text-gray-400 text-center py-6">
                       No documents found.
                     </p>
@@ -3722,9 +3930,36 @@ export const ProjectDetails: React.FC = () => {
 
                 return (
                   <div className="space-y-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                      {merged.length} document{merged.length > 1 ? "s" : ""}
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        {merged.length} document{merged.length > 1 ? "s" : ""}
+                      </p>
+                      {viewReceiptsLoading && (
+                        <span className="flex items-center gap-1 text-xs text-teal-500">
+                          <svg
+                            className="animate-spin h-3 w-3"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8v8z"
+                            />
+                          </svg>
+                          Refreshing…
+                        </span>
+                      )}
+                    </div>
                     {merged.map((doc, idx) => (
                       <div
                         key={idx}

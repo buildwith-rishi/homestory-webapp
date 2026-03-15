@@ -9,7 +9,6 @@ import {
   MessageSquare,
   CheckCircle2,
   Clock,
-  Upload,
   Trash2,
   Edit3,
   Eye,
@@ -519,8 +518,6 @@ const TestimonialRow: React.FC<TestimonialRowProps> = ({
     testimonial.audioUrl ||
     (testimonial.photoUrls?.length ?? 0) > 0;
 
-  const hasVideo = !!testimonial.videoUrl;
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all group">
       <div className="p-5">
@@ -730,9 +727,6 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
     customerName: "",
     testimonialText: "",
     rating: 5,
-    customerDesignation: "",
-    customerCompany: "",
-    customerCity: "",
     canSharePublicly: true,
     canUseName: true,
     canUsePhoto: false,
@@ -761,13 +755,6 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
         canSharePublicly: form.canSharePublicly,
         canUseName: form.canUseName,
         canUsePhoto: form.canUsePhoto,
-        ...(form.customerDesignation && {
-          customerDesignation: form.customerDesignation.trim(),
-        }),
-        ...(form.customerCompany && {
-          customerCompany: form.customerCompany.trim(),
-        }),
-        ...(form.customerCity && { customerCity: form.customerCity.trim() }),
         ...(form.notes && { notes: form.notes.trim() }),
       };
 
@@ -898,55 +885,6 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
               placeholder="Write what the client said..."
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
             />
-          </div>
-
-          {/* Customer Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                City
-              </label>
-              <input
-                type="text"
-                value={form.customerCity}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, customerCity: e.target.value }))
-                }
-                placeholder="e.g. Bangalore"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Designation
-              </label>
-              <input
-                type="text"
-                value={form.customerDesignation}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    customerDesignation: e.target.value,
-                  }))
-                }
-                placeholder="e.g. CEO"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Company
-              </label>
-              <input
-                type="text"
-                value={form.customerCompany}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, customerCompany: e.target.value }))
-                }
-                placeholder="e.g. Acme Corp"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-              />
-            </div>
           </div>
 
           {/* Media Upload */}

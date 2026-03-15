@@ -1710,11 +1710,11 @@ export const MeetingsPage: React.FC = () => {
               }}
             >
               <Card
-                className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl"
+                className="w-full max-w-lg max-h-[90vh] overflow-hidden rounded-2xl flex flex-col"
                 style={{ pointerEvents: "auto" }}
               >
                 {/* Modal Header */}
-                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+                <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
                       <FileText className="w-5 h-5 text-indigo-600" />
@@ -1736,7 +1736,7 @@ export const MeetingsPage: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="p-6 space-y-5">
+                <div className="p-6 space-y-5 overflow-y-auto">
                   {/* Title */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">

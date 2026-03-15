@@ -3645,28 +3645,43 @@ export const CustomerDetails: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Floor Plan URL */}
-                  {leadReferenceData?.floorPlanUrl && (
-                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                          <FileText className="w-4 h-4 text-orange-600" />
+                  {/* Floor Plan */}
+                  {(() => {
+                    const floorPlanAttachment = leadAttachments.find(
+                      (attachment) => attachment.attachmentType === "FLOOR_PLAN",
+                    );
+                    const floorPlanUrl =
+                      leadReferenceData?.floorPlanUrl ||
+                      floorPlanAttachment?.downloadUrl ||
+                      floorPlanAttachment?.fileUrl ||
+                      floorPlanAttachment?.storageUrl ||
+                      floorPlanAttachment?.url ||
+                      "";
+
+                    if (!floorPlanUrl) return null;
+
+                    return (
+                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                            <FileText className="w-4 h-4 text-orange-600" />
+                          </div>
+                          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                            Floor Plan
+                          </h3>
                         </div>
-                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                          Floor Plan
-                        </h3>
+                        <a
+                          href={floorPlanUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-sm font-medium transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          View Floor Plan
+                        </a>
                       </div>
-                      <a
-                        href={leadReferenceData.floorPlanUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-sm font-medium transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        View Floor Plan
-                      </a>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Uploaded Documents & Attachments */}
                   <div className="bg-white border border-gray-200/80 rounded-2xl p-6">

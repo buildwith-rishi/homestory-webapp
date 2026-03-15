@@ -436,6 +436,29 @@ export async function getProjectPayments(
 }
 
 /**
+ * Fetch a single payment by ID — returns the full payment object including
+ * the documents[] array that the list endpoint omits.
+ * GET /api/payments/:paymentId
+ */
+export async function getPaymentById(
+  paymentId: string,
+): Promise<ProjectPayment> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/payments/${paymentId}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      },
+    );
+    return handleResponse<ProjectPayment>(response);
+  } catch (error) {
+    console.error("Error fetching payment by id:", error);
+    throw error;
+  }
+}
+
+/**
  * Update a payment
  * PUT /api/payments/:paymentId
  */
@@ -2586,6 +2609,7 @@ const ProjectAPI = {
   reorderProjectStages,
   getAvailableStages,
   getProjectPayments,
+  getPaymentById,
   updateProjectPayment,
   createProjectPayment,
   deleteProjectPayment,

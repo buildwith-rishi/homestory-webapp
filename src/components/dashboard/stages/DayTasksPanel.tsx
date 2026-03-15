@@ -17,6 +17,7 @@ import {
   User,
   Upload,
   X,
+  Pencil,
 } from "lucide-react";
 import { Card, Button } from "../../ui";
 import type { MatrixTask, MatrixCategory, AdminUser } from "../../../types";
@@ -25,6 +26,7 @@ import {
   getCategoryTasks,
   getProjectById,
   uploadTaskAttachment,
+  updateMatrixTask,
 } from "../../../services/projectApi";
 import { adminAPI } from "../../../services/api";
 import { getAllTeamMembers, TeamMember } from "../../../services/teamApi";
@@ -48,6 +50,7 @@ interface DayTasksPanelProps {
     completionNotes?: string,
   ) => void;
   updatingTaskId: string | null;
+  onDayDateUpdated?: () => void;
 }
 
 const taskStatusConfig: Record<
@@ -86,12 +89,14 @@ const taskStatusConfig: Record<
   },
 };
 
+const parseDate = (d: string) => {
+  const dateOnly = d.includes("T") ? d.split("T")[0] : d;
+  return new Date(dateOnly + "T00:00:00");
+};
+
 const getDateForDay = (startDate: string, dayNumber: number) => {
   // Handle ISO strings like "2026-02-11T00:00:00.000Z" and plain "2026-02-11"
-  const dateOnly = startDate.includes("T")
-    ? startDate.split("T")[0]
-    : startDate;
-  const d = new Date(dateOnly + "T00:00:00");
+  const d = parseDate(startDate);
   if (isNaN(d.getTime())) return "—";
   d.setDate(d.getDate() + dayNumber - 1);
   return d.toLocaleDateString("en-IN", {
@@ -128,6 +133,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   onTaskClick,
   onStatusChange,
   updatingTaskId,
+  onDayDateUpdated,
 }) => {
   const { user, roleId } = useAuth();
 
@@ -141,6 +147,9 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [isEditingDayDate, setIsEditingDayDate] = useState(false);
+  const [dayDateInput, setDayDateInput] = useState("");
+  const [isUpdatingDayDate, setIsUpdatingDayDate] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [completionDialog, setCompletionDialog] = useState<{
@@ -214,6 +223,83 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       setLoading(false);
     }
   }, [matrixId, dayNumber]);
+
+  const computeDefaultDayDateInput = () => {
+    const baseDate = parseDate(startDate);
+    if (isNaN(baseDate.getTime())) return "";
+    baseDate.setDate(baseDate.getDate() + dayNumber - 1);
+    const yyyy = baseDate.getFullYear();
+    const mm = String(baseDate.getMonth() + 1).padStart(2, "0");
+    const dd = String(baseDate.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getCurrentDayDateInput = () => {
+    const fromTask = tasks.find((t) => !!t.taskDate)?.taskDate;
+    if (fromTask) {
+      const dateOnly = fromTask.includes("T") ? fromTask.split("T")[0] : fromTask;
+      return dateOnly;
+    }
+    return computeDefaultDayDateInput();
+  };
+
+  const formatDisplayDate = (isoDate: string) => {
+    const d = parseDate(isoDate);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-IN", {
+      weekday: "long",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const dayDisplayDate = (() => {
+    const fromTask = tasks.find((t) => !!t.taskDate)?.taskDate;
+    if (fromTask) return formatDisplayDate(fromTask);
+    return getDateForDay(startDate, dayNumber);
+  })();
+
+  const handleStartEditDayDate = () => {
+    setDayDateInput(getCurrentDayDateInput());
+    setIsEditingDayDate(true);
+  };
+
+  const handleSaveDayDate = async () => {
+    if (!dayDateInput) {
+      toast.error("Please choose a valid date.");
+      return;
+    }
+    if (tasks.length === 0) {
+      toast.error("No tasks found for this day to update date.");
+      return;
+    }
+
+    setIsUpdatingDayDate(true);
+    try {
+      const isoDate = `${dayDateInput}T00:00:00.000Z`;
+      await Promise.all(
+        tasks.map((task) =>
+          updateMatrixTask(task.id, {
+            dayNumber,
+            taskDate: isoDate,
+            startDate: task.startDate || startDate || undefined,
+          }),
+        ),
+      );
+
+      toast.success("Day date updated successfully");
+      setIsEditingDayDate(false);
+      await fetchDayTasks();
+      onDayDateUpdated?.();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update day date",
+      );
+    } finally {
+      setIsUpdatingDayDate(false);
+    }
+  };
 
   useEffect(() => {
     fetchDayTasks();
@@ -506,9 +592,50 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
             </p>
             <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
               <Calendar className="w-3 h-3" />
-              {getDateForDay(startDate, dayNumber)}
+              {dayDisplayDate}
             </span>
+            {!isEditingDayDate && (
+              <button
+                type="button"
+                onClick={handleStartEditDayDate}
+                className="text-xs text-orange-600 hover:text-orange-700 inline-flex items-center gap-1"
+                title="Edit day date"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit Date
+              </button>
+            )}
           </div>
+
+          {isEditingDayDate && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="date"
+                value={dayDateInput}
+                onChange={(e) => setDayDateInput(e.target.value)}
+                className="text-xs border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:ring-1 focus:ring-orange-400"
+              />
+              <button
+                type="button"
+                onClick={handleSaveDayDate}
+                disabled={isUpdatingDayDate}
+                className="text-xs bg-orange-500 text-white px-2 py-1 rounded-md hover:bg-orange-600 disabled:opacity-60 inline-flex items-center gap-1"
+              >
+                {isUpdatingDayDate ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : null}
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingDayDate(false)}
+                disabled={isUpdatingDayDate}
+                className="text-xs border border-gray-200 text-gray-600 px-2 py-1 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           <p className="text-xs text-gray-400 mt-0.5">
             {statusCounts.completed}/{statusCounts.total} completed
             {statusCounts.inProgress > 0 &&

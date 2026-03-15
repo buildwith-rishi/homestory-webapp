@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
-  MoreVertical,
   Calendar,
   Users,
   DollarSign,
@@ -27,8 +26,8 @@ import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
 
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useProjectStore } from "../../stores/projectStore";
-import { useAuth } from "../../contexts/AuthContext";
 import type { Project, CreateProjectRequest } from "../../types";
+import { listProjects } from "../../services/projectApi";
 import toast from "react-hot-toast";
 
 // --- Helper functions ---
@@ -384,11 +383,61 @@ export const ProjectsPage: React.FC = () => {
 
   const handleCreateProject = async (request: CreateProjectRequest) => {
     try {
+      const normalizedName = request.projectName.trim().toLowerCase();
+
+      // 1) Fast local check
+      const localDuplicate = projects.some((p) => {
+        const existingName = (p.projectName || p.name || "").trim().toLowerCase();
+        const existingAccountId = p.accountId || "";
+        return (
+          existingName === normalizedName &&
+          existingAccountId === (request.accountId || "")
+        );
+      });
+
+      if (localDuplicate) {
+        toast.error(
+          "A project with this name already exists for this customer. Please choose a different project name.",
+        );
+        return;
+      }
+
+      // 2) Server-side check to avoid stale-cache misses
+      const remote = await listProjects({ accountId: request.accountId, limit: 1000 });
+      const remoteDuplicate = (remote.projects || []).some((p) => {
+        const existingName = (p.projectName || p.name || "").trim().toLowerCase();
+        const existingAccountId = p.accountId || "";
+        return (
+          existingName === normalizedName &&
+          existingAccountId === (request.accountId || "")
+        );
+      });
+
+      if (remoteDuplicate) {
+        toast.error(
+          "A project with this name already exists for this customer. Please choose a different project name.",
+        );
+        return;
+      }
+
       await addProject(request);
       toast.success("Project created successfully!");
       setIsModalOpen(false);
-    } catch {
-      toast.error("Failed to create project");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to create project";
+
+      if (
+        /already exists|duplicate|unique/i.test(errorMessage) &&
+        /project|name/i.test(errorMessage)
+      ) {
+        toast.error(
+          "A project with this name already exists for this customer. Please choose a different project name.",
+        );
+        return;
+      }
+
+      toast.error(errorMessage || "Failed to create project");
     }
   };
 
@@ -595,9 +644,6 @@ export const ProjectsPage: React.FC = () => {
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">{clientName}</p>
                   </div>
-                  <button className="p-1.5 hover:bg-gray-100 rounded-lg">
-                    <MoreVertical className="w-4 h-4 text-gray-400" />
-                  </button>
                 </div>
 
                 <div className="flex items-center gap-2 mb-4">
@@ -858,7 +904,7 @@ export const ProjectsPage: React.FC = () => {
 
                       {/* Actions */}
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -870,14 +916,6 @@ export const ProjectsPage: React.FC = () => {
                           >
                             View
                           </Button>
-                          <button
-                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                          >
-                            <MoreVertical className="w-4 h-4 text-gray-400" />
-                          </button>
                         </div>
                       </td>
                     </tr>

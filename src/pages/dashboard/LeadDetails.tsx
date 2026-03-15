@@ -36,6 +36,7 @@ import {
   Image as ImageIcon,
   Pencil,
   Layers,
+  ExternalLink,
   MessageCircle,
   Wrench,
   Users,
@@ -94,6 +95,16 @@ const LeadDetails: React.FC = () => {
       return fallback;
     }
     return value;
+  };
+
+  const getFloorPlanDisplayName = (urlOrName: string) => {
+    if (!urlOrName) return "View floor plan";
+    const lastSegment = urlOrName.split("/").pop() || urlOrName;
+    try {
+      return decodeURIComponent(lastSegment);
+    } catch {
+      return lastSegment;
+    }
   };
 
   useEffect(() => {
@@ -865,37 +876,6 @@ const LeadDetails: React.FC = () => {
                         </div>
                       </div>
                     )}
-
-                    {(lead.canWhatsApp !== undefined ||
-                      lead.wantsExperienceCenterVisit !== undefined) && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {lead.canWhatsApp !== undefined && (
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                              lead.canWhatsApp
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-500"
-                            }`}
-                          >
-                            <MessageCircle className="w-3 h-3" />
-                            WhatsApp: {lead.canWhatsApp ? "Yes" : "No"}
-                          </span>
-                        )}
-                        {lead.wantsExperienceCenterVisit !== undefined && (
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                              lead.wantsExperienceCenterVisit
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-gray-100 text-gray-500"
-                            }`}
-                          >
-                            <Sparkles className="w-3 h-3" />
-                            Exp. Center:{" "}
-                            {lead.wantsExperienceCenterVisit ? "Yes" : "No"}
-                          </span>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -1104,6 +1084,38 @@ const LeadDetails: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Floor Plan URL */}
+            {lead.floorPlanUrl &&
+              lead.floorPlanUrl !== "undefined" &&
+              lead.floorPlanUrl !== "null" && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-orange-500" />
+                    <h3 className="font-semibold text-gray-900 text-sm">
+                      Floor Plan
+                    </h3>
+                  </div>
+                  <div className="p-4">
+                    <a
+                      href={lead.floorPlanUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-3 p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500 mb-0.5">
+                          URL
+                        </p>
+                        <p className="text-sm font-semibold text-orange-700 truncate">
+                          {getFloorPlanDisplayName(lead.floorPlanUrl)}
+                        </p>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                    </a>
+                  </div>
+                </div>
+              )}
 
             {/* Referral & Agent - Only show if data exists */}
             {(lead.referrerName ||

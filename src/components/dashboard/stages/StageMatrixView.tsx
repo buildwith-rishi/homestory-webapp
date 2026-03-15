@@ -113,6 +113,25 @@ const getDateForDay = (startDate: string, dayNumber: number) => {
   });
 };
 
+const getDisplayDateForDay = (
+  startDate: string,
+  dayNumber: number,
+  dayTasks: MatrixTask[],
+) => {
+  const firstTaskWithDate = dayTasks.find((t) => !!t.taskDate)?.taskDate;
+  if (firstTaskWithDate) {
+    const d = parseDate(firstTaskWithDate);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString("en-IN", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+      });
+    }
+  }
+  return getDateForDay(startDate, dayNumber);
+};
+
 export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   projectId,
   projectName = "",
@@ -136,10 +155,6 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const [matrixViewMode, setMatrixViewMode] = useState<"days" | "categories">(
     "days",
   );
-
-  // Day pagination
-  const DAYS_PER_PAGE = 7;
-  const [dayPage, setDayPage] = useState(0);
 
   const handleAddDaySuccess = () => {
     setShowAddDayModal(false);
@@ -265,13 +280,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   }
 
   const totalDays = matrix?.totalDays || 0;
-  const totalPages = Math.ceil(totalDays / DAYS_PER_PAGE);
-  const startDay = dayPage * DAYS_PER_PAGE + 1;
-  const endDay = Math.min((dayPage + 1) * DAYS_PER_PAGE, totalDays);
-  const visibleDays = Array.from(
-    { length: endDay - startDay + 1 },
-    (_, i) => startDay + i,
-  );
+  const visibleDays = Array.from({ length: totalDays }, (_, i) => i + 1);
 
   const categories = matrix?.categories || [];
 
@@ -486,30 +495,6 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             </button>
           </div>
 
-          {/* Day Pagination (only in day view) */}
-          {matrixViewMode === "days" && totalPages > 1 && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setDayPage((p) => Math.max(0, p - 1))}
-                disabled={dayPage === 0}
-                className="p-1 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-xs text-gray-500 px-1">
-                Day {startDay}–{endDay} of {totalDays}
-              </span>
-              <button
-                onClick={() =>
-                  setDayPage((p) => Math.min(totalPages - 1, p + 1))
-                }
-                disabled={dayPage >= totalPages - 1}
-                className="p-1 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -587,7 +572,11 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                       </p>
                       <p className="text-[11px] text-gray-400">
                         {matrix.startDate &&
-                          getDateForDay(matrix.startDate, dayNum)}
+                          getDisplayDateForDay(
+                            matrix.startDate,
+                            dayNum,
+                            dayTasks,
+                          )}
                       </p>
                     </div>
                   </div>
@@ -631,6 +620,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                       }}
                       onStatusChange={handleStatusChange}
                       updatingTaskId={updatingTaskId}
+                      onDayDateUpdated={fetchMatrix}
                     />
                   </div>
                 )}
@@ -638,8 +628,8 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             );
           })}
 
-          {/* Add Next Day card — shown on the last page */}
-          {dayPage >= totalPages - 1 && matrixViewMode === "days" && (
+          {/* Add Next Day card */}
+          {matrixViewMode === "days" && (
             <Card
               className="bg-white/60 border-dashed border-2 border-gray-200 hover:border-orange-300 hover:bg-orange-50/30 transition-all cursor-pointer"
               onClick={() => setShowAddDayModal(true)}

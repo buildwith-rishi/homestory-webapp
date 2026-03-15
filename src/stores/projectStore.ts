@@ -78,6 +78,8 @@ interface ProjectState {
   updateProject: (id: string, updates: UpdateProjectRequest) => Promise<void>;
   setFilters: (filters: ProjectFilters) => void;
   clearError: () => void;
+  mergePaymentUpdate: (payment: ProjectPayment) => void;
+  fetchPaymentById: (paymentId: string) => Promise<void>;
 
   // Status Management
   startProject: (projectId: string) => Promise<void>;
@@ -181,12 +183,41 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await projectAPI.getProjectPayments(projectId);
-      set({
-        projectPayments: response.payments || [],
+      // Preserve any documents stored from individual upload responses that the
+      // list endpoint does not return (backend only returns receiptUrl, not documents[]).
+      set((state) => ({
+        projectPayments: (response.payments || []).map((freshPayment) => {
+          const existing = state.projectPayments.find(
+            (p) => p.id === freshPayment.id,
+          );
+          // Priority order for documents:
+          // 1. Fresh API documents[] (authoritative if present)
+          // 2. In-memory existing documents from a previous upload response
+          // 3. Synthesised single-document from legacy receiptUrl field
+          // 4. null/undefined (no documents known)
+          const documents =
+            freshPayment.documents?.length
+              ? freshPayment.documents
+              : existing?.documents?.length
+                ? existing.documents
+                : freshPayment.receiptUrl
+                  ? [
+                      {
+                        id: undefined,
+                        url: freshPayment.receiptUrl,
+                        fileName:
+                          freshPayment.receiptFileName || "Receipt",
+                        documentType: "receipt",
+                        createdAt: freshPayment.updatedAt,
+                      },
+                    ]
+                  : freshPayment.documents;
+          return { ...freshPayment, documents };
+        }),
         totalPaymentValue: response.totalValue || "0",
         totalPaidAmount: response.paidAmount || "0",
         isLoading: false,
-      });
+      }));
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -925,5 +956,46 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   clearError: () => {
     set({ error: null, tasksError: null });
+  },
+
+  // Merge a single updated payment into the store (e.g. from an upload response)
+  // without triggering a full refetch. Preserves documents that the list endpoint
+  // does not return.
+  mergePaymentUpdate: (payment: ProjectPayment) => {
+    set((state) => ({
+      projectPayments: state.projectPayments.map((p) =>
+        p.id === payment.id ? { ...p, ...payment } : p,
+      ),
+    }));
+  },
+
+  // Fetch a single payment by ID and merge it into the store.
+  // The individual-payment endpoint returns the full documents[] array that the
+  // list endpoint omits — this is the key call that makes uploaded receipts
+  // visible again after a page reload or a multi-user session.
+  fetchPaymentById: async (paymentId: string) => {
+    try {
+      const payment = await projectAPI.getPaymentById(paymentId);
+      // Synthesise documents[] from receiptUrl if the API still returns none
+      if (!payment.documents?.length && payment.receiptUrl) {
+        payment.documents = [
+          {
+            id: undefined,
+            url: payment.receiptUrl,
+            fileName: payment.receiptFileName || "Receipt",
+            documentType: "receipt",
+            createdAt: payment.updatedAt,
+          },
+        ];
+      }
+      set((state) => ({
+        projectPayments: state.projectPayments.map((p) =>
+          p.id === paymentId ? { ...p, ...payment } : p,
+        ),
+      }));
+    } catch {
+      // Silently ignore — the endpoint may not exist on older backends.
+      // The UI falls back to whatever data is already in the store.
+    }
   },
 }));

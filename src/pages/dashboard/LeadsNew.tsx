@@ -115,8 +115,6 @@ export const LeadModal: React.FC<{
     budgetComfort: "",
     projectScope: "",
     floorPlanUrl: "",
-    wantsExperienceCenterVisit: false,
-    canWhatsApp: false,
     assignedToId: "",
     referrerName: "",
     referrerPhone: "",
@@ -129,8 +127,13 @@ export const LeadModal: React.FC<{
   const [assignedToRole, setAssignedToRole] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [floorPlanFile, setFloorPlanFile] = useState<File | null>(null);
-  const floorPlanInputRef = useRef<HTMLInputElement>(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState<{
+    email: boolean;
+    phone: boolean;
+  }>({
+    email: false,
+    phone: false,
+  });
   // sourceDetails sub-fields
   const [srcCampaign, setSrcCampaign] = useState("");
   const [srcMedium, setSrcMedium] = useState("");
@@ -164,8 +167,6 @@ export const LeadModal: React.FC<{
         budgetComfort: lead.budgetComfort || "",
         projectScope: lead.projectScope || "",
         floorPlanUrl: lead.floorPlanUrl || "",
-        wantsExperienceCenterVisit: lead.wantsExperienceCenterVisit || false,
-        canWhatsApp: lead.canWhatsApp || false,
         assignedToId: lead.assignedToId || "",
         referrerName: lead.referrerName || "",
         referrerPhone: lead.referrerPhone || "",
@@ -184,7 +185,6 @@ export const LeadModal: React.FC<{
       setAssignedToRole("");
     }
     setErrors({});
-    setFloorPlanFile(null);
     setActiveTab("basic");
   }, [lead, isOpen]);
 
@@ -213,8 +213,88 @@ export const LeadModal: React.FC<{
     return newErrors;
   };
 
+  const normalizeEmail = (value?: string | null) =>
+    (value || "").trim().toLowerCase();
+
+  const normalizePhone = (value?: string | null) =>
+    (value || "").replace(/\D/g, "");
+
+  const checkDuplicateField = async (
+    field: "email" | "phone",
+    value?: string | null,
+  ) => {
+    const raw = (value || "").trim();
+    if (!raw) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+      return false;
+    }
+
+    // Skip duplicate check when format itself is invalid.
+    if (field === "email" && !/\S+@\S+\.\S+/.test(raw)) return false;
+    if (field === "phone" && !/^\+?[\d\s-]{10,}$/.test(raw)) return false;
+
+    setCheckingDuplicate((prev) => ({ ...prev, [field]: true }));
+    try {
+      const response = await LeadAPI.listLeads({ search: raw, limit: 100 });
+      const candidates = response?.leads || [];
+
+      const duplicate = candidates.some((candidate) => {
+        if (!candidate?.id || candidate.id === lead?.id) return false;
+        if (field === "email") {
+          return normalizeEmail(candidate.email) === normalizeEmail(raw);
+        }
+        return normalizePhone(candidate.phone) === normalizePhone(raw);
+      });
+
+      if (duplicate) {
+        setErrors((prev) => ({
+          ...prev,
+          [field]:
+            field === "email"
+              ? "This email already exists. Please use a different email."
+              : "This phone number already exists. Please use a different number.",
+        }));
+      } else {
+        setErrors((prev) => {
+          const next = { ...prev };
+          if (
+            (field === "email" &&
+              next.email ===
+                "This email already exists. Please use a different email.") ||
+            (field === "phone" &&
+              next.phone ===
+                "This phone number already exists. Please use a different number.")
+          ) {
+            delete next[field];
+          }
+          return next;
+        });
+      }
+
+      return duplicate;
+    } catch {
+      // Keep UX resilient if duplicate check endpoint fails.
+      return false;
+    } finally {
+      setCheckingDuplicate((prev) => ({ ...prev, [field]: false }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // New lead flow UX:
+    // On Basic Info tab, primary action should be "Next" and must not trigger validations yet.
+    if (!lead && activeTab === "basic") {
+      setErrors({});
+      setActiveTab("property");
+      return;
+    }
+
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       const propertyTabFields = [
@@ -231,6 +311,24 @@ export const LeadModal: React.FC<{
       else setActiveTab("basic");
       return;
     }
+
+    const [duplicateEmail, duplicatePhone] = await Promise.all([
+      checkDuplicateField("email", formData.email),
+      checkDuplicateField("phone", formData.phone),
+    ]);
+
+    if (duplicateEmail || duplicatePhone) {
+      setActiveTab("basic");
+      toast.error(
+        duplicateEmail && duplicatePhone
+          ? "Email and phone already exist. Please change both fields."
+          : duplicateEmail
+            ? "This email already exists. Please change it."
+            : "This phone number already exists. Please change it.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Build sourceDetails object from sub-fields
@@ -271,9 +369,6 @@ export const LeadModal: React.FC<{
         budgetComfort: formData.budgetComfort || null,
         projectScope: formData.projectScope || null,
         floorPlanUrl: formData.floorPlanUrl?.trim() || null,
-        wantsExperienceCenterVisit:
-          formData.wantsExperienceCenterVisit || false,
-        canWhatsApp: formData.canWhatsApp || false,
         assignedToId: formData.assignedToId?.trim() || null,
         referrerName: formData.referrerName?.trim() || null,
         referrerPhone: formData.referrerPhone?.trim() || null,
@@ -285,6 +380,23 @@ export const LeadModal: React.FC<{
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to save lead";
+
+      if (/email.*exist|already.*email|duplicate.*email/i.test(errorMessage)) {
+        setErrors((prev) => ({
+          ...prev,
+          email: "This email already exists. Please use a different email.",
+        }));
+        setActiveTab("basic");
+      }
+
+      if (/phone.*exist|already.*phone|duplicate.*phone/i.test(errorMessage)) {
+        setErrors((prev) => ({
+          ...prev,
+          phone: "This phone number already exists. Please use a different number.",
+        }));
+        setActiveTab("basic");
+      }
+
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -394,9 +506,16 @@ export const LeadModal: React.FC<{
                     type="email"
                     value={formData.email || ""}
                     onChange={(e) => f("email", e.target.value)}
+                    onBlur={() => void checkDuplicateField("email", formData.email)}
                     placeholder="rahul@example.com"
                     className={inputClass(errors.email)}
                   />
+                  {checkingDuplicate.email && (
+                    <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Checking email availability...
+                    </p>
+                  )}
                   {errors.email && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5" /> {errors.email}
@@ -413,9 +532,16 @@ export const LeadModal: React.FC<{
                     type="tel"
                     value={formData.phone || ""}
                     onChange={(e) => f("phone", e.target.value)}
+                    onBlur={() => void checkDuplicateField("phone", formData.phone)}
                     placeholder="+91 98765 43210"
                     className={inputClass(errors.phone)}
                   />
+                  {checkingDuplicate.phone && (
+                    <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Checking phone availability...
+                    </p>
+                  )}
                   {errors.phone && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5" /> {errors.phone}
@@ -557,32 +683,6 @@ export const LeadModal: React.FC<{
                     </select>
                   </div>
                 </div>
-              </div>
-
-              {/* Toggle row */}
-              <div className="flex gap-6 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.canWhatsApp || false}
-                    onChange={(e) => f("canWhatsApp", e.target.checked)}
-                    className="w-4 h-4 rounded text-orange-500 border-gray-300 focus:ring-orange-500"
-                  />
-                  <span className="text-sm text-gray-700">Can WhatsApp</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.wantsExperienceCenterVisit || false}
-                    onChange={(e) =>
-                      f("wantsExperienceCenterVisit", e.target.checked)
-                    }
-                    className="w-4 h-4 rounded text-orange-500 border-gray-300 focus:ring-orange-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Wants Experience Center Visit
-                  </span>
-                </label>
               </div>
             </div>
           )}
@@ -889,54 +989,21 @@ export const LeadModal: React.FC<{
                   )}
                 </div>
 
-                {/* Floor Plan Upload */}
+                {/* Floor Plan URL */}
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Floor Plan
                   </label>
-                  <div
-                    onClick={() => floorPlanInputRef.current?.click()}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all cursor-pointer"
-                  >
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-100 shrink-0">
-                      <Layers className="w-4 h-4 text-orange-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      {floorPlanFile ? (
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                          {floorPlanFile.name}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-gray-400">
-                          Click to upload floor plan (PDF, PNG, JPG)
-                        </p>
-                      )}
-                    </div>
-                    {floorPlanFile && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFloorPlanFile(null);
-                          f("floorPlanUrl", "");
-                        }}
-                        className="text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
                   <input
-                    ref={floorPlanInputRef}
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setFloorPlanFile(file);
-                      if (file) f("floorPlanUrl", file.name);
-                    }}
+                    type="url"
+                    value={formData.floorPlanUrl || ""}
+                    onChange={(e) => f("floorPlanUrl", e.target.value)}
+                    placeholder="Paste floor plan URL (https://...)"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Paste any public PDF/image URL to make it visible in lead and customer references.
+                  </p>
                 </div>
 
                 {/* Message */}
@@ -1006,8 +1073,17 @@ export const LeadModal: React.FC<{
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4" />
-                  {lead ? "Update Lead" : "Create Lead"}
+                  {!lead && activeTab === "basic" ? (
+                    <>
+                      <ArrowRight className="w-4 h-4" />
+                      Next
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      {lead ? "Update Lead" : "Create Lead"}
+                    </>
+                  )}
                 </>
               )}
             </button>
@@ -1256,6 +1332,7 @@ export const LeadsPage: React.FC = () => {
   const [unassignedLoading, setUnassignedLoading] = useState(false);
   const [unassignedPage, setUnassignedPage] = useState(0);
   const [unassignedHasMore, setUnassignedHasMore] = useState(false);
+  const [unassignedTotal, setUnassignedTotal] = useState<number | null>(null);
 
   // Assignment loading state
   const [isAssigning, setIsAssigning] = useState(false);
@@ -1418,7 +1495,9 @@ export const LeadsPage: React.FC = () => {
   // Create Lead
   const handleCreateLead = async (leadData: Omit<Lead, "id">) => {
     try {
-      const newLead = await LeadAPI.createLead(leadData);
+      const payload = { ...leadData, floorPlanUrl: leadData.floorPlanUrl || null };
+      const newLead = await LeadAPI.createLead(payload);
+      const floorPlanUrl = newLead.floorPlanUrl || leadData.floorPlanUrl || "";
 
       console.log("Lead created - API response:", newLead);
       console.log("Original form data:", leadData);
@@ -1432,6 +1511,7 @@ export const LeadsPage: React.FC = () => {
         phone: newLead.phone || leadData.phone,
         source: newLead.source || leadData.source,
         status: newLead.status || leadData.status || "NEW",
+        floorPlanUrl,
       };
 
       console.log("Lead with merged data:", leadWithData);
@@ -1452,7 +1532,12 @@ export const LeadsPage: React.FC = () => {
   const handleUpdateLead = async (leadData: Omit<Lead, "id">) => {
     if (!leadToEdit?.id) return;
     try {
-      const updatedLead = await LeadAPI.updateLead(leadToEdit.id, leadData);
+      const floorPlanUrl = leadData.floorPlanUrl || "";
+
+      const updatedLead = await LeadAPI.updateLead(leadToEdit.id, {
+        ...leadData,
+        floorPlanUrl: floorPlanUrl || null,
+      });
       setLeads(leads.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
       setShowEditModal(false);
       setLeadToEdit(null);
@@ -1567,11 +1652,17 @@ export const LeadsPage: React.FC = () => {
           setUnassignedLeads(newLeads);
           setUnassignedPage(0);
         }
+        setUnassignedTotal(
+          typeof response.total === "number" ? response.total : null,
+        );
         setUnassignedHasMore(newLeads.length === limit);
       } catch (error) {
         console.error("Error fetching unassigned leads:", error);
         toast.error("Failed to load unassigned leads");
-        if (!loadMore) setUnassignedLeads([]);
+        if (!loadMore) {
+          setUnassignedLeads([]);
+          setUnassignedTotal(null);
+        }
       } finally {
         setUnassignedLoading(false);
       }
@@ -1745,6 +1836,12 @@ export const LeadsPage: React.FC = () => {
       )
     : {};
 
+  const localUnassignedCount = nonConvertedLeads.filter(
+    (lead) => !lead.assignedToId && !lead.assignedTo?.id,
+  ).length;
+
+  const effectiveUnassignedCount = unassignedTotal ?? localUnassignedCount;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -1828,10 +1925,7 @@ export const LeadsPage: React.FC = () => {
           }`}
         >
           <UserPlus className="w-3.5 h-3.5" />
-          Unassigned
-          {unassignedLeads.length > 0
-            ? ` (${unassignedLeads.length}${unassignedHasMore ? "+" : ""})`
-            : ""}
+          Unassigned ({effectiveUnassignedCount})
         </button>
       </div>
 

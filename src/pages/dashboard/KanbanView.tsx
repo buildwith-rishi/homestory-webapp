@@ -295,18 +295,6 @@ const KanbanView: React.FC = () => {
 
   // ─── Bulk Selection Handlers ──────────────────────────────────────────────
 
-  const toggleLeadSelection = useCallback((leadId: string) => {
-    setSelectedKanbanLeads((prev) => {
-      const next = new Set(prev);
-      if (next.has(leadId)) {
-        next.delete(leadId);
-      } else {
-        next.add(leadId);
-      }
-      return next;
-    });
-  }, []);
-
   const clearSelection = useCallback(() => {
     setSelectedKanbanLeads(new Set());
     setBulkAssignDropdownOpen(false);
@@ -923,8 +911,6 @@ const KanbanView: React.FC = () => {
   const renderLeadCard = useCallback(
     (task: KanbanTask) => {
       const lead = task.metadata as unknown as Lead;
-      const isSelected = selectedKanbanLeads.has(task.id);
-      const showCheckbox = selectedKanbanLeads.size > 0 || isSelected;
 
       if (!lead) {
         return (
@@ -952,30 +938,8 @@ const KanbanView: React.FC = () => {
         <div
           className={`relative space-y-1.5 group/card ${task.completed ? "opacity-60" : ""}`}
         >
-          {/* Checkbox for bulk selection */}
-          <div
-            className={`absolute -top-1 -left-1 z-10 ${showCheckbox ? "opacity-100" : "opacity-0 group-hover/card:opacity-100"} transition-opacity`}
-          >
-            <label
-              className="flex items-center justify-center w-5 h-5 cursor-pointer"
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  toggleLeadSelection(lead.id);
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="w-3.5 h-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-1 cursor-pointer"
-              />
-            </label>
-          </div>
           <h4
-            className={`font-semibold text-[13px] leading-tight truncate ${showCheckbox ? "pl-5" : ""} ${
+            className={`font-semibold text-[13px] leading-tight truncate ${
               task.completed ? "line-through text-gray-500" : "text-gray-900"
             }`}
           >
@@ -1085,8 +1049,6 @@ const KanbanView: React.FC = () => {
       bdrDropdownOpen,
       bdrUsers,
       handleAssignBDR,
-      selectedKanbanLeads,
-      toggleLeadSelection,
       openAssigneePanel,
     ],
   );
