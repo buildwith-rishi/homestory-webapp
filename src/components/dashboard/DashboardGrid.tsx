@@ -4,7 +4,7 @@ import { Plus, LayoutGrid, Sparkles, RefreshCw } from "lucide-react";
 import { Card, Button, Skeleton } from "../ui";
 import { useUIStore } from "../../stores/uiStore";
 import { DashboardWidget } from "../../types";
-import { getWidgetById, WidgetRegistryItem } from "./widgets";
+import { getWidgetById, WidgetRegistryItem, WIDGET_REGISTRY } from "./widgets";
 
 // Loading skeleton for widgets
 const WidgetSkeleton: React.FC = () => (
@@ -113,6 +113,9 @@ export const DashboardGrid: React.FC = () => {
     useUIStore();
 
   const hasWidgets = dashboardWidgets.length > 0;
+  const totalWidgetCount = WIDGET_REGISTRY.length;
+  const addedWidgetIds = new Set(dashboardWidgets.map((w) => w.widgetId));
+  const canAddMoreWidgets = addedWidgetIds.size < totalWidgetCount;
 
   return (
     <div className="space-y-4">
@@ -148,9 +151,10 @@ export const DashboardGrid: React.FC = () => {
               size="sm"
               onClick={openWidgetLibrary}
               className="rounded-xl"
+              disabled={!canAddMoreWidgets}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Widget
+              {canAddMoreWidgets ? "Add Widget" : "All Widgets Added"}
             </Button>
           </div>
         </motion.div>
@@ -192,13 +196,32 @@ export const DashboardGrid: React.FC = () => {
         >
           <button
             onClick={openWidgetLibrary}
-            className="w-full p-4 border-2 border-dashed border-gray-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/50 transition-all group"
+            disabled={!canAddMoreWidgets}
+            className={`w-full p-4 border-2 border-dashed rounded-xl transition-all group ${
+              canAddMoreWidgets
+                ? "border-gray-200 hover:border-orange-300 hover:bg-orange-50/50"
+                : "border-gray-200 bg-gray-50 cursor-not-allowed opacity-70"
+            }`}
           >
-            <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-orange-600 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+            <div
+              className={`flex flex-col items-center gap-2 transition-colors ${
+                canAddMoreWidgets
+                  ? "text-gray-400 group-hover:text-orange-600"
+                  : "text-gray-400"
+              }`}
+            >
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  canAddMoreWidgets
+                    ? "bg-gray-100 group-hover:bg-orange-100"
+                    : "bg-gray-100"
+                }`}
+              >
                 <Plus className="w-5 h-5" />
               </div>
-              <span className="text-sm font-medium">Add More Widgets</span>
+              <span className="text-sm font-medium">
+                {canAddMoreWidgets ? "Add More Widgets" : "All Widgets Added"}
+              </span>
             </div>
           </button>
         </motion.div>

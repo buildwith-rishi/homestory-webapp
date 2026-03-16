@@ -37,6 +37,7 @@ import { LeadSourceChart } from "../../components/dashboard/LeadSourceChart";
 import { ActivityFeed } from "../../components/dashboard/ActivityFeed";
 import { DashboardGrid } from "../../components/dashboard/DashboardGrid";
 import { WidgetLibraryModal } from "../../components/dashboard/WidgetLibraryModal";
+import { WIDGET_REGISTRY } from "../../components/dashboard/widgets";
 import { Card, Button, Badge, Progress } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
@@ -51,7 +52,7 @@ import type { Project, ProjectStageData, Meeting } from "../../types";
 
 export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
-  const { openWidgetLibrary } = useUIStore();
+  const { openWidgetLibrary, dashboardWidgets } = useUIStore();
   const { can, canAny, roleId } = useAuth();
   const navigate = useNavigate();
   // Use the shared project store so Dashboard and Projects page always see the same data
@@ -64,6 +65,9 @@ export const DashboardOverview: React.FC = () => {
     }
   }, [roleId, navigate]);
   const [showCustomWidgets, setShowCustomWidgets] = useState(false);
+  const canAddMoreWidgets =
+    new Set(dashboardWidgets.map((w) => w.widgetId)).size <
+    WIDGET_REGISTRY.length;
   const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
   const [projectCategoryFilter, setProjectCategoryFilter] =
     useState<string>("all");
@@ -442,9 +446,10 @@ export const DashboardOverview: React.FC = () => {
               size="sm"
               onClick={openWidgetLibrary}
               className="rounded-xl"
+              disabled={!canAddMoreWidgets}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Widget
+              {canAddMoreWidgets ? "Add Widget" : "All Widgets Added"}
             </Button>
           )}
         </div>
