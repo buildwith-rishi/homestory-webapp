@@ -77,7 +77,7 @@ interface Customer {
   location: string;
   projects: number;
   totalValue: number;
-  status: "active" | "completed" | "inactive";
+  status: "active" | "completed" | "inactive" | "churned";
   rating: number;
   lastContact: string;
   type?: string; // HOUSEHOLD, COMPANY, etc.
@@ -158,6 +158,7 @@ const statusColors = {
   },
   completed: { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500" },
   inactive: { bg: "bg-gray-50", text: "text-gray-700", dot: "bg-gray-500" },
+  churned: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
 };
 
 // Add Customer Modal Component
@@ -1842,7 +1843,8 @@ const EditCustomerModal: React.FC<{
                         status: e.target.value as
                           | "active"
                           | "completed"
-                          | "inactive",
+                          | "inactive"
+                          | "churned",
                       })
                     }
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-500/20"
@@ -1850,6 +1852,7 @@ const EditCustomerModal: React.FC<{
                     <option value="active">Active</option>
                     <option value="completed">Completed</option>
                     <option value="inactive">Inactive</option>
+                    <option value="churned">Churned</option>
                   </select>
                 </div>
               </div>
@@ -2668,7 +2671,8 @@ export const Customers: React.FC = () => {
               (apiCustomer.status?.toLowerCase() as
                 | "active"
                 | "completed"
-                | "inactive") || "active",
+                | "inactive"
+                | "churned") || "active",
             rating: 0,
             lastContact: apiCustomer.updatedAt
               ? new Date(apiCustomer.updatedAt).toLocaleDateString()
@@ -3027,6 +3031,17 @@ export const Customers: React.FC = () => {
             >
               <CheckCircle2 className="w-4 h-4 inline-block mr-1" />
               Completed
+            </button>
+            <button
+              onClick={() => setActiveStatusFilter("churned")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeStatusFilter === "churned"
+                  ? "bg-red-500 text-white shadow-md"
+                  : "bg-red-100 text-red-700 hover:bg-red-200"
+              }`}
+            >
+              <AlertCircle className="w-4 h-4 inline-block mr-1" />
+              Churned
             </button>
           </div>
         </div>

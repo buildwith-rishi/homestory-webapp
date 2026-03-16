@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { DashboardSidebar } from "../../components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "../../components/dashboard/DashboardHeader";
 import { ProjectDeadlineToast } from "../../components/dashboard/ProjectDeadlineToast";
@@ -18,10 +18,12 @@ interface DeadlineNotification {
 const SESSION_KEY = "ghs_deadline_toasts_shown";
 
 export const DashboardLayout: React.FC = () => {
+  const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifications, setNotifications] = useState<DeadlineNotification[]>(
     [],
   );
+  const isKanbanRoute = location.pathname.startsWith("/dashboard/kanban");
 
   useEffect(() => {
     // Show deadline toasts only once per browser session
@@ -85,7 +87,13 @@ export const DashboardLayout: React.FC = () => {
             sidebarCollapsed ? "ml-20" : "ml-64 xl:ml-72"
           }`}
         >
-          <main className="pt-20 px-3 sm:px-4 lg:px-6 pb-6 min-h-screen w-full">
+          <main
+            className={`min-h-screen w-full ${
+              isKanbanRoute
+                ? "pt-16 px-0 pb-0"
+                : "pt-20 px-3 sm:px-4 lg:px-6 pb-6"
+            }`}
+          >
             <Outlet />
           </main>
         </div>
