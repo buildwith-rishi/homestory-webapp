@@ -1010,26 +1010,37 @@ export async function updateDiscussionPoint(
  * POST /api/meetings/import-transcript (multipart/form-data)
  */
 export async function importTranscript(params: {
+  meetingId?: string;
   title: string;
   description?: string;
   meetingType: string;
-  entityType: string;
+  entityType?: string;
+  entityId?: string;
   scheduledAt: string;
+  leadId?: string;
+  projectId?: string;
   transcript?: File;
   transcriptText?: string;
+  transcriptJson?: string;
   participants?: string;
 }): Promise<any> {
   try {
     const token = localStorage.getItem("auth_token");
     const formData = new FormData();
+    if (params.meetingId) formData.append("meetingId", params.meetingId);
     formData.append("title", params.title);
     if (params.description) formData.append("description", params.description);
     formData.append("meetingType", params.meetingType);
-    formData.append("entityType", params.entityType);
+    if (params.entityType) formData.append("entityType", params.entityType);
+    if (params.entityId) formData.append("entityId", params.entityId);
     formData.append("scheduledAt", params.scheduledAt);
+    if (params.leadId) formData.append("leadId", params.leadId);
+    if (params.projectId) formData.append("projectId", params.projectId);
     if (params.transcript) formData.append("transcript", params.transcript);
     if (params.transcriptText)
       formData.append("transcriptText", params.transcriptText);
+    if (params.transcriptJson)
+      formData.append("transcriptJson", params.transcriptJson);
     if (params.participants)
       formData.append("participants", params.participants);
 

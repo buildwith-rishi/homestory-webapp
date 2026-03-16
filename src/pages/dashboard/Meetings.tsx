@@ -117,6 +117,19 @@ const typeIcons = {
   virtual: Video,
 };
 
+const normalizeLeads = (items: unknown[]): Lead[] => {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item): item is Record<string, unknown> => {
+      return !!item && typeof item === "object";
+    })
+    .filter((item) => typeof item.id === "string")
+    .map((item) => ({
+      ...(item as unknown as Lead),
+      id: item.id as string,
+    }));
+};
+
 export const MeetingsPage: React.FC = () => {
   const navigate = useNavigate();
   const [selectedMeeting, setSelectedMeeting] = useState<MeetingDisplay | null>(
@@ -161,9 +174,8 @@ export const MeetingsPage: React.FC = () => {
   const [momMeetingType, setMomMeetingType] = useState<
     "RESIDENTIAL" | "COMMERCIAL"
   >("RESIDENTIAL");
-  const [momEntityType, setMomEntityType] = useState<"PROJECT" | "LEAD">(
-    "PROJECT",
-  );
+  const [momProjectId, setMomProjectId] = useState("");
+  const [momLeadId, setMomLeadId] = useState("");
   const [momScheduledAt, setMomScheduledAt] = useState("");
   const [momTranscriptText, setMomTranscriptText] = useState("");
   const [momParticipants, setMomParticipants] = useState("");
@@ -191,7 +203,7 @@ export const MeetingsPage: React.FC = () => {
           listLeads({ limit: 200 }),
           listProjects({ limit: 200 }),
         ]);
-        setLeads(leadsData.leads || []);
+        setLeads(normalizeLeads(leadsData.leads || []));
         setProjects(projectsData.projects || []);
       } catch {}
     })();
@@ -208,7 +220,7 @@ export const MeetingsPage: React.FC = () => {
             listLeads({ limit: 200 }),
             listProjects({ limit: 200 }),
           ]);
-          setLeads(leadsData.leads || []);
+          setLeads(normalizeLeads(leadsData.leads || []));
           setProjects(projectsData.projects || []);
         } catch (error) {
           console.error("Error fetching leads/projects:", error);
@@ -472,6 +484,8 @@ export const MeetingsPage: React.FC = () => {
     setShowMomModal(false);
     setMomTitle("");
     setMomDescription("");
+    setMomProjectId("");
+    setMomLeadId("");
     setMomScheduledAt("");
     setMomTranscriptText("");
     setMomParticipants("");
@@ -510,12 +524,23 @@ export const MeetingsPage: React.FC = () => {
         participantsJson = JSON.stringify(names.map((name) => ({ name })));
       }
 
+      const selectedEntityType = momProjectId
+        ? "PROJECT"
+        : momLeadId
+          ? "LEAD"
+          : undefined;
+      const selectedEntityId = momProjectId || momLeadId || undefined;
+
       await meetingAPI.importTranscript({
+        meetingId: momMeetingId || undefined,
         title: momTitle.trim(),
         description: momDescription.trim() || undefined,
         meetingType: momMeetingType,
-        entityType: momEntityType,
+        entityType: selectedEntityType,
+        entityId: selectedEntityId,
         scheduledAt: new Date(momScheduledAt).toISOString(),
+        projectId: momProjectId || undefined,
+        leadId: momLeadId || undefined,
         transcript: momFile || undefined,
         transcriptText: momTranscriptText.trim() || undefined,
         participants: participantsJson,
@@ -523,6 +548,8 @@ export const MeetingsPage: React.FC = () => {
       // Reset form
       setMomTitle("");
       setMomDescription("");
+      setMomProjectId("");
+      setMomLeadId("");
       setMomScheduledAt("");
       setMomTranscriptText("");
       setMomParticipants("");
@@ -558,6 +585,24 @@ export const MeetingsPage: React.FC = () => {
       window.open(url, "_blank");
     }
   };
+
+  useEffect(() => {
+    const fetchMomEntities = async () => {
+      if (!showMomModal) return;
+      try {
+        const [leadsData, projectsData] = await Promise.all([
+          listLeads({ limit: 200 }),
+          listProjects({ limit: 200 }),
+        ]);
+        setLeads(normalizeLeads(leadsData.leads || []));
+        setProjects(projectsData.projects || []);
+      } catch (error) {
+        console.error("Error fetching leads/projects for transcript import:", error);
+      }
+    };
+
+    fetchMomEntities();
+  }, [showMomModal]);
 
   // View a MOM attachment — fetch fresh signed downloadUrl first
   const handleViewMomAtt = async (att: Attachment) => {
@@ -1256,7 +1301,7 @@ export const MeetingsPage: React.FC = () => {
             No meetings found
           </h3>
           <p className="text-gray-600 mb-4">
-            {searchQuery || filterStatus !== "all"
+            {searchQuery
               ? "Try adjusting your filters"
               : "Schedule your first meeting"}
           </p>
@@ -1747,7 +1792,7 @@ export const MeetingsPage: React.FC = () => {
                     />
                   </div>
 
-                  {/* Meeting Type & Entity Type */}
+                  {/* Meeting Type + Linked IDs */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-semibold text-gray-900 mb-1.5">
@@ -1768,19 +1813,42 @@ export const MeetingsPage: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-900 mb-1.5">
-                        Entity Type <span className="text-red-500">*</span>
+                        Project ID
                       </label>
                       <select
-                        value={momEntityType}
-                        onChange={(e) =>
-                          setMomEntityType(e.target.value as "PROJECT" | "LEAD")
-                        }
+                        value={momProjectId}
+                        onChange={(e) => setMomProjectId(e.target.value)}
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                       >
-                        <option value="PROJECT">Project</option>
-                        <option value="LEAD">Lead</option>
+                        <option value="">Select project (optional)</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {(project.projectName || project.name || "Untitled Project") +
+                              " (" +
+                              project.id +
+                              ")"}
+                          </option>
+                        ))}
                       </select>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                      Lead ID
+                    </label>
+                    <select
+                      value={momLeadId}
+                      onChange={(e) => setMomLeadId(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    >
+                      <option value="">Select lead (optional)</option>
+                      {leads.map((lead) => (
+                        <option key={lead.id} value={lead.id}>
+                          {(lead.name || "Unnamed Lead") + " (" + (lead.id || "") + ")"}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Scheduled At */}

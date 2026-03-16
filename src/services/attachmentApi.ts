@@ -97,14 +97,38 @@ export async function getAttachment(id: string): Promise<Attachment> {
     headers: getAuthHeaders(),
   });
   const data = await handleResponse<any>(response);
-  // If response is wrapped like { attachment: {...}, downloadUrl: "..." }
-  if (data.attachment && data.downloadUrl) {
-    return {
-      ...data.attachment,
-      downloadUrl: data.downloadUrl,
-    };
+
+  // Support multiple backend response shapes:
+  // 1) { attachment: {...}, downloadUrl?: string, fileUrl?: string, url?: string }
+  // 2) { data: { attachment: {...}, ... } }
+  // 3) plain attachment object
+  const root = (data?.data ?? data) as Record<string, unknown>;
+  const wrappedAttachment =
+    (root.attachment as Record<string, unknown> | undefined) ??
+    (root as Record<string, unknown>);
+
+  const normalized: Attachment = wrappedAttachment as unknown as Attachment;
+
+  const rootDownloadUrl =
+    (root.downloadUrl as string | undefined) || (root.signedUrl as string | undefined);
+  const rootFileUrl =
+    (root.fileUrl as string | undefined) ||
+    (root.storageUrl as string | undefined) ||
+    (root.url as string | undefined);
+
+  if (!normalized.downloadUrl && rootDownloadUrl) {
+    normalized.downloadUrl = rootDownloadUrl;
   }
-  return data as Attachment;
+
+  if (!normalized.fileUrl && rootFileUrl) {
+    normalized.fileUrl = rootFileUrl;
+  }
+
+  if (!normalized.url && rootFileUrl) {
+    normalized.url = rootFileUrl;
+  }
+
+  return normalized;
 }
 
 /** PUT /api/attachments/:id — Update attachment metadata */
@@ -155,11 +179,29 @@ export async function listAttachments(
     { headers: getAuthHeaders() },
   );
   const data = await handleResponse<unknown>(response);
-  if (Array.isArray(data)) return data as Attachment[];
-  const obj = data as Record<string, unknown>;
-  if (Array.isArray(obj.data)) return obj.data as Attachment[];
-  if (Array.isArray(obj.attachments)) return obj.attachments as Attachment[];
-  return [];
+  let attachments: Attachment[] = [];
+
+  if (Array.isArray(data)) {
+    attachments = data as Attachment[];
+  } else {
+    const obj = data as Record<string, unknown>;
+    if (Array.isArray(obj.data)) {
+      attachments = obj.data as Attachment[];
+    } else if (Array.isArray(obj.attachments)) {
+      attachments = obj.attachments as Attachment[];
+    }
+  }
+
+  // Enforce strict client-side isolation by entity id/type in case backend
+  // responds with extra rows from other entities.
+  const requestedEntityType = entityType.toUpperCase();
+  return attachments.filter((attachment) => {
+    const sameEntityId = String(attachment.entityId || "") === entityId;
+    if (!sameEntityId) return false;
+
+    const attachmentEntityType = String(attachment.entityType || "").toUpperCase();
+    return !attachmentEntityType || attachmentEntityType === requestedEntityType;
+  });
 }
 
 export interface CreateAttachmentPayload {

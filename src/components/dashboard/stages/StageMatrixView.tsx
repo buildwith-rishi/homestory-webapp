@@ -31,6 +31,7 @@ import { CategoryTasksView } from "./CategoryTasksView";
 import type {
   TaskMatrix,
   MatrixTask,
+  MatrixDayWiseItem,
   MatrixCategory,
   MatrixStats,
   ProjectStageData,
@@ -102,7 +103,17 @@ const formatDate = (d: string) => {
   });
 };
 
-const getDateForDay = (startDate: string, dayNumber: number) => {
+const formatDayLabelDate = (d: string) => {
+  const date = parseDate(d);
+  if (isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+};
+
+const getFallbackDateForDay = (startDate: string, dayNumber: number) => {
   const d = parseDate(startDate);
   if (isNaN(d.getTime())) return "—";
   d.setDate(d.getDate() + dayNumber - 1);
@@ -111,25 +122,6 @@ const getDateForDay = (startDate: string, dayNumber: number) => {
     day: "2-digit",
     month: "short",
   });
-};
-
-const getDisplayDateForDay = (
-  startDate: string,
-  dayNumber: number,
-  dayTasks: MatrixTask[],
-) => {
-  const firstTaskWithDate = dayTasks.find((t) => !!t.taskDate)?.taskDate;
-  if (firstTaskWithDate) {
-    const d = parseDate(firstTaskWithDate);
-    if (!isNaN(d.getTime())) {
-      return d.toLocaleDateString("en-IN", {
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-      });
-    }
-  }
-  return getDateForDay(startDate, dayNumber);
 };
 
 export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
@@ -270,7 +262,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     fetchMatrix();
   };
 
-  // Group tasks by day
+  // Group tasks by day as a fallback when matrixDayWise is not present
   const tasksByDay: Record<number, MatrixTask[]> = {};
   if (matrix?.dayTasks) {
     for (const task of matrix.dayTasks) {
@@ -280,7 +272,17 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   }
 
   const totalDays = matrix?.totalDays || 0;
-  const visibleDays = Array.from({ length: totalDays }, (_, i) => i + 1);
+  const matrixDayWise = [...(matrix?.matrixDayWise || [])].sort(
+    (a, b) => a.dayNumber - b.dayNumber,
+  );
+  const visibleDays: MatrixDayWiseItem[] =
+    matrixDayWise.length > 0
+      ? matrixDayWise
+      : Array.from({ length: totalDays }, (_, i) => i + 1).map((dayNumber) => ({
+          dayNumber,
+          date: matrix?.startDate || "",
+          tasks: tasksByDay[dayNumber] || [],
+        }));
 
   const categories = matrix?.categories || [];
 
@@ -543,8 +545,12 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       {/* Day-wise Grid */}
       {matrixViewMode === "days" && (
         <div className="space-y-3">
-          {visibleDays.map((dayNum) => {
-            const dayTasks = tasksByDay[dayNum] || [];
+          {visibleDays.map((dayEntry) => {
+            const dayNum = dayEntry.dayNumber;
+            const dayTasks =
+              matrixDayWise.length > 0
+                ? dayEntry.tasks || []
+                : tasksByDay[dayNum] || [];
             const completedCount = dayTasks.filter(
               (t) => t.status === "COMPLETED",
             ).length;
@@ -571,12 +577,9 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                         Day {dayNum}
                       </p>
                       <p className="text-[11px] text-gray-400">
-                        {matrix.startDate &&
-                          getDisplayDateForDay(
-                            matrix.startDate,
-                            dayNum,
-                            dayTasks,
-                          )}
+                        {dayEntry.date
+                          ? formatDayLabelDate(dayEntry.date)
+                          : getFallbackDateForDay(matrix.startDate, dayNum)}
                       </p>
                     </div>
                   </div>

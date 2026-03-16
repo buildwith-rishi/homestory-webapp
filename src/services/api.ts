@@ -24,6 +24,26 @@ interface LoginResponse {
   message?: string;
 }
 
+function getApiErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== "object") return fallback;
+
+  const payload = data as Record<string, unknown>;
+  const candidates = [
+    payload.message,
+    payload.error,
+    payload.details,
+    payload.reason,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return fallback;
+}
+
 // API Error Class
 export class ApiError extends Error {
   constructor(
@@ -111,7 +131,7 @@ export async function fetchAPI<T>(
                 if (!retryResponse.ok) {
                   throw new ApiError(
                     retryResponse.status,
-                    retryData.message || "Request failed",
+                    getApiErrorMessage(retryData, "Request failed"),
                     retryData,
                   );
                 }
@@ -131,7 +151,7 @@ export async function fetchAPI<T>(
 
       throw new ApiError(
         response.status,
-        data.message || "An error occurred",
+        getApiErrorMessage(data, "An error occurred"),
         data,
       );
     }

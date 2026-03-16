@@ -320,7 +320,9 @@ export async function createLead(lead: Omit<Lead, "id">): Promise<Lead> {
     body: JSON.stringify(lead),
   });
 
-  return handleResponse<Lead>(response);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = await handleResponse<any>(response);
+  return (data?.lead || data?.data || data) as Lead;
 }
 
 /**
@@ -382,7 +384,9 @@ export async function updateLead(
     body: JSON.stringify(updates),
   });
 
-  return handleResponse<Lead>(response);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = await handleResponse<any>(response);
+  return (data?.lead || data?.data || data) as Lead;
 }
 
 /**
@@ -551,6 +555,81 @@ export async function getLeadNotes(id: string): Promise<LeadNote[]> {
 
     throw error;
   }
+}
+
+/**
+ * Upload a floor plan file
+ * POST /api/leads/upload-floor-plan
+ * Returns { url: string }
+ */
+// Helper to generate UUID if crypto.randomUUID is not available
+function generateUUID() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0,
+      v = c == "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
+ * Upload Floor Plan
+ * Converts file to base64 and sends to attachments API
+ */
+export async function uploadFloorPlan(
+  file: File,
+  existingLeadId?: string,
+): Promise<{ url: string }> {
+  const token = localStorage.getItem("auth_token");
+  if (!token) throw new Error("No authentication token found");
+
+  // Convert file to Base64
+  const fileBase64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        // Remove data URL prefix (e.g., "data:application/pdf;base64,")
+        const base64Content = reader.result.split(",")[1];
+        resolve(base64Content);
+      } else {
+        reject(new Error("Failed to read file as base64 string"));
+      }
+    };
+    reader.onerror = (error) => reject(error);
+  });
+
+  const payload = {
+    entityType: "LEAD",
+    entityId: existingLeadId || generateUUID(),
+    attachmentType: "FLOOR_PLAN",
+    fileName: file.name,
+    fileType: file.type || "application/pdf",
+    fileBase64: fileBase64,
+    notes: "Lead Floor Plan Upload",
+  };
+
+  const response = await fetch(`${API_BASE_URL}/api/attachments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Upload failed details:", errorText);
+    throw new Error(`Upload failed: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log("Upload response:", data);
+  // User requested downloadUrl to be used for the floor plan field
+  return { url: data.downloadUrl || data.url || "" };
 }
 
 // ==========================================
@@ -733,6 +812,7 @@ const LeadAPI = {
   getLeadById,
   updateLead,
   deleteLead,
+  uploadFloorPlan,
   getLeadActivities,
   addLeadActivity,
   addLeadNote,

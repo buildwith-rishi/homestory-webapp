@@ -1879,7 +1879,15 @@ export async function getMatrixByStage(
       return null;
     }
     const result = await handleResponse<any>(response);
-    return result.matrix || result;
+    const baseMatrix = (result?.matrix || result) as TaskMatrix;
+    return {
+      ...baseMatrix,
+      categories: result?.categories || baseMatrix.categories,
+      dayTasks: result?.dayTasks || baseMatrix.dayTasks,
+      matrixDayWise: result?.matrixDayWise || baseMatrix.matrixDayWise,
+      project: result?.project || baseMatrix.project,
+      projectStage: result?.projectStage || baseMatrix.projectStage,
+    };
   } catch (error) {
     console.error("Error fetching matrix by stage:", error);
     throw error;
@@ -1897,7 +1905,15 @@ export async function getMatrixById(matrixId: string): Promise<TaskMatrix> {
       headers: getAuthHeaders(),
     });
     const result = await handleResponse<any>(response);
-    return result.matrix || result;
+    const baseMatrix = (result?.matrix || result) as TaskMatrix;
+    return {
+      ...baseMatrix,
+      categories: result?.categories || baseMatrix.categories,
+      dayTasks: result?.dayTasks || baseMatrix.dayTasks,
+      matrixDayWise: result?.matrixDayWise || baseMatrix.matrixDayWise,
+      project: result?.project || baseMatrix.project,
+      projectStage: result?.projectStage || baseMatrix.projectStage,
+    };
   } catch (error) {
     console.error("Error fetching matrix:", error);
     throw error;

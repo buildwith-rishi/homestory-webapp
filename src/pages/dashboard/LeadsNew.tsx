@@ -26,6 +26,8 @@ import {
   ChevronDown,
   UserPlus,
   Users,
+  Upload,
+  FileText,
 } from "lucide-react";
 import { Card, Button, Badge } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -34,6 +36,7 @@ import LeadAPI, {
   LeadActivity,
   LeadSource,
   LeadStatus,
+  uploadFloorPlan,
 } from "../../services/leadApi";
 import CustomerAPI from "../../services/customerApi";
 import { adminAPI } from "../../services/api";
@@ -138,6 +141,48 @@ export const LeadModal: React.FC<{
   const [srcCampaign, setSrcCampaign] = useState("");
   const [srcMedium, setSrcMedium] = useState("");
 
+  // File upload state
+  const [isUploading, setIsUploading] = useState(false);
+  const [pendingFloorPlanFile, setPendingFloorPlanFile] = useState<File | null>(
+    null,
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Optional: client-side validation
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File is too large. Max size is 10MB.");
+      return;
+    }
+
+    // For new leads, defer upload until a real lead ID exists.
+    if (!lead?.id) {
+      setPendingFloorPlanFile(file);
+      toast.success("Floor plan selected. It will be uploaded after lead creation.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const response = await uploadFloorPlan(file, lead.id);
+      if (response && response.url) {
+        setPendingFloorPlanFile(null);
+        f("floorPlanUrl", response.url);
+        toast.success("Floor plan uploaded successfully");
+      }
+    } catch (error) {
+      console.error("Upload failed", error);
+      toast.error("Failed to upload floor plan. Please try again.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const f = (field: keyof Omit<Lead, "id">, value: unknown) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
@@ -186,6 +231,7 @@ export const LeadModal: React.FC<{
     }
     setErrors({});
     setActiveTab("basic");
+    setPendingFloorPlanFile(null);
   }, [lead, isOpen]);
 
   const validate = (): Record<string, string> => {
@@ -368,7 +414,10 @@ export const LeadModal: React.FC<{
         startTimeline: formData.startTimeline || null,
         budgetComfort: formData.budgetComfort || null,
         projectScope: formData.projectScope || null,
-        floorPlanUrl: formData.floorPlanUrl?.trim() || null,
+        floorPlanUrl: pendingFloorPlanFile
+          ? null
+          : formData.floorPlanUrl?.trim() || null,
+        floorPlanFile: pendingFloorPlanFile,
         assignedToId: formData.assignedToId?.trim() || null,
         referrerName: formData.referrerName?.trim() || null,
         referrerPhone: formData.referrerPhone?.trim() || null,
@@ -989,20 +1038,91 @@ export const LeadModal: React.FC<{
                   )}
                 </div>
 
-                {/* Floor Plan URL */}
+
+                {/* Floor Plan URL / Upload */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Floor Plan
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center justify-between">
+                    <span>Floor Plan</span>
+                    {formData.floorPlanUrl && (
+                      <span className="text-xs font-normal text-emerald-600 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Uploaded
+                      </span>
+                    )}
                   </label>
-                  <input
-                    type="url"
-                    value={formData.floorPlanUrl || ""}
-                    onChange={(e) => f("floorPlanUrl", e.target.value)}
-                    placeholder="Paste floor plan URL (https://...)"
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Paste any public PDF/image URL to make it visible in lead and customer references.
+                  <div className="flex flex-col gap-2">
+                    {/* Hidden File Input */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={handleFileChange}
+                    />
+
+                    {/* Upload Button */}
+                    {!formData.floorPlanUrl && !pendingFloorPlanFile ? (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className={`w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-orange-400 hover:text-orange-500 hover:bg-orange-50 transition-all flex flex-col items-center justify-center gap-2 ${
+                          isUploading ? "opacity-70 cursor-wait" : ""
+                        }`}
+                        title="Upload File"
+                      >
+                        {isUploading ? (
+                          <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                        ) : (
+                          <Upload className="w-8 h-8 text-gray-400" />
+                        )}
+                        <span className="text-sm">
+                          {isUploading
+                            ? "Uploading..."
+                            : "Click to upload floor plan (PDF/Image)"}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 border border-gray-200 rounded-xl bg-gray-50">
+                        <div className="bg-white p-2 rounded-lg border border-gray-200 text-orange-600">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {pendingFloorPlanFile
+                              ? pendingFloorPlanFile.name
+                              : "Floor Plan Uploaded"}
+                          </p>
+                          {pendingFloorPlanFile ? (
+                            <p className="text-xs text-gray-500 truncate">
+                              Will upload after lead is created
+                            </p>
+                          ) : (
+                            <a
+                              href={formData.floorPlanUrl || ""}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-orange-600 hover:text-orange-700 hover:underline truncate"
+                            >
+                              View Document
+                            </a>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPendingFloorPlanFile(null);
+                            f("floorPlanUrl", "");
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Remove file"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    Supported formats: PDF, PNG, JPG (Max 10MB)
                   </p>
                 </div>
 
@@ -1495,8 +1615,38 @@ export const LeadsPage: React.FC = () => {
   // Create Lead
   const handleCreateLead = async (leadData: Omit<Lead, "id">) => {
     try {
-      const payload = { ...leadData, floorPlanUrl: leadData.floorPlanUrl || null };
-      const newLead = await LeadAPI.createLead(payload);
+      const leadDataWithFile = leadData as Omit<Lead, "id"> & {
+        floorPlanFile?: File | null;
+      };
+      const floorPlanFile = leadDataWithFile.floorPlanFile;
+
+      const payload = {
+        ...leadData,
+        floorPlanUrl: floorPlanFile ? null : leadData.floorPlanUrl || null,
+      } as Omit<Lead, "id">;
+
+      delete (payload as Record<string, unknown>).floorPlanFile;
+
+      let newLead = await LeadAPI.createLead(payload);
+
+      if (floorPlanFile && newLead.id) {
+        try {
+          const uploaded = await LeadAPI.uploadFloorPlan(floorPlanFile, newLead.id);
+          const uploadedUrl = uploaded?.url || "";
+
+          if (uploadedUrl) {
+            newLead = await LeadAPI.updateLead(newLead.id, {
+              floorPlanUrl: uploadedUrl,
+            });
+          }
+        } catch (uploadError) {
+          console.error("Error uploading floor plan after lead creation:", uploadError);
+          toast.error(
+            "Lead created, but floor plan upload failed. Please upload it from Edit Lead.",
+          );
+        }
+      }
+
       const floorPlanUrl = newLead.floorPlanUrl || leadData.floorPlanUrl || "";
 
       console.log("Lead created - API response:", newLead);

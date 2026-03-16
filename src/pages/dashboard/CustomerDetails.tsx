@@ -592,6 +592,15 @@ export const CustomerDetails: React.FC = () => {
               apiCustomer.shippingAddress ||
               "N/A";
 
+        // Conversion responses can vary by backend version.
+        // Resolve the original lead id from all known payload shapes.
+        const resolvedLeadId =
+          apiCustomer.convertedFromLeadId ||
+          apiCustomer.convertedFromLead?.id ||
+          (apiCustomer as any).leadId ||
+          (apiCustomer as any).lead?.id ||
+          undefined;
+
         const mappedCustomer: Customer = {
           id: apiCustomer.id, // Keep UUID as string
           name: customerName,
@@ -636,7 +645,7 @@ export const CustomerDetails: React.FC = () => {
           occupation: undefined,
           companyName: undefined,
           assignedProjects: apiProjects,
-          leadId: apiCustomer.convertedFromLeadId || undefined,
+          leadId: resolvedLeadId,
           type: apiCustomer.type,
           taxId: apiCustomer.taxId,
           billingAddress: apiCustomer.billingAddress,
@@ -879,13 +888,27 @@ export const CustomerDetails: React.FC = () => {
     const fetchLeadReferences = async () => {
       setLoadingLeadReferences(true);
       try {
-        const [lead, rawAttachments] = await Promise.all([
+        const [leadResult, attachmentsResult] = await Promise.allSettled([
           LeadAPI.getLeadById(leadId),
           listAttachments("LEAD", leadId),
         ]);
+
+        const lead =
+          leadResult.status === "fulfilled" ? leadResult.value : null;
+        const rawAttachments =
+          attachmentsResult.status === "fulfilled" ? attachmentsResult.value : [];
+
+        if (leadResult.status === "rejected") {
+          console.warn("Lead details unavailable, using attachments only:", leadResult.reason);
+        }
+
+        if (attachmentsResult.status === "rejected") {
+          console.warn("Lead attachments unavailable:", attachmentsResult.reason);
+        }
+
         // Filter client-side to guarantee only this lead's files are shown
         const attachments = rawAttachments.filter(
-          (a) => !a.entityId || a.entityId === leadId,
+          (a) => a.entityId === leadId,
         );
         setLeadReferenceData(lead);
         setLeadAttachments(attachments);
@@ -3643,44 +3666,6 @@ export const CustomerDetails: React.FC = () => {
                       </div>
                     </div>
                   )}
-
-                  {/* Floor Plan */}
-                  {(() => {
-                    const floorPlanAttachment = leadAttachments.find(
-                      (attachment) => attachment.attachmentType === "FLOOR_PLAN",
-                    );
-                    const floorPlanUrl =
-                      leadReferenceData?.floorPlanUrl ||
-                      floorPlanAttachment?.downloadUrl ||
-                      floorPlanAttachment?.fileUrl ||
-                      floorPlanAttachment?.storageUrl ||
-                      floorPlanAttachment?.url ||
-                      "";
-
-                    if (!floorPlanUrl) return null;
-
-                    return (
-                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                            <FileText className="w-4 h-4 text-orange-600" />
-                          </div>
-                          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                            Floor Plan
-                          </h3>
-                        </div>
-                        <a
-                          href={floorPlanUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-sm font-medium transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          View Floor Plan
-                        </a>
-                      </div>
-                    );
-                  })()}
 
                   {/* Uploaded Documents & Attachments */}
                   <div className="bg-white border border-gray-200/80 rounded-2xl p-6">

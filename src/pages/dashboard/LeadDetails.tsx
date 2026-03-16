@@ -19,7 +19,6 @@ import {
   Building2,
   Activity,
   Star,
-  Send,
   Plus,
   Loader2,
   Copy,
@@ -27,9 +26,6 @@ import {
   IndianRupee,
   Ruler,
   Target,
-  MoreHorizontal,
-  Share2,
-  Bookmark,
   ArrowRight,
   Check,
   X,
@@ -37,11 +33,10 @@ import {
   Pencil,
   Layers,
   ExternalLink,
-  MessageCircle,
   Wrench,
   Users,
 } from "lucide-react";
-import { Button, PageLoader, Spinner } from "../../components/ui";
+import { Button, PageLoader } from "../../components/ui";
 import LeadAPI, {
   Lead as APILead,
   LeadActivity as APILeadActivity,
@@ -59,7 +54,7 @@ import toast from "react-hot-toast";
 import { getSourceLabel } from "../../utils/leadHelpers";
 import { LeadReferencesManager } from "../../components/leads";
 import { LeadReference } from "../../types";
-import { listAttachments, Attachment } from "../../services/attachmentApi";
+import { listAttachments, getAttachment, Attachment } from "../../services/attachmentApi";
 
 const LeadDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -85,6 +80,8 @@ const LeadDetails: React.FC = () => {
 
   // References state
   const [references, setReferences] = useState<LeadReference[]>([]);
+  const [floorPlanAttachment, setFloorPlanAttachment] =
+    useState<Attachment | null>(null);
 
   // Helper function to safely display field values and prevent "undefined" text
   const safeDisplay = (
@@ -99,13 +96,78 @@ const LeadDetails: React.FC = () => {
 
   const getFloorPlanDisplayName = (urlOrName: string) => {
     if (!urlOrName) return "View floor plan";
-    const lastSegment = urlOrName.split("/").pop() || urlOrName;
     try {
-      return decodeURIComponent(lastSegment);
+      // If it looks like a URL, try extracting filename
+      if (urlOrName.startsWith("http")) {
+        const url = new URL(urlOrName);
+        const pathSegments = url.pathname.split("/");
+        const lastSegment = pathSegments[pathSegments.length - 1];
+        return decodeURIComponent(lastSegment) || "Floor Plan Document";
+      }
+      return urlOrName;
     } catch {
-      return lastSegment;
+      return "Floor Plan Document";
     }
   };
+
+  const handleDownloadFloorPlan = async (url: string) => {
+    if (!url) {
+      toast.error("Floor plan URL is not available yet.");
+      return;
+    }
+
+    try {
+      // Don't send auth headers for public URLs or GCS signed URLs
+      const isExternalUrl =
+        url.includes("storage.googleapis.com") ||
+        url.includes("amazonaws.com") ||
+        url.startsWith("http");
+
+      const token = localStorage.getItem("auth_token");
+      const headers: HeadersInit =
+        token && !isExternalUrl ? { Authorization: `Bearer ${token}` } : {};
+
+      // If it is a GCS URL, just open it
+      if (isExternalUrl) {
+        window.open(url, "_blank");
+        return;
+      }
+
+      const response = await fetch(url, { headers });
+      if (!response.ok) throw new Error("Download failed");
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      const fileName =
+        floorPlanAttachment?.fileName || getFloorPlanDisplayName(url);
+      a.download = fileName; // Suggest a filename
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Download error:", error);
+      // Fallback to direct navigation if fetch fails (e.g. CORS or public URL)
+      window.open(url, "_blank");
+    }
+  };
+
+  const normalizedLeadFloorPlanUrl =
+    lead?.floorPlanUrl &&
+    lead.floorPlanUrl !== "undefined" &&
+    lead.floorPlanUrl !== "null"
+      ? lead.floorPlanUrl
+      : "";
+
+  const resolvedFloorPlanUrl =
+    floorPlanAttachment?.downloadUrl ||
+    floorPlanAttachment?.url ||
+    floorPlanAttachment?.fileUrl ||
+    floorPlanAttachment?.storageUrl ||
+    normalizedLeadFloorPlanUrl ||
+    "";
 
   useEffect(() => {
     console.log("LeadDetails useEffect - ID:", id);
@@ -124,6 +186,44 @@ const LeadDetails: React.FC = () => {
     } else {
       setLoading(false);
     }
+  }, [id]);
+
+  useEffect(() => {
+    // Reset state when ID changes to prevent showing previous lead's floor plan
+    setFloorPlanAttachment(null);
+
+    const fetchAttachments = async () => {
+      if (!id) return;
+      try {
+        const result = (await listAttachments("LEAD", id)).filter(
+          (attachment) => attachment.entityId === id,
+        );
+        // Find the most recent floor plan attachment
+        const floorPlan = result
+          .filter((att) => att.attachmentType === "FLOOR_PLAN")
+          .sort((a, b) => {
+            const dateA = new Date(a.uploadedAt || a.createdAt || 0).getTime();
+            const dateB = new Date(b.uploadedAt || b.createdAt || 0).getTime();
+            return dateB - dateA;
+          })[0];
+
+        if (floorPlan) {
+          // Fetch full attachment details to get the signed downloadUrl
+          try {
+            const fullFloorPlan = await getAttachment(floorPlan.id);
+            setFloorPlanAttachment(fullFloorPlan);
+          } catch (error) {
+            console.error("Failed to fetch full floor plan details:", error);
+            // Fallback to the listed attachment metadata
+            setFloorPlanAttachment(floorPlan);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch attachments:", error);
+      }
+    };
+
+    fetchAttachments();
   }, [id]);
 
   // Fetch users for the edit modal
@@ -314,9 +414,7 @@ const LeadDetails: React.FC = () => {
         const rawAttachments: Attachment[] = await listAttachments("LEAD", id);
         // Strictly filter by entityId on the client side to guarantee isolation
         // between leads even if the backend returns unfiltered results.
-        const attachments = rawAttachments.filter(
-          (a) => !a.entityId || a.entityId === id,
-        );
+        const attachments = rawAttachments.filter((a) => a.entityId === id);
         const mapped: LeadReference[] = attachments.map((a) => ({
           id: a.id,
           leadId: id,
@@ -1085,34 +1183,38 @@ const LeadDetails: React.FC = () => {
               </div>
             )}
 
-            {/* Floor Plan URL */}
-            {lead.floorPlanUrl &&
-              lead.floorPlanUrl !== "undefined" &&
-              lead.floorPlanUrl !== "null" && (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-orange-500" />
-                    <h3 className="font-semibold text-gray-900 text-sm">
-                      Floor Plan
-                    </h3>
+            {/* Floor Plan URL - Show either from Lead Details or Attachments API */}
+            {(resolvedFloorPlanUrl || floorPlanAttachment) && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-orange-500" />
+                      <h3 className="font-semibold text-gray-900 text-sm">
+                        Floor Plan
+                      </h3>
+                    </div>
                   </div>
                   <div className="p-4">
-                    <a
-                      href={lead.floorPlanUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between gap-3 p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
+                    <button
+                      onClick={() => handleDownloadFloorPlan(resolvedFloorPlanUrl)}
+                      className="w-full group flex items-center justify-between gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:border-orange-200 hover:shadow-md transition-all text-left"
                     >
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-500 mb-0.5">
-                          URL
-                        </p>
-                        <p className="text-sm font-semibold text-orange-700 truncate">
-                          {getFloorPlanDisplayName(lead.floorPlanUrl)}
-                        </p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 bg-orange-50 rounded-lg text-orange-600 group-hover:bg-orange-100 transition-colors">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate group-hover:text-orange-700 transition-colors">
+                            {floorPlanAttachment?.fileName ||
+                              getFloorPlanDisplayName(resolvedFloorPlanUrl)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Click to view document
+                          </p>
+                        </div>
                       </div>
-                      <ExternalLink className="w-4 h-4 text-orange-600 flex-shrink-0" />
-                    </a>
+                      <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-orange-500 transition-colors" />
+                    </button>
                   </div>
                 </div>
               )}

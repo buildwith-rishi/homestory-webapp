@@ -1603,6 +1603,12 @@ export interface TaskAttachment {
   createdAt?: string;
 }
 
+export interface MatrixDayWiseItem {
+  dayNumber: number;
+  date: string;
+  tasks: MatrixTask[];
+}
+
 export interface TaskMatrix {
   id: string;
   projectId?: string;
@@ -1611,6 +1617,7 @@ export interface TaskMatrix {
   startDate: string;
   categories?: MatrixCategory[];
   dayTasks?: MatrixTask[];
+  matrixDayWise?: MatrixDayWiseItem[];
   project?: { id: string; projectName: string };
   projectStage?: { id: string; stageName: string; stageCode: string };
   createdAt?: string;
