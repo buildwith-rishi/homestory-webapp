@@ -5,6 +5,19 @@ import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { WidgetProps } from "./index";
 import { getAllPayments, ProjectPayment } from "../../../services/projectApi";
 
+const normalizePayments = (input: unknown): ProjectPayment[] => {
+  if (Array.isArray(input)) return input as ProjectPayment[];
+  if (
+    input &&
+    typeof input === "object" &&
+    "payments" in input &&
+    Array.isArray((input as { payments?: unknown }).payments)
+  ) {
+    return (input as { payments: ProjectPayment[] }).payments;
+  }
+  return [];
+};
+
 const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   const [thisMonthPayments, setThisMonthPayments] = useState<ProjectPayment[]>(
     [],
@@ -29,8 +42,8 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
     ])
       .then(([thisP, lastP]) => {
         if (!cancelled) {
-          setThisMonthPayments(thisP);
-          setLastMonthPayments(lastP);
+          setThisMonthPayments(normalizePayments(thisP));
+          setLastMonthPayments(normalizePayments(lastP));
         }
       })
       .catch(() => {
