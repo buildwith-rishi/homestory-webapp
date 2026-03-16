@@ -11,7 +11,6 @@ import {
   Layers,
   Users2,
   FolderKanban,
-  ArrowLeft,
   Phone,
   Mail,
   MapPin,
@@ -1518,12 +1517,6 @@ const KanbanView: React.FC = () => {
       {/* Header */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
           <div>
             <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
               <Layers className="w-6 h-6 text-orange-500" />

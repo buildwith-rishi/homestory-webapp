@@ -123,7 +123,6 @@ export const MeetingsPage: React.FC = () => {
     null,
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const { selectedProject } = useProjectFilter();
   const {
@@ -691,7 +690,7 @@ export const MeetingsPage: React.FC = () => {
     });
   };
 
-  // Apply project filter, status filter, and search filter
+  // Apply project and search filters
   const filteredMeetings = useMemo(() => {
     let filtered = meetings;
 
@@ -700,11 +699,6 @@ export const MeetingsPage: React.FC = () => {
       filtered = filtered.filter(
         (meeting) => meeting.projectId === selectedProject.id,
       );
-    }
-
-    // Filter by status
-    if (filterStatus !== "all") {
-      filtered = filtered.filter((meeting) => meeting.status === filterStatus);
     }
 
     // Filter by search query
@@ -718,7 +712,7 @@ export const MeetingsPage: React.FC = () => {
     }
 
     return filtered;
-  }, [meetings, selectedProject, filterStatus, searchQuery]);
+  }, [meetings, selectedProject, searchQuery]);
 
   const upcomingCount = meetings.filter((m) => m.status === "scheduled").length;
   const completedCount = meetings.filter(
@@ -852,21 +846,6 @@ export const MeetingsPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-        </div>
-        <div className="flex gap-2">
-          {["all", "scheduled", "completed"].map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                filterStatus === status
-                  ? "bg-orange-500 text-white"
-                  : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {status === "all" ? "All" : status.replace("_", " ")}
-            </button>
-          ))}
         </div>
       </div>
 

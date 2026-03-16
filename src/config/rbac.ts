@@ -431,37 +431,6 @@ export const NAV_ITEMS: NavItemConfig[] = [
   },
   // ── Business Tools ─────────────────────────────────────────
   {
-    id: "marketing",
-    label: "Marketing",
-    path: "/dashboard/marketing",
-    icon: "TrendingUp",
-    section: "business",
-    allowedRoles: [
-      "SUPER_ADMIN",
-      "ADMIN",
-      "DESIGN_HEAD",
-      "LEAD_PROJECT_MANAGER",
-      "BDR",
-      "SALES",
-      "HR",
-    ],
-  },
-  {
-    id: "analytics",
-    label: "Analytics",
-    path: "/dashboard/analytics",
-    icon: "BarChart3",
-    section: "business",
-    allowedRoles: [
-      "SUPER_ADMIN",
-      "ADMIN",
-      "DESIGN_HEAD",
-      "PROJECT_MANAGER",
-      "LEAD_PROJECT_MANAGER",
-      "ACCOUNTS",
-    ],
-  },
-  {
     id: "email-editor",
     label: "Email Editor",
     path: "/dashboard/email-editor",
