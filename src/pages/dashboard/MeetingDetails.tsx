@@ -43,6 +43,8 @@ import {
   Spinner,
 } from "../../components/ui";
 import * as meetingAPI from "../../services/meetingApi";
+import { getLeadById } from "../../services/leadApi";
+import { getProjectById } from "../../services/projectApi";
 import { sendEmail } from "../../services/emailSendApi";
 import { getAllTeamMembers, type TeamMember } from "../../services/teamApi";
 import type {
@@ -1200,8 +1202,73 @@ export const MeetingDetailsPage: React.FC = () => {
   };
 
   // Share AI Summary via Email — opens compose modal
-  const handleShareEmail = () => {
+  const resolveDefaultRecipientEmail = useCallback(
+    async (currentMeeting: Meeting & { participants?: Participant[] }) => {
+      const m = currentMeeting as any;
+      const directEmail = [
+        m.lead?.email,
+        m.project?.account?.email,
+        m.project?.lead?.email,
+        m.customer?.email,
+        m.entity?.email,
+        ...(Array.isArray(m.participants)
+          ? m.participants
+              .map((p: any) => p?.email)
+              .filter((email: unknown): email is string =>
+                typeof email === "string" && email.trim().length > 0,
+              )
+          : []),
+      ].find(
+        (email): email is string =>
+          typeof email === "string" && email.trim().length > 0,
+      );
+
+      if (directEmail) return directEmail;
+
+      const leadId =
+        currentMeeting.leadId ||
+        (currentMeeting.entityType === "LEAD" ? currentMeeting.entityId : "");
+      if (leadId) {
+        try {
+          const lead = await getLeadById(leadId);
+          if (lead?.email) return lead.email;
+        } catch (error) {
+          console.warn("Failed to resolve lead email for compose modal:", error);
+        }
+      }
+
+      const projectId =
+        currentMeeting.projectId ||
+        (currentMeeting.entityType === "PROJECT"
+          ? currentMeeting.entityId
+          : "");
+      if (projectId) {
+        try {
+          const project = await getProjectById(projectId);
+          if (project?.account?.email) return project.account.email;
+          if (project?.lead?.email) return project.lead.email;
+
+          if (project?.leadId) {
+            const projectLead = await getLeadById(project.leadId);
+            if (projectLead?.email) return projectLead.email;
+          }
+        } catch (error) {
+          console.warn(
+            "Failed to resolve project email for compose modal:",
+            error,
+          );
+        }
+      }
+
+      return "";
+    },
+    [],
+  );
+
+  const handleShareEmail = async () => {
     if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
+
+    const autoRecipientEmail = await resolveDefaultRecipientEmail(meeting);
 
     const summary = meeting.aiAnalysis?.summary || (meeting as any).summary;
     const keyPoints =
@@ -1239,7 +1306,7 @@ export const MeetingDetailsPage: React.FC = () => {
       body += `</ul>`;
     }
 
-    setEmailTo("");
+    setEmailTo(autoRecipientEmail || "");
     setEmailSubject(subjectLine);
     setEmailBody(body);
     setEmailSentSuccess(false);
