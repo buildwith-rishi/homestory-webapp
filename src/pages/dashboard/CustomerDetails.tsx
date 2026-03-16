@@ -1372,7 +1372,10 @@ export const CustomerDetails: React.FC = () => {
     );
   }
 
-  const statusColor = statusColors[customer.status];
+  const statusColor =
+    statusColors[customer.status as keyof typeof statusColors] ||
+    statusColors[customer.status?.toLowerCase() as keyof typeof statusColors] ||
+    statusColors.inactive;
   const rankingColor = customer.clientRanking
     ? rankingColors[customer.clientRanking]
     : null;
@@ -2825,11 +2828,11 @@ export const CustomerDetails: React.FC = () => {
                       <div className="flex items-center gap-4 flex-1">
                         <div
                           className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            project.status === "active"
+                            project.status === "ACTIVE"
                               ? "bg-blue-100 text-blue-600"
-                              : project.status === "completed"
+                              : project.status === "COMPLETED"
                                 ? "bg-green-100 text-green-600"
-                                : project.status === "paused"
+                                : project.status === "PAUSED"
                                   ? "bg-yellow-100 text-yellow-600"
                                   : "bg-gray-100 text-gray-600"
                           }`}
@@ -2845,11 +2848,11 @@ export const CustomerDetails: React.FC = () => {
                           <div className="flex items-center gap-3 mt-1">
                             <Badge
                               className={`text-xs ${
-                                project.status === "active"
+                                project.status === "ACTIVE"
                                   ? "bg-blue-100 text-blue-700"
-                                  : project.status === "completed"
+                                  : project.status === "COMPLETED"
                                     ? "bg-green-100 text-green-700"
-                                    : project.status === "paused"
+                                    : project.status === "PAUSED"
                                       ? "bg-yellow-100 text-yellow-700"
                                       : "bg-gray-100 text-gray-700"
                               }`}

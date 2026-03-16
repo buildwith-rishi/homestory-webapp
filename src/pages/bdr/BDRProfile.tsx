@@ -7,7 +7,6 @@ import {
   Calendar,
   LogOut,
   ChevronRight,
-  Settings,
   HelpCircle,
   FileText,
   Shield,
@@ -19,7 +18,7 @@ import {
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { useAuthStore } from "../../stores/authStore";
 import { getBDRProfile, BDRProfileUser } from "../../services/bdrApi";
-import { Spinner } from "../../components/ui";
+import { Spinner, LogoutConfirmModal } from "../../components/ui";
 
 export function BDRProfile() {
   const navigate = useNavigate();
@@ -28,6 +27,8 @@ export function BDRProfile() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [apiProfile, setApiProfile] = useState<BDRProfileUser | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     getBDRProfile()
@@ -37,9 +38,17 @@ export function BDRProfile() {
   }, []);
 
   const handleLogout = () => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      logout();
+    setShowLogoutConfirm(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
       navigate("/login");
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
     }
   };
 
@@ -271,6 +280,13 @@ export function BDRProfile() {
           <p className="text-xs text-gray-400">GHS BDR App v1.0</p>
         </div>
       </div>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        loading={isLoggingOut}
+      />
     </div>
   );
 }

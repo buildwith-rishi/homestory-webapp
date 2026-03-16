@@ -3091,7 +3091,10 @@ export const Customers: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCustomers.map((customer) => {
-            const statusColor = statusColors[customer.status];
+            const statusColor =
+              statusColors[customer.status as keyof typeof statusColors] ||
+              statusColors[customer.status?.toLowerCase() as keyof typeof statusColors] ||
+              statusColors.inactive;
             return (
               <Card
                 key={customer.id}

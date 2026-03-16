@@ -14,6 +14,7 @@ export { default as Skeleton } from './Skeleton';
 export { default as Spinner } from './Spinner';
 export { default as PageLoader } from './PageLoader';
 export { default as SectionLoader } from './SectionLoader';
+export { default as LogoutConfirmModal } from './LogoutConfirmModal';
 
 export type { SpinnerProps, SpinnerSize, SpinnerColor } from './Spinner';
 export type { PageLoaderProps } from './PageLoader';

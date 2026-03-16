@@ -133,8 +133,8 @@ const formatCurrency = (value: number | string | undefined | null): string => {
   const num = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(num)) return "\u20B90";
   if (num >= 10000000) return `\u20B9${(num / 10000000).toFixed(2)}Cr`;
-  if (num >= 100000) return `\u20B9${(num / 100000).toFixed(0)}L`;
-  if (num >= 1000) return `\u20B9${(num / 1000).toFixed(0)}K`;
+  if (num >= 100000) return `\u20B9${(num / 100000).toFixed(2)}L`;
+  if (num >= 1000) return `\u20B9${(num / 1000).toFixed(1)}K`;
   return `\u20B9${num}`;
 };
 

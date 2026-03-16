@@ -17,6 +17,7 @@ import {
   getSiteEngineerProfile,
   type SiteEngineerProfile,
 } from "../../services/siteEngineerApi";
+import { LogoutConfirmModal } from "../../components/ui";
 
 export function EngineerProfile() {
   const navigate = useNavigate();
@@ -27,6 +28,8 @@ export function EngineerProfile() {
   // Site engineer profile from API
   const [seProfile, setSeProfile] = useState<SiteEngineerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const loadProfile = () => {
     setProfileLoading(true);
@@ -41,9 +44,17 @@ export function EngineerProfile() {
   }, []);
 
   const handleLogout = () => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      logout();
+    setShowLogoutConfirm(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
       navigate("/login");
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
     }
   };
 
@@ -196,6 +207,13 @@ export function EngineerProfile() {
           Good Homestory CRM v1.0.0
         </div>
       </div>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        loading={isLoggingOut}
+      />
     </div>
   );
 }

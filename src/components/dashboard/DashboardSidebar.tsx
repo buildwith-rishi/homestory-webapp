@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Home,
@@ -20,12 +20,12 @@ import {
 import Logo from "../shared/Logo";
 import BrandPattern from "../shared/BrandPattern";
 import { useAuth } from "../../contexts/AuthContext";
+import { LogoutConfirmModal } from "../ui";
 import {
   getVisibleNavItems,
   NAV_SECTIONS,
   getRoleDisplayName,
   getRoleBadgeClasses,
-  type RoleId,
 } from "../../config/rbac";
 
 // Map icon string names from config → Lucide components
@@ -55,6 +55,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 }) => {
   const { logout, user, roleId } = useAuth();
   const navigate = useNavigate();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Compute visible nav items based on the user's role
   const visibleItems = useMemo(() => {
@@ -73,8 +75,18 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   }, [visibleItems]);
 
   const handleLogout = async () => {
-    await logout();
-    navigate("/login");
+    setShowLogoutConfirm(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      navigate("/login");
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
+    }
   };
 
   return (
@@ -228,6 +240,13 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           </div>
         </div>
       )}
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        loading={isLoggingOut}
+      />
     </aside>
   );
 };

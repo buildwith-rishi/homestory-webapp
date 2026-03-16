@@ -1554,17 +1554,19 @@ export const ProjectDetails: React.FC = () => {
     projectPayments.forEach((payment) => {
       const expected = parseFloat(String(payment.expectedAmount)) || 0;
       const actual = parseFloat(String(payment.actualAmount)) || 0;
-      if (payment.status === "COLLECTED") {
-        totalPaid += actual > 0 ? actual : expected;
-      } else if (payment.status === "PARTIALLY_PAID") {
-        totalPaid += actual;
-        totalPending += expected - actual;
-      } else if (payment.status === "WAIVED") {
-        // Waived — don't count in pending
-      } else {
-        // PENDING, OVERDUE
-        totalPending += expected;
+      const boundedActual = Math.max(0, Math.min(actual, expected));
+
+      if (payment.status === "WAIVED") {
+        return;
       }
+
+      if (payment.status === "COLLECTED") {
+        totalPaid += actual > 0 ? boundedActual : expected;
+        return;
+      }
+
+      totalPaid += boundedActual;
+      totalPending += Math.max(0, expected - boundedActual);
     });
 
     return { totalPaid, totalPending, totalAmount };
@@ -2608,14 +2610,14 @@ export const ProjectDetails: React.FC = () => {
             activePhasePayments.forEach((payment) => {
               const expected = parseFloat(String(payment.expectedAmount)) || 0;
               const actual = parseFloat(String(payment.actualAmount)) || 0;
+              const boundedActual = Math.max(0, Math.min(actual, expected));
+              if (payment.status === "WAIVED") return;
               if (payment.status === "COLLECTED") {
-                phasePaid += actual > 0 ? actual : expected;
-              } else if (payment.status === "PARTIALLY_PAID") {
-                phasePaid += actual;
-                phasePending += expected - actual;
-              } else if (payment.status !== "WAIVED") {
-                phasePending += expected;
+                phasePaid += actual > 0 ? boundedActual : expected;
+                return;
               }
+              phasePaid += boundedActual;
+              phasePending += Math.max(0, expected - boundedActual);
             });
 
             const renderPaymentCard = (
@@ -2623,7 +2625,6 @@ export const ProjectDetails: React.FC = () => {
             ) => {
               const isCollected = payment.status === "COLLECTED";
               const isOverdue = payment.status === "OVERDUE";
-              const isPartial = payment.status === "PARTIALLY_PAID";
               const statusBgMap: Record<string, string> = {
                 COLLECTED:
                   "bg-gradient-to-br from-green-500 to-green-600 text-white",
@@ -2654,6 +2655,8 @@ export const ProjectDetails: React.FC = () => {
                 `${payment.phaseType} Payment ${payment.paymentStage} (${payment.percentage}%)`;
               const expected = parseFloat(String(payment.expectedAmount)) || 0;
               const actual = parseFloat(String(payment.actualAmount)) || 0;
+              const boundedActual = Math.max(0, Math.min(actual, expected));
+              const hasActualCollection = boundedActual > 0;
               return (
                 <div
                   key={payment.id}
@@ -2677,14 +2680,14 @@ export const ProjectDetails: React.FC = () => {
                         )}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-gray-600">
                           <span>Expected: {formatCurrency(expected)}</span>
-                          {isCollected && actual > 0 && (
+                          {hasActualCollection && (
                             <span className="text-green-700 font-medium">
-                              Collected: {formatCurrency(actual)}
+                              Collected: {formatCurrency(boundedActual)}
                             </span>
                           )}
-                          {isPartial && actual > 0 && (
-                            <span className="text-yellow-700 font-medium">
-                              Paid: {formatCurrency(actual)}
+                          {!isCollected && hasActualCollection && (
+                            <span className="text-orange-700 font-medium">
+                              Remaining: {formatCurrency(expected - boundedActual)}
                             </span>
                           )}
                           {payment.dueDate && (
@@ -2718,8 +2721,8 @@ export const ProjectDetails: React.FC = () => {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-xl font-bold text-gray-900">
-                        {isCollected && actual > 0
-                          ? formatCurrency(actual)
+                        {hasActualCollection
+                          ? formatCurrency(boundedActual)
                           : formatCurrency(expected)}
                       </p>
                       <Badge
