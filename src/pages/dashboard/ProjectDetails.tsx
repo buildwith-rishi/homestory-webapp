@@ -3200,10 +3200,20 @@ export const ProjectDetails: React.FC = () => {
                           setPaymentFormErrors((prev) => ({ ...prev, percentage: "Value cannot be negative" }));
                           return;
                         }
-                        setPaymentFormErrors((prev) => ({ ...prev, percentage: "" }));
+                        setPaymentFormErrors((prev) => ({ ...prev, percentage: "", expectedAmount: "" }));
+                        const projectTotal = parseFloat(String(project?.totalValue || "0")) || 0;
+                        const autoExpected = (!isNaN(val) && val > 0 && projectTotal > 0)
+                          ? String(Math.round((val / 100) * projectTotal))
+                          : newPaymentForm.expectedAmount;
+                        const tax = parseFloat(newPaymentForm.taxPercentage || "0");
+                        const autoInvoice = autoExpected
+                          ? (parseFloat(autoExpected) * (1 + tax / 100)).toFixed(2)
+                          : newPaymentForm.invoiceAmount;
                         setNewPaymentForm({
                           ...newPaymentForm,
                           percentage: val || 0,
+                          expectedAmount: autoExpected,
+                          invoiceAmount: autoInvoice,
                         });
                       }}
                       className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.percentage ? "border-red-400" : "border-gray-200"}`}
