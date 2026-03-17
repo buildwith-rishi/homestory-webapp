@@ -2545,8 +2545,8 @@ export const Customers: React.FC = () => {
 
     try {
       const params = searchTerm
-        ? { search: searchTerm, includeContacts: true }
-        : { includeContacts: true };
+        ? { search: searchTerm, includeContacts: true, limit: 1000 }
+        : { includeContacts: true, limit: 1000 };
       const response = await CustomerAPI.listCustomers(params);
 
       // Fetch all contacts with a high limit to cover all customers,
