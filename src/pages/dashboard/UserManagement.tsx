@@ -50,6 +50,7 @@ export const UserManagement: React.FC = () => {
   const [showUnbanModal, setShowUnbanModal] = useState(false);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [phoneErrorUser, setPhoneErrorUser] = useState<string | null>(null);
 
   // Form states
   const [createForm, setCreateForm] = useState<CreateUserRequest>({
@@ -159,6 +160,21 @@ export const UserManagement: React.FC = () => {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check for duplicate phone number
+    if (createForm.phone && createForm.phone.trim() !== "") {
+      const normalizedNew = createForm.phone.replace(/\s+/g, "").trim();
+      const duplicate = users.find(
+        (u) =>
+          u.phone &&
+          u.phone.replace(/\s+/g, "").trim() === normalizedNew,
+      );
+      if (duplicate) {
+        setPhoneErrorUser(duplicate.name);
+        return;
+      }
+    }
+
     try {
       setActionLoading(true);
 
@@ -1219,6 +1235,50 @@ export const UserManagement: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Phone Number Already Exists Modal */}
+      <Modal
+        isOpen={phoneErrorUser !== null}
+        onClose={() => setPhoneErrorUser(null)}
+        showCloseButton={false}
+        size="sm"
+      >
+        <div className="px-6 py-5">
+          <div className="flex flex-col items-center text-center gap-4">
+            {/* Icon */}
+            <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+              <AlertTriangle className="w-7 h-7 text-red-500" />
+            </div>
+
+            {/* Text */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Phone Number Already Exists
+              </h3>
+              <p className="text-sm text-gray-500 mt-1.5">
+                This phone number is already registered to{" "}
+                <span className="font-medium text-gray-800">
+                  &quot;{phoneErrorUser}&quot;
+                </span>
+                . Please use a different phone number.
+              </p>
+            </div>
+
+            {/* Phone display */}
+            <div className="w-full px-4 py-2.5 bg-red-50 border border-red-100 rounded-lg text-sm text-red-700 font-medium">
+              {createForm.phone}
+            </div>
+
+            {/* Button */}
+            <button
+              onClick={() => setPhoneErrorUser(null)}
+              className="w-full px-4 py-2.5 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-all shadow-sm"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
