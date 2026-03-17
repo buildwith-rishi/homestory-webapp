@@ -287,6 +287,13 @@ export const ProjectDetails: React.FC = () => {
     status: PaymentStatus.PENDING as string,
   });
 
+  const [paymentFormErrors, setPaymentFormErrors] = useState({
+    percentage: "",
+    expectedAmount: "",
+    taxPercentage: "",
+    invoiceAmount: "",
+  });
+
   // Send Invoice modal state
   const [showSendInvoiceModal, setShowSendInvoiceModal] = useState(false);
   const [invoiceTargetPayment, setInvoiceTargetPayment] =
@@ -777,6 +784,12 @@ export const ProjectDetails: React.FC = () => {
         dueDate: "",
         notes: "",
         status: PaymentStatus.PENDING,
+      });
+      setPaymentFormErrors({
+        percentage: "",
+        expectedAmount: "",
+        taxPercentage: "",
+        invoiceAmount: "",
       });
     } catch {
       toast.error("Failed to create payment milestone");
@@ -3048,7 +3061,10 @@ export const ProjectDetails: React.FC = () => {
                   Add Payment Milestone
                 </h3>
                 <button
-                  onClick={() => setShowAddPaymentModal(false)}
+                  onClick={() => {
+                    setShowAddPaymentModal(false);
+                    setPaymentFormErrors({ percentage: "", expectedAmount: "", taxPercentage: "", invoiceAmount: "" });
+                  }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
@@ -3175,15 +3191,27 @@ export const ProjectDetails: React.FC = () => {
                       min={1}
                       max={100}
                       value={newPaymentForm.percentage || ""}
-                      onChange={(e) =>
+                      onKeyDown={(e) => {
+                        if (e.key === "-" || e.key === "e") e.preventDefault();
+                      }}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val < 0) {
+                          setPaymentFormErrors((prev) => ({ ...prev, percentage: "Value cannot be negative" }));
+                          return;
+                        }
+                        setPaymentFormErrors((prev) => ({ ...prev, percentage: "" }));
                         setNewPaymentForm({
                           ...newPaymentForm,
-                          percentage: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                          percentage: val || 0,
+                        });
+                      }}
+                      className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.percentage ? "border-red-400" : "border-gray-200"}`}
                       placeholder="50"
                     />
+                    {paymentFormErrors.percentage && (
+                      <p className="text-red-500 text-xs mt-1">{paymentFormErrors.percentage}</p>
+                    )}
                   </div>
                 </div>
 
@@ -3195,9 +3223,18 @@ export const ProjectDetails: React.FC = () => {
                     </label>
                     <input
                       type="number"
+                      min={0}
                       value={newPaymentForm.expectedAmount}
+                      onKeyDown={(e) => {
+                        if (e.key === "-" || e.key === "e") e.preventDefault();
+                      }}
                       onChange={(e) => {
                         const expected = e.target.value;
+                        if (expected !== "" && parseFloat(expected) < 0) {
+                          setPaymentFormErrors((prev) => ({ ...prev, expectedAmount: "Value cannot be negative" }));
+                          return;
+                        }
+                        setPaymentFormErrors((prev) => ({ ...prev, expectedAmount: "" }));
                         const tax = parseFloat(
                           newPaymentForm.taxPercentage || "0",
                         );
@@ -3210,9 +3247,12 @@ export const ProjectDetails: React.FC = () => {
                           invoiceAmount: auto,
                         });
                       }}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                      className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.expectedAmount ? "border-red-400" : "border-gray-200"}`}
                       placeholder="50000"
                     />
+                    {paymentFormErrors.expectedAmount && (
+                      <p className="text-red-500 text-xs mt-1">{paymentFormErrors.expectedAmount}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -3226,8 +3266,16 @@ export const ProjectDetails: React.FC = () => {
                       min={0}
                       max={100}
                       value={newPaymentForm.taxPercentage}
+                      onKeyDown={(e) => {
+                        if (e.key === "-" || e.key === "e") e.preventDefault();
+                      }}
                       onChange={(e) => {
                         const tax = e.target.value;
+                        if (tax !== "" && parseFloat(tax) < 0) {
+                          setPaymentFormErrors((prev) => ({ ...prev, taxPercentage: "Value cannot be negative" }));
+                          return;
+                        }
+                        setPaymentFormErrors((prev) => ({ ...prev, taxPercentage: "" }));
                         const expected = parseFloat(
                           newPaymentForm.expectedAmount || "0",
                         );
@@ -3243,9 +3291,12 @@ export const ProjectDetails: React.FC = () => {
                           invoiceAmount: auto,
                         });
                       }}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                      className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.taxPercentage ? "border-red-400" : "border-gray-200"}`}
                       placeholder="18"
                     />
+                    {paymentFormErrors.taxPercentage && (
+                      <p className="text-red-500 text-xs mt-1">{paymentFormErrors.taxPercentage}</p>
+                    )}
                   </div>
                 </div>
 
@@ -3259,16 +3310,29 @@ export const ProjectDetails: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    min={0}
                     value={newPaymentForm.invoiceAmount}
-                    onChange={(e) =>
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e") e.preventDefault();
+                    }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val !== "" && parseFloat(val) < 0) {
+                        setPaymentFormErrors((prev) => ({ ...prev, invoiceAmount: "Value cannot be negative" }));
+                        return;
+                      }
+                      setPaymentFormErrors((prev) => ({ ...prev, invoiceAmount: "" }));
                       setNewPaymentForm({
                         ...newPaymentForm,
-                        invoiceAmount: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                        invoiceAmount: val,
+                      });
+                    }}
+                    className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.invoiceAmount ? "border-red-400" : "border-gray-200"}`}
                     placeholder="Auto-filled from expected amount + tax"
                   />
+                  {paymentFormErrors.invoiceAmount && (
+                    <p className="text-red-500 text-xs mt-1">{paymentFormErrors.invoiceAmount}</p>
+                  )}
                 </div>
 
                 {/* Status */}
@@ -3342,7 +3406,10 @@ export const ProjectDetails: React.FC = () => {
                 <Button
                   variant="secondary"
                   className="flex-1"
-                  onClick={() => setShowAddPaymentModal(false)}
+                  onClick={() => {
+                    setShowAddPaymentModal(false);
+                    setPaymentFormErrors({ percentage: "", expectedAmount: "", taxPercentage: "", invoiceAmount: "" });
+                  }}
                 >
                   Cancel
                 </Button>
