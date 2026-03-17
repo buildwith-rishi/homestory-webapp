@@ -1452,7 +1452,7 @@ export const LeadsPage: React.FC = () => {
   const [unassignedLoading, setUnassignedLoading] = useState(false);
   const [unassignedPage, setUnassignedPage] = useState(0);
   const [unassignedHasMore, setUnassignedHasMore] = useState(false);
-  const [unassignedTotal, setUnassignedTotal] = useState<number | null>(null);
+  const [, setUnassignedTotal] = useState<number | null>(null);
 
   // Assignment loading state
   const [isAssigning, setIsAssigning] = useState(false);
@@ -1955,13 +1955,17 @@ export const LeadsPage: React.FC = () => {
 
   // Non-converted leads (converted leads move to Customers section)
   const nonConvertedLeads = leads.filter((lead) => lead.status !== "CONVERTED");
+  const searchLower = searchQuery.toLowerCase();
+
+  const isLeadUnassigned = (lead: Lead) => !lead.assignedToId && !lead.assignedTo?.id;
+
+  const matchesLeadSearch = (lead: Lead) =>
+    (lead.name?.toLowerCase() || "").includes(searchLower) ||
+    (lead.email?.toLowerCase() || "").includes(searchLower) ||
+    (lead.phone?.toLowerCase() || "").includes(searchLower);
 
   const filteredLeads = nonConvertedLeads.filter((lead) => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch =
-      (lead.name?.toLowerCase() || "").includes(searchLower) ||
-      (lead.email?.toLowerCase() || "").includes(searchLower) ||
-      (lead.phone?.toLowerCase() || "").includes(searchLower);
+    const matchesSearch = matchesLeadSearch(lead);
     const matchesStage =
       selectedStage === "all" ||
       selectedStage === "__unassigned__" ||
@@ -1969,9 +1973,20 @@ export const LeadsPage: React.FC = () => {
     return matchesSearch && matchesStage;
   });
 
+  // Keep unassigned count and list in sync by using one source of truth.
+  // Prefer the already-loaded lead list; fall back to unassigned endpoint if needed.
+  const shouldUseUnassignedFallback = nonConvertedLeads.length === 0;
+  const unassignedSourceLeads = shouldUseUnassignedFallback
+    ? unassignedLeads.filter((lead) => lead.status !== "CONVERTED")
+    : nonConvertedLeads;
+
+  const filteredUnassignedLeads = unassignedSourceLeads.filter(
+    (lead) => isLeadUnassigned(lead) && matchesLeadSearch(lead),
+  );
+
   // Determine which leads to display
   const displayLeads =
-    selectedStage === "__unassigned__" ? unassignedLeads : filteredLeads;
+    selectedStage === "__unassigned__" ? filteredUnassignedLeads : filteredLeads;
 
   // Calculate lead counts by status (excluding CONVERTED — they live in Customers)
   const leadCounts = Array.isArray(statuses)
@@ -1986,11 +2001,9 @@ export const LeadsPage: React.FC = () => {
       )
     : {};
 
-  const localUnassignedCount = nonConvertedLeads.filter(
-    (lead) => !lead.assignedToId && !lead.assignedTo?.id,
+  const effectiveUnassignedCount = unassignedSourceLeads.filter(
+    isLeadUnassigned,
   ).length;
-
-  const effectiveUnassignedCount = unassignedTotal ?? localUnassignedCount;
 
   if (loading) {
     return (
@@ -2080,7 +2093,9 @@ export const LeadsPage: React.FC = () => {
       </div>
 
       {/* Loading for unassigned tab */}
-      {selectedStage === "__unassigned__" && unassignedLoading && (
+      {selectedStage === "__unassigned__" &&
+        shouldUseUnassignedFallback &&
+        unassignedLoading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
           <span className="ml-2 text-gray-500">
@@ -2519,6 +2534,7 @@ export const LeadsPage: React.FC = () => {
 
       {/* Load More for Unassigned */}
       {selectedStage === "__unassigned__" &&
+        shouldUseUnassignedFallback &&
         unassignedHasMore &&
         !unassignedLoading && (
           <div className="flex justify-center py-4">

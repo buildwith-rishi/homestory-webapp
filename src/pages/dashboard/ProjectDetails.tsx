@@ -409,6 +409,7 @@ export const ProjectDetails: React.FC = () => {
   // Pause modal state
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [pauseForm, setPauseForm] = useState({ pauseDays: 7, reason: "" });
+  const [pauseReasonError, setPauseReasonError] = useState("");
   const [isPausingProject, setIsPausingProject] = useState(false);
 
   // Status action confirmation
@@ -1366,10 +1367,13 @@ export const ProjectDetails: React.FC = () => {
 
   const handlePauseProject = async () => {
     if (!projectId) return;
-    if (!pauseForm.reason.trim()) {
-      toast.error("Please provide a reason for pausing");
+    const trimmedReason = pauseForm.reason.trim();
+    if (!trimmedReason) {
+      setPauseReasonError("Please add a reason before pausing the project.");
+      toast.error("Please add a reason before pausing the project");
       return;
     }
+    setPauseReasonError("");
     if (pauseForm.pauseDays < 1) {
       toast.error("Pause days must be at least 1");
       return;
@@ -1386,13 +1390,13 @@ export const ProjectDetails: React.FC = () => {
       console.log("🟢 Form data:", pauseForm);
       console.log("🟢 Expected resume date:", expectedResumeDate);
       console.log("🟢 Request payload:", {
-        reason: pauseForm.reason.trim(),
+        reason: trimmedReason,
         pauseDays: pauseForm.pauseDays,
         expectedResumeDate,
       });
 
       await pauseProject(projectId, {
-        reason: pauseForm.reason.trim(),
+        reason: trimmedReason,
         pauseDays: pauseForm.pauseDays,
         expectedResumeDate,
       });
@@ -1412,7 +1416,7 @@ export const ProjectDetails: React.FC = () => {
           entityType: "PROJECT",
           entityId: projectId,
           type: "STATUS_CHANGE",
-          description: `Project paused from ${pausedFromDate} to ${pausedUntilDate} (${pauseForm.pauseDays} days). Reason: ${pauseForm.reason.trim()}`,
+          description: `Project paused from ${pausedFromDate} to ${pausedUntilDate} (${pauseForm.pauseDays} days). Reason: ${trimmedReason}`,
           metadata: {
             statusChange: {
               from: "ONGOING",
@@ -1420,7 +1424,7 @@ export const ProjectDetails: React.FC = () => {
             },
             action: "pause",
             pauseDays: pauseForm.pauseDays,
-            reason: pauseForm.reason.trim(),
+            reason: trimmedReason,
             pausedFrom: new Date().toISOString(),
             expectedResumeDate,
           },
@@ -1434,6 +1438,7 @@ export const ProjectDetails: React.FC = () => {
       toast.success(`Project paused for ${pauseForm.pauseDays} days`);
       setShowPauseModal(false);
       setPauseForm({ pauseDays: 7, reason: "" });
+      setPauseReasonError("");
       fetchProjectById(projectId);
       // Refresh activities to show the new pause log
       if (projectId) fetchRecentActivities(projectId);
@@ -5131,7 +5136,10 @@ export const ProjectDetails: React.FC = () => {
                   </h3>
                 </div>
                 <button
-                  onClick={() => setShowPauseModal(false)}
+                  onClick={() => {
+                    setShowPauseModal(false);
+                    setPauseReasonError("");
+                  }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
@@ -5213,13 +5221,31 @@ export const ProjectDetails: React.FC = () => {
                   </label>
                   <textarea
                     value={pauseForm.reason}
-                    onChange={(e) =>
-                      setPauseForm({ ...pauseForm, reason: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const nextReason = e.target.value;
+                      setPauseForm({ ...pauseForm, reason: nextReason });
+                      if (pauseReasonError && nextReason.trim()) {
+                        setPauseReasonError("");
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!pauseForm.reason.trim()) {
+                        setPauseReasonError(
+                          "Please add a reason before pausing the project.",
+                        );
+                      }
+                    }}
                     rows={3}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 resize-none"
+                    className={`w-full px-4 py-3 rounded-xl border focus:ring-2 resize-none ${
+                      pauseReasonError
+                        ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                        : "border-gray-200 focus:ring-yellow-500 focus:border-yellow-500"
+                    }`}
                     placeholder="Why is this project being paused?"
                   />
+                  {pauseReasonError && (
+                    <p className="mt-2 text-sm text-red-600">{pauseReasonError}</p>
+                  )}
                 </div>
               </div>
 
@@ -5227,7 +5253,10 @@ export const ProjectDetails: React.FC = () => {
                 <Button
                   variant="secondary"
                   className="flex-1"
-                  onClick={() => setShowPauseModal(false)}
+                  onClick={() => {
+                    setShowPauseModal(false);
+                    setPauseReasonError("");
+                  }}
                   disabled={isPausingProject}
                 >
                   Cancel
