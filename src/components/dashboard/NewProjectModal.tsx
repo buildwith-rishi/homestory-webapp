@@ -188,18 +188,29 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     setTeamMembersLoading(true);
     try {
       const members = await getAllTeamMembers();
-      // Filter to project managers; fall back to all active members if none found
-      const pms = members.filter((m) => {
-        const r = (m.role ?? "").toLowerCase();
-        return (
-          r.includes("project_manager") ||
-          r.includes("project manager") ||
-          r === "pm"
-        );
-      });
-      setTeamMembers(
-        pms.length > 0 ? pms : members.filter((m) => m.isActive !== false),
-      );
+      const isEligiblePM = (member: TeamMember): boolean => {
+        const role = (member.role ?? "").toLowerCase();
+        const status = (member.status ?? "").toLowerCase();
+
+        const isProjectManagerRole =
+          role.includes("project_manager") ||
+          role.includes("project manager") ||
+          role === "pm";
+
+        const isBanned = member.isBanned === true;
+        const isDeactivated =
+          member.isActive === false ||
+          member.isDeactivated === true ||
+          status === "deactivated" ||
+          status === "inactive" ||
+          status === "disabled";
+
+        return isProjectManagerRole && !isBanned && !isDeactivated;
+      };
+
+      // Filter to project managers only, excluding banned/deactivated users.
+      const pms = members.filter(isEligiblePM);
+      setTeamMembers(pms);
     } catch {
       // silently ignore – PM assignment stays optional
     } finally {
@@ -826,7 +837,10 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         }
                         setShowPMDropdown(true);
                       }}
-                      onFocus={() => setShowPMDropdown(true)}
+                      onFocus={() => {
+                        setShowPMDropdown(true);
+                        void fetchTeamMembers();
+                      }}
                       placeholder={
                         teamMembersLoading
                           ? "Loading team members..."

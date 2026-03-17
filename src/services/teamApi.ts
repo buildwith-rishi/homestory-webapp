@@ -13,6 +13,9 @@ export interface TeamMember {
   department: string;
   memberType: string;
   isActive?: boolean;
+  isBanned?: boolean;
+  isDeactivated?: boolean;
+  status?: string;
   createdAt?: string;
   updatedAt?: string;
 }

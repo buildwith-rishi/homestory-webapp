@@ -449,6 +449,7 @@ export interface CreatePaymentRequest {
   percentage: number;
   expectedAmount: number | string;
   invoiceAmount?: number;
+  invoiceNumber?: string;
   projectStageId?: string;
   taxPercentage?: number;
   status?: string;
