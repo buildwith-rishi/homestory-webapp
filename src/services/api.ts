@@ -337,7 +337,7 @@ export const leadsAPI = {
 export const adminAPI = {
   // Get all users
   getAllUsers: async () => {
-    return fetchAPI("/api/users", { method: "GET" });
+    return fetchAPI("/api/users?limit=1000", { method: "GET" });
   },
 
   // Get user by ID
