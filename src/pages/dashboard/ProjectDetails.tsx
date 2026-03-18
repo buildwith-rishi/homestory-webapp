@@ -5060,7 +5060,8 @@ export const ProjectDetails: React.FC = () => {
                       Total Value (₹)
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={editForm.totalValue}
                       onChange={(e) =>
                         setEditForm({ ...editForm, totalValue: e.target.value })

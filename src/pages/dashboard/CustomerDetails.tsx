@@ -51,7 +51,6 @@ import CustomerAPI, {
   Customer as APICustomer,
   type CustomerContact,
   uploadKycDocument,
-  getKycDocuments,
   saveBankDetailsApi,
   getBankDetails,
   type KycDocType,
@@ -779,13 +778,51 @@ export const CustomerDetails: React.FC = () => {
     const fetchKyc = async () => {
       setLoadingKyc(true);
       try {
-        const [docs, savedBank] = await Promise.all([
-          getKycDocuments(customerId),
+        // Fetch all attachments for this account so we can filter for KYC docs
+        // and fetch bank details in parallel
+        const [allAttachments, savedBank] = await Promise.all([
+          listAttachments("ACCOUNT", customerId, 200).catch((err) => {
+            console.error("Failed to list attachments:", err);
+            return [];
+          }),
           getBankDetails(customerId).catch(() => ""),
         ]);
-        setKycAttachments(docs);
+
+        // Filter only KYC-related documents
+        const kycTypes = ["AADHAR", "PAN", "GST_CERTIFICATE"];
+        const kycDocs = allAttachments.filter((a) =>
+          kycTypes.includes(a.attachmentType),
+        );
+
+        // Fetch fresh details for each document to get the signed downloadUrl
+        // This ensures the files don't "disappear" or become inaccessible on refresh
+        const refreshedDocsPromises = kycDocs.map(async (doc) => {
+          try {
+            const fresh = await getAttachment(doc.id);
+            return {
+              ...doc, // keep list props
+              ...fresh, // overwrite with fresh details
+              // Normalize URL fields
+              downloadUrl:
+                fresh.downloadUrl || fresh.url || fresh.fileUrl || fresh.storageUrl,
+              attachmentType: fresh.attachmentType as KycDocType,
+            } as KycDocument;
+          } catch (e) {
+            console.warn(`Failed to refresh details for doc ${doc.id}`, e);
+            // Fallback to the list item, casting type
+            return {
+              ...doc,
+              attachmentType: doc.attachmentType as KycDocType,
+            } as KycDocument;
+          }
+        });
+
+        const refreshedDocs = await Promise.all(refreshedDocsPromises);
+        setKycAttachments(refreshedDocs);
+
         if (savedBank) setBankDetails(savedBank);
-      } catch {
+      } catch (error) {
+        console.error("Error in KYC fetch flow:", error);
         toast.error("Failed to load KYC documents");
       } finally {
         setLoadingKyc(false);
