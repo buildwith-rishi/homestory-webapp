@@ -7,8 +7,6 @@ import type {
 import {
   GripVertical,
   Check,
-  Pencil,
-  Trash2,
   Calendar,
   User,
 } from "lucide-react";
@@ -150,8 +148,6 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
   snapshot,
   theme = "dark",
   onToggleComplete,
-  onEdit,
-  onDelete,
   onClick,
   renderContent,
 }) => {
@@ -394,60 +390,6 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
               )}
             </div>
 
-            {/* Action Buttons */}
-            <div
-              className={`
-                flex items-center gap-0.5 flex-shrink-0
-                opacity-0 group-hover:opacity-100 
-                transition-all duration-300 ease-out
-                ${isDragging ? "opacity-0" : ""}
-              `}
-            >
-              {onEdit && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(task.id);
-                  }}
-                  className={`
-                    p-1.5 rounded-md transition-all duration-200
-                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
-                    active:scale-90 transform
-                    ${
-                      isLight
-                        ? "hover:bg-blue-50 text-gray-400 hover:text-blue-600"
-                        : "hover:bg-blue-500/10 text-gray-500 hover:text-blue-400"
-                    }
-                  `}
-                  title="Edit task"
-                  aria-label="Edit task"
-                >
-                  <Pencil size={12} />
-                </button>
-              )}
-              {onDelete && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(task.id);
-                  }}
-                  className={`
-                    p-1.5 rounded-md transition-all duration-200
-                    focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1
-                    active:scale-90 transform
-                    ${
-                      isLight
-                        ? "hover:bg-red-50 text-gray-400 hover:text-red-600"
-                        : "hover:bg-red-500/10 text-gray-500 hover:text-red-400"
-                    }
-                  `}
-                  title="Delete task"
-                  aria-label="Delete task"
-                >
-                  <Trash2 size={12} />
-                </button>
-              )}
-            </div>
           </div>
         </div>
       </div>

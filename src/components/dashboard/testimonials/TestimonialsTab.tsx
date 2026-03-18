@@ -412,9 +412,9 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
           projectId={projectId}
           designerId={user?.id || ""}
           onClose={() => setShowAddModal(false)}
-          onCreated={(t) => {
-            setTestimonials((prev) => [t, ...prev]);
+          onCreated={() => {
             setShowAddModal(false);
+            void fetchTestimonials();
           }}
         />
       )}

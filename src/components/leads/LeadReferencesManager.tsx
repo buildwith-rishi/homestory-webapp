@@ -12,10 +12,9 @@ import {
   Eye,
   ExternalLink,
   ChevronDown,
-  Download,
 } from "lucide-react";
 import Spinner from "../ui/Spinner";
-import { Button, Badge } from "../ui";
+import { Badge } from "../ui";
 import { LeadReference, ReferenceType } from "../../types";
 import toast from "react-hot-toast";
 import {
@@ -56,14 +55,11 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
   onDeleteReference,
   readOnly = false,
 }) => {
-  const [selectedCategory, setSelectedCategory] =
-    useState<LeadReference["category"]>("Inspiration");
   const [isUploading, setIsUploading] = useState(false);
   const [selectedAttachmentType, setSelectedAttachmentType] =
     useState<AttachmentType>("OTHER");
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [viewingIds, setViewingIds] = useState<Set<string>>(new Set());
-  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
   const [linkTitle, setLinkTitle] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [isAddingLink, setIsAddingLink] = useState(false);
@@ -90,51 +86,6 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
       toast.error("Failed to fetch download URL");
     } finally {
       setViewingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(reference.id);
-        return next;
-      });
-    }
-  };
-
-  // Download the file. Fetches the attachment to get download URL and triggers download.
-  const handleDownload = async (reference: LeadReference) => {
-    if (reference.id.startsWith("ref-")) return; // temp link id, nothing to fetch
-
-    setDownloadingIds((prev) => new Set(prev).add(reference.id));
-    try {
-      let url: string | undefined;
-
-      // If URL is already stored, use it
-      if (reference.url && reference.type !== ReferenceType.LINK) {
-        url = reference.url;
-      } else {
-        // Otherwise fetch the attachment to get a fresh signed downloadUrl
-        const attachment = await getAttachment(reference.id);
-        url = attachment.downloadUrl || attachment.fileUrl;
-      }
-
-      if (!url) {
-        toast.error("Download URL not available");
-        return;
-      }
-
-      // Create a temporary link element and trigger download
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = reference.fileName || reference.title || "download";
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success("Download started");
-    } catch (err) {
-      console.error("Download error:", err);
-      toast.error("Failed to download file");
-    } finally {
-      setDownloadingIds((prev) => {
         const next = new Set(prev);
         next.delete(reference.id);
         return next;
@@ -564,18 +515,6 @@ export const LeadReferencesManager: React.FC<LeadReferencesManagerProps> = ({
                               <Spinner size="xs" color="muted" />
                             ) : (
                               <Eye className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleDownload(reference)}
-                            disabled={downloadingIds.has(reference.id)}
-                            className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 disabled:opacity-40 transition-colors"
-                            title="Download"
-                          >
-                            {downloadingIds.has(reference.id) ? (
-                              <Spinner size="xs" color="muted" />
-                            ) : (
-                              <Download className="w-3.5 h-3.5" />
                             )}
                           </button>
                         </>
