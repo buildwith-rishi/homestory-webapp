@@ -96,6 +96,15 @@ const formatCurrency = (value: number): string => {
   return `₹${value}`;
 };
 
+// Helper function to format currency exactly
+const formatCurrencyExact = (value: number): string => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
 type PaymentDocumentListItem = {
   url: string;
   fileName: string;
@@ -1761,7 +1770,9 @@ export const ProjectDetails: React.FC = () => {
                 TOTAL VALUE
               </p>
               <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(parseFloat(String(project.totalValue)) || 0)}
+                {formatCurrencyExact(
+                  parseFloat(String(project.totalValue)) || 0,
+                )}
               </p>
             </div>
 
@@ -2279,7 +2290,7 @@ export const ProjectDetails: React.FC = () => {
                   <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
                     <span className="text-sm text-gray-600">Total Value</span>
                     <span className="font-bold text-gray-900">
-                      {formatCurrency(
+                      {formatCurrencyExact(
                         parseFloat(String(project.totalValue)) || 0,
                       )}
                     </span>
@@ -2287,13 +2298,13 @@ export const ProjectDetails: React.FC = () => {
                   <div className="flex justify-between items-center p-2 rounded-lg bg-green-50">
                     <span className="text-sm text-green-700">Collected</span>
                     <span className="font-bold text-green-600">
-                      {formatCurrency(paymentTotals.totalPaid)}
+                      {formatCurrencyExact(paymentTotals.totalPaid)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-2 rounded-lg bg-orange-50">
                     <span className="text-sm text-orange-700">Pending</span>
                     <span className="font-bold text-orange-600">
-                      {formatCurrency(paymentTotals.totalPending)}
+                      {formatCurrencyExact(paymentTotals.totalPending)}
                     </span>
                   </div>
                 </div>
@@ -2867,7 +2878,7 @@ export const ProjectDetails: React.FC = () => {
                       Collected
                     </p>
                     <p className="text-3xl font-bold text-green-600">
-                      {formatCurrency(paymentTotals.totalPaid)}
+                      {formatCurrencyExact(paymentTotals.totalPaid)}
                     </p>
                   </Card>
                   <Card className="p-4 bg-gradient-to-br from-orange-50 to-amber-50/50 border-orange-200/50 shadow-sm">
@@ -2875,7 +2886,7 @@ export const ProjectDetails: React.FC = () => {
                       Pending
                     </p>
                     <p className="text-3xl font-bold text-orange-600">
-                      {formatCurrency(paymentTotals.totalPending)}
+                      {formatCurrencyExact(paymentTotals.totalPending)}
                     </p>
                   </Card>
                 </div>
@@ -2986,7 +2997,7 @@ export const ProjectDetails: React.FC = () => {
                       <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
                       <span className="text-gray-500">Collected:</span>
                       <span className="font-semibold text-gray-900">
-                        {formatCurrency(phasePaid)}
+                        {formatCurrencyExact(phasePaid)}
                       </span>
                     </div>
                     <div className="text-gray-300">|</div>
@@ -2994,7 +3005,7 @@ export const ProjectDetails: React.FC = () => {
                       <span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" />
                       <span className="text-gray-500">Pending:</span>
                       <span className="font-semibold text-gray-900">
-                        {formatCurrency(phasePending)}
+                        {formatCurrencyExact(phasePending)}
                       </span>
                     </div>
                     <div className="text-gray-300">|</div>
