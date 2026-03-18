@@ -733,13 +733,7 @@ export const DashboardOverview: React.FC = () => {
                         Your schedule for today
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate("/dashboard/meetings/calendar")}
-                    >
-                      View Calendar →
-                    </Button>
+
                   </div>
                   <div className="p-4 space-y-3">
                     {meetingsLoading ? (

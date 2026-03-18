@@ -29,8 +29,8 @@ import {
 import { EngineerDetails } from "./pages/dashboard/EngineerDetails";
 import LeadDetails from "./pages/dashboard/LeadDetails";
 import { MeetingRoom } from "./pages/dashboard/MeetingRoom";
-import { MeetingsCalendarPage } from "./pages/dashboard/MeetingsCalendar";
 import { InstagramPage } from "./pages/instagram";
+
 import { MobileAppShell } from "./components/mobile/MobileAppShell";
 import {
   EngineerHome,
@@ -143,14 +143,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="meetings/calendar"
-              element={
-                <ProtectedRoute requiredPermission="meetings.read">
-                  <MeetingsCalendarPage />
-                </ProtectedRoute>
-              }
-            />
+
 
             {/* Customers / Contacts */}
             <Route
