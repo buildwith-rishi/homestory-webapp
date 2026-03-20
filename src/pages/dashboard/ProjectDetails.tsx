@@ -318,6 +318,10 @@ export const ProjectDetails: React.FC = () => {
   const [invoiceSendMode, setInvoiceSendMode] =
     useState<"invoice" | "proforma">("invoice");
   const [isSendingInvoice, setIsSendingInvoice] = useState(false);
+  const [showInvoiceSentSuccessModal, setShowInvoiceSentSuccessModal] =
+    useState(false);
+  const [invoiceSentSuccessMessage, setInvoiceSentSuccessMessage] =
+    useState("");
   const [sendInvoiceForm, setSendInvoiceForm] = useState({
     toEmail: "",
     ccEmails: "",
@@ -328,9 +332,11 @@ export const ProjectDetails: React.FC = () => {
     bankName: "",
     upiId: "",
     customMessage: "",
-    attachmentFileName: "",
-    attachmentFileType: "",
-    attachmentFileBase64: "",
+    attachments: [] as Array<{
+      fileName: string;
+      fileType: string;
+      fileBase64: string;
+    }>,
   });
 
   // Upload Document modal state
@@ -859,9 +865,7 @@ export const ProjectDetails: React.FC = () => {
       toEmail,
       ccEmails: "",
       toName,
-      attachmentFileName: "",
-      attachmentFileType: "",
-      attachmentFileBase64: "",
+      attachments: [],
       customMessage:
         mode === "proforma"
           ? `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`
@@ -873,24 +877,41 @@ export const ProjectDetails: React.FC = () => {
   const handleSendInvoiceFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      if (!base64) {
-        toast.error("Failed to process selected file");
-        return;
-      }
-      setSendInvoiceForm((prev) => ({
-        ...prev,
-        attachmentFileName: file.name,
-        attachmentFileType: file.type || "application/octet-stream",
-        attachmentFileBase64: base64,
-      }));
-    };
-    reader.readAsDataURL(file);
+    const readFileAsBase64 =
+      (file: File) =>
+      new Promise<{ fileName: string; fileType: string; fileBase64: string }>(
+        (resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = (reader.result as string).split(",")[1];
+            if (!base64) {
+              reject(new Error("Failed to process selected file"));
+              return;
+            }
+            resolve({
+              fileName: file.name,
+              fileType: file.type || "application/octet-stream",
+              fileBase64: base64,
+            });
+          };
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        },
+      );
+
+    void Promise.all(files.map(readFileAsBase64))
+      .then((encodedFiles) => {
+        setSendInvoiceForm((prev) => ({
+          ...prev,
+          attachments: [...prev.attachments, ...encodedFiles],
+        }));
+      })
+      .catch(() => {
+        toast.error("Failed to process selected files");
+      });
 
     // Allow re-selecting the same file.
     e.target.value = "";
@@ -922,6 +943,8 @@ export const ProjectDetails: React.FC = () => {
       new Set(rawCcEmails.map((email) => email.toLowerCase())),
     ).filter((email) => email !== toEmail.toLowerCase());
 
+    const attachments = sendInvoiceForm.attachments;
+
     if (
       invoiceSendMode === "invoice" &&
       (!sendInvoiceForm.accountNumber ||
@@ -933,20 +956,12 @@ export const ProjectDetails: React.FC = () => {
     }
     setIsSendingInvoice(true);
     try {
-      if (sendInvoiceForm.attachmentFileBase64) {
-        await uploadPaymentDocument(invoiceTargetPayment.id, {
-          fileName: sendInvoiceForm.attachmentFileName,
-          fileType: sendInvoiceForm.attachmentFileType,
-          fileBase64: sendInvoiceForm.attachmentFileBase64,
-          documentType: "invoice",
-        });
-      }
-
       const invoicePayload = {
         toEmail,
         toName,
         customMessage: sendInvoiceForm.customMessage || undefined,
-        ...(ccEmails.length ? { ccEmails } : {}),
+        cc: ccEmails,
+        attachments,
         ...(invoiceSendMode === "invoice"
           ? {
               bankDetails: {
@@ -959,12 +974,17 @@ export const ProjectDetails: React.FC = () => {
             }
           : {}),
       };
-      await sendPaymentInvoice(invoiceTargetPayment.id, invoicePayload);
-      toast.success(
-        invoiceSendMode === "proforma"
-          ? "Proforma invoice sent successfully!"
-          : "Invoice sent successfully!",
+      const response = await sendPaymentInvoice(
+        invoiceTargetPayment.id,
+        invoicePayload,
       );
+      setInvoiceSentSuccessMessage(
+        response.message ||
+          (invoiceSendMode === "proforma"
+            ? "Proforma invoice email has been sent successfully."
+            : "Invoice email has been sent successfully."),
+      );
+      setShowInvoiceSentSuccessModal(true);
       setShowSendInvoiceModal(false);
     } catch {
       toast.error(
@@ -4062,43 +4082,53 @@ export const ProjectDetails: React.FC = () => {
                     </span>
                   </label>
                   <div className="border border-dashed border-gray-300 rounded-xl p-3 bg-gray-50/60">
-                    {sendInvoiceForm.attachmentFileName ? (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                          <span className="text-sm text-gray-700 truncate">
-                            {sendInvoiceForm.attachmentFileName}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSendInvoiceForm((prev) => ({
-                              ...prev,
-                              attachmentFileName: "",
-                              attachmentFileType: "",
-                              attachmentFileBase64: "",
-                            }))
-                          }
-                          className="text-xs font-medium text-red-600 hover:text-red-700"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                    <div className="flex flex-col gap-2">
+                      {sendInvoiceForm.attachments.length > 0 &&
+                        sendInvoiceForm.attachments.map((file, index) => (
+                          <div
+                            key={`${file.fileName}-${index}`}
+                            className="flex items-center justify-between gap-3"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-700 truncate">
+                                {file.fileName}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSendInvoiceForm((prev) => ({
+                                  ...prev,
+                                  attachments: prev.attachments.filter(
+                                    (_, i) => i !== index,
+                                  ),
+                                }))
+                              }
+                              className="text-xs font-medium text-red-600 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+
+                      <label className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer w-fit">
                         <Upload className="w-4 h-4" />
-                        Choose File
+                        {sendInvoiceForm.attachments.length > 0
+                          ? "Add More Files"
+                          : "Choose File"}
                         <input
                           type="file"
                           className="hidden"
+                          multiple
+                          accept="image/*,.pdf,.doc,.docx"
                           onChange={handleSendInvoiceFileChange}
                         />
                       </label>
-                    )}
+                    </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    Selected file will be uploaded with this invoice send action.
+                    Selected files will be sent as attachments with this invoice email.
                   </p>
                 </div>
                 {invoiceSendMode === "invoice" && (
@@ -4246,6 +4276,38 @@ export const ProjectDetails: React.FC = () => {
                       : "Send Invoice"}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInvoiceSentSuccessModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Email Sent Successfully
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {invoiceSentSuccessMessage}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => {
+                  setShowInvoiceSentSuccessModal(false);
+                  setInvoiceSentSuccessMessage("");
+                }}
+              >
+                Okay
+              </Button>
             </div>
           </div>
         </div>
