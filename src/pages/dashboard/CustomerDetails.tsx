@@ -155,6 +155,7 @@ interface Customer {
   projectsCount?: number;
   createdAt?: string;
   updatedAt?: string;
+  convertedFromLead?: APICustomer["convertedFromLead"] | null;
 }
 
 // Mock data - in production, this would come from API
@@ -302,6 +303,121 @@ const statusColors = {
   inactive: { bg: "bg-gray-50", text: "text-gray-700", dot: "bg-gray-500" },
 };
 
+const toCurrencyNumber = (value: unknown): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.replace(/[^\d.-]/g, "");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+const LEAD_REFERENCE_RENDERED_KEYS = new Set([
+  "id",
+  "name",
+  "email",
+  "phone",
+  "source",
+  "status",
+  "stage",
+  "score",
+  "priority",
+  "createdAt",
+  "updatedAt",
+  "message",
+  "requirements",
+  "notes",
+  "projectType",
+  "propertyProjectType",
+  "propertyType",
+  "homeType",
+  "bhkConfig",
+  "carpetArea",
+  "area",
+  "city",
+  "locality",
+  "location",
+  "projectStage",
+  "projectScope",
+  "scopeOfWork",
+  "servicesInterested",
+  "budget",
+  "budgetRange",
+  "budgetComfort",
+  "timeline",
+  "startTimeline",
+  "expectedStartDate",
+  "moveinDate",
+  "serviceInterest",
+  "designStyle",
+  "colorPreferences",
+  "referrerName",
+  "referrerPhone",
+  "referrerProjectNumber",
+  "agentAgencyName",
+  "agentAgencyDetails",
+  "contacts",
+  "stageHistory",
+  "activities",
+  "convertedToAccount",
+  "inspirationImages",
+  "references",
+]);
+
+const isLeadReferenceMeaningful = (value: unknown): boolean => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+};
+
+const formatLeadReferenceLabel = (key: string): string =>
+  key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const formatLeadReferenceValue = (value: unknown): string => {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) =>
+        typeof item === "object" && item !== null
+          ? JSON.stringify(item)
+          : String(item),
+      )
+      .join(", ");
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value, null, 2);
+  }
+
+  return String(value);
+};
+
+const getAdditionalLeadReferenceFields = (
+  lead: LeadOption | null,
+): Array<{ key: string; value: unknown }> => {
+  if (!lead) return [];
+
+  return Object.entries(lead)
+    .filter(
+      ([key, value]) =>
+        !LEAD_REFERENCE_RENDERED_KEYS.has(key) &&
+        isLeadReferenceMeaningful(value),
+    )
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => ({ key, value }));
+};
+
 const rankingColors = {
   vip: { bg: "bg-purple-100", text: "text-purple-700", icon: "👑" },
   niche: { bg: "bg-orange-100", text: "text-orange-700", icon: "⭐" },
@@ -331,11 +447,20 @@ export const CustomerDetails: React.FC = () => {
 
   // Contact info edit state
   const [contactEditForm, setContactEditForm] = useState<{
+    email: string;
+    phone: string;
     secondaryEmails: string[];
     secondaryPhones: string[];
     newEmail: string;
     newPhone: string;
-  }>({ secondaryEmails: [], secondaryPhones: [], newEmail: "", newPhone: "" });
+  }>({
+    email: "",
+    phone: "",
+    secondaryEmails: [],
+    secondaryPhones: [],
+    newEmail: "",
+    newPhone: "",
+  });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -526,9 +651,15 @@ export const CustomerDetails: React.FC = () => {
         const primaryContact =
           apiContacts.find((c) => c.isPrimary) || apiContacts[0];
         const customerEmail =
-          primaryContact?.email || apiCustomer.convertedFromLead?.email || "";
+          apiCustomer.email ||
+          primaryContact?.email ||
+          apiCustomer.convertedFromLead?.email ||
+          "";
         const customerPhone =
-          primaryContact?.phone || apiCustomer.convertedFromLead?.phone || "";
+          apiCustomer.phone ||
+          primaryContact?.phone ||
+          apiCustomer.convertedFromLead?.phone ||
+          "";
 
         // Map family members from API
         const apiFamilyMembers: FamilyMember[] = (
@@ -574,6 +705,11 @@ export const CustomerDetails: React.FC = () => {
             progress: p.progress || 0,
           }),
         );
+        const embeddedProjectTotalValue = (apiCustomer.projects || []).reduce(
+          (sum: number, project: any) =>
+            sum + toCurrencyNumber(project?.totalValue),
+          0,
+        );
 
         console.log("Raw API projects:", apiCustomer.projects);
         console.log("Mapped projects:", apiProjects);
@@ -608,7 +744,7 @@ export const CustomerDetails: React.FC = () => {
           phone: customerPhone,
           location,
           projects: apiCustomer._count?.projects || apiProjects.length || 0,
-          totalValue: 0,
+          totalValue: embeddedProjectTotalValue,
           status:
             (apiCustomer.status?.toLowerCase() as
               | "active"
@@ -664,6 +800,7 @@ export const CustomerDetails: React.FC = () => {
             apiCustomer._count?.projects || apiProjects.length || 0,
           createdAt: apiCustomer.createdAt,
           updatedAt: apiCustomer.updatedAt,
+          convertedFromLead: apiCustomer.convertedFromLead || null,
         };
 
         setCustomerData(mappedCustomer);
@@ -915,9 +1052,9 @@ export const CustomerDetails: React.FC = () => {
     }
   };
 
-  // Fetch lead reference data when the references tab is active
+  // Fetch lead reference data when overview/references needs it
   useEffect(() => {
-    if (activeTab !== "references") return;
+    if (activeTab !== "references" && activeTab !== "overview") return;
     const leadId = customerData?.leadId;
     if (!leadId) return;
     if (leadReferenceData || loadingLeadReferences) return; // already loaded
@@ -932,6 +1069,9 @@ export const CustomerDetails: React.FC = () => {
 
         const lead =
           leadResult.status === "fulfilled" ? leadResult.value : null;
+        const fallbackLeadFromCustomer =
+          (customerData?.convertedFromLead as unknown as LeadOption | null) ||
+          null;
         const rawAttachments =
           attachmentsResult.status === "fulfilled" ? attachmentsResult.value : [];
 
@@ -947,7 +1087,7 @@ export const CustomerDetails: React.FC = () => {
         const attachments = rawAttachments.filter(
           (a) => a.entityId === leadId,
         );
-        setLeadReferenceData(lead);
+        setLeadReferenceData(lead || fallbackLeadFromCustomer);
         setLeadAttachments(attachments);
       } catch (err) {
         console.error("Failed to load lead reference data:", err);
@@ -961,6 +1101,7 @@ export const CustomerDetails: React.FC = () => {
   }, [
     activeTab,
     customerData?.leadId,
+    customerData?.convertedFromLead,
     leadReferenceData,
     loadingLeadReferences,
   ]);
@@ -995,8 +1136,8 @@ export const CustomerDetails: React.FC = () => {
           if (!prev) return prev;
           return {
             ...prev,
-            email: primaryContact.email || prev.email || "No email provided",
-            phone: primaryContact.phone || prev.phone || "No phone provided",
+            email: primaryContact.email || prev.email || "",
+            phone: primaryContact.phone || prev.phone || "",
           };
         });
       }
@@ -1020,8 +1161,26 @@ export const CustomerDetails: React.FC = () => {
 
       setProjectsLoading(true);
       try {
-        const response = await listProjects({ accountId: customerData.id });
+        const response = await listProjects({
+          accountId: String(customerData.id),
+          limit: 5000,
+        });
         setCustomerProjects(response.projects);
+        const totalValueFromProjects = (response.projects || []).reduce(
+          (sum, project) => sum + toCurrencyNumber(project.totalValue),
+          0,
+        );
+        const projectCount = response.projects?.length || 0;
+        setCustomerData((prev) =>
+          prev
+            ? {
+                ...prev,
+                projects: projectCount,
+                projectsCount: projectCount,
+                totalValue: totalValueFromProjects,
+              }
+            : prev,
+        );
         console.log(
           `Found ${response.projects.length} projects for customer:`,
           response.projects,
@@ -1040,6 +1199,8 @@ export const CustomerDetails: React.FC = () => {
   }, [customerData?.id]);
 
   const customer = customerData;
+  const additionalLeadReferenceFields =
+    getAdditionalLeadReferenceFields(leadReferenceData);
 
   // Save customer data to backend
   const handleSaveCustomer = async (updates: Partial<Customer>) => {
@@ -1060,6 +1221,14 @@ export const CustomerDetails: React.FC = () => {
         apiUpdates.status = updates.status.toUpperCase();
       if (updates.type !== undefined)
         apiUpdates.type = updates.type.toUpperCase();
+      if (updates.email !== undefined) {
+        const normalizedEmail = updates.email.trim();
+        apiUpdates.email = normalizedEmail.length > 0 ? normalizedEmail : null;
+      }
+      if (updates.phone !== undefined) {
+        const normalizedPhone = updates.phone.trim();
+        apiUpdates.phone = normalizedPhone.length > 0 ? normalizedPhone : null;
+      }
       if (updates.notes !== undefined) {
         apiUpdates.notes =
           updates.notes && updates.notes.length > 0
@@ -1401,14 +1570,45 @@ export const CustomerDetails: React.FC = () => {
 
   if (loadingCustomer) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
-            <div className="w-8 h-8 border-3 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen w-full bg-gradient-to-br from-orange-50/30 via-gray-50 to-white py-6">
+        <div className="max-w-7xl mx-auto px-4 space-y-6 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="h-6 w-44 rounded-lg bg-gray-200" />
+            <div className="h-9 w-32 rounded-xl bg-gray-200" />
           </div>
-          <p className="text-gray-600 font-medium">
-            Loading customer details...
-          </p>
+
+          <div className="bg-white border border-gray-200/80 rounded-2xl p-6 space-y-5">
+            <div className="flex items-start justify-between">
+              <div className="space-y-3">
+                <div className="h-9 w-72 rounded-xl bg-gray-200" />
+                <div className="h-5 w-56 rounded-lg bg-gray-200" />
+              </div>
+              <div className="h-8 w-24 rounded-full bg-gray-200" />
+            </div>
+            <div className="grid grid-cols-3 gap-4 pt-2">
+              <div className="h-20 rounded-xl bg-gray-100" />
+              <div className="h-20 rounded-xl bg-gray-100" />
+              <div className="h-20 rounded-xl bg-gray-100" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="h-56 rounded-2xl bg-white border border-gray-200/80" />
+              <div className="h-64 rounded-2xl bg-white border border-gray-200/80" />
+            </div>
+            <div className="space-y-6">
+              <div className="h-44 rounded-2xl bg-white border border-gray-200/80" />
+              <div className="h-44 rounded-2xl bg-white border border-gray-200/80" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-3 text-gray-500">
+            <div className="w-6 h-6 rounded-full border-2 border-orange-400 border-t-transparent animate-spin" />
+            <p className="text-sm font-medium tracking-wide">
+              Loading customer details...
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -1946,12 +2146,16 @@ export const CustomerDetails: React.FC = () => {
                     onClick={async () => {
                       if (editingTab === "overview") {
                         const success = await handleSaveCustomer({
+                          email: contactEditForm.email,
+                          phone: contactEditForm.phone,
                           secondaryEmails: contactEditForm.secondaryEmails,
                           secondaryPhones: contactEditForm.secondaryPhones,
                         });
                         if (success !== false) setEditingTab(null);
                       } else {
                         setContactEditForm({
+                          email: customer.email || "",
+                          phone: customer.phone || "",
                           secondaryEmails: customer.secondaryEmails || [],
                           secondaryPhones: customer.secondaryPhones || [],
                           newEmail: "",
@@ -2083,32 +2287,46 @@ export const CustomerDetails: React.FC = () => {
                 {/* EDIT MODE */}
                 {editingTab === "overview" && (
                   <div className="space-y-5">
-                    {/* Read-only primary fields */}
+                    {/* Editable primary fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
-                        <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
-                          <Mail className="w-4 h-4 text-orange-500" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs text-gray-400 font-medium">
-                            Primary Email
-                          </p>
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {customer.email || "Not provided"}
-                          </p>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Primary Email
+                        </label>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl focus-within:border-orange-400 focus-within:ring-1 focus-within:ring-orange-100">
+                          <Mail className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
+                          <input
+                            type="email"
+                            value={contactEditForm.email}
+                            onChange={(e) =>
+                              setContactEditForm((prev) => ({
+                                ...prev,
+                                email: e.target.value,
+                              }))
+                            }
+                            placeholder="Primary email"
+                            className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
+                          />
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
-                        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                          <Phone className="w-4 h-4 text-blue-500" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs text-gray-400 font-medium">
-                            Primary Phone
-                          </p>
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {customer.phone || "Not provided"}
-                          </p>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Primary Phone
+                        </label>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100">
+                          <Phone className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                          <input
+                            type="tel"
+                            value={contactEditForm.phone}
+                            onChange={(e) =>
+                              setContactEditForm((prev) => ({
+                                ...prev,
+                                phone: e.target.value,
+                              }))
+                            }
+                            placeholder="Primary phone"
+                            className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
+                          />
                         </div>
                       </div>
                     </div>
@@ -3178,7 +3396,8 @@ export const CustomerDetails: React.FC = () => {
             </div>
           )}
 
-          {activeTab === "references" && (
+          {(activeTab === "references" ||
+            (activeTab === "overview" && customerData?.leadId)) && (
             <div className="space-y-6">
               {loadingLeadReferences ? (
                 <div className="bg-white border border-gray-200/80 rounded-2xl p-12 text-center">
@@ -3199,8 +3418,10 @@ export const CustomerDetails: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {/* Lead Origin Info */}
-                  <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                  {activeTab === "overview" && (
+                    <>
+                      {/* Lead Origin Info */}
+                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
                     <div className="flex items-center gap-2 mb-5">
                       <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
                         <Tag className="w-4 h-4 text-orange-600" />
@@ -3302,10 +3523,10 @@ export const CustomerDetails: React.FC = () => {
                         </p>
                       </div>
                     )}
-                  </div>
+                      </div>
 
-                  {/* Project Requirements */}
-                  {(leadReferenceData?.projectType ||
+                      {/* Project Requirements */}
+                      {(leadReferenceData?.projectType ||
                     leadReferenceData?.propertyType ||
                     leadReferenceData?.bhkConfig ||
                     leadReferenceData?.carpetArea ||
@@ -3317,7 +3538,7 @@ export const CustomerDetails: React.FC = () => {
                     leadReferenceData?.projectScope ||
                     leadReferenceData?.projectStage ||
                     leadReferenceData?.area) && (
-                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
                       <div className="flex items-center gap-2 mb-5">
                         <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
                           <Home className="w-4 h-4 text-blue-600" />
@@ -3472,18 +3693,18 @@ export const CustomerDetails: React.FC = () => {
                             </div>
                           </div>
                         )}
-                    </div>
-                  )}
+                        </div>
+                      )}
 
-                  {/* Budget & Timeline */}
-                  {(leadReferenceData?.budget ||
+                      {/* Budget & Timeline */}
+                      {(leadReferenceData?.budget ||
                     leadReferenceData?.budgetRange ||
                     leadReferenceData?.budgetComfort ||
                     leadReferenceData?.timeline ||
                     leadReferenceData?.startTimeline ||
                     leadReferenceData?.expectedStartDate ||
                     leadReferenceData?.moveinDate) && (
-                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
                       <div className="flex items-center gap-2 mb-5">
                         <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
                           <DollarSign className="w-4 h-4 text-green-600" />
@@ -3568,14 +3789,14 @@ export const CustomerDetails: React.FC = () => {
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
+                        </div>
+                      )}
 
-                  {/* Design Preferences */}
-                  {(leadReferenceData?.designStyle?.length ||
+                      {/* Design Preferences */}
+                      {(leadReferenceData?.designStyle?.length ||
                     leadReferenceData?.colorPreferences?.length ||
                     leadReferenceData?.serviceInterest) && (
-                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
                       <div className="flex items-center gap-2 mb-5">
                         <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
                           <Layers className="w-4 h-4 text-purple-600" />
@@ -3632,15 +3853,15 @@ export const CustomerDetails: React.FC = () => {
                             </div>
                           </div>
                         )}
-                    </div>
-                  )}
+                        </div>
+                      )}
 
-                  {/* Referral Info */}
-                  {(leadReferenceData?.referrerName ||
+                      {/* Referral Info */}
+                      {(leadReferenceData?.referrerName ||
                     leadReferenceData?.referrerPhone ||
                     leadReferenceData?.referrerProjectNumber ||
                     leadReferenceData?.agentAgencyName) && (
-                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
                       <div className="flex items-center gap-2 mb-5">
                         <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
                           <UserPlus className="w-4 h-4 text-teal-600" />
@@ -3701,7 +3922,49 @@ export const CustomerDetails: React.FC = () => {
                           </div>
                         )}
                       </div>
-                    </div>
+                        </div>
+                      )}
+
+                      {additionalLeadReferenceFields.length > 0 && (
+                        <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                          <div className="flex items-center gap-2 mb-5">
+                            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                              <Info className="w-4 h-4 text-amber-700" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                              Additional Lead Details
+                            </h3>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {additionalLeadReferenceFields.map(
+                              ({ key, value }) => {
+                                const isJsonObject =
+                                  typeof value === "object" &&
+                                  value !== null &&
+                                  !Array.isArray(value);
+
+                                return (
+                                  <div key={key}>
+                                    <p className="text-xs text-gray-400 mb-0.5">
+                                      {formatLeadReferenceLabel(key)}
+                                    </p>
+                                    {isJsonObject ? (
+                                      <pre className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all">
+                                        {formatLeadReferenceValue(value)}
+                                      </pre>
+                                    ) : (
+                                      <p className="text-sm font-medium text-gray-800 break-words">
+                                        {formatLeadReferenceValue(value)}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Uploaded Documents & Attachments */}
@@ -3711,7 +3974,9 @@ export const CustomerDetails: React.FC = () => {
                         <File className="w-4 h-4 text-gray-600" />
                       </div>
                       <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                        Documents & Attachments
+                        {activeTab === "references"
+                          ? "Uploaded References"
+                          : "Documents & Attachments"}
                       </h3>
                       <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                         {leadAttachments.length} file

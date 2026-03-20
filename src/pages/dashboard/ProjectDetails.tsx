@@ -105,6 +105,14 @@ const formatCurrencyExact = (value: number): string => {
   }).format(value);
 };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const parseEmailList = (value: string): string[] =>
+  value
+    .split(/[\s,;]+/)
+    .map((email) => email.trim())
+    .filter(Boolean);
+
 type PaymentDocumentListItem = {
   url: string;
   fileName: string;
@@ -307,9 +315,12 @@ export const ProjectDetails: React.FC = () => {
   const [showSendInvoiceModal, setShowSendInvoiceModal] = useState(false);
   const [invoiceTargetPayment, setInvoiceTargetPayment] =
     useState<ProjectPayment | null>(null);
+  const [invoiceSendMode, setInvoiceSendMode] =
+    useState<"invoice" | "proforma">("invoice");
   const [isSendingInvoice, setIsSendingInvoice] = useState(false);
   const [sendInvoiceForm, setSendInvoiceForm] = useState({
     toEmail: "",
+    ccEmails: "",
     toName: "",
     accountName: "GoodHomeStory Interiors Pvt Ltd",
     accountNumber: "",
@@ -317,6 +328,9 @@ export const ProjectDetails: React.FC = () => {
     bankName: "",
     upiId: "",
     customMessage: "",
+    attachmentFileName: "",
+    attachmentFileType: "",
+    attachmentFileBase64: "",
   });
 
   // Upload Document modal state
@@ -389,6 +403,7 @@ export const ProjectDetails: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     projectName: "",
+    leadId: "",
     pipelineType: "",
     projectCategory: "",
     scopeType: "",
@@ -415,8 +430,16 @@ export const ProjectDetails: React.FC = () => {
     designPackage: "",
     design3DStatus: "",
     moodBoardShared: false,
+    numberOfMeetings: "",
+    currentStageCode: "",
+    currentPhase: "",
     totalValue: "",
+    designValue: "",
+    executionValue: "",
     paidAmount: "",
+    billingAddress: "",
+    pauseReason: "",
+    cancellationReason: "",
     remarks: "",
     status: "",
   });
@@ -808,8 +831,12 @@ export const ProjectDetails: React.FC = () => {
   };
 
   // Handle Send Invoice
-  const handleOpenSendInvoice = async (payment: ProjectPayment) => {
+  const handleOpenSendInvoice = async (
+    payment: ProjectPayment,
+    mode: "invoice" | "proforma" = "invoice",
+  ) => {
     setInvoiceTargetPayment(payment);
+    setInvoiceSendMode(mode);
     let toEmail = project?.lead?.email || project?.account?.email || "";
     let toName = project?.lead?.name || project?.account?.name || "";
     if (!toEmail && project?.leadId) {
@@ -830,44 +857,121 @@ export const ProjectDetails: React.FC = () => {
     setSendInvoiceForm((prev) => ({
       ...prev,
       toEmail,
+      ccEmails: "",
       toName,
-      customMessage: `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`,
+      attachmentFileName: "",
+      attachmentFileType: "",
+      attachmentFileBase64: "",
+      customMessage:
+        mode === "proforma"
+          ? `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`
+          : `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`,
     }));
     setShowSendInvoiceModal(true);
   };
 
+  const handleSendInvoiceFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      if (!base64) {
+        toast.error("Failed to process selected file");
+        return;
+      }
+      setSendInvoiceForm((prev) => ({
+        ...prev,
+        attachmentFileName: file.name,
+        attachmentFileType: file.type || "application/octet-stream",
+        attachmentFileBase64: base64,
+      }));
+    };
+    reader.readAsDataURL(file);
+
+    // Allow re-selecting the same file.
+    e.target.value = "";
+  };
+
   const handleSendInvoice = async () => {
     if (!invoiceTargetPayment) return;
-    if (!sendInvoiceForm.toEmail || !sendInvoiceForm.toName) {
+    const toEmail = sendInvoiceForm.toEmail.trim();
+    const toName = sendInvoiceForm.toName.trim();
+    if (!toEmail || !toName) {
       toast.error("Please fill in recipient email and name");
       return;
     }
+    if (!EMAIL_REGEX.test(toEmail)) {
+      toast.error("Please enter a valid recipient email");
+      return;
+    }
+
+    const rawCcEmails = parseEmailList(sendInvoiceForm.ccEmails);
+    const invalidCcEmails = rawCcEmails.filter(
+      (email) => !EMAIL_REGEX.test(email),
+    );
+    if (invalidCcEmails.length > 0) {
+      toast.error(`Invalid CC email: ${invalidCcEmails[0]}`);
+      return;
+    }
+
+    const ccEmails = Array.from(
+      new Set(rawCcEmails.map((email) => email.toLowerCase())),
+    ).filter((email) => email !== toEmail.toLowerCase());
+
     if (
-      !sendInvoiceForm.accountNumber ||
-      !sendInvoiceForm.ifscCode ||
-      !sendInvoiceForm.bankName
+      invoiceSendMode === "invoice" &&
+      (!sendInvoiceForm.accountNumber ||
+        !sendInvoiceForm.ifscCode ||
+        !sendInvoiceForm.bankName)
     ) {
       toast.error("Please fill in bank details");
       return;
     }
     setIsSendingInvoice(true);
     try {
-      await sendPaymentInvoice(invoiceTargetPayment.id, {
-        toEmail: sendInvoiceForm.toEmail,
-        toName: sendInvoiceForm.toName,
-        bankDetails: {
-          accountName: sendInvoiceForm.accountName,
-          accountNumber: sendInvoiceForm.accountNumber,
-          ifscCode: sendInvoiceForm.ifscCode,
-          bankName: sendInvoiceForm.bankName,
-          upiId: sendInvoiceForm.upiId || undefined,
-        },
+      if (sendInvoiceForm.attachmentFileBase64) {
+        await uploadPaymentDocument(invoiceTargetPayment.id, {
+          fileName: sendInvoiceForm.attachmentFileName,
+          fileType: sendInvoiceForm.attachmentFileType,
+          fileBase64: sendInvoiceForm.attachmentFileBase64,
+          documentType: "invoice",
+        });
+      }
+
+      const invoicePayload = {
+        toEmail,
+        toName,
         customMessage: sendInvoiceForm.customMessage || undefined,
-      });
-      toast.success("Invoice sent successfully!");
+        ...(ccEmails.length ? { ccEmails } : {}),
+        ...(invoiceSendMode === "invoice"
+          ? {
+              bankDetails: {
+                accountName: sendInvoiceForm.accountName,
+                accountNumber: sendInvoiceForm.accountNumber,
+                ifscCode: sendInvoiceForm.ifscCode,
+                bankName: sendInvoiceForm.bankName,
+                upiId: sendInvoiceForm.upiId || undefined,
+              },
+            }
+          : {}),
+      };
+      await sendPaymentInvoice(invoiceTargetPayment.id, invoicePayload);
+      toast.success(
+        invoiceSendMode === "proforma"
+          ? "Proforma invoice sent successfully!"
+          : "Invoice sent successfully!",
+      );
       setShowSendInvoiceModal(false);
     } catch {
-      toast.error("Failed to send invoice");
+      toast.error(
+        invoiceSendMode === "proforma"
+          ? "Failed to send proforma invoice"
+          : "Failed to send invoice",
+      );
     } finally {
       setIsSendingInvoice(false);
     }
@@ -1079,6 +1183,7 @@ export const ProjectDetails: React.FC = () => {
     if (!currentProject) return;
     setEditForm({
       projectName: currentProject.projectName || "",
+      leadId: currentProject.leadId || "",
       pipelineType: currentProject.pipelineType || "",
       projectCategory: currentProject.projectCategory || "",
       scopeType: currentProject.scopeType || "",
@@ -1111,12 +1216,28 @@ export const ProjectDetails: React.FC = () => {
       designPackage: currentProject.designPackage || "",
       design3DStatus: currentProject.design3DStatus || "",
       moodBoardShared: currentProject.moodBoardShared || false,
+      numberOfMeetings:
+        currentProject.numberOfMeetings !== undefined &&
+        currentProject.numberOfMeetings !== null
+          ? String(currentProject.numberOfMeetings)
+          : "",
+      currentStageCode: currentProject.currentStageCode || "",
+      currentPhase: currentProject.currentPhase || "",
       totalValue: currentProject.totalValue
         ? String(currentProject.totalValue)
+        : "",
+      designValue: currentProject.designValue
+        ? String(currentProject.designValue)
+        : "",
+      executionValue: currentProject.executionValue
+        ? String(currentProject.executionValue)
         : "",
       paidAmount: currentProject.paidAmount
         ? String(currentProject.paidAmount)
         : "",
+      billingAddress: currentProject.billingAddress || "",
+      pauseReason: currentProject.pauseReason || "",
+      cancellationReason: currentProject.cancellationReason || "",
       remarks: currentProject.remarks || "",
       status: currentProject.status || "",
     });
@@ -1129,6 +1250,7 @@ export const ProjectDetails: React.FC = () => {
     try {
       const updates: UpdateProjectRequest = {};
       if (editForm.projectName) updates.projectName = editForm.projectName;
+      if (editForm.leadId) updates.leadId = editForm.leadId;
       if (editForm.pipelineType) updates.pipelineType = editForm.pipelineType;
       if (editForm.projectCategory)
         updates.projectCategory = editForm.projectCategory;
@@ -1182,10 +1304,24 @@ export const ProjectDetails: React.FC = () => {
       if (editForm.design3DStatus)
         updates.design3DStatus = editForm.design3DStatus;
       updates.moodBoardShared = editForm.moodBoardShared;
-      if (editForm.totalValue)
+      if (editForm.numberOfMeetings !== "")
+        updates.numberOfMeetings = parseInt(editForm.numberOfMeetings, 10);
+      if (editForm.currentStageCode)
+        updates.currentStageCode = editForm.currentStageCode;
+      if (editForm.currentPhase) updates.currentPhase = editForm.currentPhase;
+      if (editForm.totalValue !== "")
         updates.totalValue = parseFloat(editForm.totalValue);
-      if (editForm.paidAmount)
+      if (editForm.designValue !== "")
+        updates.designValue = parseFloat(editForm.designValue);
+      if (editForm.executionValue !== "")
+        updates.executionValue = parseFloat(editForm.executionValue);
+      if (editForm.paidAmount !== "")
         updates.paidAmount = parseFloat(editForm.paidAmount);
+      if (editForm.billingAddress)
+        updates.billingAddress = editForm.billingAddress;
+      if (editForm.pauseReason) updates.pauseReason = editForm.pauseReason;
+      if (editForm.cancellationReason)
+        updates.cancellationReason = editForm.cancellationReason;
       if (editForm.remarks) updates.remarks = editForm.remarks;
       if (editForm.status) updates.status = editForm.status as any;
 
@@ -1196,6 +1332,7 @@ export const ProjectDetails: React.FC = () => {
         setCurrentProject({
           ...currentProject,
           ...(editForm.projectName && { projectName: editForm.projectName }),
+          ...(editForm.leadId && { leadId: editForm.leadId }),
           pipelineType: (editForm.pipelineType ||
             currentProject.pipelineType) as any,
           projectCategory: (editForm.projectCategory ||
@@ -1264,11 +1401,33 @@ export const ProjectDetails: React.FC = () => {
             design3DStatus: editForm.design3DStatus,
           }),
           moodBoardShared: editForm.moodBoardShared,
-          ...(editForm.totalValue && {
+          ...(editForm.numberOfMeetings !== "" && {
+            numberOfMeetings: parseInt(editForm.numberOfMeetings, 10),
+          }),
+          ...(editForm.currentStageCode && {
+            currentStageCode: editForm.currentStageCode,
+          }),
+          ...(editForm.currentPhase && {
+            currentPhase: editForm.currentPhase,
+          }),
+          ...(editForm.totalValue !== "" && {
             totalValue: parseFloat(editForm.totalValue),
           }),
-          ...(editForm.paidAmount && {
+          ...(editForm.designValue !== "" && {
+            designValue: parseFloat(editForm.designValue),
+          }),
+          ...(editForm.executionValue !== "" && {
+            executionValue: parseFloat(editForm.executionValue),
+          }),
+          ...(editForm.paidAmount !== "" && {
             paidAmount: parseFloat(editForm.paidAmount),
+          }),
+          ...(editForm.billingAddress && {
+            billingAddress: editForm.billingAddress,
+          }),
+          ...(editForm.pauseReason && { pauseReason: editForm.pauseReason }),
+          ...(editForm.cancellationReason && {
+            cancellationReason: editForm.cancellationReason,
           }),
           ...(editForm.remarks && { remarks: editForm.remarks }),
           ...(editForm.status && { status: editForm.status as any }),
@@ -1665,8 +1824,8 @@ export const ProjectDetails: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50/40 via-white to-orange-50/20">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-orange-100/60 via-orange-50/80 to-amber-50/60 border-b border-orange-200/60 px-4 py-4 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto relative z-10">
+      <div className="relative bg-gradient-to-br from-orange-100/60 via-orange-50/80 to-amber-50/60 border-b border-orange-200/60 px-2 sm:px-3 py-3 backdrop-blur-sm">
+        <div className="w-full relative z-10">
           <button
             onClick={() => navigate("/dashboard/projects")}
             className="flex items-center gap-2 text-gray-700 hover:text-orange-600 mb-4 transition-colors group"
@@ -1796,7 +1955,7 @@ export const ProjectDetails: React.FC = () => {
 
       {/* Pause Info Banner */}
       {project.status?.toUpperCase() === "PAUSED" && (
-        <div className="bg-yellow-50 border border-yellow-200 mx-4 mt-2 rounded-xl p-4">
+        <div className="bg-yellow-50 border border-yellow-200 mt-2 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
               <Pause className="w-5 h-5 text-yellow-600" />
@@ -1867,7 +2026,7 @@ export const ProjectDetails: React.FC = () => {
 
       {/* Tabs */}
       <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className="w-full px-2 sm:px-3">
           <div className="flex gap-8">
             {[
               { id: "overview", label: "Overview", icon: FileText },
@@ -1905,7 +2064,7 @@ export const ProjectDetails: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-5">
+      <div className="w-full px-2 sm:px-3 py-4">
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -1980,11 +2139,83 @@ export const ProjectDetails: React.FC = () => {
                     value={project.constructionStatus || "N/A"}
                   />
                   <InfoItem
+                    label="Tentative Handover"
+                    value={formatDate(project.tentativeHandoverDate)}
+                  />
+                  <InfoItem
+                    label="Design 3D Status"
+                    value={project.design3DStatus || "N/A"}
+                  />
+                  <InfoItem
+                    label="No. of Meetings"
+                    value={String(project.numberOfMeetings ?? "N/A")}
+                  />
+                  <InfoItem
+                    label="Project Status"
+                    value={formatEnumLabel(project.status)}
+                  />
+                  <InfoItem
+                    label="Lead ID"
+                    value={project.leadId || "N/A"}
+                  />
+                  <InfoItem
+                    label="Account ID"
+                    value={project.accountId || project.account?.id || "N/A"}
+                  />
+                  <InfoItem
                     label="Moodboard Shared"
                     value={project.moodBoardShared ? "Yes" : "No"}
                   />
                 </div>
               </Card>
+
+              {(project.specialRequirements ||
+                project.remarks ||
+                project.pauseReason ||
+                project.cancellationReason) && (
+                <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-white" />
+                    </div>
+                    Requirements & Notes
+                  </h2>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                        Special Requirements
+                      </p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                        {project.specialRequirements || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                        Remarks
+                      </p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                        {project.remarks || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                        Pause Reason
+                      </p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                        {project.pauseReason || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                        Cancellation Reason
+                      </p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                        {project.cancellationReason || "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              )}
 
               {/* Client/Lead Information */}
               {project.lead && (
@@ -2059,6 +2290,20 @@ export const ProjectDetails: React.FC = () => {
                     />
                   )}
 
+                  {!project.assignedDesigner && project.assignedDesignerId && (
+                    <TeamMember
+                      name={project.assignedDesignerId}
+                      role="Assigned Designer ID"
+                    />
+                  )}
+
+                  {!project.assignedPM && project.assignedPMId && (
+                    <TeamMember
+                      name={project.assignedPMId}
+                      role="Assigned Project Manager ID"
+                    />
+                  )}
+
                   {/* Design Team members (string array) */}
                   {(project.designTeam || [])
                     .filter(Boolean)
@@ -2084,9 +2329,9 @@ export const ProjectDetails: React.FC = () => {
                     ))}
 
                   {/* Site Contact */}
-                  {project.siteContactName && (
+                  {(project.siteContactName || project.siteContactPhone) && (
                     <TeamMember
-                      name={project.siteContactName}
+                      name={project.siteContactName || "Site Contact"}
                       role="Site Contact"
                       phone={project.siteContactPhone || undefined}
                     />
@@ -2097,7 +2342,8 @@ export const ProjectDetails: React.FC = () => {
                     !project.assignedPM &&
                     !(project.designTeam || []).filter(Boolean).length &&
                     !(project.executionTeam || []).filter(Boolean).length &&
-                    !project.siteContactName && (
+                    !project.siteContactName &&
+                    !project.siteContactPhone && (
                       <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-xl">
                         <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                         <p className="text-sm text-gray-500">
@@ -2242,6 +2488,11 @@ export const ProjectDetails: React.FC = () => {
               {/* Property Address */}
               {(project.propertyAddress ||
                 project.propertyCity ||
+                project.propertyState ||
+                project.propertyPincode ||
+                project.propertyBuilding ||
+                project.propertyUnit ||
+                project.propertyLandmarks ||
                 project.propertySizeSqft ||
                 project.propertyBHK) && (
                 <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
@@ -2259,6 +2510,28 @@ export const ProjectDetails: React.FC = () => {
                   {project.propertyCity && (
                     <p className="text-sm text-gray-500 pl-9">
                       {project.propertyCity}
+                    </p>
+                  )}
+                  {(project.propertyState || project.propertyPincode) && (
+                    <p className="text-sm text-gray-500 pl-9">
+                      {[project.propertyState, project.propertyPincode]
+                        .filter(Boolean)
+                        .join(" - ")}
+                    </p>
+                  )}
+                  {project.propertyBuilding && (
+                    <p className="text-sm text-gray-600 pl-9">
+                      Building: {project.propertyBuilding}
+                    </p>
+                  )}
+                  {project.propertyUnit && (
+                    <p className="text-sm text-gray-600 pl-9">
+                      Unit: {project.propertyUnit}
+                    </p>
+                  )}
+                  {project.propertyLandmarks && (
+                    <p className="text-sm text-gray-600 pl-9">
+                      Landmarks: {project.propertyLandmarks}
                     </p>
                   )}
                   {(project.propertySizeSqft || project.propertyBHK) && (
@@ -2287,6 +2560,20 @@ export const ProjectDetails: React.FC = () => {
                   Payment Summary
                 </h3>
                 <div className="space-y-3">
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-blue-50">
+                    <span className="text-sm text-blue-700">Design Value</span>
+                    <span className="font-bold text-blue-700">
+                      {formatCurrencyExact(parseFloat(String(project.designValue ?? 0)) || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-indigo-50">
+                    <span className="text-sm text-indigo-700">Execution Value</span>
+                    <span className="font-bold text-indigo-700">
+                      {formatCurrencyExact(
+                        parseFloat(String(project.executionValue ?? 0)) || 0,
+                      )}
+                    </span>
+                  </div>
                   <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
                     <span className="text-sm text-gray-600">Total Value</span>
                     <span className="font-bold text-gray-900">
@@ -2299,6 +2586,14 @@ export const ProjectDetails: React.FC = () => {
                     <span className="text-sm text-green-700">Collected</span>
                     <span className="font-bold text-green-600">
                       {formatCurrencyExact(paymentTotals.totalPaid)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-emerald-50">
+                    <span className="text-sm text-emerald-700">Paid Amount (Project)</span>
+                    <span className="font-bold text-emerald-700">
+                      {formatCurrencyExact(
+                        parseFloat(String(project.paidAmount ?? 0)) || 0,
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-2 rounded-lg bg-orange-50">
@@ -2633,6 +2928,14 @@ export const ProjectDetails: React.FC = () => {
             );
             const activePhasePayments =
               paymentPhaseTab === "DESIGN" ? designPayments : executionPayments;
+            const designPhaseValue =
+              parseFloat(String(project.designValue ?? 0)) || 0;
+            const executionPhaseValue =
+              parseFloat(String(project.executionValue ?? 0)) || 0;
+            const activePhaseValue =
+              paymentPhaseTab === "DESIGN"
+                ? designPhaseValue
+                : executionPhaseValue;
 
             let phasePaid = 0;
             let phasePending = 0;
@@ -2777,6 +3080,14 @@ export const ProjectDetails: React.FC = () => {
                     >
                       <Send className="w-3.5 h-3.5" />
                       Send Invoice
+                    </button>
+                    <button
+                      onClick={() => handleOpenSendInvoice(payment, "proforma")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                      title="Send proforma invoice"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Send Proforma Invoice
                     </button>
                     <button
                       onClick={() => handleOpenUploadDoc(payment)}
@@ -2991,8 +3302,42 @@ export const ProjectDetails: React.FC = () => {
                     </Button>
                   </div>
 
+                  {/* Fixed phase values visible for both sections */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                    <div className="flex items-center justify-between rounded-xl bg-blue-50 border border-blue-100 px-4 py-2.5">
+                      <span className="text-sm font-semibold text-blue-700">
+                        Design Value
+                      </span>
+                      <span className="text-base font-bold text-blue-700">
+                        {formatCurrencyExact(designPhaseValue)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl bg-orange-50 border border-orange-100 px-4 py-2.5">
+                      <span className="text-sm font-semibold text-orange-700">
+                        Execution Value
+                      </span>
+                      <span className="text-base font-bold text-orange-700">
+                        {formatCurrencyExact(executionPhaseValue)}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Phase summary mini-stats */}
                   <div className="flex items-center gap-4 mb-4 px-1">
+                    <div className="flex items-center gap-1.5 text-sm">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full inline-block ${
+                          paymentPhaseTab === "DESIGN"
+                            ? "bg-blue-500"
+                            : "bg-orange-500"
+                        }`}
+                      />
+                      <span className="text-gray-500">Phase Value:</span>
+                      <span className="font-semibold text-gray-900">
+                        {formatCurrencyExact(activePhaseValue)}
+                      </span>
+                    </div>
+                    <div className="text-gray-300">|</div>
                     <div className="flex items-center gap-1.5 text-sm">
                       <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
                       <span className="text-gray-500">Collected:</span>
@@ -3628,7 +3973,9 @@ export const ProjectDetails: React.FC = () => {
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <Send className="w-5 h-5 text-green-600" />
-                    Send Invoice
+                    {invoiceSendMode === "proforma"
+                      ? "Send Proforma Invoice"
+                      : "Send Invoice"}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">
                     {invoiceTargetPayment.title ||
@@ -3683,101 +4030,176 @@ export const ProjectDetails: React.FC = () => {
                     />
                   </div>
                 </div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">
-                  Bank Details
-                </p>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Account Name *
+                    CC Emails{" "}
+                    <span className="text-gray-400 font-normal">
+                      (optional)
+                    </span>
                   </label>
-                  <input
-                    type="text"
-                    value={sendInvoiceForm.accountName}
+                  <textarea
+                    value={sendInvoiceForm.ccEmails}
                     onChange={(e) =>
                       setSendInvoiceForm({
                         ...sendInvoiceForm,
-                        accountName: e.target.value,
+                        ccEmails: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                    placeholder="GoodHomeStory Interiors Pvt Ltd"
+                    rows={2}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none resize-none text-sm"
+                    placeholder="finance@example.com, owner@example.com"
                   />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Separate multiple emails with comma, semicolon, space, or
+                    new line.
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Account Number *
-                    </label>
-                    <input
-                      type="text"
-                      value={sendInvoiceForm.accountNumber}
-                      onChange={(e) =>
-                        setSendInvoiceForm({
-                          ...sendInvoiceForm,
-                          accountNumber: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                      placeholder="1234567890"
-                    />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Upload File{" "}
+                    <span className="text-gray-400 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <div className="border border-dashed border-gray-300 rounded-xl p-3 bg-gray-50/60">
+                    {sendInvoiceForm.attachmentFileName ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                          <span className="text-sm text-gray-700 truncate">
+                            {sendInvoiceForm.attachmentFileName}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSendInvoiceForm((prev) => ({
+                              ...prev,
+                              attachmentFileName: "",
+                              attachmentFileType: "",
+                              attachmentFileBase64: "",
+                            }))
+                          }
+                          className="text-xs font-medium text-red-600 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                        <Upload className="w-4 h-4" />
+                        Choose File
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={handleSendInvoiceFileChange}
+                        />
+                      </label>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      IFSC Code *
-                    </label>
-                    <input
-                      type="text"
-                      value={sendInvoiceForm.ifscCode}
-                      onChange={(e) =>
-                        setSendInvoiceForm({
-                          ...sendInvoiceForm,
-                          ifscCode: e.target.value.toUpperCase(),
-                        })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                      placeholder="HDFC0001234"
-                    />
-                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Selected file will be uploaded with this invoice send action.
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Bank Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={sendInvoiceForm.bankName}
-                      onChange={(e) =>
-                        setSendInvoiceForm({
-                          ...sendInvoiceForm,
-                          bankName: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                      placeholder="HDFC Bank"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      UPI ID{" "}
-                      <span className="text-gray-400 font-normal">
-                        (optional)
-                      </span>
-                    </label>
-                    <input
-                      type="text"
-                      value={sendInvoiceForm.upiId}
-                      onChange={(e) =>
-                        setSendInvoiceForm({
-                          ...sendInvoiceForm,
-                          upiId: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                      placeholder="goodhomestory@upi"
-                    />
-                  </div>
-                </div>
+                {invoiceSendMode === "invoice" && (
+                  <>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">
+                      Bank Details
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Account Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={sendInvoiceForm.accountName}
+                        onChange={(e) =>
+                          setSendInvoiceForm({
+                            ...sendInvoiceForm,
+                            accountName: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                        placeholder="GoodHomeStory Interiors Pvt Ltd"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Account Number *
+                        </label>
+                        <input
+                          type="text"
+                          value={sendInvoiceForm.accountNumber}
+                          onChange={(e) =>
+                            setSendInvoiceForm({
+                              ...sendInvoiceForm,
+                              accountNumber: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                          placeholder="1234567890"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          IFSC Code *
+                        </label>
+                        <input
+                          type="text"
+                          value={sendInvoiceForm.ifscCode}
+                          onChange={(e) =>
+                            setSendInvoiceForm({
+                              ...sendInvoiceForm,
+                              ifscCode: e.target.value.toUpperCase(),
+                            })
+                          }
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                          placeholder="HDFC0001234"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Bank Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={sendInvoiceForm.bankName}
+                          onChange={(e) =>
+                            setSendInvoiceForm({
+                              ...sendInvoiceForm,
+                              bankName: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                          placeholder="HDFC Bank"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          UPI ID{" "}
+                          <span className="text-gray-400 font-normal">
+                            (optional)
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          value={sendInvoiceForm.upiId}
+                          onChange={(e) =>
+                            setSendInvoiceForm({
+                              ...sendInvoiceForm,
+                              upiId: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
+                          placeholder="goodhomestory@upi"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Custom Message{" "}
@@ -3817,7 +4239,11 @@ export const ProjectDetails: React.FC = () => {
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}
-                  {isSendingInvoice ? "Sending..." : "Send Invoice"}
+                  {isSendingInvoice
+                    ? "Sending..."
+                    : invoiceSendMode === "proforma"
+                      ? "Send Proforma Invoice"
+                      : "Send Invoice"}
                 </Button>
               </div>
             </div>
@@ -4518,6 +4944,24 @@ export const ProjectDetails: React.FC = () => {
                     />
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Lead ID
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.leadId}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          leadId: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none text-sm"
+                      placeholder="lead-uuid"
+                    />
+                  </div>
+
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -4656,6 +5100,50 @@ export const ProjectDetails: React.FC = () => {
                         <option value="PAUSED">Paused</option>
                         <option value="COMPLETED">Completed</option>
                         <option value="CANCELLED">Cancelled</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Current Stage
+                      </label>
+                      <select
+                        value={editForm.currentStageCode}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            currentStageCode: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
+                      >
+                        <option value="">Unchanged</option>
+                        {projectOptions.stages.map((stage) => (
+                          <option key={stage.value} value={stage.value}>
+                            {stage.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Current Phase
+                      </label>
+                      <select
+                        value={editForm.currentPhase}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            currentPhase: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
+                      >
+                        <option value="">Unchanged</option>
+                        <option value="DESIGN">Design</option>
+                        <option value="EXECUTION">Execution</option>
                       </select>
                     </div>
                   </div>
@@ -5037,6 +5525,24 @@ export const ProjectDetails: React.FC = () => {
                       </select>
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Number of Meetings
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editForm.numberOfMeetings}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          numberOfMeetings: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                      placeholder="e.g., 3"
+                    />
+                  </div>
                   <div className="flex items-center gap-3 pt-1">
                     <input
                       type="checkbox"
@@ -5068,6 +5574,39 @@ export const ProjectDetails: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Design Value (₹)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={editForm.designValue}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, designValue: e.target.value })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                      placeholder="e.g., 2250000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Execution Value (₹)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={editForm.executionValue}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          executionValue: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                      placeholder="e.g., 5250000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Total Value (₹)
                     </label>
                     <input
@@ -5081,6 +5620,38 @@ export const ProjectDetails: React.FC = () => {
                       placeholder="e.g., 5000000"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Paid Amount (₹)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={editForm.paidAmount}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, paidAmount: e.target.value })
+                      }
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                      placeholder="e.g., 2500000"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Billing Address
+                  </label>
+                  <textarea
+                    value={editForm.billingAddress}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        billingAddress: e.target.value,
+                      })
+                    }
+                    rows={2}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
+                    placeholder="Updated billing address"
+                  />
                 </div>
               </div>
 
@@ -5105,6 +5676,37 @@ export const ProjectDetails: React.FC = () => {
                       rows={2}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
                       placeholder="Vastu-compliant, eco-friendly materials, etc."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Pause Reason
+                    </label>
+                    <textarea
+                      value={editForm.pauseReason}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, pauseReason: e.target.value })
+                      }
+                      rows={2}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
+                      placeholder="Client travel (optional)"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Cancellation Reason
+                    </label>
+                    <textarea
+                      value={editForm.cancellationReason}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          cancellationReason: e.target.value,
+                        })
+                      }
+                      rows={2}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
+                      placeholder="Budget constraints (optional)"
                     />
                   </div>
                   <div>

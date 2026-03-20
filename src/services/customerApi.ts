@@ -572,25 +572,42 @@ export async function saveBankDetailsApi(
   bankDetails: string,
 ): Promise<void> {
   const token = localStorage.getItem("auth_token");
-  const response = await fetch(
-    `${API_BASE_URL}/api/accounts/${accountId}/bank-details`,
-    {
+  const url = `${API_BASE_URL}/api/accounts/${accountId}/bank-details`;
+
+  // Some backend versions accept different property names.
+  // Retry with known variants to avoid blocking users on API drift.
+  const payloadVariants: Array<Record<string, string>> = [
+    { bankDetails },
+    { data: bankDetails },
+    { details: bankDetails },
+  ];
+
+  let lastErrorMessage = "";
+
+  for (const payload of payloadVariants) {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(token && { Authorization: `Bearer ${token}` }),
       },
-      body: JSON.stringify({ bankDetails }),
-    },
-  );
-  if (!response.ok) {
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      return;
+    }
+
     let message = `HTTP error ${response.status}`;
     try {
       const err = await response.json();
       message = err.message || err.error || message;
     } catch {}
-    throw new Error(message);
+
+    lastErrorMessage = message;
   }
+
+  throw new Error(lastErrorMessage || "Failed to save bank details");
 }
 
 /** GET /api/accounts/:id/bank-details — Retrieve saved bank details string */
@@ -614,7 +631,19 @@ export async function getBankDetails(accountId: string): Promise<string> {
   const data = await response.json();
   if (typeof data === "string") return data;
   const obj = data as Record<string, unknown>;
-  return (obj.bankDetails as string) ?? (obj.data as string) ?? "";
+
+  if (typeof obj.bankDetails === "string") return obj.bankDetails;
+  if (typeof obj.data === "string") return obj.data;
+  if (
+    obj.data &&
+    typeof obj.data === "object" &&
+    typeof (obj.data as Record<string, unknown>).bankDetails === "string"
+  ) {
+    return (obj.data as Record<string, unknown>).bankDetails as string;
+  }
+  if (typeof obj.details === "string") return obj.details;
+
+  return "";
 }
 
 // Default export with all functions

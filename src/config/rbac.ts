@@ -448,7 +448,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
   // ── Account ────────────────────────────────────────────────
   {
     id: "team",
-    label: "Team",
+    label: "Vendors",
     path: "/dashboard/engineers",
     icon: "Users",
     section: "account",

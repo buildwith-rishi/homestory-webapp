@@ -601,8 +601,9 @@ export async function getPaymentOptions(): Promise<PaymentOptionsResponse> {
 
 export interface SendInvoiceRequest {
   toEmail: string;
+  ccEmails?: string[];
   toName: string;
-  bankDetails: {
+  bankDetails?: {
     accountName: string;
     accountNumber: string;
     ifscCode: string;

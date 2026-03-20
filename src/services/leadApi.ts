@@ -7,6 +7,7 @@ console.log("Lead API Base URL:", API_BASE_URL);
 
 export interface Lead {
   id?: string;
+  leadNumber?: string;
   name?: string;
   email?: string;
   phone?: string;
@@ -89,6 +90,34 @@ export interface Lead {
   agentAgencyDetails?: string | null;
   metadata?: Record<string, unknown> | null;
   references?: any[];
+
+  // New fields form API update
+  projectCategory?: string | null;
+  pipelineType?: string | null;
+  scopeType?: string | null;
+  propertySubtype?: string | null;
+  propertyBHK?: string | null;
+  budgetTier?: string | null;
+  propertySizeSqft?: number | null;
+  constructionStatus?: string | null;
+  tentativeHandoverDate?: string | null;
+  propertyAddress?: string | null;
+  propertyCity?: string | null;
+  propertyState?: string | null;
+  propertyPincode?: string | null;
+  propertyBuilding?: string | null;
+  propertyUnit?: string | null;
+  propertyLandmarks?: string | null;
+  siteContactName?: string | null;
+  siteContactPhone?: string | null;
+  specialRequirements?: string | null;
+  designPackage?: string | null;
+  otp?: string | null;
+  otpExpiresAt?: string | null;
+  isPhoneVerified?: boolean;
+  verificationAttempts?: number;
+  lastOtpRequestAt?: string | null;
+  referredByAccountId?: string | null;
 }
 
 export interface LeadContact {
@@ -214,6 +243,68 @@ async function handleResponse<T>(response: Response): Promise<T> {
   }
   return response.json();
 }
+
+// Keep PUT /api/leads/:id payload aligned with backend contract.
+const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
+  const payload: Partial<Lead> = {};
+
+  if (updates.name !== undefined) payload.name = updates.name;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
+  if (updates.location !== undefined) payload.location = updates.location;
+  if (updates.projectCategory !== undefined)
+    payload.projectCategory = updates.projectCategory;
+  if (updates.email !== undefined) payload.email = updates.email;
+  if (updates.message !== undefined) payload.message = updates.message;
+  if (updates.pipelineType !== undefined)
+    payload.pipelineType = updates.pipelineType;
+  if (updates.scopeType !== undefined) payload.scopeType = updates.scopeType;
+  if (updates.propertySubtype !== undefined)
+    payload.propertySubtype = updates.propertySubtype;
+  if (updates.propertyBHK !== undefined) payload.propertyBHK = updates.propertyBHK;
+  if (updates.budgetTier !== undefined) payload.budgetTier = updates.budgetTier;
+  if (updates.propertySizeSqft !== undefined)
+    payload.propertySizeSqft = updates.propertySizeSqft;
+  if (updates.constructionStatus !== undefined)
+    payload.constructionStatus = updates.constructionStatus;
+  if (updates.tentativeHandoverDate !== undefined)
+    payload.tentativeHandoverDate = updates.tentativeHandoverDate;
+  if (updates.propertyAddress !== undefined)
+    payload.propertyAddress = updates.propertyAddress;
+  if (updates.propertyState !== undefined) payload.propertyState = updates.propertyState;
+  if (updates.propertyPincode !== undefined)
+    payload.propertyPincode = updates.propertyPincode;
+  if (updates.propertyBuilding !== undefined)
+    payload.propertyBuilding = updates.propertyBuilding;
+  if (updates.propertyUnit !== undefined) payload.propertyUnit = updates.propertyUnit;
+  if (updates.propertyLandmarks !== undefined)
+    payload.propertyLandmarks = updates.propertyLandmarks;
+  if (updates.siteContactName !== undefined)
+    payload.siteContactName = updates.siteContactName;
+  if (updates.siteContactPhone !== undefined)
+    payload.siteContactPhone = updates.siteContactPhone;
+  if (updates.specialRequirements !== undefined)
+    payload.specialRequirements = updates.specialRequirements;
+  if (updates.designPackage !== undefined)
+    payload.designPackage = updates.designPackage;
+  if (updates.floorPlanUrl !== undefined) payload.floorPlanUrl = updates.floorPlanUrl;
+  if (updates.wantsExperienceCenterVisit !== undefined)
+    payload.wantsExperienceCenterVisit = updates.wantsExperienceCenterVisit;
+  if (updates.canWhatsApp !== undefined) payload.canWhatsApp = updates.canWhatsApp;
+  if (updates.source !== undefined) payload.source = updates.source;
+  if (updates.householdOrCompany !== undefined)
+    payload.householdOrCompany = updates.householdOrCompany;
+  if (updates.companyName !== undefined) payload.companyName = updates.companyName;
+  if (updates.status !== undefined) payload.status = updates.status;
+  if (updates.referrerName !== undefined) payload.referrerName = updates.referrerName;
+  if (updates.referrerPhone !== undefined)
+    payload.referrerPhone = updates.referrerPhone;
+  if (updates.agentAgencyName !== undefined)
+    payload.agentAgencyName = updates.agentAgencyName;
+  if (updates.agentAgencyDetails !== undefined)
+    payload.agentAgencyDetails = updates.agentAgencyDetails;
+
+  return payload;
+};
 
 /**
  * Send OTP to a phone number
@@ -378,10 +469,11 @@ export async function updateLead(
   id: string,
   updates: Partial<Lead>,
 ): Promise<Lead> {
+  const payload = buildLeadUpdatePayload(updates);
   const response = await fetch(`${API_BASE_URL}/api/leads/${id}`, {
     method: "PUT",
     headers: getAuthHeaders(),
-    body: JSON.stringify(updates),
+    body: JSON.stringify(payload),
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

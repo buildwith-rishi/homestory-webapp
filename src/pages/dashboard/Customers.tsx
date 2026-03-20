@@ -38,6 +38,7 @@ import ContactAPI, { type Contact } from "../../services/contactApi";
 import CustomerAPI, {
   Customer as APICustomer,
 } from "../../services/customerApi";
+import { listProjects } from "../../services/projectApi";
 import { ContactRoleBadge, PrimaryBadge } from "../../components/customers";
 
 interface FamilyMember {
@@ -74,6 +75,8 @@ interface Customer {
   initials: string;
   email: string;
   phone: string;
+  secondaryEmails?: string[];
+  secondaryPhones?: string[];
   location: string;
   projects: number;
   totalValue: number;
@@ -161,6 +164,84 @@ const statusColors = {
   churned: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
 };
 
+const toCurrencyNumber = (value: unknown): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.replace(/[^\d.-]/g, "");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+const customerPropertyTypeOptions = [
+  { value: "HOME", label: "Home" },
+  { value: "RESIDENTIAL", label: "Residential" },
+  { value: "COMMERCIAL", label: "Commercial" },
+  { value: "MIXED_USE", label: "Mixed Use" },
+  { value: "OTHERS", label: "Others" },
+];
+
+const customerProjectTypeOptions = [
+  { value: "APARTMENT", label: "Apartment" },
+  { value: "VILLA", label: "Villa" },
+  { value: "ROW_HOUSE", label: "Row House" },
+  { value: "PENTHOUSE", label: "Penthouse" },
+  { value: "DUPLEX", label: "Duplex" },
+  { value: "STUDIO", label: "Studio" },
+  { value: "OFFICE", label: "Office" },
+  { value: "RETAIL", label: "Retail" },
+  { value: "WAREHOUSE", label: "Warehouse" },
+  { value: "OTHER", label: "Other" },
+];
+
+const customerProjectStageOptions = [
+  { value: "NOT_SURE", label: "Not Sure" },
+  { value: "NEW_HOME_PENDING", label: "New Home - Pending Possession" },
+  { value: "NEW_HOME_RECEIVED", label: "New Home - Received" },
+  { value: "RENOVATION", label: "Renovation" },
+  { value: "COMMERCIAL_FITOUT", label: "Commercial Fitout" },
+];
+
+const customerStartTimelineOptions = [
+  { value: "NOT_SURE", label: "Not Sure" },
+  { value: "IMMEDIATELY", label: "Immediately" },
+  { value: "ONE_TO_THREE_MONTHS", label: "1-3 Months" },
+  { value: "THREE_TO_SIX_MONTHS", label: "3-6 Months" },
+  { value: "SIX_PLUS_MONTHS", label: "6+ Months" },
+];
+
+const customerBudgetComfortOptions = [
+  { value: "NOT_SURE", label: "Not Sure" },
+  { value: "VALUE", label: "Value" },
+  { value: "BALANCED", label: "Balanced" },
+  { value: "PREMIUM", label: "Premium" },
+  { value: "NEED_GUIDANCE", label: "Need Guidance" },
+];
+
+const customerProjectScopeOptions = [
+  { value: "NOT_SURE", label: "Not Sure" },
+  { value: "TURNKEY", label: "Turnkey" },
+  { value: "DESIGN_ONLY", label: "Design Only" },
+  { value: "KITCHEN_WARDROBES", label: "Kitchen & Wardrobes" },
+  { value: "INTERIOR_DESIGN_ONLY", label: "Interior Design Only" },
+  {
+    value: "INTERIOR_DESIGN_AND_BUILD",
+    label: "Interior Design & Build",
+  },
+  {
+    value: "ARCHITECTURE_DESIGN_ONLY",
+    label: "Architecture Design Only",
+  },
+  { value: "RENOVATION", label: "Renovation" },
+  { value: "SPECIFIC_SPACE", label: "Specific Space" },
+  { value: "OTHERS", label: "Others" },
+];
+
 // Add Customer Modal Component
 const AddCustomerModal: React.FC<{
   isOpen: boolean;
@@ -175,21 +256,21 @@ const AddCustomerModal: React.FC<{
     type: "RESIDENTIAL" as string,
     email: "",
     phone: "",
-    taxId: "",
-    notes: "",
-    billingAddress: "",
-    billingCity: "",
-    billingState: "",
-    billingPincode: "",
-    shippingAddress: "",
-    shippingCity: "",
-    shippingState: "",
-    shippingPincode: "",
+    secondaryEmailsText: "",
+    secondaryPhonesText: "",
+    companyName: "",
+    propertyType: "",
+    projectType: "",
+    area: "",
+    city: "",
+    projectStage: "",
+    startTimeline: "",
+    budgetComfort: "",
+    projectScope: "",
+    floorPlan: "",
+    messageNotes: "",
+    requirements: "",
   });
-
-  const [sameAsBilling, setSameAsBilling] = useState(false);
-  const [showBillingSection, setShowBillingSection] = useState(false);
-  const [showShippingSection, setShowShippingSection] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [duplicateCheckResult, setDuplicateCheckResult] = useState<{
@@ -220,17 +301,15 @@ const AddCustomerModal: React.FC<{
       newErrors.phone = "Phone must be at least 10 digits";
     }
 
-    // Pincode validation (optional but validate format if provided)
-    if (formData.billingPincode && !/^\d{6}$/.test(formData.billingPincode)) {
-      newErrors.billingPincode = "Pincode must be 6 digits";
-    }
-    if (formData.shippingPincode && !/^\d{6}$/.test(formData.shippingPincode)) {
-      newErrors.shippingPincode = "Pincode must be 6 digits";
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  const parseCsvValues = (value: string): string[] =>
+    value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
 
   // Debounced duplicate check
   const checkForDuplicates = React.useCallback(
@@ -292,29 +371,31 @@ const AddCustomerModal: React.FC<{
     }
 
     try {
-      // Copy shipping from billing if checkbox is selected
-      const customerData = {
-        ...formData,
-        shippingAddress: sameAsBilling
-          ? formData.billingAddress
-          : formData.shippingAddress,
-        shippingCity: sameAsBilling
-          ? formData.billingCity
-          : formData.shippingCity,
-        shippingState: sameAsBilling
-          ? formData.billingState
-          : formData.shippingState,
-        shippingPincode: sameAsBilling
-          ? formData.billingPincode
-          : formData.shippingPincode,
-      };
+      const secondaryEmails = parseCsvValues(formData.secondaryEmailsText);
+      const secondaryPhones = parseCsvValues(formData.secondaryPhonesText);
 
-      // Remove empty optional fields
-      Object.keys(customerData).forEach((key) => {
-        if (customerData[key] === "" || customerData[key] === null) {
-          delete customerData[key];
-        }
-      });
+      const customerData = {
+        name: formData.name.trim(),
+        type: formData.type,
+        email: formData.email.trim() || undefined,
+        phone: formData.phone.trim() || undefined,
+        ...(secondaryEmails.length ? { secondaryEmails } : {}),
+        ...(secondaryPhones.length ? { secondaryPhones } : {}),
+        uiIntake: {
+          companyName: formData.companyName.trim() || undefined,
+          propertyType: formData.propertyType || undefined,
+          projectType: formData.projectType || undefined,
+          area: formData.area.trim() || undefined,
+          city: formData.city.trim() || undefined,
+          projectStage: formData.projectStage || undefined,
+          startTimeline: formData.startTimeline || undefined,
+          budgetComfort: formData.budgetComfort || undefined,
+          projectScope: formData.projectScope || undefined,
+          floorPlan: formData.floorPlan.trim() || undefined,
+          messageNotes: formData.messageNotes.trim() || undefined,
+          requirements: formData.requirements.trim() || undefined,
+        },
+      };
 
       await onSave(customerData);
 
@@ -324,20 +405,21 @@ const AddCustomerModal: React.FC<{
         type: "RESIDENTIAL",
         email: "",
         phone: "",
-        taxId: "",
-        notes: "",
-        billingAddress: "",
-        billingCity: "",
-        billingState: "",
-        billingPincode: "",
-        shippingAddress: "",
-        shippingCity: "",
-        shippingState: "",
-        shippingPincode: "",
+        secondaryEmailsText: "",
+        secondaryPhonesText: "",
+        companyName: "",
+        propertyType: "",
+        projectType: "",
+        area: "",
+        city: "",
+        projectStage: "",
+        startTimeline: "",
+        budgetComfort: "",
+        projectScope: "",
+        floorPlan: "",
+        messageNotes: "",
+        requirements: "",
       });
-      setSameAsBilling(false);
-      setShowBillingSection(false);
-      setShowShippingSection(false);
       setErrors({});
       setDuplicateCheckResult(null);
       setShowDuplicateWarning(false);
@@ -369,20 +451,21 @@ const AddCustomerModal: React.FC<{
         type: "RESIDENTIAL",
         email: "",
         phone: "",
-        taxId: "",
-        notes: "",
-        billingAddress: "",
-        billingCity: "",
-        billingState: "",
-        billingPincode: "",
-        shippingAddress: "",
-        shippingCity: "",
-        shippingState: "",
-        shippingPincode: "",
+        secondaryEmailsText: "",
+        secondaryPhonesText: "",
+        companyName: "",
+        propertyType: "",
+        projectType: "",
+        area: "",
+        city: "",
+        projectStage: "",
+        startTimeline: "",
+        budgetComfort: "",
+        projectScope: "",
+        floorPlan: "",
+        messageNotes: "",
+        requirements: "",
       });
-      setSameAsBilling(false);
-      setShowBillingSection(false);
-      setShowShippingSection(false);
       setErrors({});
       setDuplicateCheckResult(null);
       setShowDuplicateWarning(false);
@@ -441,10 +524,10 @@ const AddCustomerModal: React.FC<{
           onSubmit={handleSubmit}
           className="p-8 space-y-6 bg-gradient-to-b from-white to-gray-50 overflow-y-auto flex-1"
         >
-          {/* Name */}
+          {/* Full Name */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">
-              Customer Name <span className="text-red-500">*</span>
+              Full Name <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -468,6 +551,23 @@ const AddCustomerModal: React.FC<{
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Company Name */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              Company Name <span className="text-xs text-gray-500">(Optional)</span>
+            </label>
+            <input
+              type="text"
+              value={formData.companyName}
+              onChange={(e) =>
+                setFormData({ ...formData, companyName: e.target.value })
+              }
+              placeholder="e.g., Acme Interiors Pvt Ltd"
+              disabled={isCreating}
+              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
           </div>
 
           {/* Customer Type */}
@@ -585,281 +685,262 @@ const AddCustomerModal: React.FC<{
             </p>
           </div>
 
-          {/* Tax ID (Optional) */}
+          {/* Secondary Emails */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">
-              Tax ID (GSTIN){" "}
+              Secondary Emails{" "}
               <span className="text-xs text-gray-500">(Optional)</span>
             </label>
-            <input
-              type="text"
-              value={formData.taxId}
-              onChange={(e) =>
-                setFormData({ ...formData, taxId: e.target.value })
-              }
-              placeholder="e.g., 29ABCDE1234F1Z5"
-              disabled={isCreating}
-              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <p className="text-xs text-gray-500">
-              GST Identification Number for tax purposes
-            </p>
-          </div>
-
-          {/* Billing Address Section (Collapsible) */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowBillingSection(!showBillingSection)}
-              className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-xl transition-all"
-              disabled={isCreating}
-            >
-              <span className="font-semibold text-gray-700 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-blue-600" />
-                Billing Address{" "}
-                <span className="text-xs text-gray-500">(Optional)</span>
-              </span>
-              <div
-                className={`transform transition-transform ${showBillingSection ? "rotate-180" : ""}`}
-              >
-                ▼
-              </div>
-            </button>
-
-            {showBillingSection && (
-              <div className="space-y-3 p-4 bg-blue-50/50 rounded-xl border border-blue-100 animate-fade-in">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Street Address
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.billingAddress}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        billingAddress: e.target.value,
-                      })
-                    }
-                    placeholder="Street address, building name"
-                    disabled={isCreating}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.billingCity}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          billingCity: e.target.value,
-                        })
-                      }
-                      placeholder="City"
-                      disabled={isCreating}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      State
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.billingState}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          billingState: e.target.value,
-                        })
-                      }
-                      placeholder="State"
-                      disabled={isCreating}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Pincode
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.billingPincode}
-                    onChange={(e) => {
-                      const value = e.target.value
-                        .replace(/\D/g, "")
-                        .slice(0, 6);
-                      setFormData({ ...formData, billingPincode: value });
-                    }}
-                    placeholder="6-digit pincode"
-                    disabled={isCreating}
-                    className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
-                      errors.billingPincode
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.billingPincode && (
-                    <p className="text-xs text-red-600 mt-1">
-                      {errors.billingPincode}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Shipping Address Section (Collapsible) */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowShippingSection(!showShippingSection)}
-              className="flex items-center justify-between w-full px-4 py-3 bg-gradient-to-r from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 rounded-xl transition-all"
-              disabled={isCreating}
-            >
-              <span className="font-semibold text-gray-700 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-green-600" />
-                Shipping Address{" "}
-                <span className="text-xs text-gray-500">(Optional)</span>
-              </span>
-              <div
-                className={`transform transition-transform ${showShippingSection ? "rotate-180" : ""}`}
-              >
-                ▼
-              </div>
-            </button>
-
-            {showShippingSection && (
-              <div className="space-y-3 p-4 bg-green-50/50 rounded-xl border border-green-100 animate-fade-in">
-                <div className="flex items-center gap-2 mb-3">
-                  <input
-                    type="checkbox"
-                    id="sameAsBilling"
-                    checked={sameAsBilling}
-                    onChange={(e) => setSameAsBilling(e.target.checked)}
-                    disabled={isCreating}
-                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                  />
-                  <label
-                    htmlFor="sameAsBilling"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Same as billing address
-                  </label>
-                </div>
-
-                {!sameAsBilling && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Street Address
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.shippingAddress}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            shippingAddress: e.target.value,
-                          })
-                        }
-                        placeholder="Street address, building name"
-                        disabled={isCreating}
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          City
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.shippingCity}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              shippingCity: e.target.value,
-                            })
-                          }
-                          placeholder="City"
-                          disabled={isCreating}
-                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          State
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.shippingState}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              shippingState: e.target.value,
-                            })
-                          }
-                          placeholder="State"
-                          disabled={isCreating}
-                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Pincode
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.shippingPincode}
-                        onChange={(e) => {
-                          const value = e.target.value
-                            .replace(/\D/g, "")
-                            .slice(0, 6);
-                          setFormData({ ...formData, shippingPincode: value });
-                        }}
-                        placeholder="6-digit pincode"
-                        disabled={isCreating}
-                        className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 ${
-                          errors.shippingPincode
-                            ? "border-red-300 bg-red-50"
-                            : "border-gray-300"
-                        }`}
-                      />
-                      {errors.shippingPincode && (
-                        <p className="text-xs text-red-600 mt-1">
-                          {errors.shippingPincode}
-                        </p>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">
-              Notes <span className="text-xs text-gray-500">(Optional)</span>
-            </label>
             <textarea
-              value={formData.notes}
+              value={formData.secondaryEmailsText}
               onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
+                setFormData({ ...formData, secondaryEmailsText: e.target.value })
               }
-              rows={3}
-              placeholder="Any additional notes about this customer..."
+              rows={2}
+              placeholder="wife@gmail.com, office@company.com"
               disabled={isCreating}
               className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
             />
+            <p className="text-xs text-gray-500">Comma-separated emails</p>
+          </div>
+
+          {/* Secondary Phones */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              Secondary Phones{" "}
+              <span className="text-xs text-gray-500">(Optional)</span>
+            </label>
+            <textarea
+              value={formData.secondaryPhonesText}
+              onChange={(e) =>
+                setFormData({ ...formData, secondaryPhonesText: e.target.value })
+              }
+              rows={2}
+              placeholder="+919123456789, +919000000000"
+              disabled={isCreating}
+              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+            />
+            <p className="text-xs text-gray-500">Comma-separated phone numbers</p>
+          </div>
+
+          {/* Intake fields */}
+          <div className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">
+                Project Intake Details
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Optional discovery fields visible during customer creation
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Property Type
+                </label>
+                <select
+                  value={formData.propertyType}
+                  onChange={(e) =>
+                    setFormData({ ...formData, propertyType: e.target.value })
+                  }
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select property type</option>
+                  {customerPropertyTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Project Type
+                </label>
+                <select
+                  value={formData.projectType}
+                  onChange={(e) =>
+                    setFormData({ ...formData, projectType: e.target.value })
+                  }
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select project type</option>
+                  {customerProjectTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Area
+                </label>
+                <input
+                  type="text"
+                  value={formData.area}
+                  onChange={(e) =>
+                    setFormData({ ...formData, area: e.target.value })
+                  }
+                  placeholder="e.g., 2400 sq ft"
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  City
+                </label>
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) =>
+                    setFormData({ ...formData, city: e.target.value })
+                  }
+                  placeholder="e.g., Bengaluru"
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Project Stage
+                </label>
+                <select
+                  value={formData.projectStage}
+                  onChange={(e) =>
+                    setFormData({ ...formData, projectStage: e.target.value })
+                  }
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select project stage</option>
+                  {customerProjectStageOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Start Timeline
+                </label>
+                <select
+                  value={formData.startTimeline}
+                  onChange={(e) =>
+                    setFormData({ ...formData, startTimeline: e.target.value })
+                  }
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select timeline</option>
+                  {customerStartTimelineOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Budget Comfort
+                </label>
+                <select
+                  value={formData.budgetComfort}
+                  onChange={(e) =>
+                    setFormData({ ...formData, budgetComfort: e.target.value })
+                  }
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select budget comfort</option>
+                  {customerBudgetComfortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Project Scope
+                </label>
+                <select
+                  value={formData.projectScope}
+                  onChange={(e) =>
+                    setFormData({ ...formData, projectScope: e.target.value })
+                  }
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select project scope</option>
+                  {customerProjectScopeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Floor Plan
+                </label>
+                <input
+                  type="text"
+                  value={formData.floorPlan}
+                  onChange={(e) =>
+                    setFormData({ ...formData, floorPlan: e.target.value })
+                  }
+                  placeholder="Paste floor plan URL or reference"
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Message / Notes
+                </label>
+                <textarea
+                  value={formData.messageNotes}
+                  onChange={(e) =>
+                    setFormData({ ...formData, messageNotes: e.target.value })
+                  }
+                  rows={3}
+                  placeholder="Client message or context"
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Requirements
+                </label>
+                <textarea
+                  value={formData.requirements}
+                  onChange={(e) =>
+                    setFormData({ ...formData, requirements: e.target.value })
+                  }
+                  rows={3}
+                  placeholder="Project requirements and must-haves"
+                  disabled={isCreating}
+                  className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Duplicate Warning */}
@@ -1259,7 +1340,7 @@ const ViewCustomerModal: React.FC<{
                 Total Value
               </p>
               <p className="text-2xl font-bold text-emerald-900">
-                {customer.totalValue}
+                ₹{(customer.totalValue / 100000).toFixed(1)}L
               </p>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl p-5 border border-amber-200">
@@ -1516,6 +1597,12 @@ const EditCustomerModal: React.FC<{
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState("");
+
+  const parseCsvValues = (value: string): string[] =>
+    value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
 
   // Update form data when customer prop changes
   React.useEffect(() => {
@@ -1791,6 +1878,42 @@ const EditCustomerModal: React.FC<{
                   {errors.phone && (
                     <p className="text-xs text-red-600 mt-1">{errors.phone}</p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Secondary Emails
+                  </label>
+                  <textarea
+                    value={(formData.secondaryEmails || []).join(", ")}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        secondaryEmails: parseCsvValues(e.target.value),
+                      })
+                    }
+                    rows={2}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 resize-none"
+                    placeholder="wife@gmail.com, office@company.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Secondary Phones
+                  </label>
+                  <textarea
+                    value={(formData.secondaryPhones || []).join(", ")}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        secondaryPhones: parseCsvValues(e.target.value),
+                      })
+                    }
+                    rows={2}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 resize-none"
+                    placeholder="+919123456789, +919000000000"
+                  />
                 </div>
 
                 <div>
@@ -2553,6 +2676,10 @@ export const Customers: React.FC = () => {
       // then map them by leadId -> customer via convertedFromLeadId
       let contactsByLeadId: Map<string, any[]> = new Map();
       let contactsByAccountId: Map<string, any[]> = new Map();
+      const projectAggByAccountId = new Map<
+        string,
+        { projectCount: number; totalValue: number }
+      >();
 
       try {
         const contactsData = await ContactAPI.listContacts({ limit: 1000 });
@@ -2585,9 +2712,29 @@ export const Customers: React.FC = () => {
         console.warn("Could not fetch contacts separately:", err);
       }
 
+      try {
+        const projectsResponse = await listProjects({ limit: 5000 });
+        (projectsResponse.projects || []).forEach((project) => {
+          const accountId = project.accountId || project.account?.id;
+          if (!accountId) return;
+
+          const existing = projectAggByAccountId.get(accountId) || {
+            projectCount: 0,
+            totalValue: 0,
+          };
+
+          existing.projectCount += 1;
+          existing.totalValue += toCurrencyNumber(project.totalValue);
+
+          projectAggByAccountId.set(accountId, existing);
+        });
+      } catch (err) {
+        console.warn("Could not fetch project totals separately:", err);
+      }
+
       // Map API customers to UI Customer format
       const mappedCustomers: Customer[] = response.customers.map(
-        (apiCustomer, index) => {
+        (apiCustomer) => {
           const initials = apiCustomer.name
             .split(" ")
             .map((n) => n[0])
@@ -2616,6 +2763,12 @@ export const Customers: React.FC = () => {
           const primaryContact =
             contacts.find((c: any) => c.isPrimary) || contacts[0];
           const leadInfo = apiCustomer.convertedFromLead;
+          const projectAgg = projectAggByAccountId.get(apiCustomer.id);
+          const embeddedProjectValue = (apiCustomer.projects || []).reduce(
+            (sum: number, project: any) =>
+              sum + toCurrencyNumber(project?.totalValue),
+            0,
+          );
 
           console.log(`Customer ${apiCustomer.name}:`, {
             id: apiCustomer.id,
@@ -2629,7 +2782,9 @@ export const Customers: React.FC = () => {
 
           // Get email from contacts first, then fall back to lead info
           let customerEmail = "No email";
-          if (primaryContact?.email) {
+          if (apiCustomer.email) {
+            customerEmail = apiCustomer.email;
+          } else if (primaryContact?.email) {
             customerEmail = primaryContact.email;
           } else {
             const contactWithEmail = contacts.find((c: any) => c.email);
@@ -2642,7 +2797,9 @@ export const Customers: React.FC = () => {
 
           // Get phone from contacts first, then fall back to lead info
           let customerPhone = "No phone";
-          if (primaryContact?.phone) {
+          if (apiCustomer.phone) {
+            customerPhone = apiCustomer.phone;
+          } else if (primaryContact?.phone) {
             customerPhone = primaryContact.phone;
           } else {
             const contactWithPhone = contacts.find((c: any) => c.phone);
@@ -2659,14 +2816,20 @@ export const Customers: React.FC = () => {
             initials,
             email: customerEmail,
             phone: customerPhone,
+            secondaryEmails: apiCustomer.secondaryEmails || [],
+            secondaryPhones: apiCustomer.secondaryPhones || [],
             location:
               apiCustomer.billingCity ||
               apiCustomer.shippingCity ||
               apiCustomer.billingAddress ||
               apiCustomer.shippingAddress ||
               "N/A",
-            projects: apiCustomer._count?.projects || 0,
-            totalValue: 0,
+            projects:
+              projectAgg?.projectCount ||
+              apiCustomer._count?.projects ||
+              apiCustomer.projects?.length ||
+              0,
+            totalValue: projectAgg?.totalValue || embeddedProjectValue,
             status:
               (apiCustomer.status?.toLowerCase() as
                 | "active"
@@ -2744,8 +2907,17 @@ export const Customers: React.FC = () => {
   const handleAddCustomer = async (customerData: any) => {
     setIsCreatingCustomer(true);
     try {
+      const createPayload = {
+        name: customerData.name,
+        type: customerData.type,
+        email: customerData.email,
+        phone: customerData.phone,
+        secondaryEmails: customerData.secondaryEmails,
+        secondaryPhones: customerData.secondaryPhones,
+      };
+
       // Call the backend API to create customer
-      const response = await CustomerAPI.createCustomer(customerData as any);
+      const response = await CustomerAPI.createCustomer(createPayload as any);
 
       console.log("Customer created successfully:", response);
 
@@ -2787,12 +2959,23 @@ export const Customers: React.FC = () => {
     try {
       // Call backend API to persist changes
       const customerToUpdate: Partial<APICustomer> = {
-        name: updatedCustomer.name,
-        status: updatedCustomer.status.toUpperCase(),
-        notes:
-          updatedCustomer.notes && updatedCustomer.notes.length > 0
-            ? updatedCustomer.notes.map((n) => n.content).join("\n")
+        name: updatedCustomer.name?.trim(),
+        type: updatedCustomer.type || undefined,
+        status: (updatedCustomer.status || "active").toUpperCase(),
+        email:
+          updatedCustomer.email && updatedCustomer.email !== "No email"
+            ? updatedCustomer.email.trim()
             : undefined,
+        phone:
+          updatedCustomer.phone && updatedCustomer.phone !== "No phone"
+            ? updatedCustomer.phone.trim()
+            : undefined,
+        secondaryEmails: (updatedCustomer.secondaryEmails || [])
+          .map((email) => email.trim())
+          .filter(Boolean),
+        secondaryPhones: (updatedCustomer.secondaryPhones || [])
+          .map((phone) => phone.trim())
+          .filter(Boolean),
       };
 
       await CustomerAPI.updateCustomer(

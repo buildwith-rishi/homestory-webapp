@@ -22,10 +22,8 @@ import {
   Plus,
   Loader2,
   Copy,
-  Sparkles,
   IndianRupee,
   Ruler,
-  Target,
   ArrowRight,
   Check,
   X,
@@ -588,18 +586,6 @@ const LeadDetails: React.FC = () => {
     setReferences((prev) => prev.filter((ref) => ref.id !== referenceId));
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 70) return "text-emerald-600";
-    if (score >= 40) return "text-amber-600";
-    return "text-red-500";
-  };
-
-  const getScoreBg = (score: number) => {
-    if (score >= 70) return "from-emerald-500 to-green-500";
-    if (score >= 40) return "from-amber-500 to-yellow-500";
-    return "from-red-500 to-orange-500";
-  };
-
   const formatEnum = (value: string): string =>
     value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -629,8 +615,6 @@ const LeadDetails: React.FC = () => {
       </div>
     );
   }
-
-  const score = lead.score || 0;
 
   return (
     <div className="min-h-screen bg-gray-50/50">
@@ -672,12 +656,6 @@ const LeadDetails: React.FC = () => {
                     <h1 className="text-2xl font-bold text-gray-900">
                       {safeDisplay(lead.name, "Unknown Lead")}
                     </h1>
-                    {lead.priority === "high" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold">
-                        <Sparkles className="w-3 h-3" />
-                        Hot Lead
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-gray-600">
                     {lead.phone &&
@@ -730,14 +708,6 @@ const LeadDetails: React.FC = () => {
                     >
                       {lead.status || lead.stage || "New"}
                     </span>
-                    {score > 0 && (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-full">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <span className="text-xs font-bold text-amber-700">
-                          {score}% Score
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -782,42 +752,6 @@ const LeadDetails: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Left Column */}
           <div className="lg:col-span-2 space-y-4">
-            {/* Lead Score Card */}
-            {score > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`w-9 h-9 rounded-lg bg-gradient-to-br ${getScoreBg(score)} flex items-center justify-center`}
-                      >
-                        <Target className="w-4.5 h-4.5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900 text-sm">
-                          Lead Score
-                        </h3>
-                        <p className="text-xs text-gray-500">
-                          Engagement & profile
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      className={`text-2xl font-bold ${getScoreColor(score)}`}
-                    >
-                      {score}%
-                    </div>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full bg-gradient-to-r ${getScoreBg(score)} transition-all duration-700`}
-                      style={{ width: `${score}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Contact Information */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
@@ -830,7 +764,8 @@ const LeadDetails: React.FC = () => {
                 {!lead.phone &&
                 !lead.email &&
                 !lead.location &&
-                !lead.city &&
+                !lead.siteContactName &&
+                !lead.siteContactPhone &&
                 !lead.source ? (
                   <div className="text-center py-8">
                     <User className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -872,6 +807,22 @@ const LeadDetails: React.FC = () => {
                         </div>
                       )}
 
+                    {typeof lead.canWhatsApp === "boolean" && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <MessageSquare className="w-5 h-5 text-emerald-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">
+                            WhatsApp Available
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {lead.canWhatsApp ? "Yes" : "No"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {lead.email &&
                       lead.email !== "undefined" &&
                       lead.email !== "null" && (
@@ -898,7 +849,7 @@ const LeadDetails: React.FC = () => {
                         </div>
                       )}
 
-                    {(lead.location || lead.city) && (
+                    {lead.location && (
                       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                         <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
                           <MapPin className="w-5 h-5 text-green-500" />
@@ -908,8 +859,29 @@ const LeadDetails: React.FC = () => {
                             Location
                           </p>
                           <p className="text-sm font-semibold text-gray-900">
-                            {lead.location || lead.city}
+                            {lead.location}
                           </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {(lead.siteContactName || lead.siteContactPhone) && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Users className="w-5 h-5 text-indigo-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">
+                            Site Contact
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {safeDisplay(lead.siteContactName, "Not provided")}
+                          </p>
+                          {lead.siteContactPhone && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {lead.siteContactPhone}
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
@@ -924,21 +896,6 @@ const LeadDetails: React.FC = () => {
                           <p className="text-sm font-semibold text-gray-900">
                             {getSourceLabel(lead.source)}
                           </p>
-                          {lead.sourceDetails &&
-                            Object.values(lead.sourceDetails).some(Boolean) && (
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                {Object.entries(lead.sourceDetails)
-                                  .filter(([, v]) => v)
-                                  .map(([k, v]) => (
-                                    <span
-                                      key={k}
-                                      className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded"
-                                    >
-                                      {k}: {v}
-                                    </span>
-                                  ))}
-                              </div>
-                            )}
                         </div>
                       </div>
                     )}
@@ -979,23 +936,33 @@ const LeadDetails: React.FC = () => {
               </div>
             </div>
 
-            {/* Project Requirements - Only show if data exists */}
-            {(lead.propertyType ||
-              lead.bhkConfig ||
-              lead.carpetArea ||
-              lead.budget ||
-              lead.budgetRange ||
-              lead.timeline ||
-              (lead.scopeOfWork && lead.scopeOfWork.length > 0) ||
-              (lead.servicesInterested && lead.servicesInterested.length > 0) ||
-              lead.serviceInterest ||
-              lead.homeType ||
+            {/* Project Requirements - Show all mapped API fields */}
+            {(lead.projectCategory ||
+              lead.propertyType ||
               lead.projectType ||
-              lead.propertyProjectType ||
-              lead.area ||
+              lead.pipelineType ||
+              lead.scopeType ||
+              lead.projectStage ||
               lead.startTimeline ||
               lead.budgetComfort ||
-              lead.projectScope) && (
+              lead.projectScope ||
+              lead.propertySubtype ||
+              lead.propertyBHK ||
+              lead.budgetTier ||
+              lead.propertySizeSqft ||
+              lead.constructionStatus ||
+              lead.tentativeHandoverDate ||
+              lead.propertyAddress ||
+              lead.propertyState ||
+              lead.propertyPincode ||
+              lead.propertyBuilding ||
+              lead.propertyUnit ||
+              lead.propertyLandmarks ||
+              lead.location ||
+              lead.designPackage ||
+              lead.specialRequirements ||
+              lead.message ||
+              typeof lead.wantsExperienceCenterVisit === "boolean") && (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
                   <Home className="w-4 h-4 text-amber-500" />
@@ -1004,181 +971,184 @@ const LeadDetails: React.FC = () => {
                   </h3>
                 </div>
                 <div className="p-4 space-y-4">
-                  {/* Primary Details Grid */}
-                  {(lead.serviceInterest ||
-                    lead.propertyType ||
-                    lead.homeType ||
-                    lead.bhkConfig ||
-                    lead.projectType) && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {lead.serviceInterest && (
-                        <div className="p-3 bg-amber-50 rounded-lg text-center">
-                          <Wrench className="w-5 h-5 text-amber-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">
-                            Service Interest
-                          </p>
-                          <p className="text-sm font-bold text-gray-900">
-                            {formatEnum(lead.serviceInterest)}
-                          </p>
-                        </div>
-                      )}
-                      {lead.propertyType && (
-                        <div className="p-3 bg-orange-50 rounded-lg text-center">
-                          <Building2 className="w-5 h-5 text-orange-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">
-                            Property Type
-                          </p>
-                          <p className="text-sm font-bold text-gray-900">
-                            {formatEnum(lead.propertyType)}
-                          </p>
-                        </div>
-                      )}
-                      {(lead.homeType || lead.bhkConfig) && (
-                        <div className="p-3 bg-blue-50 rounded-lg text-center">
-                          <Home className="w-5 h-5 text-blue-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">
-                            Home Type
-                          </p>
-                          <p className="text-sm font-bold text-gray-900">
-                            {lead.homeType
-                              ? formatEnum(lead.homeType)
-                              : lead.bhkConfig}
-                          </p>
-                        </div>
-                      )}
-                      {lead.projectType && (
-                        <div className="p-3 bg-purple-50 rounded-lg text-center">
-                          <Layers className="w-5 h-5 text-purple-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">
-                            Project Type
-                          </p>
-                          <p className="text-sm font-bold text-gray-900">
-                            {formatEnum(lead.projectType)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Secondary Details Grid */}
-                  {(lead.propertyProjectType ||
-                    lead.projectStage ||
-                    lead.area ||
-                    lead.carpetArea) && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {lead.propertyProjectType && (
-                        <div className="p-3 bg-teal-50 rounded-lg text-center">
-                          <Target className="w-5 h-5 text-teal-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">
-                            Property Project
-                          </p>
-                          <p className="text-sm font-bold text-gray-900">
-                            {formatEnum(lead.propertyProjectType)}
-                          </p>
-                        </div>
-                      )}
-                      {lead.projectStage && (
-                        <div className="p-3 bg-indigo-50 rounded-lg text-center">
-                          <ArrowRight className="w-5 h-5 text-indigo-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">
-                            Project Stage
-                          </p>
-                          <p className="text-sm font-bold text-gray-900">
-                            {formatEnum(lead.projectStage)}
-                          </p>
-                        </div>
-                      )}
-                      {(lead.area || lead.carpetArea) && (
-                        <div className="p-3 bg-pink-50 rounded-lg text-center">
-                          <Ruler className="w-5 h-5 text-pink-600 mx-auto mb-1.5" />
-                          <p className="text-xs text-gray-500 mb-1">Area</p>
-                          <p className="text-sm font-bold text-gray-900">
-                            {lead.area || lead.carpetArea} sqft
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Timeline */}
-                  {(lead.startTimeline || lead.timeline) && (
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                      <Clock className="w-5 h-5 text-blue-600" />
-                      <div>
-                        <p className="text-xs text-gray-600 mb-0.5">
-                          Start Timeline
-                        </p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {lead.startTimeline
-                            ? formatEnum(lead.startTimeline)
-                            : lead.timeline}
-                        </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {lead.projectCategory && (
+                      <div className="p-3 bg-amber-50 rounded-lg text-center">
+                        <Home className="w-5 h-5 text-amber-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Project Category</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.projectCategory)}</p>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Budget */}
-                  {(lead.budgetComfort || lead.budgetRange || lead.budget) && (
-                    <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                      <IndianRupee className="w-5 h-5 text-green-600" />
-                      <div>
-                        <p className="text-xs text-gray-600 mb-0.5">
-                          Budget Comfort
-                        </p>
-                        <p className="text-sm font-semibold text-green-700">
-                          {lead.budgetComfort
-                            ? formatEnum(lead.budgetComfort)
-                            : lead.budgetRange || lead.budget}
-                        </p>
+                    )}
+                    {lead.propertyType && (
+                      <div className="p-3 bg-slate-50 rounded-lg text-center">
+                        <Building2 className="w-5 h-5 text-slate-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Property Type</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.propertyType)}</p>
                       </div>
+                    )}
+                    {lead.projectType && (
+                      <div className="p-3 bg-cyan-50 rounded-lg text-center">
+                        <Layers className="w-5 h-5 text-cyan-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Project Type</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.projectType)}</p>
+                      </div>
+                    )}
+                    {lead.pipelineType && (
+                      <div className="p-3 bg-orange-50 rounded-lg text-center">
+                        <Layers className="w-5 h-5 text-orange-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Pipeline Type</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.pipelineType)}</p>
+                      </div>
+                    )}
+                    {lead.scopeType && (
+                      <div className="p-3 bg-blue-50 rounded-lg text-center">
+                        <Wrench className="w-5 h-5 text-blue-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Scope Type</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.scopeType)}</p>
+                      </div>
+                    )}
+                    {lead.projectStage && (
+                      <div className="p-3 bg-fuchsia-50 rounded-lg text-center">
+                        <ArrowRight className="w-5 h-5 text-fuchsia-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Project Stage</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.projectStage)}</p>
+                      </div>
+                    )}
+                    {lead.startTimeline && (
+                      <div className="p-3 bg-yellow-50 rounded-lg text-center">
+                        <Clock className="w-5 h-5 text-yellow-700 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Start Timeline</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.startTimeline)}</p>
+                      </div>
+                    )}
+                    {lead.budgetComfort && (
+                      <div className="p-3 bg-lime-50 rounded-lg text-center">
+                        <IndianRupee className="w-5 h-5 text-lime-700 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Budget Comfort</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.budgetComfort)}</p>
+                      </div>
+                    )}
+                    {lead.projectScope && (
+                      <div className="p-3 bg-rose-50 rounded-lg text-center">
+                        <Wrench className="w-5 h-5 text-rose-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Project Scope</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.projectScope)}</p>
+                      </div>
+                    )}
+                    {lead.designPackage && (
+                      <div className="p-3 bg-purple-50 rounded-lg text-center">
+                        <Palette className="w-5 h-5 text-purple-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Design Package</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.designPackage)}</p>
+                      </div>
+                    )}
+                    {lead.propertySubtype && (
+                      <div className="p-3 bg-teal-50 rounded-lg text-center">
+                        <Building2 className="w-5 h-5 text-teal-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Property Subtype</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.propertySubtype)}</p>
+                      </div>
+                    )}
+                    {lead.propertyBHK && (
+                      <div className="p-3 bg-indigo-50 rounded-lg text-center">
+                        <Home className="w-5 h-5 text-indigo-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Property BHK</p>
+                        <p className="text-sm font-bold text-gray-900">{lead.propertyBHK}</p>
+                      </div>
+                    )}
+                    {(lead.propertySizeSqft || lead.propertySizeSqft === 0) && (
+                      <div className="p-3 bg-pink-50 rounded-lg text-center">
+                        <Ruler className="w-5 h-5 text-pink-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Size</p>
+                        <p className="text-sm font-bold text-gray-900">{lead.propertySizeSqft} sqft</p>
+                      </div>
+                    )}
+                    {lead.budgetTier && (
+                      <div className="p-3 bg-green-50 rounded-lg text-center">
+                        <IndianRupee className="w-5 h-5 text-green-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">Budget Tier</p>
+                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.budgetTier)}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {(lead.constructionStatus || lead.tentativeHandoverDate || typeof lead.wantsExperienceCenterVisit === "boolean") && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {lead.constructionStatus && (
+                        <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                          <Clock className="w-5 h-5 text-blue-600" />
+                          <div>
+                            <p className="text-xs text-gray-600 mb-0.5">Construction Status</p>
+                            <p className="text-sm font-semibold text-gray-900">{formatEnum(lead.constructionStatus)}</p>
+                          </div>
+                        </div>
+                      )}
+                      {lead.tentativeHandoverDate && (
+                        <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg">
+                          <Calendar className="w-5 h-5 text-indigo-600" />
+                          <div>
+                            <p className="text-xs text-gray-600 mb-0.5">Tentative Handover</p>
+                            <p className="text-sm font-semibold text-gray-900">{new Date(lead.tentativeHandoverDate).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                      )}
+                      {typeof lead.wantsExperienceCenterVisit === "boolean" && (
+                        <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
+                          <CheckCircle className="w-5 h-5 text-purple-600" />
+                          <div>
+                            <p className="text-xs text-gray-600 mb-0.5">Experience Center Visit</p>
+                            <p className="text-sm font-semibold text-gray-900">{lead.wantsExperienceCenterVisit ? "Yes" : "No"}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Project Scope */}
-                  {(lead.projectScope ||
-                    (lead.scopeOfWork && lead.scopeOfWork.length > 0)) && (
+                  {(lead.propertyAddress || lead.propertyBuilding || lead.propertyUnit || lead.propertyState || lead.propertyPincode || lead.propertyLandmarks || lead.location) && (
                     <div>
-                      <p className="text-xs font-semibold text-gray-600 mb-2">
-                        Project Scope
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {lead.projectScope ? (
-                          <span className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium">
-                            {formatEnum(lead.projectScope)}
-                          </span>
-                        ) : (
-                          lead.scopeOfWork?.map((scope, idx) => (
-                            <span
-                              key={idx}
-                              className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium"
-                            >
-                              {scope}
-                            </span>
-                          ))
+                      <p className="text-xs font-semibold text-gray-600 mb-2">Property Address</p>
+                      <div className="space-y-2 text-sm">
+                        {lead.propertyAddress && (
+                          <div className="flex justify-between gap-3"><span className="text-gray-600">Address:</span><span className="font-medium text-right">{lead.propertyAddress}</span></div>
+                        )}
+                        {lead.location && (
+                          <div className="flex justify-between gap-3"><span className="text-gray-600">Locality:</span><span className="font-medium text-right">{lead.location}</span></div>
+                        )}
+                        {lead.propertyBuilding && (
+                          <div className="flex justify-between gap-3"><span className="text-gray-600">Building:</span><span className="font-medium text-right">{lead.propertyBuilding}</span></div>
+                        )}
+                        {lead.propertyUnit && (
+                          <div className="flex justify-between gap-3"><span className="text-gray-600">Unit:</span><span className="font-medium text-right">{lead.propertyUnit}</span></div>
+                        )}
+                        {lead.propertyState && (
+                          <div className="flex justify-between gap-3"><span className="text-gray-600">State:</span><span className="font-medium text-right">{lead.propertyState}</span></div>
+                        )}
+                        {lead.propertyPincode && (
+                          <div className="flex justify-between gap-3"><span className="text-gray-600">Pincode:</span><span className="font-medium text-right">{lead.propertyPincode}</span></div>
+                        )}
+                        {lead.propertyLandmarks && (
+                          <div className="flex justify-between gap-3"><span className="text-gray-600">Landmarks:</span><span className="font-medium text-right">{lead.propertyLandmarks}</span></div>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {/* Services */}
-                  {lead.servicesInterested &&
-                    lead.servicesInterested.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-600 mb-2">
-                          Services Interested
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {lead.servicesInterested.map((service, idx) => (
-                            <span
-                              key={idx}
-                              className="px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-sm font-medium"
-                            >
-                              {service}
-                            </span>
-                          ))}
+                  {(lead.specialRequirements || lead.message) && (
+                    <div className="space-y-2">
+                      {lead.specialRequirements && (
+                        <div className="p-3 bg-orange-50 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-1">Special Requirements</p>
+                          <p className="text-sm font-medium text-gray-900 whitespace-pre-wrap">{lead.specialRequirements}</p>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      {lead.message && (
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-1">Message</p>
+                          <p className="text-sm font-medium text-gray-900 whitespace-pre-wrap">{lead.message}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1222,7 +1192,6 @@ const LeadDetails: React.FC = () => {
             {/* Referral & Agent - Only show if data exists */}
             {(lead.referrerName ||
               lead.referrerPhone ||
-              lead.referrerProjectNumber ||
               lead.agentAgencyName) && (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
@@ -1252,17 +1221,18 @@ const LeadDetails: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  {lead.referrerProjectNumber && (
+
+                  {lead.referrerPhone && !lead.referrerName && (
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                       <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5 text-gray-500" />
+                        <Phone className="w-5 h-5 text-indigo-500" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-500 mb-0.5">
-                          Referrer Project No.
+                          Referrer Phone
                         </p>
                         <p className="text-sm font-semibold text-gray-900">
-                          {lead.referrerProjectNumber}
+                          {lead.referrerPhone}
                         </p>
                       </div>
                     </div>
@@ -1285,59 +1255,6 @@ const LeadDetails: React.FC = () => {
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-            )}
-
-            {/* Design Preferences - Only show if data exists */}
-            {((lead.designStyle && lead.designStyle.length > 0) ||
-              (lead.colorPreferences && lead.colorPreferences.length > 0)) && (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-pink-500" />
-                  <h3 className="font-semibold text-gray-900 text-sm">
-                    Design Preferences
-                  </h3>
-                </div>
-                <div className="p-3">
-                  {lead.designStyle && (
-                    <div className="mb-3">
-                      <p className="text-xs font-semibold text-gray-600 mb-2">
-                        Preferred Style
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(Array.isArray(lead.designStyle)
-                          ? lead.designStyle
-                          : [lead.designStyle]
-                        ).map((style, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2.5 py-1 bg-pink-50 text-pink-700 rounded text-xs font-medium"
-                          >
-                            {style}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {lead.colorPreferences &&
-                    lead.colorPreferences.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-600 mb-2">
-                          Colors
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {lead.colorPreferences.map((color, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"
-                            >
-                              {color}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                 </div>
               </div>
             )}
@@ -1446,12 +1363,12 @@ const LeadDetails: React.FC = () => {
 
           {/* Right Column - Sidebar */}
           <div className="space-y-4">
-            {/* Timeline */}
+            {/* Record Info */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-orange-500" />
                 <h3 className="font-semibold text-gray-900 text-sm">
-                  Timeline
+                  Record Info
                 </h3>
               </div>
               <div className="p-3 space-y-2">
@@ -1467,40 +1384,15 @@ const LeadDetails: React.FC = () => {
                       : "N/A"}
                   </span>
                 </div>
-                {lead.lastContactedAt && (
+                {lead.updatedAt && (
                   <div className="flex items-center justify-between py-1">
-                    <span className="text-xs text-gray-500">Last Contact</span>
+                    <span className="text-xs text-gray-500">Updated</span>
                     <span className="text-xs font-semibold text-gray-900">
-                      {new Date(lead.lastContactedAt).toLocaleDateString(
-                        "en-US",
-                        { month: "short", day: "numeric" },
-                      )}
-                    </span>
-                  </div>
-                )}
-                {lead.followUpDate && (
-                  <div className="flex items-center justify-between px-2 py-1.5 bg-orange-50 rounded-md -mx-1">
-                    <span className="text-xs text-orange-700 font-medium">
-                      Follow-up
-                    </span>
-                    <span className="text-xs font-bold text-orange-700">
-                      {new Date(lead.followUpDate).toLocaleDateString("en-US", {
+                      {new Date(lead.updatedAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
+                        year: "numeric",
                       })}
-                    </span>
-                  </div>
-                )}
-                {lead.expectedStartDate && (
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-xs text-gray-500">
-                      Expected Start
-                    </span>
-                    <span className="text-xs font-semibold text-gray-900">
-                      {new Date(lead.expectedStartDate).toLocaleDateString(
-                        "en-US",
-                        { month: "short", day: "numeric" },
-                      )}
                     </span>
                   </div>
                 )}

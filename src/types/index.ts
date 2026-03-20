@@ -272,6 +272,8 @@ export interface Project {
   assignedDesignerId?: string | null;
   assignedPMId?: string | null;
   designPackage?: string | null;
+  designValue?: number | string;
+  executionValue?: number | string;
   numberOfMeetings?: number;
   moodBoardShared?: boolean;
   design3DStatus?: string | null;
@@ -290,6 +292,7 @@ export interface Project {
   remarks?: string | null;
   totalValue: number | string;
   paidAmount?: number | string;
+  billingAddress?: string | null;
   createdAt: string;
   updatedAt: string;
 
@@ -339,7 +342,7 @@ export interface Project {
 
 // Create Project Request Interface
 export interface CreateProjectRequest {
-  accountId: string;
+  accountId?: string;
   projectName: string;
   leadId?: string;
   pipelineType: PipelineType | string;
@@ -366,6 +369,8 @@ export interface CreateProjectRequest {
   assignedDesignerId?: string;
   assignedPMId?: string;
   designPackage?: string;
+  designValue?: number;
+  executionValue?: number;
   totalValue?: number | string;
   remarks?: string;
   numberOfMeetings?: number;
@@ -373,6 +378,7 @@ export interface CreateProjectRequest {
   design3DStatus?: string;
   status?: string;
   paidAmount?: number;
+  billingAddress?: string;
 }
 
 // Update Project Request Interface
@@ -394,7 +400,10 @@ export interface UpdateProjectRequest {
   moodBoardShared?: boolean;
   design3DStatus?: string;
   designPackage?: string;
+  designValue?: number | string;
+  executionValue?: number | string;
   numberOfMeetings?: number;
+  currentPhase?: string;
   propertyAddress?: string;
   propertyCity?: string;
   propertyState?: string;
@@ -409,6 +418,7 @@ export interface UpdateProjectRequest {
   specialRequirements?: string;
   totalValue?: number | string;
   paidAmount?: number | string;
+  billingAddress?: string;
   status?: ProjectStatus;
   pauseReason?: string;
   pausedUntil?: string;

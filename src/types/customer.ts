@@ -55,12 +55,17 @@ export interface ConvertedFromLead {
   email?: string | null;
   source?: string | null;
   status?: string;
+  [key: string]: unknown;
 }
 
 export interface Customer {
   id: string;
   name: string;
   type?: string;
+  email?: string | null;
+  phone?: string | null;
+  secondaryEmails?: string[];
+  secondaryPhones?: string[];
   taxId?: string | null;
   billingAddress?: string | null;
   billingCity?: string | null;

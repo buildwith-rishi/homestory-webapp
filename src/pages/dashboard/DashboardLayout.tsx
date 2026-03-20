@@ -24,6 +24,9 @@ export const DashboardLayout: React.FC = () => {
     [],
   );
   const isKanbanRoute = location.pathname.startsWith("/dashboard/kanban");
+  const isProjectDetailsRoute =
+    location.pathname.startsWith("/dashboard/projects/") &&
+    location.pathname.split("/").filter(Boolean).length >= 3;
 
   useEffect(() => {
     // Show deadline toasts only once per browser session
@@ -91,6 +94,8 @@ export const DashboardLayout: React.FC = () => {
             className={`min-h-screen w-full ${
               isKanbanRoute
                 ? "pt-16 px-0 pb-0"
+                : isProjectDetailsRoute
+                  ? "pt-[72px] px-2 sm:px-3 lg:px-4 pb-5"
                 : "pt-20 px-3 sm:px-4 lg:px-6 pb-6"
             }`}
           >

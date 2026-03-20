@@ -25,15 +25,10 @@ import {
   PipelineType,
   ProjectCategory,
   ScopeType,
-  BudgetTier,
-  PropertySubtype,
 } from "../../types";
 import type { Customer } from "../../types/customer";
 import { listCustomers } from "../../services/customerApi";
 import { listProjects } from "../../services/projectApi";
-import { getAllTeamMembers } from "../../services/teamApi";
-import type { TeamMember } from "../../services/teamApi";
-import { useProjectOptions } from "../../hooks/useProjectOptions";
 import toast from "react-hot-toast";
 
 export interface NewProjectModalProps {
@@ -45,9 +40,12 @@ export interface NewProjectModalProps {
 interface FormData {
   projectName: string;
   accountId: string;
+  leadId: string;
   pipelineType: PipelineType | "";
   projectCategory: string;
+  scopeType: string;
   propertySubtype: string;
+  budgetTier: string;
   propertySizeSqft: string;
   propertyBHK: string;
   propertyAddress: string;
@@ -57,10 +55,6 @@ interface FormData {
   propertyBuilding: string;
   propertyUnit: string;
   propertyLandmarks: string;
-  scopeType: string;
-  budgetTier: string;
-  totalValue: string;
-  designPackage: string;
   siteContactName: string;
   siteContactPhone: string;
   constructionStatus: string;
@@ -68,16 +62,28 @@ interface FormData {
   specialRequirements: string;
   designTeam: string;
   executionTeam: string;
-  assignedPMId: string;
+  designPackage: string;
+  designValue: string;
+  executionValue: string;
+  totalValue: string;
   remarks: string;
+  numberOfMeetings: string;
+  moodBoardShared: boolean;
+  design3DStatus: string;
+  status: string;
+  paidAmount: string;
+  billingAddress: string;
 }
 
 const INITIAL_FORM_DATA: FormData = {
   projectName: "",
   accountId: "",
-  pipelineType: "",
-  projectCategory: "",
+  leadId: "",
+  pipelineType: PipelineType.DESIGN_AND_EXECUTION,
+  projectCategory: ProjectCategory.RESIDENTIAL,
+  scopeType: ScopeType.INTERIORS,
   propertySubtype: "",
+  budgetTier: "",
   propertySizeSqft: "",
   propertyBHK: "",
   propertyAddress: "",
@@ -87,10 +93,6 @@ const INITIAL_FORM_DATA: FormData = {
   propertyBuilding: "",
   propertyUnit: "",
   propertyLandmarks: "",
-  scopeType: "",
-  budgetTier: "",
-  totalValue: "",
-  designPackage: "",
   siteContactName: "",
   siteContactPhone: "",
   constructionStatus: "",
@@ -98,9 +100,49 @@ const INITIAL_FORM_DATA: FormData = {
   specialRequirements: "",
   designTeam: "",
   executionTeam: "",
-  assignedPMId: "",
+  designPackage: "",
+  designValue: "",
+  executionValue: "",
+  totalValue: "",
   remarks: "",
+  numberOfMeetings: "0",
+  moodBoardShared: false,
+  design3DStatus: "NOT_STARTED",
+  status: "YET_TO_START",
+  paidAmount: "0",
+  billingAddress: "",
 };
+
+const PROJECT_CATEGORY_OPTIONS = [
+  { value: "RESIDENTIAL", label: "Residential" },
+  { value: "COMMERCIAL", label: "Commercial" },
+  { value: "HEALTHCARE", label: "Healthcare" },
+];
+
+const SCOPE_TYPE_OPTIONS = [
+  { value: "INTERIORS", label: "Interiors" },
+  { value: "ARCHITECTURE", label: "Architecture" },
+  {
+    value: "ARCHITECTURE_AND_INTERIORS",
+    label: "Architecture & Interiors",
+  },
+  { value: "DRAWINGS_ONLY", label: "Drawings Only" },
+];
+
+const PROPERTY_SUBTYPE_OPTIONS = [
+  { value: "INDEPENDENT_HOUSE", label: "Independent House" },
+  { value: "APARTMENT", label: "Apartment" },
+  { value: "VILLA", label: "Villa" },
+  { value: "RETAIL_SHOP", label: "Retail Shop" },
+  { value: "HEALTHCARE_FACILITY", label: "Healthcare Facility" },
+  { value: "RESTAURANT", label: "Restaurant" },
+  { value: "OFFICE_SPACE", label: "Office Space" },
+];
+
+const BUDGET_TIER_OPTIONS = [
+  { value: "STANDARD", label: "Standard" },
+  { value: "LUXURY", label: "Luxury" },
+];
 
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   isOpen,
@@ -115,18 +157,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [autoPopulate, setAutoPopulate] = useState(true);
 
-  // Fetch project options from API
-  const {
-    options: projectOptions,
-    isLoading: optionsLoading,
-    getSubtypesForCategory,
-  } = useProjectOptions();
-
-  // Get category-dependent property subtypes
-  const subtypeOptions = formData.projectCategory
-    ? getSubtypesForCategory(formData.projectCategory)
-    : [];
-
   // Customer search state
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -138,19 +168,10 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
 
-  // PM (Project Manager) state
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
-  const [pmSearch, setPmSearch] = useState("");
-  const [selectedPM, setSelectedPM] = useState<TeamMember | null>(null);
-  const [showPMDropdown, setShowPMDropdown] = useState(false);
-  const pmDropdownRef = useRef<HTMLDivElement>(null);
-
   // Fetch customers and team members on mount
   useEffect(() => {
     if (isOpen) {
       fetchCustomers();
-      fetchTeamMembers();
     }
     if (!isOpen) {
       setFormData({ ...INITIAL_FORM_DATA });
@@ -158,8 +179,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       setShowMore(false);
       setSelectedCustomer(null);
       setCustomerSearch("");
-      setSelectedPM(null);
-      setPmSearch("");
       setSubmitting(false);
     }
   }, [isOpen]);
@@ -173,50 +192,10 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       ) {
         setShowCustomerDropdown(false);
       }
-      if (
-        pmDropdownRef.current &&
-        !pmDropdownRef.current.contains(e.target as Node)
-      ) {
-        setShowPMDropdown(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const fetchTeamMembers = async () => {
-    setTeamMembersLoading(true);
-    try {
-      const members = await getAllTeamMembers();
-      const isEligiblePM = (member: TeamMember): boolean => {
-        const role = (member.role ?? "").toLowerCase();
-        const status = (member.status ?? "").toLowerCase();
-
-        const isProjectManagerRole =
-          role.includes("project_manager") ||
-          role.includes("project manager") ||
-          role === "pm";
-
-        const isBanned = member.isBanned === true;
-        const isDeactivated =
-          member.isActive === false ||
-          member.isDeactivated === true ||
-          status === "deactivated" ||
-          status === "inactive" ||
-          status === "disabled";
-
-        return isProjectManagerRole && !isBanned && !isDeactivated;
-      };
-
-      // Filter to project managers only, excluding banned/deactivated users.
-      const pms = members.filter(isEligiblePM);
-      setTeamMembers(pms);
-    } catch {
-      // silently ignore – PM assignment stays optional
-    } finally {
-      setTeamMembersLoading(false);
-    }
-  };
 
   const fetchCustomers = async () => {
     setCustomersLoading(true);
@@ -259,6 +238,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
     if (customer.billingAddress)
       updates.propertyAddress = customer.billingAddress;
+    if (customer.billingAddress) updates.billingAddress = customer.billingAddress;
     if (customer.billingCity) updates.propertyCity = customer.billingCity;
     if (customer.billingState) updates.propertyState = customer.billingState;
     if (customer.billingPincode)
@@ -289,7 +269,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     if (!formData.projectName.trim())
       newErrors.projectName = "Project name is required";
-    if (!formData.accountId) newErrors.accountId = "Please select a customer";
     if (!formData.pipelineType)
       newErrors.pipelineType = "Please select a pipeline type";
     if (!formData.projectCategory)
@@ -306,17 +285,20 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     setSubmitting(true);
 
     const request: CreateProjectRequest = {
-      accountId: formData.accountId,
-      projectName: formData.projectName,
+      projectName: formData.projectName.trim(),
+      leadId: formData.leadId || undefined,
       pipelineType: formData.pipelineType as PipelineType,
       projectCategory: formData.projectCategory as ProjectCategory,
       scopeType: formData.scopeType as ScopeType,
+      moodBoardShared: formData.moodBoardShared,
+      design3DStatus: formData.design3DStatus || undefined,
+      status: formData.status || undefined,
     };
 
-    if (formData.budgetTier)
-      request.budgetTier = formData.budgetTier as BudgetTier;
-    if (formData.propertySubtype)
-      request.propertySubtype = formData.propertySubtype as PropertySubtype;
+    if (formData.accountId) request.accountId = formData.accountId;
+
+    if (formData.budgetTier) request.budgetTier = formData.budgetTier;
+    if (formData.propertySubtype) request.propertySubtype = formData.propertySubtype;
     if (formData.propertySizeSqft)
       request.propertySizeSqft = Number(formData.propertySizeSqft);
     if (formData.propertyBHK) request.propertyBHK = formData.propertyBHK;
@@ -343,7 +325,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       ).toISOString();
     if (formData.specialRequirements)
       request.specialRequirements = formData.specialRequirements;
+    if (formData.billingAddress) request.billingAddress = formData.billingAddress;
     if (formData.totalValue) request.totalValue = Number(formData.totalValue);
+    if (formData.designValue) request.designValue = Number(formData.designValue);
+    if (formData.executionValue)
+      request.executionValue = Number(formData.executionValue);
     if (formData.designPackage) request.designPackage = formData.designPackage;
     if (formData.designTeam.trim()) {
       request.designTeam = formData.designTeam
@@ -358,12 +344,12 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         .filter(Boolean);
     }
     if (formData.remarks) request.remarks = formData.remarks;
-    if (formData.assignedPMId) request.assignedPMId = formData.assignedPMId;
+    if (formData.numberOfMeetings)
+      request.numberOfMeetings = Number(formData.numberOfMeetings);
+    if (formData.paidAmount) request.paidAmount = Number(formData.paidAmount);
 
     try {
       const normalizedNewName = request.projectName.trim().toLowerCase();
-      const normalizedSelectedCustomerName =
-        (selectedCustomer?.name || "").trim().toLowerCase();
 
       // Server-side duplicate check before create:
       // same project name + same customer should be blocked.
@@ -372,19 +358,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         const existingName = (p.projectName || p.name || "").trim().toLowerCase();
         if (existingName !== normalizedNewName) return false;
 
-        // Primary match by customer/account ID
-        if (request.accountId && p.accountId && p.accountId === request.accountId) {
-          return true;
+        if (request.accountId) {
+          return p.accountId === request.accountId;
         }
 
-        // Fallback match by displayed customer name if accountId is missing in old records
-        const existingCustomerName =
-          (p.account?.name || p.lead?.name || "").trim().toLowerCase();
-        if (normalizedSelectedCustomerName && existingCustomerName) {
-          return existingCustomerName === normalizedSelectedCustomerName;
-        }
-
-        return false;
+        return !p.accountId;
       });
 
       if (duplicateExists) {
@@ -519,7 +497,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                   <label className="block text-sm font-semibold text-gray-700">
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-orange-500" />
-                      Select Customer <span className="text-red-400">*</span>
+                      Select Customer
                     </div>
                   </label>
 
@@ -658,11 +636,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       )}
                   </div>
                 )}
-                {errors.accountId && (
-                  <p className="text-red-500 text-xs mt-1.5 font-medium">
-                    {errors.accountId}
-                  </p>
-                )}
+              </div>
+
+              {/* Lead ID (optional) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Lead ID
+                </label>
+                <Input
+                  value={formData.leadId}
+                  onChange={(e) => handleChange("leadId", e.target.value)}
+                  placeholder="Optional lead id"
+                />
               </div>
 
               {/* Pipeline Type */}
@@ -670,7 +655,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 <label className="block text-sm font-semibold text-gray-700 mb-2.5">
                   <div className="flex items-center gap-2">
                     <Package className="w-4 h-4 text-orange-500" />
-                    Pipeline Type <span className="text-red-400">*</span>
+                    Pipeline Type
                   </div>
                 </label>
                 <div className="grid grid-cols-2 gap-3">
@@ -741,14 +726,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 <label className="block text-sm font-semibold text-gray-700 mb-2.5">
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-orange-500" />
-                    Project Category <span className="text-red-400">*</span>
+                    Project Category
                   </div>
                 </label>
                 <div className="flex flex-wrap gap-2.5">
-                  {optionsLoading ? (
-                    <span className="text-xs text-gray-400">Loading...</span>
-                  ) : projectOptions.categories.length > 0 ? (
-                    projectOptions.categories.map((cat) => (
+                  {PROJECT_CATEGORY_OPTIONS.map((cat) => (
                       <button
                         key={cat.value}
                         type="button"
@@ -763,12 +745,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       >
                         {cat.label}
                       </button>
-                    ))
-                  ) : (
-                    <span className="text-xs text-gray-400">
-                      No categories available
-                    </span>
-                  )}
+                    ))}
                 </div>
                 {errors.projectCategory && (
                   <p className="text-red-500 text-xs mt-1.5 font-medium">
@@ -782,14 +759,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 <label className="block text-sm font-semibold text-gray-700 mb-2.5">
                   <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-orange-500" />
-                    Scope Type <span className="text-red-400">*</span>
+                    Scope Type
                   </div>
                 </label>
                 <div className="flex flex-wrap gap-2.5">
-                  {optionsLoading ? (
-                    <span className="text-xs text-gray-400">Loading...</span>
-                  ) : projectOptions.scopeTypes.length > 0 ? (
-                    projectOptions.scopeTypes.map((opt) => (
+                  {SCOPE_TYPE_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
@@ -798,133 +772,13 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       >
                         {opt.label}
                       </button>
-                    ))
-                  ) : (
-                    <span className="text-xs text-gray-400">
-                      No scope types available
-                    </span>
-                  )}
+                    ))}
                 </div>
                 {errors.scopeType && (
                   <p className="text-red-500 text-xs mt-1.5 font-medium">
                     {errors.scopeType}
                   </p>
                 )}
-              </div>
-
-              {/* Assigned Project Manager */}
-              <div ref={pmDropdownRef}>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-orange-500" />
-                    Assigned Project Manager
-                    <span className="text-xs font-normal text-gray-400">
-                      (optional)
-                    </span>
-                  </div>
-                </label>
-                <div className="relative">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={selectedPM ? selectedPM.name : pmSearch}
-                      onChange={(e) => {
-                        setPmSearch(e.target.value);
-                        if (selectedPM) {
-                          setSelectedPM(null);
-                          handleChange("assignedPMId", "");
-                        }
-                        setShowPMDropdown(true);
-                      }}
-                      onFocus={() => {
-                        setShowPMDropdown(true);
-                        void fetchTeamMembers();
-                      }}
-                      placeholder={
-                        teamMembersLoading
-                          ? "Loading team members..."
-                          : "Search project manager..."
-                      }
-                      disabled={teamMembersLoading}
-                      className={`w-full pl-10 pr-10 py-2.5 border rounded-xl text-sm transition-all outline-none border-gray-300 focus:ring-2 focus:ring-orange-100 focus:border-orange-400 ${
-                        teamMembersLoading
-                          ? "bg-gray-50 cursor-wait"
-                          : "bg-white"
-                      }`}
-                    />
-                    {teamMembersLoading && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
-                    )}
-                    {selectedPM && !teamMembersLoading && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedPM(null);
-                          handleChange("assignedPMId", "");
-                          setPmSearch("");
-                        }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-
-                  {showPMDropdown && !teamMembersLoading && !selectedPM && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-                      {(() => {
-                        const filtered = teamMembers.filter((m) => {
-                          const q = pmSearch.toLowerCase();
-                          return (
-                            !q ||
-                            m.name.toLowerCase().includes(q) ||
-                            (m.email ?? "").toLowerCase().includes(q) ||
-                            (m.role ?? "").toLowerCase().includes(q)
-                          );
-                        });
-                        return filtered.length === 0 ? (
-                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                            No project managers found
-                          </div>
-                        ) : (
-                          filtered.map((member) => (
-                            <button
-                              key={member.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedPM(member);
-                                handleChange(
-                                  "assignedPMId",
-                                  member.userId ?? member.id,
-                                );
-                                setPmSearch("");
-                                setShowPMDropdown(false);
-                              }}
-                              className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors border-b border-gray-50 last:border-0"
-                            >
-                              <p className="text-sm font-semibold text-gray-900">
-                                {member.name}
-                              </p>
-                              <div className="flex items-center gap-3 mt-0.5">
-                                {member.role && (
-                                  <span className="text-xs text-orange-500 font-medium">
-                                    {member.role.replace(/_/g, " ")}
-                                  </span>
-                                )}
-                                {member.email && (
-                                  <span className="text-xs text-gray-500">
-                                    {member.email}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Quick Optional: City + Total Value */}
@@ -960,6 +814,31 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 </div>
               </div>
 
+                  <div className="grid grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Design Value
+                      </label>
+                      <Input
+                        type="number"
+                        value={formData.designValue}
+                        onChange={(e) => handleChange("designValue", e.target.value)}
+                        placeholder="e.g., 1200000"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Execution Value
+                      </label>
+                      <Input
+                        type="number"
+                        value={formData.executionValue}
+                        onChange={(e) => handleChange("executionValue", e.target.value)}
+                        placeholder="e.g., 1600000"
+                      />
+                    </div>
+                  </div>
+
               {/* More Details (collapsible) */}
               <div className="border-t border-gray-100 pt-4">
                 <button
@@ -989,12 +868,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         </div>
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {!formData.projectCategory ? (
-                          <span className="text-xs text-gray-400">
-                            Select a category first
-                          </span>
-                        ) : subtypeOptions.length > 0 ? (
-                          subtypeOptions.map((opt) => (
+                        {PROPERTY_SUBTYPE_OPTIONS.map((opt) => (
                             <button
                               key={opt.value}
                               type="button"
@@ -1012,12 +886,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                             >
                               {opt.label}
                             </button>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            No subtypes for this category
-                          </span>
-                        )}
+                          ))}
                       </div>
                     </div>
 
@@ -1056,12 +925,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         Budget Tier
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {optionsLoading ? (
-                          <span className="text-xs text-gray-400">
-                            Loading...
-                          </span>
-                        ) : projectOptions.budgetTiers.length > 0 ? (
-                          projectOptions.budgetTiers.map((opt) => (
+                        {BUDGET_TIER_OPTIONS.map((opt) => (
                             <button
                               key={opt.value}
                               type="button"
@@ -1079,13 +943,90 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                             >
                               {opt.label}
                             </button>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            No budget tiers available
-                          </span>
-                        )}
+                          ))}
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Number of Meetings
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={formData.numberOfMeetings}
+                          onChange={(e) =>
+                            handleChange("numberOfMeetings", e.target.value)
+                          }
+                          placeholder="e.g., 2"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Paid Amount
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={formData.paidAmount}
+                          onChange={(e) => handleChange("paidAmount", e.target.value)}
+                          placeholder="e.g., 50000"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Design 3D Status
+                        </label>
+                        <select
+                          value={formData.design3DStatus}
+                          onChange={(e) =>
+                            handleChange("design3DStatus", e.target.value)
+                          }
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 transition-all"
+                        >
+                          <option value="NOT_STARTED">Not Started</option>
+                          <option value="IN_PROGRESS">In Progress</option>
+                          <option value="COMPLETED">Completed</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Project Status
+                        </label>
+                        <select
+                          value={formData.status}
+                          onChange={(e) => handleChange("status", e.target.value)}
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 transition-all"
+                        >
+                          <option value="YET_TO_START">Yet To Start</option>
+                          <option value="ONGOING">Ongoing</option>
+                          <option value="ON_HOLD">On Hold</option>
+                          <option value="COMPLETED">Completed</option>
+                          <option value="CANCELLED">Cancelled</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Mood board shared</p>
+                        <p className="text-xs text-gray-500">
+                          Mark if mood board has already been shared with the client
+                        </p>
+                      </div>
+                      <Toggle
+                        checked={formData.moodBoardShared}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            moodBoardShared: e.target.checked,
+                          }))
+                        }
+                      />
                     </div>
 
                     {/* Address Block */}
@@ -1140,6 +1081,14 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           placeholder="Landmarks"
                         />
                       </div>
+
+                      <Input
+                        value={formData.billingAddress}
+                        onChange={(e) =>
+                          handleChange("billingAddress", e.target.value)
+                        }
+                        placeholder="Billing address"
+                      />
                     </div>
 
                     {/* Site Contact */}
