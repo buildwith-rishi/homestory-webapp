@@ -788,6 +788,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                       dayNumber={dayNum}
                       startDate={matrix.startDate}
                       categories={categories}
+                      initialTasks={dayTasks}
                       onTaskClick={(taskId, task) => {
                         setSelectedTaskId(taskId);
                         setSelectedTaskData(task || null);

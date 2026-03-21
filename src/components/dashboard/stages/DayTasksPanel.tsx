@@ -51,6 +51,8 @@ interface DayTasksPanelProps {
   ) => void;
   updatingTaskId: string | null;
   onDayDateUpdated?: () => void;
+  /** Optional: Pass tasks directly instead of fetching */
+  initialTasks?: MatrixTask[];
 }
 
 const taskStatusConfig: Record<
@@ -134,6 +136,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   onStatusChange,
   updatingTaskId,
   onDayDateUpdated,
+  initialTasks,
 }) => {
   const { user, roleId } = useAuth();
 
@@ -142,8 +145,8 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const isFieldRole = roleId === "DESIGNER" || roleId === "SITE_ENGINEER";
   const [myTasksOnly, setMyTasksOnly] = useState(() => isFieldRole);
 
-  const [tasks, setTasks] = useState<MatrixTask[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<MatrixTask[]>(initialTasks || []);
+  const [loading, setLoading] = useState(!initialTasks);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
@@ -291,7 +294,9 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
 
       toast.success("Day date updated successfully");
       setIsEditingDayDate(false);
-      await fetchDayTasks();
+      if (!initialTasks) {
+        await fetchDayTasks();
+      }
       onDayDateUpdated?.();
     } catch (error) {
       toast.error(
@@ -303,8 +308,13 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   };
 
   useEffect(() => {
-    fetchDayTasks();
-  }, [fetchDayTasks]);
+    if (initialTasks) {
+      setTasks(initialTasks);
+      setLoading(false);
+    } else {
+      fetchDayTasks();
+    }
+  }, [fetchDayTasks, initialTasks]);
 
   // Fetch users and team members once so we can resolve assignee names by ID
   useEffect(() => {
@@ -1090,7 +1100,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                                     setCompletionDialog(null);
                                   }
                                 }}
-                                placeholder="Completion notes (optional)"
+                                placeholder="Completion notes (Compulsory)"
                                 className="flex-1 text-xs border border-green-200 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400/40 bg-white"
                               />
                               <button
