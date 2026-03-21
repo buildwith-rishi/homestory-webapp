@@ -26,7 +26,8 @@ import {
 import type { Customer } from "../../types/customer";
 import { listCustomers } from "../../services/customerApi";
 import { listProjects } from "../../services/projectApi";
-import { getAllTeamMembers, type TeamMember } from "../../services/teamApi";
+import { type TeamMember } from "../../services/teamApi";
+import { adminAPI } from "../../services/api";
 import toast from "react-hot-toast";
 
 export interface NewProjectModalProps {
@@ -302,42 +303,55 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const fetchTeamMembers = async () => {
     setTeamMembersLoading(true);
     try {
-      const members = await getAllTeamMembers();
-      const toUpper = (value: unknown) =>
-        typeof value === "string" ? value.trim().toUpperCase() : "";
+      // Use adminAPI to fetch all users instead of team API to ensure we get all potential assignees
+      // explicitly requested by user as "from the user section"
+      const response: any = await adminAPI.getAllUsers();
 
-      const internalOnly = members
-        .filter((member) => {
-          const memberType = toUpper(member.memberType);
-          const status = toUpper(member.status);
-          const role = toUpper(member.role);
+      let users: any[] = [];
 
-          const isExplicitlyExternal =
-            memberType === "EXTERNAL" || role.includes("VENDOR");
-          const isInternalByType = ["INTERNAL", "EMPLOYEE", "TEAM", "STAFF"].includes(memberType);
-          const isActiveMember =
-            member.isBanned !== true &&
-            member.isDeactivated !== true &&
-            member.isActive !== false &&
-            status !== "BANNED" &&
-            status !== "DEACTIVATED" &&
-            status !== "INACTIVE";
-
-          if (!isActiveMember || !member.id || !member.name?.trim()) {
-            return false;
+      if (Array.isArray(response)) {
+        users = response;
+      } else if (response && typeof response === "object") {
+        if ("users" in response && Array.isArray(response.users)) {
+          users = response.users;
+        } else if ("data" in response) {
+          if (Array.isArray(response.data)) {
+            users = response.data;
+          } else if (
+            typeof response.data === "object" &&
+            "users" in response.data &&
+            Array.isArray(response.data.users)
+          ) {
+            users = response.data.users;
           }
+        }
+      }
 
-          // Prefer explicit internal types, but fall back to active members when type is missing.
-          if (!memberType) {
-            return !isExplicitlyExternal;
-          }
+      const teamMembers: TeamMember[] = users
+        .map((user) => ({
+          id: user.id || user._id,
+          name: user.name || "Unknown User",
+          email: user.email || "",
+          role: user.role || "USER",
+          phone: user.phone || "",
+          department: "General",
+          memberType: "INTERNAL",
+          isActive: true,
+          status: "ACTIVE",
+          userId: user.id || user._id,
+        }))
+        .filter((m) => m.id && m.name);
 
-          return isInternalByType && !isExplicitlyExternal;
-        })
+      // Filter out banned/inactive just in case
+      const activeMembers = teamMembers
+        .filter(
+          (m) => !m.isBanned && !m.isDeactivated && m.isActive !== false,
+        )
         .sort((a, b) => a.name.localeCompare(b.name));
 
-      setInternalTeamMembers(internalOnly);
-    } catch {
+      setInternalTeamMembers(activeMembers);
+    } catch (err) {
+      console.error("Failed to fetch team members:", err);
       setInternalTeamMembers([]);
     } finally {
       setTeamMembersLoading(false);
@@ -361,6 +375,25 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       );
     });
   }, [customerSearch, customers]);
+
+  const designTeamMembers = useMemo(() => {
+    return internalTeamMembers.filter((member) => {
+      const role = member.role?.toUpperCase() || "";
+      return role.includes("DESIGN");
+    });
+  }, [internalTeamMembers]);
+
+  const executionTeamMembers = useMemo(() => {
+    return internalTeamMembers.filter((member) => {
+      const role = member.role?.toUpperCase() || "";
+      return (
+        role.includes("PROJECT") ||
+        role.includes("ENGINEER") ||
+        role.includes("SITE") ||
+        role.includes("EXECUTION")
+      );
+    });
+  }, [internalTeamMembers]);
 
   const populateFromCustomer = (
     customer: Customer,
@@ -875,7 +908,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 label="Assigned Design Team"
                 selectedIds={formData.designTeamIds}
                 onChange={(ids) => handleChange("designTeamIds", ids)}
-                members={internalTeamMembers}
+                members={designTeamMembers}
                 loading={teamMembersLoading}
               />
 
@@ -883,7 +916,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 label="Assigned Execution Team"
                 selectedIds={formData.executionTeamIds}
                 onChange={(ids) => handleChange("executionTeamIds", ids)}
-                members={internalTeamMembers}
+                members={executionTeamMembers}
                 loading={teamMembersLoading}
               />
 

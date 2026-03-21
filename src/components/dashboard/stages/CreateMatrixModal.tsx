@@ -174,17 +174,21 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
 
   // Compute task date from startDate + (dayNumber - 1), optionally skipping Sundays
   const getTaskDate = (dayNum: number): string => {
-    const date = new Date(startDate + "T00:00:00");
+    // Parse startDate (YYYY-MM-DD) into components
+    const [y, m, d] = startDate.split("-").map(Number);
+    // Create UTC date at midnight to avoid timezone shifts
+    const date = new Date(Date.UTC(y, m - 1, d));
 
     if (includeSundays) {
-      date.setDate(date.getDate() + (dayNum - 1));
+      date.setUTCDate(date.getUTCDate() + (dayNum - 1));
       return date.toISOString();
     }
 
     let validDaysCount = 1;
     while (validDaysCount < dayNum) {
-      date.setDate(date.getDate() + 1);
-      if (date.getDay() !== 0) {
+      date.setUTCDate(date.getUTCDate() + 1);
+      // Check for Sunday in UTC (0 is Sunday)
+      if (date.getUTCDay() !== 0) {
         validDaysCount += 1;
       }
     }
