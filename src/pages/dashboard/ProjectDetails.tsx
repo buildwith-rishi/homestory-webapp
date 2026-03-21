@@ -19,7 +19,6 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
-  Home,
   DollarSign,
   Mail,
   TrendingUp,
@@ -144,6 +143,20 @@ const formatDate = (dateString: string | undefined | null): string => {
   });
 };
 
+const toDateInputValue = (dateString: string | undefined | null): string => {
+  if (!dateString) return "";
+  // Preserve API calendar date values (e.g. 2026-03-19T00:00:00.000Z) without timezone drift.
+  if (dateString.includes("T")) {
+    return dateString.split("T")[0];
+  }
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 // Format enum values to human-readable labels
 const formatEnumLabel = (value: string | undefined | null): string => {
   if (!value) return "N/A";
@@ -252,7 +265,6 @@ export const ProjectDetails: React.FC = () => {
   // Project options from API
   const {
     options: projectOptions,
-    getLabelForValue,
     getSubtypesForCategory,
   } = useProjectOptions();
 
@@ -388,6 +400,9 @@ export const ProjectDetails: React.FC = () => {
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
   const [showAttachmentUploadModal, setShowAttachmentUploadModal] =
     useState(false);
+  const [attachmentUploadContext, setAttachmentUploadContext] = useState<
+    "general" | "work"
+  >("general");
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [attachmentUploadForm, setAttachmentUploadForm] = useState({
     attachmentType: "OTHER" as AttachmentType,
@@ -404,6 +419,8 @@ export const ProjectDetails: React.FC = () => {
     attachmentType: "OTHER" as AttachmentType,
     notes: "",
   });
+  const [showWorkAttachmentsModal, setShowWorkAttachmentsModal] =
+    useState(false);
 
   // Edit project modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -667,7 +684,10 @@ export const ProjectDetails: React.FC = () => {
       const attachment = await uploadAttachment({
         entityType: "PROJECT",
         entityId: projectId,
-        attachmentType: attachmentUploadForm.attachmentType,
+        attachmentType:
+          attachmentUploadContext === "work"
+            ? "QUICK_ACTION"
+            : attachmentUploadForm.attachmentType,
         fileName: attachmentUploadForm.fileName,
         fileType: attachmentUploadForm.fileType,
         fileBase64: attachmentUploadForm.fileBase64,
@@ -676,6 +696,7 @@ export const ProjectDetails: React.FC = () => {
       setProjectAttachments((prev) => [attachment, ...prev]);
       toast.success("Document uploaded successfully!");
       setShowAttachmentUploadModal(false);
+      setAttachmentUploadContext("general");
       setAttachmentUploadForm({
         attachmentType: "OTHER",
         fileName: "",
@@ -2100,99 +2121,48 @@ export const ProjectDetails: React.FC = () => {
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
                   <InfoItem
-                    label="Pipeline Type"
-                    value={getLabelForValue(
-                      "pipelineTypes",
-                      project.pipelineType,
-                    )}
-                  />
-                  <InfoItem
-                    label="Category"
-                    value={getLabelForValue(
-                      "categories",
-                      project.projectCategory,
-                    )}
-                  />
-                  <InfoItem
-                    label="Scope Type"
-                    value={getLabelForValue("scopeTypes", project.scopeType)}
-                  />
-                  <InfoItem
-                    label="Budget Tier"
-                    value={getLabelForValue("budgetTiers", project.budgetTier)}
-                  />
-                  <InfoItem
-                    label="Property Type"
-                    value={
-                      project.propertySubtype
-                        ? (() => {
-                            // Try to find label from category-specific subtypes
-                            const subtypes = getSubtypesForCategory(
-                              project.projectCategory,
-                            );
-                            const found = subtypes.find(
-                              (s) => s.value === project.propertySubtype,
-                            );
-                            return (
-                              found?.label ||
-                              formatEnumLabel(project.propertySubtype)
-                            );
-                          })()
-                        : "N/A"
-                    }
-                  />
-                  <InfoItem
-                    label="Property Size"
-                    value={
-                      project.propertySizeSqft
-                        ? `${project.propertySizeSqft} sq.ft`
-                        : "N/A"
-                    }
-                  />
-                  <InfoItem label="BHK" value={project.propertyBHK || "N/A"} />
-                  <InfoItem
-                    label="Design Package"
-                    value={project.designPackage || "N/A"}
-                  />
-                  <InfoItem
-                    label="Construction Status"
-                    value={project.constructionStatus || "N/A"}
+                    label="Customer"
+                    value={project.account?.name || "N/A"}
                   />
                   <InfoItem
                     label="Tentative Handover"
                     value={formatDate(project.tentativeHandoverDate)}
                   />
                   <InfoItem
-                    label="Design 3D Status"
-                    value={project.design3DStatus || "N/A"}
+                    label="Budget Value"
+                    value={formatCurrencyExact(
+                      parseFloat(String(project.totalValue)) || 0,
+                    )}
                   />
                   <InfoItem
-                    label="No. of Meetings"
-                    value={String(project.numberOfMeetings ?? "N/A")}
+                    label="Site Contact Name"
+                    value={project.siteContactName || "N/A"}
                   />
                   <InfoItem
-                    label="Project Status"
-                    value={formatEnumLabel(project.status)}
+                    label="Site Contact Phone"
+                    value={project.siteContactPhone || "N/A"}
                   />
-                  <InfoItem
-                    label="Lead ID"
-                    value={project.leadId || "N/A"}
-                  />
-                  <InfoItem
-                    label="Account ID"
-                    value={project.accountId || project.account?.id || "N/A"}
-                  />
-                  <InfoItem
-                    label="Moodboard Shared"
-                    value={project.moodBoardShared ? "Yes" : "No"}
-                  />
+                  <div className="col-span-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Property Address
+                    </p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                      {project.propertyAddress || "N/A"}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Billing Address
+                    </p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                      {project.billingAddress || "N/A"}
+                    </p>
+                  </div>
                 </div>
               </Card>
 
               {(project.specialRequirements ||
-                project.remarks ||
-                project.pauseReason ||
-                project.cancellationReason) && (
+                project.remarks) && (
                 <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                   <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
@@ -2215,22 +2185,6 @@ export const ProjectDetails: React.FC = () => {
                       </p>
                       <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
                         {project.remarks || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                        Pause Reason
-                      </p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
-                        {project.pauseReason || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                        Cancellation Reason
-                      </p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
-                        {project.cancellationReason || "N/A"}
                       </p>
                     </div>
                   </div>
@@ -2289,42 +2243,9 @@ export const ProjectDetails: React.FC = () => {
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
                     <Users className="w-4 h-4 text-white" />
                   </div>
-                  Team
+                  Assigned Teams
                 </h2>
                 <div className="space-y-3">
-                  {/* Assigned Designer */}
-                  {project.assignedDesigner && (
-                    <TeamMember
-                      name={project.assignedDesigner.name || "Unknown"}
-                      role="Lead Designer"
-                      email={project.assignedDesigner.email}
-                    />
-                  )}
-
-                  {/* Assigned Project Manager */}
-                  {project.assignedPM && (
-                    <TeamMember
-                      name={project.assignedPM.name || "Unknown"}
-                      role="Project Manager"
-                      email={project.assignedPM.email}
-                    />
-                  )}
-
-                  {!project.assignedDesigner && project.assignedDesignerId && (
-                    <TeamMember
-                      name={project.assignedDesignerId}
-                      role="Assigned Designer ID"
-                    />
-                  )}
-
-                  {!project.assignedPM && project.assignedPMId && (
-                    <TeamMember
-                      name={project.assignedPMId}
-                      role="Assigned Project Manager ID"
-                    />
-                  )}
-
-                  {/* Design Team members (string array) */}
                   {(project.designTeam || [])
                     .filter(Boolean)
                     .map((member, idx) => (
@@ -2348,22 +2269,8 @@ export const ProjectDetails: React.FC = () => {
                       />
                     ))}
 
-                  {/* Site Contact */}
-                  {(project.siteContactName || project.siteContactPhone) && (
-                    <TeamMember
-                      name={project.siteContactName || "Site Contact"}
-                      role="Site Contact"
-                      phone={project.siteContactPhone || undefined}
-                    />
-                  )}
-
-                  {/* Empty state */}
-                  {!project.assignedDesigner &&
-                    !project.assignedPM &&
-                    !(project.designTeam || []).filter(Boolean).length &&
-                    !(project.executionTeam || []).filter(Boolean).length &&
-                    !project.siteContactName &&
-                    !project.siteContactPhone && (
+                  {!(project.designTeam || []).filter(Boolean).length &&
+                    !(project.executionTeam || []).filter(Boolean).length && (
                       <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-xl">
                         <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                         <p className="text-sm text-gray-500">
@@ -2505,68 +2412,29 @@ export const ProjectDetails: React.FC = () => {
 
             {/* Right Column */}
             <div className="space-y-4">
-              {/* Property Address */}
-              {(project.propertyAddress ||
-                project.propertyCity ||
-                project.propertyState ||
-                project.propertyPincode ||
-                project.propertyBuilding ||
-                project.propertyUnit ||
-                project.propertyLandmarks ||
-                project.propertySizeSqft ||
-                project.propertyBHK) && (
+              {/* Customer */}
+              {(project.account?.name || project.account?.email || project.account?.phone) && (
                 <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                   <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
-                      <Home className="w-3.5 h-3.5 text-white" />
+                      <UserCircle className="w-3.5 h-3.5 text-white" />
                     </div>
-                    Property Details
+                    Customer
                   </h3>
-                  {project.propertyAddress && (
-                    <p className="text-sm text-gray-700 pl-9">
-                      {project.propertyAddress}
+                  {project.account?.name && (
+                    <p className="text-sm text-gray-700 pl-9 font-semibold">
+                      {project.account.name}
                     </p>
                   )}
-                  {project.propertyCity && (
+                  {project.account?.email && (
                     <p className="text-sm text-gray-500 pl-9">
-                      {project.propertyCity}
+                      {project.account.email}
                     </p>
                   )}
-                  {(project.propertyState || project.propertyPincode) && (
+                  {project.account?.phone && (
                     <p className="text-sm text-gray-500 pl-9">
-                      {[project.propertyState, project.propertyPincode]
-                        .filter(Boolean)
-                        .join(" - ")}
+                      {project.account.phone}
                     </p>
-                  )}
-                  {project.propertyBuilding && (
-                    <p className="text-sm text-gray-600 pl-9">
-                      Building: {project.propertyBuilding}
-                    </p>
-                  )}
-                  {project.propertyUnit && (
-                    <p className="text-sm text-gray-600 pl-9">
-                      Unit: {project.propertyUnit}
-                    </p>
-                  )}
-                  {project.propertyLandmarks && (
-                    <p className="text-sm text-gray-600 pl-9">
-                      Landmarks: {project.propertyLandmarks}
-                    </p>
-                  )}
-                  {(project.propertySizeSqft || project.propertyBHK) && (
-                    <div className="flex gap-4 pl-9 mt-2">
-                      {project.propertySizeSqft && (
-                        <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full">
-                          {project.propertySizeSqft} sq.ft
-                        </span>
-                      )}
-                      {project.propertyBHK && (
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
-                          {project.propertyBHK} BHK
-                        </span>
-                      )}
-                    </div>
                   )}
                 </Card>
               )}
@@ -2580,20 +2448,6 @@ export const ProjectDetails: React.FC = () => {
                   Payment Summary
                 </h3>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-blue-50">
-                    <span className="text-sm text-blue-700">Design Value</span>
-                    <span className="font-bold text-blue-700">
-                      {formatCurrencyExact(parseFloat(String(project.designValue ?? 0)) || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-indigo-50">
-                    <span className="text-sm text-indigo-700">Execution Value</span>
-                    <span className="font-bold text-indigo-700">
-                      {formatCurrencyExact(
-                        parseFloat(String(project.executionValue ?? 0)) || 0,
-                      )}
-                    </span>
-                  </div>
                   <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
                     <span className="text-sm text-gray-600">Total Value</span>
                     <span className="font-bold text-gray-900">
@@ -2606,14 +2460,6 @@ export const ProjectDetails: React.FC = () => {
                     <span className="text-sm text-green-700">Collected</span>
                     <span className="font-bold text-green-600">
                       {formatCurrencyExact(paymentTotals.totalPaid)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-emerald-50">
-                    <span className="text-sm text-emerald-700">Paid Amount (Project)</span>
-                    <span className="font-bold text-emerald-700">
-                      {formatCurrencyExact(
-                        parseFloat(String(project.paidAmount ?? 0)) || 0,
-                      )}
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-2 rounded-lg bg-orange-50">
@@ -2956,6 +2802,9 @@ export const ProjectDetails: React.FC = () => {
               paymentPhaseTab === "DESIGN"
                 ? designPhaseValue
                 : executionPhaseValue;
+            const workAttachments = projectAttachments.filter(
+              (attachment) => attachment.attachmentType === "QUICK_ACTION",
+            );
 
             let phasePaid = 0;
             let phasePending = 0;
@@ -3006,9 +2855,15 @@ export const ProjectDetails: React.FC = () => {
                 payment.title ||
                 `${payment.phaseType} Payment ${payment.paymentStage} (${payment.percentage}%)`;
               const expected = parseFloat(String(payment.expectedAmount)) || 0;
+              const invoiceAmount =
+                parseFloat(String(payment.invoiceAmount ?? 0)) || 0;
               const actual = parseFloat(String(payment.actualAmount)) || 0;
               const boundedActual = Math.max(0, Math.min(actual, expected));
               const hasActualCollection = boundedActual > 0;
+              const headerAmount =
+                invoiceAmount > 0
+                  ? invoiceAmount
+                  : expected;
               return (
                 <div
                   key={payment.id}
@@ -3073,9 +2928,10 @@ export const ProjectDetails: React.FC = () => {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-xl font-bold text-gray-900">
-                        {hasActualCollection
-                          ? formatCurrency(boundedActual)
-                          : formatCurrency(expected)}
+                        {formatCurrency(headerAmount)}
+                      </p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                        Invoice Amount
                       </p>
                       <Badge
                         className={`text-xs font-semibold ${badgeBgMap[payment.status] || badgeBgMap["PENDING"]}`}
@@ -3096,18 +2952,18 @@ export const ProjectDetails: React.FC = () => {
                     <button
                       onClick={() => handleOpenSendInvoice(payment)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
-                      title="Send invoice"
+                      title="Send proforma invoice"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      Send Invoice
+                      Send Proforma Invoice
                     </button>
                     <button
                       onClick={() => handleOpenSendInvoice(payment, "proforma")}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
-                      title="Send proforma invoice"
+                      title="Send invoice"
                     >
                       <FileText className="w-3.5 h-3.5" />
-                      Send Proforma Invoice
+                      Send Invoice
                     </button>
                     <button
                       onClick={() => handleOpenUploadDoc(payment)}
@@ -3281,45 +3137,80 @@ export const ProjectDetails: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Add Payment for active phase */}
-                    <Button
-                      onClick={() => {
-                        const nextStage =
-                          projectPayments.filter(
-                            (p) => p.phaseType === paymentPhaseTab,
-                          ).length + 1;
-                        setNewPaymentForm((prev) => ({
-                          ...prev,
-                          phaseType: paymentPhaseTab,
-                          paymentStage: nextStage,
-                          title: "",
-                          description: "",
-                          stageCode: "",
-                          projectStageId: "",
-                          percentage: 0,
-                          expectedAmount: "",
-                          invoiceAmount: "",
-                          taxPercentage: "",
-                          dueDate: "",
-                          notes: "",
-                          status: "PENDING",
-                        }));
-                        setShowAddPaymentModal(true);
-                        if (projectId) fetchProjectStages(projectId);
-                      }}
-                      className={`text-white text-sm px-4 py-2 ${
-                        paymentPhaseTab === "DESIGN"
-                          ? "bg-blue-500 hover:bg-blue-600"
-                          : "bg-orange-500 hover:bg-orange-600"
-                      }`}
-                    >
-                      <Plus className="w-4 h-4 mr-1.5" />
-                      Add{" "}
-                      {paymentPhaseTab === "DESIGN"
-                        ? "Design"
-                        : "Execution"}{" "}
-                      Payment
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => setShowWorkAttachmentsModal(true)}
+                        className="text-sm px-4 py-2"
+                        title="View uploaded work attachments"
+                      >
+                        <Eye className="w-4 h-4 mr-1.5" />
+                        View Work
+                        {workAttachments.length > 0 && (
+                          <span className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1 text-xs rounded-full bg-gray-200 text-gray-700">
+                            {workAttachments.length}
+                          </span>
+                        )}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setAttachmentUploadContext("work");
+                          setAttachmentUploadForm({
+                            attachmentType: "QUICK_ACTION",
+                            fileName: "",
+                            fileType: "",
+                            fileBase64: "",
+                            notes: "",
+                          });
+                          setShowAttachmentUploadModal(true);
+                        }}
+                        className="text-sm px-4 py-2 border border-teal-300 text-teal-700 hover:bg-teal-50"
+                        title="Upload work attachment"
+                      >
+                        <Upload className="w-4 h-4 mr-1.5" />
+                        Upload Work
+                      </Button>
+                      {/* Add Payment for active phase */}
+                      <Button
+                        onClick={() => {
+                          const nextStage =
+                            projectPayments.filter(
+                              (p) => p.phaseType === paymentPhaseTab,
+                            ).length + 1;
+                          setNewPaymentForm((prev) => ({
+                            ...prev,
+                            phaseType: paymentPhaseTab,
+                            paymentStage: nextStage,
+                            title: "",
+                            description: "",
+                            stageCode: "",
+                            projectStageId: "",
+                            percentage: 0,
+                            expectedAmount: "",
+                            invoiceAmount: "",
+                            taxPercentage: "",
+                            dueDate: "",
+                            notes: "",
+                            status: "PENDING",
+                          }));
+                          setShowAddPaymentModal(true);
+                          if (projectId) fetchProjectStages(projectId);
+                        }}
+                        className={`text-white text-sm px-4 py-2 ${
+                          paymentPhaseTab === "DESIGN"
+                            ? "bg-blue-500 hover:bg-blue-600"
+                            : "bg-orange-500 hover:bg-orange-600"
+                        }`}
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" />
+                        Add{" "}
+                        {paymentPhaseTab === "DESIGN"
+                          ? "Design"
+                          : "Execution"}{" "}
+                        Payment
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Fixed phase values visible for both sections */}
@@ -3511,6 +3402,9 @@ export const ProjectDetails: React.FC = () => {
                         ...newPaymentForm,
                         stageCode: code,
                         projectStageId: matched ? matched.id : "",
+                        dueDate: matched
+                          ? toDateInputValue(matched.tentativeEndDate)
+                          : "",
                         ...(matched
                           ? {
                               phaseType: matched.phaseType,
@@ -4637,45 +4531,61 @@ export const ProjectDetails: React.FC = () => {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <Paperclip className="w-5 h-5 text-teal-600" />
-                  Upload Document
+                  {attachmentUploadContext === "work"
+                    ? "Upload Work"
+                    : "Upload Document"}
                 </h3>
                 <button
-                  onClick={() => setShowAttachmentUploadModal(false)}
+                  onClick={() => {
+                    setShowAttachmentUploadModal(false);
+                    setAttachmentUploadContext("general");
+                  }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Document Type
-                  </label>
-                  <select
-                    value={attachmentUploadForm.attachmentType}
-                    onChange={(e) =>
-                      setAttachmentUploadForm((prev) => ({
-                        ...prev,
-                        attachmentType: e.target.value as AttachmentType,
-                      }))
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus-visible:outline-none"
-                  >
-                    <option value="FLOOR_PLAN">Floor Plan</option>
-                    <option value="SITE_PHOTO">Site Photo</option>
-                    <option value="RENDER_3D">3D Render</option>
-                    <option value="BOQ">BOQ</option>
-                    <option value="QUOTE_PDF">Quote PDF</option>
-                    <option value="CONTRACT">Contract</option>
-                    <option value="APPROVAL_DOCUMENT">Approval Document</option>
-                    <option value="SIGN_OFF">Sign Off</option>
-                    <option value="WARRANTY_DOCUMENT">Warranty Document</option>
-                    <option value="INVOICE_PDF">Invoice PDF</option>
-                    <option value="ID_PROOF">ID Proof</option>
-                    <option value="QUICK_ACTION">Quick Action</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
+                {attachmentUploadContext === "work" ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Document Type
+                    </label>
+                    <div className="w-full px-4 py-3 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 font-semibold">
+                      QUICK_ACTION (Work Upload)
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Document Type
+                    </label>
+                    <select
+                      value={attachmentUploadForm.attachmentType}
+                      onChange={(e) =>
+                        setAttachmentUploadForm((prev) => ({
+                          ...prev,
+                          attachmentType: e.target.value as AttachmentType,
+                        }))
+                      }
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus-visible:outline-none"
+                    >
+                      <option value="FLOOR_PLAN">Floor Plan</option>
+                      <option value="SITE_PHOTO">Site Photo</option>
+                      <option value="RENDER_3D">3D Render</option>
+                      <option value="BOQ">BOQ</option>
+                      <option value="QUOTE_PDF">Quote PDF</option>
+                      <option value="CONTRACT">Contract</option>
+                      <option value="APPROVAL_DOCUMENT">Approval Document</option>
+                      <option value="SIGN_OFF">Sign Off</option>
+                      <option value="WARRANTY_DOCUMENT">Warranty Document</option>
+                      <option value="INVOICE_PDF">Invoice PDF</option>
+                      <option value="ID_PROOF">ID Proof</option>
+                      <option value="QUICK_ACTION">Quick Action</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     File *
@@ -4732,7 +4642,10 @@ export const ProjectDetails: React.FC = () => {
                 <Button
                   variant="secondary"
                   className="flex-1"
-                  onClick={() => setShowAttachmentUploadModal(false)}
+                  onClick={() => {
+                    setShowAttachmentUploadModal(false);
+                    setAttachmentUploadContext("general");
+                  }}
                 >
                   Cancel
                 </Button>
@@ -4749,6 +4662,98 @@ export const ProjectDetails: React.FC = () => {
                     <Upload className="w-4 h-4 mr-2" />
                   )}
                   {isUploadingAttachment ? "Uploading..." : "Upload"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Work Attachments Modal (Payments Tab) */}
+      {showWorkAttachmentsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Paperclip className="w-5 h-5 text-teal-600" />
+                  Uploaded Work Attachments
+                </h3>
+                <button
+                  onClick={() => setShowWorkAttachmentsModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {projectAttachments.filter(
+                (attachment) => attachment.attachmentType === "QUICK_ACTION",
+              ).length === 0 ? (
+                <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
+                  <Paperclip className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No work attachments uploaded yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {projectAttachments
+                    .filter(
+                      (attachment) => attachment.attachmentType === "QUICK_ACTION",
+                    )
+                    .map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-4 h-4 text-teal-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {attachment.fileName}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {formatDate(attachment.createdAt)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleViewAttachment(attachment)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-100 hover:bg-teal-200 rounded-lg transition-colors"
+                          title="View attachment"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          View
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setShowWorkAttachmentsModal(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  className="flex-1 bg-teal-600 hover:bg-teal-700"
+                  onClick={() => {
+                    setShowWorkAttachmentsModal(false);
+                    setAttachmentUploadContext("work");
+                    setAttachmentUploadForm({
+                      attachmentType: "QUICK_ACTION",
+                      fileName: "",
+                      fileType: "",
+                      fileBase64: "",
+                      notes: "",
+                    });
+                    setShowAttachmentUploadModal(true);
+                  }}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Work
                 </Button>
               </div>
             </div>

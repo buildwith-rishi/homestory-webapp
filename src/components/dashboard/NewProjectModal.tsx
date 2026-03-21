@@ -1,23 +1,20 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import {
-  X,
-  Search,
-  FileText,
-  Building2,
-  Home,
+  AlertCircle,
+  Calendar,
+  Check,
   CheckCircle2,
+  FileText,
+  IndianRupee,
+  Loader2,
   MapPin,
   Phone,
-  User,
-  IndianRupee,
-  Package,
-  Layers,
-  Loader2,
-  AlertCircle,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
+  Search,
+  User,
+  Users,
+  X,
 } from "lucide-react";
 import { Button, Input, Toggle } from "../ui";
 import {
@@ -29,6 +26,7 @@ import {
 import type { Customer } from "../../types/customer";
 import { listCustomers } from "../../services/customerApi";
 import { listProjects } from "../../services/projectApi";
+import { getAllTeamMembers, type TeamMember } from "../../services/teamApi";
 import toast from "react-hot-toast";
 
 export interface NewProjectModalProps {
@@ -40,109 +38,196 @@ export interface NewProjectModalProps {
 interface FormData {
   projectName: string;
   accountId: string;
-  leadId: string;
-  pipelineType: PipelineType | "";
-  projectCategory: string;
-  scopeType: string;
-  propertySubtype: string;
-  budgetTier: string;
-  propertySizeSqft: string;
-  propertyBHK: string;
+  budgetValue: string;
+  billingAddress: string;
   propertyAddress: string;
-  propertyCity: string;
-  propertyState: string;
-  propertyPincode: string;
-  propertyBuilding: string;
-  propertyUnit: string;
-  propertyLandmarks: string;
   siteContactName: string;
   siteContactPhone: string;
-  constructionStatus: string;
   tentativeHandoverDate: string;
+  designTeamIds: string[];
+  executionTeamIds: string[];
   specialRequirements: string;
-  designTeam: string;
-  executionTeam: string;
-  designPackage: string;
-  designValue: string;
-  executionValue: string;
-  totalValue: string;
   remarks: string;
-  numberOfMeetings: string;
-  moodBoardShared: boolean;
-  design3DStatus: string;
-  status: string;
-  paidAmount: string;
-  billingAddress: string;
 }
 
 const INITIAL_FORM_DATA: FormData = {
   projectName: "",
   accountId: "",
-  leadId: "",
-  pipelineType: PipelineType.DESIGN_AND_EXECUTION,
-  projectCategory: ProjectCategory.RESIDENTIAL,
-  scopeType: ScopeType.INTERIORS,
-  propertySubtype: "",
-  budgetTier: "",
-  propertySizeSqft: "",
-  propertyBHK: "",
+  budgetValue: "",
+  billingAddress: "",
   propertyAddress: "",
-  propertyCity: "",
-  propertyState: "",
-  propertyPincode: "",
-  propertyBuilding: "",
-  propertyUnit: "",
-  propertyLandmarks: "",
   siteContactName: "",
   siteContactPhone: "",
-  constructionStatus: "",
   tentativeHandoverDate: "",
+  designTeamIds: [],
+  executionTeamIds: [],
   specialRequirements: "",
-  designTeam: "",
-  executionTeam: "",
-  designPackage: "",
-  designValue: "",
-  executionValue: "",
-  totalValue: "",
   remarks: "",
-  numberOfMeetings: "0",
-  moodBoardShared: false,
-  design3DStatus: "NOT_STARTED",
-  status: "YET_TO_START",
-  paidAmount: "0",
-  billingAddress: "",
 };
 
-const PROJECT_CATEGORY_OPTIONS = [
-  { value: "RESIDENTIAL", label: "Residential" },
-  { value: "COMMERCIAL", label: "Commercial" },
-  { value: "HEALTHCARE", label: "Healthcare" },
-];
+interface TeamSelectorProps {
+  label: string;
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+  members: TeamMember[];
+  loading: boolean;
+}
 
-const SCOPE_TYPE_OPTIONS = [
-  { value: "INTERIORS", label: "Interiors" },
-  { value: "ARCHITECTURE", label: "Architecture" },
-  {
-    value: "ARCHITECTURE_AND_INTERIORS",
-    label: "Architecture & Interiors",
-  },
-  { value: "DRAWINGS_ONLY", label: "Drawings Only" },
-];
+const TeamSelector: React.FC<TeamSelectorProps> = ({
+  label,
+  selectedIds,
+  onChange,
+  members,
+  loading,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-const PROPERTY_SUBTYPE_OPTIONS = [
-  { value: "INDEPENDENT_HOUSE", label: "Independent House" },
-  { value: "APARTMENT", label: "Apartment" },
-  { value: "VILLA", label: "Villa" },
-  { value: "RETAIL_SHOP", label: "Retail Shop" },
-  { value: "HEALTHCARE_FACILITY", label: "Healthcare Facility" },
-  { value: "RESTAURANT", label: "Restaurant" },
-  { value: "OFFICE_SPACE", label: "Office Space" },
-];
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-const BUDGET_TIER_OPTIONS = [
-  { value: "STANDARD", label: "Standard" },
-  { value: "LUXURY", label: "Luxury" },
-];
+  const selectedMembers = useMemo(
+    () => members.filter((member) => selectedIds.includes(member.id)),
+    [members, selectedIds],
+  );
+
+  const filteredMembers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return members;
+
+    return members.filter((member) => {
+      return (
+        member.name.toLowerCase().includes(query) ||
+        member.role.toLowerCase().includes(query)
+      );
+    });
+  }, [members, search]);
+
+  const toggleMember = (memberId: string) => {
+    if (selectedIds.includes(memberId)) {
+      onChange(selectedIds.filter((id) => id !== memberId));
+      return;
+    }
+    onChange([...selectedIds, memberId]);
+  };
+
+  const removeMember = (memberId: string) => {
+    onChange(selectedIds.filter((id) => id !== memberId));
+  };
+
+  return (
+    <div ref={wrapperRef}>
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-orange-500" />
+          {label}
+          <span className="text-xs text-gray-400 font-medium">(Optional)</span>
+        </div>
+      </label>
+
+      {selectedMembers.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2.5">
+          {selectedMembers.map((member) => (
+            <span
+              key={member.id}
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-orange-700 text-xs rounded-lg font-medium"
+            >
+              {member.name}
+              <button
+                type="button"
+                onClick={() => removeMember(member.id)}
+                className="hover:text-orange-900"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100"
+      >
+        <span className="text-gray-500">
+          {loading
+            ? "Loading internal team members..."
+            : "Select internal team members"}
+        </span>
+        <Users className="w-4 h-4 text-gray-400" />
+      </button>
+
+      {open && (
+        <div className="mt-1 border border-gray-200 rounded-xl shadow-lg bg-white overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+              <Search className="w-3.5 h-3.5 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or role"
+                className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-52 overflow-y-auto">
+            {filteredMembers.length === 0 ? (
+              <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                No internal team members found
+              </div>
+            ) : (
+              filteredMembers.map((member) => {
+                const isSelected = selectedIds.includes(member.id);
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => toggleMember(member.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-orange-50 transition-colors ${
+                      isSelected ? "bg-orange-50" : ""
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                      {member.name
+                        .split(" ")
+                        .map((word) => word[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {member.name}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">{member.role}</p>
+                    </div>
+                    {isSelected && (
+                      <Check className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   isOpen,
@@ -153,46 +238,47 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>(
     {},
   );
-  const [showMore, setShowMore] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [autoPopulate, setAutoPopulate] = useState(true);
 
-  // Customer search state
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersError, setCustomersError] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null,
-  );
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch customers and team members on mount
+  const [internalTeamMembers, setInternalTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       fetchCustomers();
+      fetchTeamMembers();
     }
+
     if (!isOpen) {
       setFormData({ ...INITIAL_FORM_DATA });
       setErrors({});
-      setShowMore(false);
+      setSubmitting(false);
+      setAutoPopulate(true);
       setSelectedCustomer(null);
       setCustomerSearch("");
-      setSubmitting(false);
+      setShowCustomerDropdown(false);
     }
   }, [isOpen]);
 
-  // Close dropdowns on outside click
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent) => {
       if (
         customerDropdownRef.current &&
-        !customerDropdownRef.current.contains(e.target as Node)
+        !customerDropdownRef.current.contains(event.target as Node)
       ) {
         setShowCustomerDropdown(false);
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -200,30 +286,81 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const fetchCustomers = async () => {
     setCustomersLoading(true);
     setCustomersError(null);
+
     try {
       const result = await listCustomers({ limit: 200, includeContacts: true });
       setCustomers(result.customers);
-    } catch (err) {
+    } catch (error) {
       setCustomersError(
-        err instanceof Error ? err.message : "Failed to load customers",
+        error instanceof Error ? error.message : "Failed to load customers",
       );
     } finally {
       setCustomersLoading(false);
     }
   };
 
-  const filteredCustomers = customers.filter((customer) => {
-    const q = customerSearch.toLowerCase();
-    if (!q) return true;
-    const primaryContact =
-      customer.contacts?.find((c) => c.isPrimary) ?? customer.contacts?.[0];
-    return (
-      customer.name?.toLowerCase().includes(q) ||
-      primaryContact?.email?.toLowerCase().includes(q) ||
-      primaryContact?.phone?.toLowerCase().includes(q) ||
-      (customer.billingCity ?? "").toLowerCase().includes(q)
-    );
-  });
+  const fetchTeamMembers = async () => {
+    setTeamMembersLoading(true);
+    try {
+      const members = await getAllTeamMembers();
+      const toUpper = (value: unknown) =>
+        typeof value === "string" ? value.trim().toUpperCase() : "";
+
+      const internalOnly = members
+        .filter((member) => {
+          const memberType = toUpper(member.memberType);
+          const status = toUpper(member.status);
+          const role = toUpper(member.role);
+
+          const isExplicitlyExternal =
+            memberType === "EXTERNAL" || role.includes("VENDOR");
+          const isInternalByType = ["INTERNAL", "EMPLOYEE", "TEAM", "STAFF"].includes(memberType);
+          const isActiveMember =
+            member.isBanned !== true &&
+            member.isDeactivated !== true &&
+            member.isActive !== false &&
+            status !== "BANNED" &&
+            status !== "DEACTIVATED" &&
+            status !== "INACTIVE";
+
+          if (!isActiveMember || !member.id || !member.name?.trim()) {
+            return false;
+          }
+
+          // Prefer explicit internal types, but fall back to active members when type is missing.
+          if (!memberType) {
+            return !isExplicitlyExternal;
+          }
+
+          return isInternalByType && !isExplicitlyExternal;
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      setInternalTeamMembers(internalOnly);
+    } catch {
+      setInternalTeamMembers([]);
+    } finally {
+      setTeamMembersLoading(false);
+    }
+  };
+
+  const filteredCustomers = useMemo(() => {
+    const query = customerSearch.trim().toLowerCase();
+    if (!query) return customers;
+
+    return customers.filter((customer) => {
+      const primaryContact =
+        customer.contacts?.find((contact) => contact.isPrimary) ??
+        customer.contacts?.[0];
+
+      return (
+        customer.name?.toLowerCase().includes(query) ||
+        primaryContact?.email?.toLowerCase().includes(query) ||
+        primaryContact?.phone?.toLowerCase().includes(query) ||
+        (customer.billingCity ?? "").toLowerCase().includes(query)
+      );
+    });
+  }, [customerSearch, customers]);
 
   const populateFromCustomer = (
     customer: Customer,
@@ -232,137 +369,128 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     if (!shouldPopulate) return;
 
     const primaryContact =
-      customer.contacts?.find((c) => c.isPrimary) ?? customer.contacts?.[0];
+      customer.contacts?.find((contact) => contact.isPrimary) ??
+      customer.contacts?.[0];
 
     const updates: Partial<FormData> = {};
 
-    if (customer.billingAddress)
-      updates.propertyAddress = customer.billingAddress;
+    if (customer.billingAddress) updates.propertyAddress = customer.billingAddress;
     if (customer.billingAddress) updates.billingAddress = customer.billingAddress;
-    if (customer.billingCity) updates.propertyCity = customer.billingCity;
-    if (customer.billingState) updates.propertyState = customer.billingState;
-    if (customer.billingPincode)
-      updates.propertyPincode = customer.billingPincode;
 
     if (primaryContact) {
-      const parts = [primaryContact.firstName, primaryContact.lastName].filter(
-        Boolean,
-      );
-      if (parts.length > 0) updates.siteContactName = parts.join(" ");
+      const fullName = [primaryContact.firstName, primaryContact.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      if (fullName) updates.siteContactName = fullName;
       if (primaryContact.phone) updates.siteContactPhone = primaryContact.phone;
     }
 
-    setFormData((prev) => ({
-      ...prev,
-      ...updates,
-    }));
+    setFormData((prev) => ({ ...prev, ...updates }));
   };
 
-  const handleChange = (field: keyof FormData, value: string) => {
+  const handleChange = (field: keyof FormData, value: string | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
-  const validate = (): boolean => {
-    const newErrors: Partial<Record<keyof FormData, string>> = {};
-    if (!formData.projectName.trim())
-      newErrors.projectName = "Project name is required";
-    if (!formData.pipelineType)
-      newErrors.pipelineType = "Please select a pipeline type";
-    if (!formData.projectCategory)
-      newErrors.projectCategory = "Please select a category";
-    if (!formData.scopeType) newErrors.scopeType = "Please select a scope type";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const validate = () => {
+    const nextErrors: Partial<Record<keyof FormData, string>> = {};
+
+    if (!formData.projectName.trim()) {
+      nextErrors.projectName = "Project name is required";
+    }
+    if (!formData.accountId) {
+      nextErrors.accountId = "Customer is required";
+    }
+    if (!formData.budgetValue || Number(formData.budgetValue) <= 0) {
+      nextErrors.budgetValue = "Budget value is required";
+    }
+    if (!formData.billingAddress.trim()) {
+      nextErrors.billingAddress = "Billing address is required";
+    }
+    if (!formData.propertyAddress.trim()) {
+      nextErrors.propertyAddress = "Property address is required";
+    }
+    if (!formData.siteContactName.trim()) {
+      nextErrors.siteContactName = "Site contact name is required";
+    }
+    if (!formData.siteContactPhone.trim()) {
+      nextErrors.siteContactPhone = "Site contact phone is required";
+    }
+    if (!formData.tentativeHandoverDate) {
+      nextErrors.tentativeHandoverDate = "Tentative handover date is required";
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const mapMemberIdsToNames = (memberIds: string[]) => {
+    return Array.from(new Set(memberIds))
+      .map((id) => internalTeamMembers.find((member) => member.id === id)?.name)
+      .filter((name): name is string => Boolean(name?.trim()));
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (!validate()) return;
 
     setSubmitting(true);
 
     const request: CreateProjectRequest = {
       projectName: formData.projectName.trim(),
-      leadId: formData.leadId || undefined,
-      pipelineType: formData.pipelineType as PipelineType,
-      projectCategory: formData.projectCategory as ProjectCategory,
-      scopeType: formData.scopeType as ScopeType,
-      moodBoardShared: formData.moodBoardShared,
-      design3DStatus: formData.design3DStatus || undefined,
-      status: formData.status || undefined,
+      accountId: formData.accountId,
+      pipelineType: PipelineType.DESIGN_AND_EXECUTION,
+      projectCategory: ProjectCategory.RESIDENTIAL,
+      scopeType: ScopeType.INTERIORS,
+      totalValue: Number(formData.budgetValue),
+      billingAddress: formData.billingAddress.trim(),
+      propertyAddress: formData.propertyAddress.trim(),
+      siteContactName: formData.siteContactName.trim(),
+      siteContactPhone: formData.siteContactPhone.trim(),
+      tentativeHandoverDate: new Date(formData.tentativeHandoverDate).toISOString(),
+      design3DStatus: "NOT_STARTED",
+      status: "YET_TO_START",
     };
 
-    if (formData.accountId) request.accountId = formData.accountId;
+    const designTeam = mapMemberIdsToNames(formData.designTeamIds);
+    const executionTeam = mapMemberIdsToNames(formData.executionTeamIds);
 
-    if (formData.budgetTier) request.budgetTier = formData.budgetTier;
-    if (formData.propertySubtype) request.propertySubtype = formData.propertySubtype;
-    if (formData.propertySizeSqft)
-      request.propertySizeSqft = Number(formData.propertySizeSqft);
-    if (formData.propertyBHK) request.propertyBHK = formData.propertyBHK;
-    if (formData.propertyAddress)
-      request.propertyAddress = formData.propertyAddress;
-    if (formData.propertyCity) request.propertyCity = formData.propertyCity;
-    if (formData.propertyState) request.propertyState = formData.propertyState;
-    if (formData.propertyPincode)
-      request.propertyPincode = formData.propertyPincode;
-    if (formData.propertyBuilding)
-      request.propertyBuilding = formData.propertyBuilding;
-    if (formData.propertyUnit) request.propertyUnit = formData.propertyUnit;
-    if (formData.propertyLandmarks)
-      request.propertyLandmarks = formData.propertyLandmarks;
-    if (formData.siteContactName)
-      request.siteContactName = formData.siteContactName;
-    if (formData.siteContactPhone)
-      request.siteContactPhone = formData.siteContactPhone;
-    if (formData.constructionStatus)
-      request.constructionStatus = formData.constructionStatus;
-    if (formData.tentativeHandoverDate)
-      request.tentativeHandoverDate = new Date(
-        formData.tentativeHandoverDate,
-      ).toISOString();
-    if (formData.specialRequirements)
-      request.specialRequirements = formData.specialRequirements;
-    if (formData.billingAddress) request.billingAddress = formData.billingAddress;
-    if (formData.totalValue) request.totalValue = Number(formData.totalValue);
-    if (formData.designValue) request.designValue = Number(formData.designValue);
-    if (formData.executionValue)
-      request.executionValue = Number(formData.executionValue);
-    if (formData.designPackage) request.designPackage = formData.designPackage;
-    if (formData.designTeam.trim()) {
-      request.designTeam = formData.designTeam
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+    if (designTeam.length > 0) request.designTeam = designTeam;
+    if (executionTeam.length > 0) request.executionTeam = executionTeam;
+    if (formData.designTeamIds.length > 0) {
+      request.assignedDesignerId = formData.designTeamIds[0];
     }
-    if (formData.executionTeam.trim()) {
-      request.executionTeam = formData.executionTeam
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+    if (formData.executionTeamIds.length > 0) {
+      request.assignedPMId = formData.executionTeamIds[0];
     }
-    if (formData.remarks) request.remarks = formData.remarks;
-    if (formData.numberOfMeetings)
-      request.numberOfMeetings = Number(formData.numberOfMeetings);
-    if (formData.paidAmount) request.paidAmount = Number(formData.paidAmount);
+    if (formData.specialRequirements.trim()) {
+      request.specialRequirements = formData.specialRequirements.trim();
+    }
+    if (formData.remarks.trim()) {
+      request.remarks = formData.remarks.trim();
+    }
 
     try {
       const normalizedNewName = request.projectName.trim().toLowerCase();
+      const existingProjects = await listProjects({
+        accountId: request.accountId,
+        limit: 1000,
+      });
 
-      // Server-side duplicate check before create:
-      // same project name + same customer should be blocked.
-      const existingProjects = await listProjects({ limit: 1000 });
-      const duplicateExists = (existingProjects.projects || []).some((p) => {
-        const existingName = (p.projectName || p.name || "").trim().toLowerCase();
-        if (existingName !== normalizedNewName) return false;
+      const duplicateExists = (existingProjects.projects || []).some((project) => {
+        const existingName = (project.projectName || project.name || "")
+          .trim()
+          .toLowerCase();
 
-        if (request.accountId) {
-          return p.accountId === request.accountId;
-        }
-
-        return !p.accountId;
+        return (
+          existingName === normalizedNewName &&
+          (project.accountId || "") === (request.accountId || "")
+        );
       });
 
       if (duplicateExists) {
@@ -397,16 +525,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
   if (!isOpen) return null;
 
-  const pillClass = (active: boolean) =>
-    `px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm cursor-pointer ${
-      active
-        ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-orange-200"
-        : "bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200"
-    }`;
-
   const modalContent = (
     <>
-      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
@@ -422,7 +542,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         }}
       />
 
-      {/* Modal Container */}
       <div
         style={{
           position: "fixed",
@@ -440,10 +559,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         }}
       >
         <div
-          className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl my-6 max-h-[92vh] flex flex-col transform transition-all border border-gray-100"
+          className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl my-6 max-h-[92vh] flex flex-col border border-gray-100"
           style={{ pointerEvents: "auto" }}
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-8 py-5 flex-shrink-0 bg-gradient-to-br from-orange-50 via-white to-orange-50/30 rounded-t-3xl border-b border-orange-100">
             <div>
               <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
@@ -461,16 +579,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
             </button>
           </div>
 
-          {/* Form */}
-          <form
-            onSubmit={handleSubmit}
-            className="flex flex-col flex-1 overflow-hidden"
-          >
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
             <div
               className="overflow-y-auto flex-1 px-8 py-6 space-y-5"
               style={{ maxHeight: "calc(92vh - 180px)" }}
             >
-              {/* Project Name */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   <div className="flex items-center gap-2">
@@ -482,7 +595,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                   value={formData.projectName}
                   onChange={(e) => handleChange("projectName", e.target.value)}
                   placeholder="e.g., Modern 3BHK Interior"
-                  className={`transition-all ${errors.projectName ? "border-red-500 ring-2 ring-red-100" : "focus:ring-2 focus:ring-orange-100"}`}
+                  className={errors.projectName ? "border-red-500 ring-2 ring-red-100" : ""}
                 />
                 {errors.projectName && (
                   <p className="text-red-500 text-xs mt-1.5 font-medium">
@@ -491,26 +604,23 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 )}
               </div>
 
-              {/* Customer Dropdown */}
               <div ref={customerDropdownRef}>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-orange-500" />
-                      Select Customer
+                      Select Customer <span className="text-red-400">*</span>
                     </div>
                   </label>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 font-medium">
-                      Auto-fill details
-                    </span>
+                    <span className="text-xs text-gray-500 font-medium">Auto-fill details</span>
                     <Toggle
                       checked={autoPopulate}
                       onChange={(e) => {
-                        const isChecked = e.target.checked;
-                        setAutoPopulate(isChecked);
-                        if (isChecked && selectedCustomer) {
+                        const checked = e.target.checked;
+                        setAutoPopulate(checked);
+                        if (checked && selectedCustomer) {
                           populateFromCustomer(selectedCustomer, true);
                         }
                       }}
@@ -538,11 +648,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="text"
-                        value={
-                          selectedCustomer
-                            ? selectedCustomer.name
-                            : customerSearch
-                        }
+                        value={selectedCustomer ? selectedCustomer.name : customerSearch}
                         onChange={(e) => {
                           setCustomerSearch(e.target.value);
                           if (selectedCustomer) {
@@ -564,9 +670,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                             : "border-gray-300 focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
                         } ${customersLoading ? "bg-gray-50 cursor-wait" : "bg-white"}`}
                       />
+
                       {customersLoading && (
                         <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
                       )}
+
                       {selectedCustomer && !customersLoading && (
                         <button
                           type="button"
@@ -582,673 +690,230 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                       )}
                     </div>
 
-                    {showCustomerDropdown &&
-                      !customersLoading &&
-                      !selectedCustomer && (
-                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
-                          {filteredCustomers.length === 0 ? (
-                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                              No customers found
-                            </div>
-                          ) : (
-                            filteredCustomers.slice(0, 30).map((customer) => {
-                              const primaryContact =
-                                customer.contacts?.find((c) => c.isPrimary) ??
-                                customer.contacts?.[0];
-                              return (
-                                <button
-                                  key={customer.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedCustomer(customer);
-                                    handleChange("accountId", customer.id);
-                                    populateFromCustomer(customer);
-                                    setCustomerSearch("");
-                                    setShowCustomerDropdown(false);
-                                  }}
-                                  className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors border-b border-gray-50 last:border-0"
-                                >
-                                  <p className="text-sm font-semibold text-gray-900">
-                                    {customer.name}
-                                  </p>
-                                  <div className="flex items-center gap-3 mt-0.5">
-                                    {primaryContact?.email && (
-                                      <span className="text-xs text-gray-500">
-                                        {primaryContact.email}
-                                      </span>
-                                    )}
-                                    {primaryContact?.phone && (
-                                      <span className="text-xs text-gray-500">
-                                        {primaryContact.phone}
-                                      </span>
-                                    )}
-                                    {customer.billingCity && (
-                                      <span className="text-xs text-gray-400">
-                                        {customer.billingCity}
-                                      </span>
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
+                    {showCustomerDropdown && !customersLoading && !selectedCustomer && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
+                        {filteredCustomers.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                            No customers found
+                          </div>
+                        ) : (
+                          filteredCustomers.slice(0, 30).map((customer) => {
+                            const primaryContact =
+                              customer.contacts?.find((contact) => contact.isPrimary) ??
+                              customer.contacts?.[0];
+
+                            return (
+                              <button
+                                key={customer.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCustomer(customer);
+                                  handleChange("accountId", customer.id);
+                                  populateFromCustomer(customer);
+                                  setCustomerSearch("");
+                                  setShowCustomerDropdown(false);
+                                }}
+                                className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors border-b border-gray-50 last:border-0"
+                              >
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {customer.name}
+                                </p>
+                                <div className="flex items-center gap-3 mt-0.5">
+                                  {primaryContact?.email && (
+                                    <span className="text-xs text-gray-500">{primaryContact.email}</span>
+                                  )}
+                                  {primaryContact?.phone && (
+                                    <span className="text-xs text-gray-500">{primaryContact.phone}</span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
                   </div>
+                )}
+                {errors.accountId && (
+                  <p className="text-red-500 text-xs mt-1.5 font-medium">{errors.accountId}</p>
                 )}
               </div>
 
-              {/* Lead ID (optional) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Lead ID
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <IndianRupee className="w-4 h-4 text-orange-500" />
+                    Budget Value <span className="text-red-400">*</span>
+                  </div>
                 </label>
                 <Input
-                  value={formData.leadId}
-                  onChange={(e) => handleChange("leadId", e.target.value)}
-                  placeholder="Optional lead id"
+                  type="number"
+                  min="0"
+                  value={formData.budgetValue}
+                  onChange={(e) => handleChange("budgetValue", e.target.value)}
+                  placeholder="e.g., 4500000"
+                  className={errors.budgetValue ? "border-red-500 ring-2 ring-red-100" : ""}
+                />
+                {errors.budgetValue && (
+                  <p className="text-red-500 text-xs mt-1.5 font-medium">
+                    {errors.budgetValue}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-orange-500" />
+                    Billing Address <span className="text-red-400">*</span>
+                  </div>
+                </label>
+                <textarea
+                  value={formData.billingAddress}
+                  onChange={(e) => handleChange("billingAddress", e.target.value)}
+                  rows={2}
+                  placeholder="Enter billing address"
+                  className={`w-full px-3 py-2.5 border rounded-xl focus:outline-none focus:ring-2 resize-none text-sm transition-all ${
+                    errors.billingAddress
+                      ? "border-red-500 ring-red-100"
+                      : "border-gray-300 focus:ring-orange-100 focus:border-orange-400"
+                  }`}
+                />
+                {errors.billingAddress && (
+                  <p className="text-red-500 text-xs mt-1.5 font-medium">
+                    {errors.billingAddress}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-orange-500" />
+                    Property Address <span className="text-red-400">*</span>
+                  </div>
+                </label>
+                <textarea
+                  value={formData.propertyAddress}
+                  onChange={(e) => handleChange("propertyAddress", e.target.value)}
+                  rows={2}
+                  placeholder="Enter property address"
+                  className={`w-full px-3 py-2.5 border rounded-xl focus:outline-none focus:ring-2 resize-none text-sm transition-all ${
+                    errors.propertyAddress
+                      ? "border-red-500 ring-red-100"
+                      : "border-gray-300 focus:ring-orange-100 focus:border-orange-400"
+                  }`}
+                />
+                {errors.propertyAddress && (
+                  <p className="text-red-500 text-xs mt-1.5 font-medium">
+                    {errors.propertyAddress}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-orange-500" />
+                      Site Contact Name <span className="text-red-400">*</span>
+                    </div>
+                  </label>
+                  <Input
+                    value={formData.siteContactName}
+                    onChange={(e) => handleChange("siteContactName", e.target.value)}
+                    placeholder="e.g., Site Supervisor"
+                    className={errors.siteContactName ? "border-red-500 ring-2 ring-red-100" : ""}
+                  />
+                  {errors.siteContactName && (
+                    <p className="text-red-500 text-xs mt-1.5 font-medium">
+                      {errors.siteContactName}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Site Contact Phone <span className="text-red-400">*</span>
+                  </label>
+                  <Input
+                    type="tel"
+                    value={formData.siteContactPhone}
+                    onChange={(e) => handleChange("siteContactPhone", e.target.value)}
+                    placeholder="e.g., +919876543210"
+                    className={errors.siteContactPhone ? "border-red-500 ring-2 ring-red-100" : ""}
+                  />
+                  {errors.siteContactPhone && (
+                    <p className="text-red-500 text-xs mt-1.5 font-medium">
+                      {errors.siteContactPhone}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-orange-500" />
+                    Tentative Handover Date <span className="text-red-400">*</span>
+                  </div>
+                </label>
+                <Input
+                  type="date"
+                  value={formData.tentativeHandoverDate}
+                  onChange={(e) => handleChange("tentativeHandoverDate", e.target.value)}
+                  className={errors.tentativeHandoverDate ? "border-red-500 ring-2 ring-red-100" : ""}
+                />
+                {errors.tentativeHandoverDate && (
+                  <p className="text-red-500 text-xs mt-1.5 font-medium">
+                    {errors.tentativeHandoverDate}
+                  </p>
+                )}
+              </div>
+
+              <TeamSelector
+                label="Assigned Design Team"
+                selectedIds={formData.designTeamIds}
+                onChange={(ids) => handleChange("designTeamIds", ids)}
+                members={internalTeamMembers}
+                loading={teamMembersLoading}
+              />
+
+              <TeamSelector
+                label="Assigned Execution Team"
+                selectedIds={formData.executionTeamIds}
+                onChange={(ids) => handleChange("executionTeamIds", ids)}
+                members={internalTeamMembers}
+                loading={teamMembersLoading}
+              />
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Special Requirement
+                </label>
+                <textarea
+                  value={formData.specialRequirements}
+                  onChange={(e) => handleChange("specialRequirements", e.target.value)}
+                  rows={3}
+                  placeholder="Any special requirements..."
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 resize-none text-sm transition-all"
                 />
               </div>
 
-              {/* Pipeline Type */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-orange-500" />
-                    Pipeline Type
-                  </div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Remarks
                 </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleChange("pipelineType", PipelineType.DESIGN_ONLY)
-                    }
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      formData.pipelineType === PipelineType.DESIGN_ONLY
-                        ? "border-orange-500 bg-orange-50 shadow-md"
-                        : "border-gray-200 hover:border-orange-300 bg-white"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-2xl">🎨</span>
-                      {formData.pipelineType === PipelineType.DESIGN_ONLY && (
-                        <CheckCircle2 className="w-5 h-5 text-orange-500" />
-                      )}
-                    </div>
-                    <h4 className="text-sm font-bold text-gray-900">
-                      Design Only
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Concept to final drawings
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleChange(
-                        "pipelineType",
-                        PipelineType.DESIGN_AND_EXECUTION,
-                      )
-                    }
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      formData.pipelineType ===
-                      PipelineType.DESIGN_AND_EXECUTION
-                        ? "border-orange-500 bg-orange-50 shadow-md"
-                        : "border-gray-200 hover:border-orange-300 bg-white"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-2xl">🏗️</span>
-                      {formData.pipelineType ===
-                        PipelineType.DESIGN_AND_EXECUTION && (
-                        <CheckCircle2 className="w-5 h-5 text-orange-500" />
-                      )}
-                    </div>
-                    <h4 className="text-sm font-bold text-gray-900">
-                      Design + Execution
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      End-to-end project delivery
-                    </p>
-                  </button>
-                </div>
-                {errors.pipelineType && (
-                  <p className="text-red-500 text-xs mt-1.5 font-medium">
-                    {errors.pipelineType}
-                  </p>
-                )}
-              </div>
-
-              {/* Project Category */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-orange-500" />
-                    Project Category
-                  </div>
-                </label>
-                <div className="flex flex-wrap gap-2.5">
-                  {PROJECT_CATEGORY_OPTIONS.map((cat) => (
-                      <button
-                        key={cat.value}
-                        type="button"
-                        onClick={() => {
-                          handleChange("projectCategory", cat.value);
-                          // Reset property subtype when category changes
-                          handleChange("propertySubtype", "");
-                        }}
-                        className={pillClass(
-                          formData.projectCategory === cat.value,
-                        )}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                </div>
-                {errors.projectCategory && (
-                  <p className="text-red-500 text-xs mt-1.5 font-medium">
-                    {errors.projectCategory}
-                  </p>
-                )}
-              </div>
-
-              {/* Scope Type (required) */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-orange-500" />
-                    Scope Type
-                  </div>
-                </label>
-                <div className="flex flex-wrap gap-2.5">
-                  {SCOPE_TYPE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => handleChange("scopeType", opt.value)}
-                        className={pillClass(formData.scopeType === opt.value)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                </div>
-                {errors.scopeType && (
-                  <p className="text-red-500 text-xs mt-1.5 font-medium">
-                    {errors.scopeType}
-                  </p>
-                )}
-              </div>
-
-              {/* Quick Optional: City + Total Value */}
-              <div className="grid grid-cols-2 gap-4 pt-1">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                      City
-                    </div>
-                  </label>
-                  <Input
-                    value={formData.propertyCity}
-                    onChange={(e) =>
-                      handleChange("propertyCity", e.target.value)
-                    }
-                    placeholder="e.g., Bangalore"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <IndianRupee className="w-3.5 h-3.5 text-gray-400" />
-                      Total Value
-                    </div>
-                  </label>
-                  <Input
-                    type="number"
-                    value={formData.totalValue}
-                    onChange={(e) => handleChange("totalValue", e.target.value)}
-                    placeholder="e.g., 2800000"
-                  />
-                </div>
-              </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-1">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Design Value
-                      </label>
-                      <Input
-                        type="number"
-                        value={formData.designValue}
-                        onChange={(e) => handleChange("designValue", e.target.value)}
-                        placeholder="e.g., 1200000"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Execution Value
-                      </label>
-                      <Input
-                        type="number"
-                        value={formData.executionValue}
-                        onChange={(e) => handleChange("executionValue", e.target.value)}
-                        placeholder="e.g., 1600000"
-                      />
-                    </div>
-                  </div>
-
-              {/* More Details (collapsible) */}
-              <div className="border-t border-gray-100 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowMore(!showMore)}
-                  className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-orange-600 transition-colors w-full"
-                >
-                  {showMore ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                  {showMore ? "Hide" : "Show"} Additional Details
-                  <span className="text-xs text-gray-400 font-normal ml-1">
-                    (all optional)
-                  </span>
-                </button>
-
-                {showMore && (
-                  <div className="mt-4 space-y-5">
-                    {/* Property Type */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        <div className="flex items-center gap-2">
-                          <Home className="w-4 h-4 text-gray-400" />
-                          Property Type
-                        </div>
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {PROPERTY_SUBTYPE_OPTIONS.map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() =>
-                                handleChange(
-                                  "propertySubtype",
-                                  formData.propertySubtype === opt.value
-                                    ? ""
-                                    : opt.value,
-                                )
-                              }
-                              className={pillClass(
-                                formData.propertySubtype === opt.value,
-                              )}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-
-                    {/* Size and BHK */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Size (sq.ft)
-                        </label>
-                        <Input
-                          type="number"
-                          value={formData.propertySizeSqft}
-                          onChange={(e) =>
-                            handleChange("propertySizeSqft", e.target.value)
-                          }
-                          placeholder="e.g., 1200"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          BHK
-                        </label>
-                        <Input
-                          value={formData.propertyBHK}
-                          onChange={(e) =>
-                            handleChange("propertyBHK", e.target.value)
-                          }
-                          placeholder="e.g., 3BHK"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Budget Tier */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Budget Tier
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {BUDGET_TIER_OPTIONS.map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() =>
-                                handleChange(
-                                  "budgetTier",
-                                  formData.budgetTier === opt.value
-                                    ? ""
-                                    : opt.value,
-                                )
-                              }
-                              className={pillClass(
-                                formData.budgetTier === opt.value,
-                              )}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Number of Meetings
-                        </label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={formData.numberOfMeetings}
-                          onChange={(e) =>
-                            handleChange("numberOfMeetings", e.target.value)
-                          }
-                          placeholder="e.g., 2"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Paid Amount
-                        </label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={formData.paidAmount}
-                          onChange={(e) => handleChange("paidAmount", e.target.value)}
-                          placeholder="e.g., 50000"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Design 3D Status
-                        </label>
-                        <select
-                          value={formData.design3DStatus}
-                          onChange={(e) =>
-                            handleChange("design3DStatus", e.target.value)
-                          }
-                          className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 transition-all"
-                        >
-                          <option value="NOT_STARTED">Not Started</option>
-                          <option value="IN_PROGRESS">In Progress</option>
-                          <option value="COMPLETED">Completed</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Project Status
-                        </label>
-                        <select
-                          value={formData.status}
-                          onChange={(e) => handleChange("status", e.target.value)}
-                          className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 transition-all"
-                        >
-                          <option value="YET_TO_START">Yet To Start</option>
-                          <option value="ONGOING">Ongoing</option>
-                          <option value="ON_HOLD">On Hold</option>
-                          <option value="COMPLETED">Completed</option>
-                          <option value="CANCELLED">Cancelled</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-3">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Mood board shared</p>
-                        <p className="text-xs text-gray-500">
-                          Mark if mood board has already been shared with the client
-                        </p>
-                      </div>
-                      <Toggle
-                        checked={formData.moodBoardShared}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            moodBoardShared: e.target.checked,
-                          }))
-                        }
-                      />
-                    </div>
-
-                    {/* Address Block */}
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
-                      <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                        <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                        Property Address
-                      </h4>
-                      <Input
-                        value={formData.propertyAddress}
-                        onChange={(e) =>
-                          handleChange("propertyAddress", e.target.value)
-                        }
-                        placeholder="Street address"
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <Input
-                          value={formData.propertyBuilding}
-                          onChange={(e) =>
-                            handleChange("propertyBuilding", e.target.value)
-                          }
-                          placeholder="Building name"
-                        />
-                        <Input
-                          value={formData.propertyUnit}
-                          onChange={(e) =>
-                            handleChange("propertyUnit", e.target.value)
-                          }
-                          placeholder="Unit / Flat No."
-                        />
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <Input
-                          value={formData.propertyState}
-                          onChange={(e) =>
-                            handleChange("propertyState", e.target.value)
-                          }
-                          placeholder="State"
-                        />
-                        <Input
-                          value={formData.propertyPincode}
-                          onChange={(e) =>
-                            handleChange("propertyPincode", e.target.value)
-                          }
-                          placeholder="Pincode"
-                        />
-                        <Input
-                          value={formData.propertyLandmarks}
-                          onChange={(e) =>
-                            handleChange("propertyLandmarks", e.target.value)
-                          }
-                          placeholder="Landmarks"
-                        />
-                      </div>
-
-                      <Input
-                        value={formData.billingAddress}
-                        onChange={(e) =>
-                          handleChange("billingAddress", e.target.value)
-                        }
-                        placeholder="Billing address"
-                      />
-                    </div>
-
-                    {/* Site Contact */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <Phone className="w-3.5 h-3.5 text-gray-400" />
-                            Site Contact Name
-                          </div>
-                        </label>
-                        <Input
-                          value={formData.siteContactName}
-                          onChange={(e) =>
-                            handleChange("siteContactName", e.target.value)
-                          }
-                          placeholder="e.g., Ramesh Kumar"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Site Contact Phone
-                        </label>
-                        <Input
-                          type="tel"
-                          value={formData.siteContactPhone}
-                          onChange={(e) =>
-                            handleChange("siteContactPhone", e.target.value)
-                          }
-                          placeholder="e.g., +91 98765 43210"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Design Package and Construction Status */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Design Package
-                        </label>
-                        <Input
-                          value={formData.designPackage}
-                          onChange={(e) =>
-                            handleChange("designPackage", e.target.value)
-                          }
-                          placeholder="e.g., Premium Interior"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Construction Status
-                        </label>
-                        <select
-                          value={formData.constructionStatus}
-                          onChange={(e) =>
-                            handleChange("constructionStatus", e.target.value)
-                          }
-                          className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 transition-all"
-                        >
-                          <option value="">Select status</option>
-                          <option value="NOT_STARTED">Not Started</option>
-                          <option value="UNDER_CONSTRUCTION">
-                            Under Construction
-                          </option>
-                          <option value="READY_TO_MOVE">Ready to Move</option>
-                          <option value="RENOVATION">Renovation</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Handover Date */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Tentative Handover Date
-                        </label>
-                        <Input
-                          type="date"
-                          value={formData.tentativeHandoverDate}
-                          onChange={(e) =>
-                            handleChange(
-                              "tentativeHandoverDate",
-                              e.target.value,
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    {/* Design & Execution Teams */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Design Team
-                        </label>
-                        <Input
-                          value={formData.designTeam}
-                          onChange={(e) =>
-                            handleChange("designTeam", e.target.value)
-                          }
-                          placeholder="e.g., Sathish, Thrisha"
-                        />
-                        <p className="text-xs text-gray-400 mt-1">
-                          Comma-separated names
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Execution Team
-                        </label>
-                        <Input
-                          value={formData.executionTeam}
-                          onChange={(e) =>
-                            handleChange("executionTeam", e.target.value)
-                          }
-                          placeholder="e.g., Dilip, Santhosh"
-                        />
-                        <p className="text-xs text-gray-400 mt-1">
-                          Comma-separated names
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Special Requirements */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Special Requirements
-                      </label>
-                      <textarea
-                        value={formData.specialRequirements}
-                        onChange={(e) =>
-                          handleChange("specialRequirements", e.target.value)
-                        }
-                        placeholder="Any special requirements or notes..."
-                        rows={3}
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 resize-none text-sm transition-all"
-                      />
-                    </div>
-
-                    {/* Remarks */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Remarks
-                      </label>
-                      <textarea
-                        value={formData.remarks}
-                        onChange={(e) =>
-                          handleChange("remarks", e.target.value)
-                        }
-                        placeholder="Internal remarks or notes for this project..."
-                        rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 resize-none text-sm transition-all"
-                      />
-                    </div>
-                  </div>
-                )}
+                <textarea
+                  value={formData.remarks}
+                  onChange={(e) => handleChange("remarks", e.target.value)}
+                  rows={3}
+                  placeholder="Internal remarks..."
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400 resize-none text-sm transition-all"
+                />
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex items-center justify-end gap-3 px-8 py-4 border-t border-gray-200 flex-shrink-0 bg-gradient-to-r from-gray-50 to-white rounded-b-3xl">
               <Button
                 type="button"

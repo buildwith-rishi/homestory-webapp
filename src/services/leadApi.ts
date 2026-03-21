@@ -248,60 +248,31 @@ async function handleResponse<T>(response: Response): Promise<T> {
 const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
   const payload: Partial<Lead> = {};
 
+  // Basic Info (current frontend)
   if (updates.name !== undefined) payload.name = updates.name;
-  if (updates.phone !== undefined) payload.phone = updates.phone;
-  if (updates.location !== undefined) payload.location = updates.location;
-  if (updates.projectCategory !== undefined)
-    payload.projectCategory = updates.projectCategory;
   if (updates.email !== undefined) payload.email = updates.email;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
+  if (updates.companyName !== undefined) payload.companyName = updates.companyName;
+  if (updates.source !== undefined) payload.source = updates.source;
+  if (updates.score !== undefined) payload.score = updates.score;
+  if (updates.assignedToId !== undefined) payload.assignedToId = updates.assignedToId;
+
+  // Property & Project (current frontend)
+  if (updates.propertyType !== undefined) payload.propertyType = updates.propertyType;
+  if (updates.projectType !== undefined) payload.projectType = updates.projectType;
+  if (updates.area !== undefined) payload.area = updates.area;
+  if (updates.city !== undefined) payload.city = updates.city;
+  if (updates.projectStage !== undefined) payload.projectStage = updates.projectStage;
+  if (updates.startTimeline !== undefined) payload.startTimeline = updates.startTimeline;
+  if (updates.budgetComfort !== undefined) payload.budgetComfort = updates.budgetComfort;
+  if (updates.projectScope !== undefined) payload.projectScope = updates.projectScope;
+
+  // Notes and uploads (current frontend)
   if (updates.message !== undefined) payload.message = updates.message;
-  if (updates.pipelineType !== undefined)
-    payload.pipelineType = updates.pipelineType;
-  if (updates.scopeType !== undefined) payload.scopeType = updates.scopeType;
-  if (updates.propertySubtype !== undefined)
-    payload.propertySubtype = updates.propertySubtype;
-  if (updates.propertyBHK !== undefined) payload.propertyBHK = updates.propertyBHK;
-  if (updates.budgetTier !== undefined) payload.budgetTier = updates.budgetTier;
-  if (updates.propertySizeSqft !== undefined)
-    payload.propertySizeSqft = updates.propertySizeSqft;
-  if (updates.constructionStatus !== undefined)
-    payload.constructionStatus = updates.constructionStatus;
-  if (updates.tentativeHandoverDate !== undefined)
-    payload.tentativeHandoverDate = updates.tentativeHandoverDate;
-  if (updates.propertyAddress !== undefined)
-    payload.propertyAddress = updates.propertyAddress;
-  if (updates.propertyState !== undefined) payload.propertyState = updates.propertyState;
-  if (updates.propertyPincode !== undefined)
-    payload.propertyPincode = updates.propertyPincode;
-  if (updates.propertyBuilding !== undefined)
-    payload.propertyBuilding = updates.propertyBuilding;
-  if (updates.propertyUnit !== undefined) payload.propertyUnit = updates.propertyUnit;
-  if (updates.propertyLandmarks !== undefined)
-    payload.propertyLandmarks = updates.propertyLandmarks;
-  if (updates.siteContactName !== undefined)
-    payload.siteContactName = updates.siteContactName;
-  if (updates.siteContactPhone !== undefined)
-    payload.siteContactPhone = updates.siteContactPhone;
+  if (updates.requirements !== undefined) payload.requirements = updates.requirements;
   if (updates.specialRequirements !== undefined)
     payload.specialRequirements = updates.specialRequirements;
-  if (updates.designPackage !== undefined)
-    payload.designPackage = updates.designPackage;
   if (updates.floorPlanUrl !== undefined) payload.floorPlanUrl = updates.floorPlanUrl;
-  if (updates.wantsExperienceCenterVisit !== undefined)
-    payload.wantsExperienceCenterVisit = updates.wantsExperienceCenterVisit;
-  if (updates.canWhatsApp !== undefined) payload.canWhatsApp = updates.canWhatsApp;
-  if (updates.source !== undefined) payload.source = updates.source;
-  if (updates.householdOrCompany !== undefined)
-    payload.householdOrCompany = updates.householdOrCompany;
-  if (updates.companyName !== undefined) payload.companyName = updates.companyName;
-  if (updates.status !== undefined) payload.status = updates.status;
-  if (updates.referrerName !== undefined) payload.referrerName = updates.referrerName;
-  if (updates.referrerPhone !== undefined)
-    payload.referrerPhone = updates.referrerPhone;
-  if (updates.agentAgencyName !== undefined)
-    payload.agentAgencyName = updates.agentAgencyName;
-  if (updates.agentAgencyDetails !== undefined)
-    payload.agentAgencyDetails = updates.agentAgencyDetails;
 
   return payload;
 };

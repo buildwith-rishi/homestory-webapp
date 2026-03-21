@@ -62,6 +62,7 @@ export interface Customer {
   id: string;
   name: string;
   type?: string;
+  bankDetails?: string | null;
   email?: string | null;
   phone?: string | null;
   secondaryEmails?: string[];

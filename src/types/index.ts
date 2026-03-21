@@ -1618,6 +1618,10 @@ export interface MatrixDayWiseItem {
   dayNumber: number;
   date: string;
   tasks: MatrixTask[];
+  isHoliday?: boolean;
+  holidayReason?: string | null;
+  dayType?: string;
+  dayStatus?: string;
 }
 
 export interface TaskMatrix {
@@ -1626,6 +1630,7 @@ export interface TaskMatrix {
   stageId?: string;
   totalDays: number;
   startDate: string;
+  includeSundays?: boolean;
   categories?: MatrixCategory[];
   dayTasks?: MatrixTask[];
   matrixDayWise?: MatrixDayWiseItem[];
@@ -1638,6 +1643,7 @@ export interface TaskMatrix {
 export interface CreateMatrixRequest {
   totalDays: number;
   startDate: string;
+  includeSundays?: boolean;
   categories: {
     name: string;
     orderIndex: number;
@@ -1659,6 +1665,7 @@ export interface CreateMatrixRequest {
 export interface UpdateMatrixRequest {
   totalDays?: number;
   startDate?: string;
+  includeSundays?: boolean;
 }
 
 export interface UpdateTaskStatusRequest {

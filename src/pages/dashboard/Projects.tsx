@@ -22,7 +22,7 @@ import {
   Progress,
   SectionLoader,
 } from "../../components/ui";
-import { NewProjectModal } from "../../components/dashboard/NewProjectModal";
+import { NewProjectModal } from "../../components/dashboard/NewProjectModal.tsx";
 
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useProjectStore } from "../../stores/projectStore";

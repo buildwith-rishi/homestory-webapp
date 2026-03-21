@@ -6,9 +6,22 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  type: "info" | "success" | "warning" | "error";
+  type: string;
   read: boolean;
   createdAt: string;
+  link?: string;
+}
+
+interface RawNotification {
+  id?: string;
+  title?: string;
+  message?: string;
+  description?: string;
+  type?: string;
+  read?: boolean;
+  isRead?: boolean;
+  createdAt?: string;
+  dueDate?: string;
   link?: string;
 }
 
@@ -38,13 +51,44 @@ async function handleResponse<T>(response: Response): Promise<T> {
   }
 }
 
+function normalizeNotification(item: RawNotification): Notification {
+  const rawType = (item.type || "").toUpperCase();
+  const mappedType =
+    rawType === "SUCCESS" ||
+    rawType === "INFO" ||
+    rawType === "WARNING" ||
+    rawType === "ERROR"
+      ? rawType.toLowerCase()
+      : rawType.includes("DEADLINE") || rawType.includes("DUE")
+        ? "warning"
+        : "info";
+
+  return {
+    id: item.id || `notification-${Date.now()}`,
+    title: item.title || "Notification",
+    message: item.message || item.description || "",
+    type: mappedType,
+    read: Boolean(item.read ?? item.isRead ?? false),
+    createdAt:
+      item.createdAt ||
+      item.dueDate ||
+      // keep stable ISO fallback when backend omits timestamps
+      new Date().toISOString(),
+    link: item.link,
+  };
+}
+
 function extractList(data: unknown): Notification[] {
-  if (Array.isArray(data)) return data as Notification[];
+  if (Array.isArray(data))
+    return (data as RawNotification[]).map(normalizeNotification);
   if (data && typeof data === "object") {
     const obj = data as Record<string, unknown>;
-    if (Array.isArray(obj.data)) return obj.data as Notification[];
-    if (Array.isArray(obj.notifications)) return obj.notifications as Notification[];
-    if (Array.isArray(obj.results)) return obj.results as Notification[];
+    if (Array.isArray(obj.data))
+      return (obj.data as RawNotification[]).map(normalizeNotification);
+    if (Array.isArray(obj.notifications))
+      return (obj.notifications as RawNotification[]).map(normalizeNotification);
+    if (Array.isArray(obj.results))
+      return (obj.results as RawNotification[]).map(normalizeNotification);
   }
   return [];
 }

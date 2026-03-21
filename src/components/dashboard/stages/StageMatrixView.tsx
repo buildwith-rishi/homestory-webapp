@@ -42,6 +42,7 @@ import {
   getMatrixStats,
   deleteMatrix,
   updateMatrixTaskStatus,
+  markMatrixHoliday,
 } from "../../../services/projectApi";
 import toast from "react-hot-toast";
 
@@ -124,6 +125,45 @@ const getFallbackDateForDay = (startDate: string, dayNumber: number) => {
   });
 };
 
+const toUtcStartOfDayIso = (rawDate: string): string | null => {
+  if (!rawDate) return null;
+  const dateOnly = rawDate.includes("T") ? rawDate.split("T")[0] : rawDate;
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(Date.UTC(year, month - 1, day)).toISOString();
+};
+
+const getIsoDateForDay = (
+  dayDate: string,
+  matrixStartDate: string,
+  dayNumber: number,
+): string | null => {
+  const direct = toUtcStartOfDayIso(dayDate);
+  if (direct) return direct;
+
+  const fallbackStart = parseDate(matrixStartDate);
+  if (isNaN(fallbackStart.getTime())) return null;
+  fallbackStart.setDate(fallbackStart.getDate() + dayNumber - 1);
+  return new Date(
+    Date.UTC(
+      fallbackStart.getFullYear(),
+      fallbackStart.getMonth(),
+      fallbackStart.getDate(),
+    ),
+  ).toISOString();
+};
+
+const isHolidayDay = (day: MatrixDayWiseItem): boolean => {
+  return Boolean(
+    day.isHoliday || day.dayType === "HOLIDAY" || day.dayStatus === "HOLIDAY",
+  );
+};
+
+const toDateInputValue = (isoDate: string): string => {
+  const parsed = toUtcStartOfDayIso(isoDate);
+  return parsed ? parsed.split("T")[0] : "";
+};
+
 export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   projectId,
   projectName = "",
@@ -147,6 +187,18 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const [matrixViewMode, setMatrixViewMode] = useState<"days" | "categories">(
     "days",
   );
+  const [markingHolidayDay, setMarkingHolidayDay] = useState<number | null>(
+    null,
+  );
+  const [holidayDayNumbers, setHolidayDayNumbers] = useState<Set<number>>(
+    new Set(),
+  );
+  const [holidayDraft, setHolidayDraft] = useState<{
+    dayEntry: MatrixDayWiseItem;
+    date: string;
+    includeSundays: boolean;
+    reason: string;
+  } | null>(null);
 
   const handleAddDaySuccess = () => {
     setShowAddDayModal(false);
@@ -179,6 +231,22 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       }
 
       setMatrix(data);
+
+      // Keep a local holiday map so the checkbox remains checked immediately
+      // even if backend holiday flags are delayed in matrixDayWise responses.
+      const backendHolidayDays = new Set(
+        (data.matrixDayWise || [])
+          .filter((d) => isHolidayDay(d))
+          .map((d) => d.dayNumber),
+      );
+      if (backendHolidayDays.size > 0) {
+        setHolidayDayNumbers((prev) => {
+          const next = new Set(prev);
+          backendHolidayDays.forEach((d) => next.add(d));
+          return next;
+        });
+      }
+
       // Fetch stats if matrix exists
       if (data?.id) {
         try {
@@ -262,6 +330,64 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     fetchMatrix();
   };
 
+  const openHolidayModal = (dayEntry: MatrixDayWiseItem) => {
+    if (!matrix) return;
+
+    const isoDate = getIsoDateForDay(
+      dayEntry.date,
+      matrix.startDate,
+      dayEntry.dayNumber,
+    );
+
+    if (!isoDate) {
+      toast.error("Unable to determine date for this day");
+      return;
+    }
+
+    setHolidayDraft({
+      dayEntry,
+      date: toDateInputValue(isoDate),
+      includeSundays: false,
+      reason: "Public Holiday",
+    });
+  };
+
+  const handleMarkHolidaySubmit = async () => {
+    if (!matrix || !holidayDraft) return;
+
+    const isoDate = toUtcStartOfDayIso(holidayDraft.date);
+    if (!isoDate) {
+      toast.error("Please provide a valid holiday date");
+      return;
+    }
+
+    setMarkingHolidayDay(holidayDraft.dayEntry.dayNumber);
+    try {
+      await markMatrixHoliday(matrix.id, {
+        date: isoDate,
+        dayNumber: holidayDraft.dayEntry.dayNumber,
+        includeSundays: holidayDraft.includeSundays,
+        reason: holidayDraft.reason.trim() || "Public Holiday",
+      });
+      setHolidayDayNumbers((prev) => {
+        const next = new Set(prev);
+        next.add(holidayDraft.dayEntry.dayNumber);
+        return next;
+      });
+      toast.success(
+        `Day ${holidayDraft.dayEntry.dayNumber} marked as holiday`,
+      );
+      setHolidayDraft(null);
+      await fetchMatrix();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to mark holiday",
+      );
+    } finally {
+      setMarkingHolidayDay(null);
+    }
+  };
+
   // Group tasks by day as a fallback when matrixDayWise is not present
   const tasksByDay: Record<number, MatrixTask[]> = {};
   if (matrix?.dayTasks) {
@@ -280,7 +406,18 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       ? matrixDayWise
       : Array.from({ length: totalDays }, (_, i) => i + 1).map((dayNumber) => ({
           dayNumber,
-          date: matrix?.startDate || "",
+          date: (() => {
+            const start = parseDate(matrix?.startDate || "");
+            if (isNaN(start.getTime())) return "";
+            start.setDate(start.getDate() + dayNumber - 1);
+            return new Date(
+              Date.UTC(
+                start.getFullYear(),
+                start.getMonth(),
+                start.getDate(),
+              ),
+            ).toISOString();
+          })(),
           tasks: tasksByDay[dayNumber] || [],
         }));
 
@@ -468,6 +605,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             {categories.length} categor
             {categories.length !== 1 ? "ies" : "y"}
           </span>
+          <span>{matrix.includeSundays ? "Sundays included" : "Sundays excluded"}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -555,11 +693,18 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
               (t) => t.status === "COMPLETED",
             ).length;
             const isSelected = selectedDay === dayNum;
+            const holidayMarked =
+              isHolidayDay(dayEntry) || holidayDayNumbers.has(dayNum);
+            const holidayBusy = markingHolidayDay === dayNum;
 
             return (
               <Card
                 key={dayNum}
                 className={`bg-white/80 border-gray-200/50 shadow-sm overflow-hidden transition-all ${
+                  holidayMarked
+                    ? "opacity-60 border-amber-200 bg-amber-50/30"
+                    : ""
+                } ${
                   isSelected ? "ring-2 ring-orange-400/60" : ""
                 }`}
               >
@@ -585,6 +730,32 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3">
+                    <label
+                      className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={holidayMarked}
+                        disabled={holidayBusy || holidayMarked}
+                        onChange={(e) => {
+                          if (!e.target.checked) {
+                            toast("Holiday unmark is not supported yet");
+                            return;
+                          }
+                          openHolidayModal(dayEntry);
+                        }}
+                        className="h-3.5 w-3.5 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                      />
+                      <span>{holidayBusy ? "Saving..." : "Holiday"}</span>
+                    </label>
+
+                    {holidayMarked && (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                        Holiday
+                      </span>
+                    )}
+
                     {dayTasks.length > 0 ? (
                       <>
                         <span className="text-xs text-gray-400">
@@ -654,6 +825,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           matrixId={matrix.id}
           currentTotalDays={matrix.totalDays}
           currentStartDate={matrix.startDate}
+          currentIncludeSundays={matrix.includeSundays ?? false}
           stageName={stage.stageName}
           onClose={() => setShowEditModal(false)}
           onSuccess={() => {
@@ -661,6 +833,102 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             fetchMatrix();
           }}
         />
+      )}
+
+      {holidayDraft && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setHolidayDraft(null)}
+          />
+          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-semibold text-gray-900">
+                Mark Day {holidayDraft.dayEntry.dayNumber} as Holiday
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Fill holiday details before submitting.
+              </p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={holidayDraft.date}
+                  onChange={(e) =>
+                    setHolidayDraft((prev) =>
+                      prev ? { ...prev, date: e.target.value } : prev,
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Reason
+                </label>
+                <input
+                  type="text"
+                  value={holidayDraft.reason}
+                  onChange={(e) =>
+                    setHolidayDraft((prev) =>
+                      prev ? { ...prev, reason: e.target.value } : prev,
+                    )
+                  }
+                  placeholder="Public Holiday"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={holidayDraft.includeSundays}
+                  onChange={(e) =>
+                    setHolidayDraft((prev) =>
+                      prev
+                        ? { ...prev, includeSundays: e.target.checked }
+                        : prev,
+                    )
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                />
+                Include Sundays
+              </label>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setHolidayDraft(null)}
+                disabled={markingHolidayDay === holidayDraft.dayEntry.dayNumber}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleMarkHolidaySubmit}
+                disabled={markingHolidayDay === holidayDraft.dayEntry.dayNumber}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                {markingHolidayDay === holidayDraft.dayEntry.dayNumber ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Mark Holiday"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Add Day Modal */}

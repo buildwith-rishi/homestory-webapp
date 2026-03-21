@@ -6,7 +6,6 @@ import type {
   ProjectStageData,
   ProjectPayment,
   ProjectTask,
-  ProjectFilters,
   CreateProjectRequest,
   UpdateProjectRequest,
   UpdateStageRequest,
@@ -2355,6 +2354,44 @@ export async function addMatrixCategory(
   }
 }
 
+export interface MarkMatrixHolidayRequest {
+  date: string;
+  dayNumber?: number;
+  includeSundays?: boolean;
+  reason?: string;
+}
+
+/**
+ * Mark a matrix day as holiday
+ * POST /api/matrices/:matrixId/holiday
+ */
+export async function markMatrixHoliday(
+  matrixId: string,
+  data: MarkMatrixHolidayRequest,
+): Promise<unknown> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/matrices/${matrixId}/holiday`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          date: data.date,
+          ...(data.dayNumber !== undefined
+            ? { dayNumber: data.dayNumber }
+            : {}),
+          includeSundays: data.includeSundays ?? false,
+          reason: data.reason || "Public Holiday",
+        }),
+      },
+    );
+    return handleResponse<unknown>(response);
+  } catch (error) {
+    console.error("Error marking matrix holiday:", error);
+    throw error;
+  }
+}
+
 /**
  * Get valid task statuses for matrix
  * GET /api/matrices/options/statuses
@@ -2706,6 +2743,7 @@ const ProjectAPI = {
   getMatrixTaskStatuses,
   getMatrixAttachmentTypes,
   addMatrixCategory,
+  markMatrixHoliday,
   // Handover & Goodwill
   getHandoverActivities,
   createHandoverActivity,

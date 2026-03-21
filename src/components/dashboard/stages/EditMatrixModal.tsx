@@ -10,6 +10,7 @@ interface EditMatrixModalProps {
   matrixId: string;
   currentTotalDays: number;
   currentStartDate: string;
+  currentIncludeSundays?: boolean;
   stageName: string;
   onClose: () => void;
   onSuccess: () => void;
@@ -19,6 +20,7 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
   matrixId,
   currentTotalDays,
   currentStartDate,
+  currentIncludeSundays = false,
   stageName,
   onClose,
   onSuccess,
@@ -27,11 +29,13 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
   const [startDate, setStartDate] = useState(
     currentStartDate ? currentStartDate.split("T")[0] : "",
   );
+  const [includeSundays, setIncludeSundays] = useState(currentIncludeSundays);
   const [saving, setSaving] = useState(false);
 
   const hasChanges =
     totalDays !== currentTotalDays ||
-    startDate !== (currentStartDate ? currentStartDate.split("T")[0] : "");
+    startDate !== (currentStartDate ? currentStartDate.split("T")[0] : "") ||
+    includeSundays !== currentIncludeSundays;
 
   const handleSave = async () => {
     if (!hasChanges) return;
@@ -43,6 +47,8 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
         startDate !== (currentStartDate ? currentStartDate.split("T")[0] : "")
       )
         data.startDate = startDate;
+      if (includeSundays !== currentIncludeSundays)
+        data.includeSundays = includeSundays;
 
       await updateMatrix(matrixId, data);
       toast.success("Day plan settings updated");
@@ -142,6 +148,23 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
               )}
           </div>
 
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-1.5">
+              <input
+                type="checkbox"
+                checked={includeSundays}
+                onChange={(e) => setIncludeSundays(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+              />
+              Include Sundays in plan schedule
+            </label>
+            <p className="text-xs text-gray-400">
+              {includeSundays
+                ? "Sunday will be counted as a working day in this plan."
+                : "Sunday will be skipped in this plan."}
+            </p>
+          </div>
+
           {/* Summary */}
           {hasChanges && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
@@ -179,6 +202,11 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
                       month: "short",
                       year: "numeric",
                     })}
+                  </li>
+                )}
+                {includeSundays !== currentIncludeSundays && (
+                  <li>
+                    • Sundays: {currentIncludeSundays ? "Included" : "Excluded"} → {includeSundays ? "Included" : "Excluded"}
                   </li>
                 )}
               </ul>

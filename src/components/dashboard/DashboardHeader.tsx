@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   ChevronRight,
@@ -32,6 +32,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   sidebarCollapsed = false,
 }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -57,10 +58,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     }
   }, []);
 
-  // Fetch on mount and refresh every 60 seconds
+  // Fetch on mount and refresh every 2 hours
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60_000);
+    const interval = setInterval(fetchNotifications, 2 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
@@ -88,6 +89,21 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
     await markNotificationRead(id);
+  };
+
+  const handleNotificationClick = async (n: Notification) => {
+    if (!n.read) {
+      await handleMarkRead(n.id);
+    }
+    if (n.link) {
+      const targetPath = n.link.startsWith("/dashboard")
+        ? n.link
+        : n.link.startsWith("/")
+          ? `/dashboard${n.link}`
+          : n.link;
+      navigate(targetPath);
+      setDropdownOpen(false);
+    }
   };
 
   const handleMarkAllRead = async () => {
@@ -198,7 +214,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         sidebarCollapsed ? "left-20" : "left-64 xl:left-72"
       }`}
     >
-      <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4 overflow-hidden">
+      <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4 overflow-visible">
         {/* Left: Breadcrumb */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-sm min-w-0 flex-1">
           <span className="text-gray-500 font-medium hidden sm:inline whitespace-nowrap">
@@ -276,7 +292,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     notifications.map((n) => (
                       <div
                         key={n.id}
-                        onClick={() => !n.read && handleMarkRead(n.id)}
+                        onClick={() => void handleNotificationClick(n)}
                         className={`flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer hover:bg-gray-50 ${
                           !n.read ? "bg-orange-50/40" : ""
                         }`}

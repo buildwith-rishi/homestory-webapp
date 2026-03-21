@@ -115,6 +115,7 @@ interface Customer {
   id: string | number;
   name: string;
   initials: string;
+  bankDetails?: string;
   email: string;
   phone: string;
   location: string;
@@ -315,6 +316,11 @@ const toCurrencyNumber = (value: unknown): number => {
   }
 
   return 0;
+};
+
+const formatCurrencyINR = (value: unknown): string => {
+  const amount = toCurrencyNumber(value);
+  return `₹${amount.toLocaleString("en-IN")}`;
 };
 
 const LEAD_REFERENCE_RENDERED_KEYS = new Set([
@@ -740,6 +746,7 @@ export const CustomerDetails: React.FC = () => {
           id: apiCustomer.id, // Keep UUID as string
           name: customerName,
           initials,
+          bankDetails: apiCustomer.bankDetails || "",
           email: customerEmail,
           phone: customerPhone,
           location,
@@ -804,6 +811,7 @@ export const CustomerDetails: React.FC = () => {
         };
 
         setCustomerData(mappedCustomer);
+        setBankDetails(apiCustomer.bankDetails || "");
         setCurrentCustomer({
           id: mappedCustomer.id as string,
           name: mappedCustomer.name,
@@ -957,7 +965,7 @@ export const CustomerDetails: React.FC = () => {
         const refreshedDocs = await Promise.all(refreshedDocsPromises);
         setKycAttachments(refreshedDocs);
 
-        if (savedBank) setBankDetails(savedBank);
+        setBankDetails((savedBank || customerData?.bankDetails || "").trim());
       } catch (error) {
         console.error("Error in KYC fetch flow:", error);
         toast.error("Failed to load KYC documents");
@@ -966,7 +974,7 @@ export const CustomerDetails: React.FC = () => {
       }
     };
     fetchKyc();
-  }, [activeTab, customerId]);
+  }, [activeTab, customerId, customerData?.bankDetails]);
 
   const triggerKycUpload = (docType: string) => {
     setKycUploadTarget(docType);
@@ -1042,7 +1050,11 @@ export const CustomerDetails: React.FC = () => {
     if (!customerId) return;
     setBankDetailsSaving(true);
     try {
-      await saveBankDetailsApi(customerId, bankDetails);
+      const savedBankDetails = await saveBankDetailsApi(customerId, bankDetails);
+      setBankDetails(savedBankDetails);
+      setCustomerData((prev) =>
+        prev ? { ...prev, bankDetails: savedBankDetails } : prev,
+      );
       setBankDetailsEditing(false);
       toast.success("Bank details saved");
     } catch {
@@ -3144,10 +3156,7 @@ export const CustomerDetails: React.FC = () => {
                             )}
                             {project.totalValue && (
                               <span className="text-sm font-medium text-gray-700">
-                                ₹
-                                {typeof project.totalValue === "number"
-                                  ? project.totalValue.toLocaleString("en-IN")
-                                  : project.totalValue}
+                                {formatCurrencyINR(project.totalValue)}
                               </span>
                             )}
                           </div>

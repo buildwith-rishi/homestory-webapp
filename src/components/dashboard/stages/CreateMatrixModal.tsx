@@ -46,6 +46,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   onSuccess,
 }) => {
   const [totalDays, setTotalDays] = useState(1);
+  const [includeSundays, setIncludeSundays] = useState(false);
   const [startDate, setStartDate] = useState(
     new Date().toISOString().split("T")[0],
   );
@@ -155,10 +156,23 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   const removeTask = (idx: number) =>
     setTasks((prev) => prev.filter((_, i) => i !== idx));
 
-  // Compute task date from startDate + (dayNumber - 1)
+  // Compute task date from startDate + (dayNumber - 1), optionally skipping Sundays
   const getTaskDate = (dayNum: number): string => {
     const date = new Date(startDate + "T00:00:00");
-    date.setDate(date.getDate() + (dayNum - 1));
+
+    if (includeSundays) {
+      date.setDate(date.getDate() + (dayNum - 1));
+      return date.toISOString();
+    }
+
+    let validDaysCount = 1;
+    while (validDaysCount < dayNum) {
+      date.setDate(date.getDate() + 1);
+      if (date.getDay() !== 0) {
+        validDaysCount += 1;
+      }
+    }
+
     return date.toISOString();
   };
 
@@ -215,6 +229,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
       const data: CreateMatrixRequest = {
         totalDays,
         startDate,
+        includeSundays,
         categories: validCategories,
         tasks: validTasks,
       };
@@ -348,6 +363,16 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
             </div>
           </div>
 
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={includeSundays}
+              onChange={(e) => setIncludeSundays(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+            />
+            Include Sundays in plan schedule
+          </label>
+
           {/* Categories */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -429,6 +454,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
               <strong>
                 {categories.filter((c) => c.name.trim()).length} work categories
               </strong>
+              <br />• <strong>{includeSundays ? "Sundays included" : "Sundays excluded"}</strong>
               {tasks.filter((t) => t.title.trim()).length > 0 && (
                 <>
                   <br />•{" "}

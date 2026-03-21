@@ -166,6 +166,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const [checkedTaskIds, setCheckedTaskIds] = useState<Set<string>>(new Set());
   const [showNotifyCompose, setShowNotifyCompose] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState("");
+  const [notifyCc, setNotifyCc] = useState("");
   const [notifyToName, setNotifyToName] = useState("");
   const [notifySubject, setNotifySubject] = useState("");
   const [notifyMessage, setNotifyMessage] = useState("");
@@ -461,6 +462,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     try {
       const res = await sendEmail({
         to: notifyEmail.trim(),
+        cc: notifyCc.trim() || undefined,
         toName: notifyToName.trim() || undefined,
         subject: notifySubject.trim(),
         htmlBody,
@@ -481,6 +483,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
         setNotifySubject("");
         setNotifyToName("");
         setNotifyEmail("");
+        setNotifyCc("");
         setEditorResetKey((k) => k + 1);
         setCheckedTaskIds(new Set());
       } else {
@@ -1264,6 +1267,20 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Subject */}
+            <div className="flex items-center gap-2">
+              <label className="w-16 text-xs font-semibold text-gray-500 uppercase shrink-0">
+                Cc
+              </label>
+              <input
+                type="text"
+                value={notifyCc}
+                onChange={(e) => setNotifyCc(e.target.value)}
+                placeholder="cc1@example.com, cc2@example.com"
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+              />
             </div>
 
             {/* Subject */}

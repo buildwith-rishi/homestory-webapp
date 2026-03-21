@@ -57,14 +57,6 @@ const stageColors: Record<string, string> = {
   Won: "bg-emerald-100 text-emerald-700 border-emerald-200",
 };
 
-/** Converts any role string to consistent Title Case display name. */
-function formatRoleName(role: string): string {
-  return role
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function formatEnumValue(value?: string | null): string {
   if (!value) return "";
   return value
@@ -107,11 +99,14 @@ export const LeadModal: React.FC<{
     email: "",
     phone: "",
     source: availableSources[0]?.value || "WEBSITE",
+    score: undefined,
     companyName: "",
     householdOrCompany: "RESIDENTIAL",
     status: "NEW",
-    location: "",
+    city: "",
+    area: null,
     message: "",
+    requirements: "",
     floorPlanUrl: "",
     assignedToId: "",
     referrerName: "",
@@ -150,10 +145,8 @@ export const LeadModal: React.FC<{
   };
 
   const [formData, setFormData] = useState<Omit<Lead, "id">>(emptyForm);
-  const [assignedToRole, setAssignedToRole] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const isEditMode = Boolean(lead?.id);
   const [checkingDuplicate, setCheckingDuplicate] = useState<{
     email: boolean;
     phone: boolean;
@@ -214,11 +207,14 @@ export const LeadModal: React.FC<{
         email: lead.email || "",
         phone: lead.phone || "",
         source: lead.source || availableSources[0]?.value || "WEBSITE",
+        score: lead.score ?? undefined,
         companyName: lead.companyName || "",
         householdOrCompany: lead.householdOrCompany || "RESIDENTIAL",
         status: lead.status || "NEW",
-        location: lead.location || "",
+        city: lead.city || "",
+        area: lead.area ?? null,
         message: lead.message || "",
+        requirements: lead.requirements || "",
         floorPlanUrl: lead.floorPlanUrl || "",
         assignedToId: lead.assignedToId || "",
         referrerName: lead.referrerName || "",
@@ -254,11 +250,8 @@ export const LeadModal: React.FC<{
         wantsExperienceCenterVisit: lead.wantsExperienceCenterVisit ?? false,
         canWhatsApp: lead.canWhatsApp ?? true,
       });
-      const matchedUser = users.find((u) => u.id === (lead.assignedToId || ""));
-      setAssignedToRole(matchedUser?.role || "");
     } else {
       setFormData(emptyForm);
-      setAssignedToRole("");
     }
     setErrors({});
     setActiveTab("basic");
@@ -274,6 +267,17 @@ export const LeadModal: React.FC<{
     if (!formData.email?.trim()) newErrors.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Invalid email format";
+    if (!formData.propertyType?.trim())
+      newErrors.propertyType = "Property type is required";
+    if (!formData.projectType?.trim())
+      newErrors.projectType = "Project type is required";
+    if (!formData.city?.trim()) newErrors.city = "City is required";
+    if (!formData.startTimeline?.trim())
+      newErrors.startTimeline = "Start timeline is required";
+    if (!formData.budgetComfort?.trim())
+      newErrors.budgetComfort = "Budget comfort is required";
+    if (!formData.projectScope?.trim())
+      newErrors.projectScope = "Project scope is required";
     setErrors(newErrors);
     return newErrors;
   };
@@ -385,59 +389,43 @@ export const LeadModal: React.FC<{
 
     setIsSubmitting(true);
     try {
-      // Build explicit payload — convert empty strings to null so Prisma doesn't receive unexpected values
+      // Only include fields currently exposed in the LeadModal UI.
       const payload = {
         name: formData.name,
         email: formData.email || null,
         phone: formData.phone,
         source: formData.source || "WEBSITE",
-        status: formData.status || "NEW",
-        householdOrCompany: formData.householdOrCompany || "RESIDENTIAL",
+        score:
+          formData.score !== null &&
+          formData.score !== undefined &&
+          String(formData.score) !== ""
+            ? Number(formData.score)
+            : null,
         companyName: formData.companyName?.trim() || null,
-        location: formData.location?.trim() || null,
-        message: formData.message?.trim() || null,
-        floorPlanUrl: pendingFloorPlanFile
-          ? null
-          : formData.floorPlanUrl?.trim() || null,
-        floorPlanFile: pendingFloorPlanFile,
         assignedToId: formData.assignedToId?.trim() || null,
-        referrerName: formData.referrerName?.trim() || null,
-        referrerPhone: formData.referrerPhone?.trim() || null,
-        agentAgencyName: formData.agentAgencyName?.trim() || null,
-        agentAgencyDetails: formData.agentAgencyDetails?.trim() || null,
-        
-        projectCategory: formData.projectCategory || null,
-        pipelineType: formData.pipelineType || null,
-        scopeType: formData.scopeType || null,
-        propertySubtype: formData.propertySubtype || null,
-        propertyBHK: formData.propertyBHK || null,
+
         propertyType: formData.propertyType || null,
         projectType: formData.projectType || null,
+        city: formData.city?.trim() || null,
+        area:
+          formData.area !== null &&
+          formData.area !== undefined &&
+          String(formData.area) !== ""
+            ? Number(formData.area)
+            : null,
         projectStage: formData.projectStage || null,
         startTimeline: formData.startTimeline || null,
         budgetComfort: formData.budgetComfort || null,
         projectScope: formData.projectScope || null,
-        budgetTier: formData.budgetTier || null,
-        propertySizeSqft:
-          formData.propertySizeSqft !== null &&
-          formData.propertySizeSqft !== undefined &&
-          String(formData.propertySizeSqft) !== ""
-            ? Number(formData.propertySizeSqft)
-            : null,
-        constructionStatus: formData.constructionStatus || null,
-        tentativeHandoverDate: formData.tentativeHandoverDate || null,
-        propertyAddress: formData.propertyAddress?.trim() || null,
-        propertyState: formData.propertyState?.trim() || null,
-        propertyPincode: formData.propertyPincode?.trim() || null,
-        propertyBuilding: formData.propertyBuilding?.trim() || null,
-        propertyUnit: formData.propertyUnit?.trim() || null,
-        propertyLandmarks: formData.propertyLandmarks?.trim() || null,
-        siteContactName: formData.siteContactName?.trim() || null,
-        siteContactPhone: formData.siteContactPhone?.trim() || null,
-        specialRequirements: formData.specialRequirements?.trim() || null,
-        designPackage: formData.designPackage || null,
-        wantsExperienceCenterVisit: formData.wantsExperienceCenterVisit,
-        canWhatsApp: formData.canWhatsApp,
+
+        message: formData.message?.trim() || null,
+        requirements: formData.requirements?.trim() || null,
+        specialRequirements: formData.requirements?.trim() || null,
+
+        floorPlanUrl: pendingFloorPlanFile
+          ? null
+          : formData.floorPlanUrl?.trim() || null,
+        floorPlanFile: pendingFloorPlanFile,
       };
       await onSave(payload as unknown as Omit<Lead, "id">);
     } catch (error) {
@@ -541,7 +529,6 @@ export const LeadModal: React.FC<{
           {activeTab === "basic" && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {/* Name */}
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Full Name <span className="text-red-500">*</span>
@@ -560,7 +547,6 @@ export const LeadModal: React.FC<{
                   )}
                 </div>
 
-                {/* Email */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Email <span className="text-red-500">*</span>
@@ -586,22 +572,10 @@ export const LeadModal: React.FC<{
                   )}
                 </div>
 
-                {/* Phone */}
                 <div>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Phone <span className="text-red-500">*</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={formData.canWhatsApp ?? true}
-                        onChange={(e) => f("canWhatsApp", e.target.checked)}
-                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5"
-                      />
-                      WhatsApp Available
-                    </label>
-                  </div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Phone <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="tel"
                     value={formData.phone || ""}
@@ -623,38 +597,6 @@ export const LeadModal: React.FC<{
                   )}
                 </div>
 
-                {/* Site Contact Name */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Site Contact Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.siteContactName || ""}
-                    onChange={(e) => f("siteContactName", e.target.value)}
-                    placeholder="e.g. Ramesh (Manager)"
-                    className={inputClass()}
-                  />
-                </div>
-                
-                {/* Site Contact Phone */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Site Contact Phone
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.siteContactPhone || ""}
-                    onChange={(e) => f("siteContactPhone", e.target.value)}
-                    placeholder="+91..."
-                    className={inputClass()}
-                  />
-                </div>
-
-                {/* Wants Experience Center Visit */}
-                
-
-                {/* Company Name */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Company Name
@@ -668,23 +610,6 @@ export const LeadModal: React.FC<{
                   />
                 </div>
 
-                {/* Type */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Lead Type
-                  </label>
-                  <select
-                    value={formData.householdOrCompany || "RESIDENTIAL"}
-                    onChange={(e) => f("householdOrCompany", e.target.value)}
-                    className={selectClass()}
-                  >
-                    <option value="RESIDENTIAL">Residential</option>
-                    <option value="COMMERCIAL">Commercial</option>
-                    <option value="OTHERS">Others</option>
-                  </select>
-                </div>
-
-                {/* Source */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Lead Source
@@ -702,72 +627,42 @@ export const LeadModal: React.FC<{
                   </select>
                 </div>
 
-                {/* Status */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Status
+                    Lead Score
                   </label>
                   <select
-                    value={formData.status || "NEW"}
-                    onChange={(e) => f("status", e.target.value)}
+                    value={formData.score ?? ""}
+                    onChange={(e) =>
+                      f("score", e.target.value === "" ? undefined : Number(e.target.value))
+                    }
                     className={selectClass()}
                   >
-                    <option value="NEW">New</option>
-                    <option value="WORKING">Working</option>
-                    <option value="QUALIFIED">Qualified</option>
-                    <option value="DISQUALIFIED">Disqualified</option>
-                    <option value="CONVERTED">Converted</option>
+                    <option value="">Select...</option>
+                    {Array.from({ length: 100 }, (_, index) => index + 1).map((score) => (
+                      <option key={score} value={score}>
+                        {score}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                {/* Assigned To */}
-                <div className="col-span-2">
+                <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Assigned To
+                    Lead By
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Step 1: pick a role */}
-                    <select
-                      value={assignedToRole}
-                      onChange={(e) => {
-                        setAssignedToRole(e.target.value);
-                        f("assignedToId", null);
-                      }}
-                      className={selectClass()}
-                    >
-                      <option value="">— Select Role —</option>
-                      {Array.from(new Set(users.map((u) => u.role)))
-                        .sort()
-                        .map((role) => (
-                          <option key={role} value={role}>
-                            {formatRoleName(role)}
-                          </option>
-                        ))}
-                    </select>
-
-                    {/* Step 2: pick a member of that role */}
-                    <select
-                      value={formData.assignedToId || ""}
-                      onChange={(e) =>
-                        f("assignedToId", e.target.value || null)
-                      }
-                      className={selectClass()}
-                      disabled={!assignedToRole}
-                    >
-                      <option value="">
-                        {assignedToRole
-                          ? "— Select Member —"
-                          : "— Select role first —"}
+                  <select
+                    value={formData.assignedToId || ""}
+                    onChange={(e) => f("assignedToId", e.target.value || null)}
+                    className={selectClass()}
+                  >
+                    <option value="">Select internal team member...</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name || u.email}
                       </option>
-                      {users
-                        .filter((u) => u.role === assignedToRole)
-                        .map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name || u.email}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
@@ -777,378 +672,183 @@ export const LeadModal: React.FC<{
           {activeTab === "property" && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                
-                {/* -- Section: Project Overview -- */}
-                <div className="col-span-2 border-b pb-2 mb-2">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Project Overview</h3>
-                </div>
-
-                {/* Project Category (New) */}
-                <div>
-                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Project Category
-                  </label>
-                  <select
-                    value={formData.projectCategory || "RESIDENTIAL"}
-                    onChange={(e) => f("projectCategory", e.target.value)}
-                    className={selectClass()}
-                  >
-                     <option value="RESIDENTIAL">Residential</option>
-                     <option value="COMMERCIAL">Commercial</option>
-                     <option value="HEALTHCARE">Healthcare</option>
-                  </select>
-                </div>
-
-                {/* Pipeline Type (New) */}
-                <div>
-                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Pipeline Type
-                  </label>
-                  <select
-                    value={formData.pipelineType || ""}
-                    onChange={(e) => f("pipelineType", e.target.value)}
-                    className={selectClass()}
-                  >
-                     <option value="">Select...</option>
-                     <option value="DESIGN_ONLY">Design Only</option>
-                     <option value="DESIGN_AND_EXECUTION">Design & Execution</option>
-                  </select>
-                </div>
-
-                {/* Scope Type (New) */}
-                <div>
-                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Scope Type
-                  </label>
-                  <select
-                    value={formData.scopeType || ""}
-                    onChange={(e) => f("scopeType", e.target.value)}
-                    className={selectClass()}
-                  >
-                     <option value="">Select...</option>
-                     <option value="INTERIORS">Interiors</option>
-                     <option value="ARCHITECTURE">Architecture</option>
-                     <option value="ARCHITECTURE_AND_INTERIORS">Architecture & Interiors</option>
-                     <option value="DRAWINGS_ONLY">Drawings Only</option>
-                  </select>
-                </div>
-
-                {!isEditMode && (
-                  <>
-                    {/* Property Type (Create-only) */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        Property Type
-                      </label>
-                      <select
-                        value={formData.propertyType || ""}
-                        onChange={(e) => f("propertyType", e.target.value)}
-                        className={selectClass()}
-                      >
-                        <option value="">Select...</option>
-                        <option value="HOME">Home</option>
-                        <option value="RESIDENTIAL">Residential</option>
-                        <option value="COMMERCIAL">Commercial</option>
-                        <option value="MIXED_USE">Mixed Use</option>
-                        <option value="OTHERS">Others</option>
-                      </select>
-                    </div>
-
-                    {/* Project Type (Create-only) */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        Project Type
-                      </label>
-                      <select
-                        value={formData.projectType || ""}
-                        onChange={(e) => f("projectType", e.target.value)}
-                        className={selectClass()}
-                      >
-                        <option value="">Select...</option>
-                        <option value="APARTMENT">Apartment</option>
-                        <option value="VILLA">Villa</option>
-                        <option value="ROW_HOUSE">Row House</option>
-                        <option value="PENTHOUSE">Penthouse</option>
-                        <option value="DUPLEX">Duplex</option>
-                        <option value="STUDIO">Studio</option>
-                        <option value="OFFICE">Office</option>
-                        <option value="RETAIL">Retail</option>
-                        <option value="WAREHOUSE">Warehouse</option>
-                        <option value="OTHER">Other</option>
-                      </select>
-                    </div>
-
-                    {/* Project Stage (Create-only) */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        Project Stage
-                      </label>
-                      <select
-                        value={formData.projectStage || ""}
-                        onChange={(e) => f("projectStage", e.target.value)}
-                        className={selectClass()}
-                      >
-                        <option value="">Select...</option>
-                        <option value="NOT_SURE">Not Sure</option>
-                        <option value="NEW_HOME_PENDING">New Home - Pending Possession</option>
-                        <option value="NEW_HOME_RECEIVED">New Home - Received</option>
-                        <option value="RENOVATION">Renovation</option>
-                        <option value="COMMERCIAL_FITOUT">Commercial Fitout</option>
-                      </select>
-                    </div>
-
-                    {/* Start Timeline (Create-only) */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        Start Timeline
-                      </label>
-                      <select
-                        value={formData.startTimeline || ""}
-                        onChange={(e) => f("startTimeline", e.target.value)}
-                        className={selectClass()}
-                      >
-                        <option value="">Select...</option>
-                        <option value="NOT_SURE">Not Sure</option>
-                        <option value="IMMEDIATELY">Immediately</option>
-                        <option value="ONE_TO_THREE_MONTHS">1-3 Months</option>
-                        <option value="THREE_TO_SIX_MONTHS">3-6 Months</option>
-                        <option value="SIX_PLUS_MONTHS">6+ Months</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {/* -- Section: Property Details -- */}
-                 <div className="col-span-2 border-b pb-2 mb-2 mt-2">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Property Details</h3>
-                </div>
-
-                {/* Property Subtype (New) */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Property Subtype
+                    Property Type <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formData.propertySubtype || ""}
-                    onChange={(e) => f("propertySubtype", e.target.value)}
-                    className={selectClass()}
+                    value={formData.propertyType || ""}
+                    onChange={(e) => f("propertyType", e.target.value)}
+                    className={selectClass(errors.propertyType)}
                   >
                     <option value="">Select...</option>
-                    <option value="INDEPENDENT_HOUSE">Independent House</option>
+                    <option value="HOME">Home</option>
+                    <option value="RESIDENTIAL">Residential</option>
+                    <option value="COMMERCIAL">Commercial</option>
+                    <option value="MIXED_USE">Mixed Use</option>
+                    <option value="OTHERS">Others</option>
+                  </select>
+                  {errors.propertyType && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.propertyType}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Project Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.projectType || ""}
+                    onChange={(e) => f("projectType", e.target.value)}
+                    className={selectClass(errors.projectType)}
+                  >
+                    <option value="">Select...</option>
                     <option value="APARTMENT">Apartment</option>
                     <option value="VILLA">Villa</option>
-                    <option value="RETAIL_SHOP">Retail Shop</option>
-                    <option value="HEALTHCARE_FACILITY">Healthcare Facility</option>
-                    <option value="RESTAURANT">Restaurant</option>
-                    <option value="OFFICE_SPACE">Office Space</option>
+                    <option value="ROW_HOUSE">Row House</option>
+                    <option value="PENTHOUSE">Penthouse</option>
+                    <option value="DUPLEX">Duplex</option>
+                    <option value="STUDIO">Studio</option>
+                    <option value="OFFICE">Office</option>
+                    <option value="RETAIL">Retail</option>
+                    <option value="WAREHOUSE">Warehouse</option>
+                    <option value="OTHER">Other</option>
                   </select>
+                  {errors.projectType && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.projectType}
+                    </p>
+                  )}
                 </div>
 
-                {/* Property BHK (New) */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Property BHK
-                  </label>
-                   <select
-                    value={formData.propertyBHK || ""}
-                    onChange={(e) => f("propertyBHK", e.target.value)}
-                    className={selectClass()}
-                  >
-                    <option value="">Select...</option>
-                    <option value="1 BHK">1 BHK</option>
-                    <option value="2 BHK">2 BHK</option>
-                    <option value="3 BHK">3 BHK</option>
-                    <option value="4 BHK">4 BHK</option>
-                    <option value="5 BHK">5 BHK</option>
-                    <option value="Duplex">Duplex</option>
-                    <option value="Penthouse">Penthouse</option>
-                    <option value="Studio">Studio</option>
-                    <option value="Villa">Villa</option>
-                  </select>
-                </div>
-                
-                 {/* Property Size Sqft (New) */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Size (sqft)
+                    Area
                   </label>
                   <input
                     type="number"
                     min={0}
-                    value={formData.propertySizeSqft ?? ""}
-                    onChange={(e) => f("propertySizeSqft", e.target.value === "" ? null : Number(e.target.value))}
+                    value={formData.area ?? ""}
+                    onChange={(e) =>
+                      f("area", e.target.value === "" ? null : Number(e.target.value))
+                    }
                     placeholder="e.g., 1500"
                     className={inputClass()}
                   />
                 </div>
 
-                 {/* Construction Status (New) */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Construction Status
+                    City <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.city || ""}
+                    onChange={(e) => f("city", e.target.value)}
+                    placeholder="e.g., Bengaluru"
+                    className={inputClass(errors.city)}
+                  />
+                  {errors.city && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.city}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Project Stage
                   </label>
                   <select
-                    value={formData.constructionStatus || ""}
-                    onChange={(e) => f("constructionStatus", e.target.value)}
+                    value={formData.projectStage || ""}
+                    onChange={(e) => f("projectStage", e.target.value)}
                     className={selectClass()}
                   >
                     <option value="">Select...</option>
-                    <option value="UNDER_CONSTRUCTION">Under Construction</option>
-                    <option value="READY_TO_MOVE">Ready to Move</option>
+                    <option value="NOT_SURE">Not Sure</option>
+                    <option value="NEW_HOME_PENDING">New Home - Pending Possession</option>
+                    <option value="NEW_HOME_RECEIVED">New Home - Received</option>
                     <option value="RENOVATION">Renovation</option>
+                    <option value="COMMERCIAL_FITOUT">Commercial Fitout</option>
                   </select>
                 </div>
 
-                {/* Tentative Handover Date (New) */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Tentative Handover
+                    Start Timeline <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    value={formData.tentativeHandoverDate ? formData.tentativeHandoverDate.split('T')[0] : ""}
-                    onChange={(e) => f("tentativeHandoverDate", e.target.value ? new Date(e.target.value).toISOString() : null)}
-                    className={inputClass()}
-                  />
+                  <select
+                    value={formData.startTimeline || ""}
+                    onChange={(e) => f("startTimeline", e.target.value)}
+                    className={selectClass(errors.startTimeline)}
+                  >
+                    <option value="">Select...</option>
+                    <option value="NOT_SURE">Not Sure</option>
+                    <option value="IMMEDIATELY">Immediately</option>
+                    <option value="ONE_TO_THREE_MONTHS">1-3 Months</option>
+                    <option value="THREE_TO_SIX_MONTHS">3-6 Months</option>
+                    <option value="SIX_PLUS_MONTHS">6+ Months</option>
+                  </select>
+                  {errors.startTimeline && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.startTimeline}
+                    </p>
+                  )}
                 </div>
 
-                 {/* -- Section: Location -- */}
-                 <div className="col-span-2 border-b pb-2 mb-2 mt-2">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Location</h3>
-                </div>
-
-                {/* Property Address (New) */}
-                <div className="col-span-2">
+                <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Full Property Address
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={formData.propertyAddress || ""}
-                    onChange={(e) => f("propertyAddress", e.target.value)}
-                    placeholder="Full address including street, etc."
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all resize-none"
-                  />
-                </div>
-                
-                 {/* Building & Unit */}
-                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Building/Tower</label>
-                    <input type="text" value={formData.propertyBuilding || ""} onChange={e => f("propertyBuilding", e.target.value)} className={inputClass()} placeholder="Tower A" />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Unit/Flat No</label>
-                    <input type="text" value={formData.propertyUnit || ""} onChange={e => f("propertyUnit", e.target.value)} className={inputClass()} placeholder="1204" />
-                 </div>
-
-                 {/* State & Pincode */}
-                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">State</label>
-                    <input type="text" value={formData.propertyState || ""} onChange={e => f("propertyState", e.target.value)} className={inputClass()} placeholder="Karnataka" />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Pincode</label>
-                    <input type="text" value={formData.propertyPincode || ""} onChange={e => f("propertyPincode", e.target.value)} className={inputClass()} placeholder="560038" />
-                 </div>
-                 
-                 {/* Landmarks */}
-                 <div className="col-span-2">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Landmarks</label>
-                    <input type="text" value={formData.propertyLandmarks || ""} onChange={e => f("propertyLandmarks", e.target.value)} className={inputClass()} placeholder="Near Metro Station" />
-                 </div>
-
-
-                {/* -- Section: Budget & Package -- */}
-                 <div className="col-span-2 border-b pb-2 mb-2 mt-2">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Budget & Package</h3>
-                </div>
-
-                {/* Budget Classification (Tier) */}
-                <div>
-                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Budget Tier
+                    Budget Comfort <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formData.budgetTier || ""}
-                    onChange={(e) => f("budgetTier", e.target.value)}
-                    className={selectClass()}
+                    value={formData.budgetComfort || ""}
+                    onChange={(e) => f("budgetComfort", e.target.value)}
+                    className={selectClass(errors.budgetComfort)}
                   >
-                     <option value="">Select...</option>
-                     <option value="PREMIUM">Premium</option>
-                     <option value="STANDARD">Standard</option>
-                     <option value="LUXURY">Luxury</option>
+                    <option value="">Select...</option>
+                    <option value="NOT_SURE">Not Sure</option>
+                    <option value="VALUE">Value</option>
+                    <option value="BALANCED">Balanced</option>
+                    <option value="PREMIUM">Premium</option>
+                    <option value="NEED_GUIDANCE">Need Guidance</option>
                   </select>
+                  {errors.budgetComfort && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.budgetComfort}
+                    </p>
+                  )}
                 </div>
-                
-                {/* Design Package */}
+
                 <div>
-                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Design Package
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Project Scope <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formData.designPackage || ""}
-                    onChange={(e) => f("designPackage", e.target.value)}
-                    className={selectClass()}
+                    value={formData.projectScope || ""}
+                    onChange={(e) => f("projectScope", e.target.value)}
+                    className={selectClass(errors.projectScope)}
                   >
-                     <option value="">Select...</option>
-                     <option value="STANDARD">Standard</option>
-                     <option value="LUXURY">Luxury</option>
+                    <option value="">Select...</option>
+                    <option value="NOT_SURE">Not Sure</option>
+                    <option value="TURNKEY">Turnkey</option>
+                    <option value="DESIGN_ONLY">Design Only</option>
+                    <option value="KITCHEN_WARDROBES">Kitchen & Wardrobes</option>
+                    <option value="INTERIOR_DESIGN_ONLY">Interior Design Only</option>
+                    <option value="INTERIOR_DESIGN_AND_BUILD">Interior Design & Build</option>
+                    <option value="ARCHITECTURE_DESIGN_ONLY">Architecture Design Only</option>
+                    <option value="RENOVATION">Renovation</option>
+                    <option value="SPECIFIC_SPACE">Specific Space</option>
+                    <option value="OTHERS">Others</option>
                   </select>
+                  {errors.projectScope && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.projectScope}
+                    </p>
+                  )}
                 </div>
 
-                {!isEditMode && (
-                  <>
-                    {/* Budget Comfort (Create-only) */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        Budget Comfort
-                      </label>
-                      <select
-                        value={formData.budgetComfort || ""}
-                        onChange={(e) => f("budgetComfort", e.target.value)}
-                        className={selectClass()}
-                      >
-                        <option value="">Select...</option>
-                        <option value="NOT_SURE">Not Sure</option>
-                        <option value="VALUE">Value</option>
-                        <option value="BALANCED">Balanced</option>
-                        <option value="PREMIUM">Premium</option>
-                        <option value="NEED_GUIDANCE">Need Guidance</option>
-                      </select>
-                    </div>
-
-                    {/* Project Scope (Create-only) */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        Project Scope
-                      </label>
-                      <select
-                        value={formData.projectScope || ""}
-                        onChange={(e) => f("projectScope", e.target.value)}
-                        className={selectClass()}
-                      >
-                        <option value="">Select...</option>
-                        <option value="NOT_SURE">Not Sure</option>
-                        <option value="TURNKEY">Turnkey</option>
-                        <option value="DESIGN_ONLY">Design Only</option>
-                        <option value="KITCHEN_WARDROBES">Kitchen & Wardrobes</option>
-                        <option value="INTERIOR_DESIGN_ONLY">Interior Design Only</option>
-                        <option value="INTERIOR_DESIGN_AND_BUILD">Interior Design & Build</option>
-                        <option value="ARCHITECTURE_DESIGN_ONLY">Architecture Design Only</option>
-                        <option value="RENOVATION">Renovation</option>
-                        <option value="SPECIFIC_SPACE">Specific Space</option>
-                        <option value="OTHERS">Others</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {/* -- Section: Uploads & Notes -- */}
-                 <div className="col-span-2 border-b pb-2 mb-2 mt-2">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Details & Uploads</h3>
-                </div>
-
-                {/* Floor Plan URL / Upload */}
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center justify-between">
                     <span>Floor Plan</span>
@@ -1234,25 +934,10 @@ export const LeadModal: React.FC<{
                     Supported formats: PDF, PNG, JPG (Max 10MB)
                   </p>
                 </div>
-                
-                {/* Special Requirements (New) */}
-                <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Special Requirements
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={formData.specialRequirements || ""}
-                    onChange={(e) => f("specialRequirements", e.target.value)}
-                    placeholder="e.g., Vastu compliant, etc."
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all resize-none"
-                  />
-                </div>
 
-                {/* Message */}
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Message
+                    Message / Notes
                   </label>
                   <textarea
                     rows={2}
@@ -1263,75 +948,19 @@ export const LeadModal: React.FC<{
                   />
                 </div>
 
-                {/* -- Section: Referral & Agency -- */}
-                <div className="col-span-2 border-b pb-2 mb-2 mt-2">
-                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">
-                    Referral & Agency
-                  </h3>
-                </div>
-
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Location
+                    Requirements
                   </label>
-                  <input
-                    type="text"
-                    value={formData.location || ""}
-                    onChange={(e) => f("location", e.target.value)}
-                    placeholder="e.g., Indiranagar, Bangalore"
-                    className={inputClass()}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Referrer Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.referrerName || ""}
-                    onChange={(e) => f("referrerName", e.target.value)}
-                    placeholder="e.g., Jane Smith"
-                    className={inputClass()}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Referrer Phone
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.referrerPhone || ""}
-                    onChange={(e) => f("referrerPhone", e.target.value)}
-                    placeholder="+91 98765 43211"
-                    className={inputClass()}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Agency Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.agentAgencyName || ""}
-                    onChange={(e) => f("agentAgencyName", e.target.value)}
-                    placeholder="e.g., Housing.com"
-                    className={inputClass()}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Agency Details
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.agentAgencyDetails || ""}
-                    onChange={(e) => f("agentAgencyDetails", e.target.value)}
-                    placeholder="e.g., Lead purchased from campaign"
-                    className={inputClass()}
+                  <textarea
+                    rows={2}
+                    value={formData.requirements || ""}
+                    onChange={(e) => {
+                      f("requirements", e.target.value);
+                      f("specialRequirements", e.target.value);
+                    }}
+                    placeholder="e.g., Vastu compliant, design preferences"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-300 transition-all resize-none"
                   />
                 </div>
               </div>

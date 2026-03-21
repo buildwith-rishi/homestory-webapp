@@ -251,13 +251,12 @@ const AddCustomerModal: React.FC<{
   isCreating: boolean;
 }> = ({ isOpen, onClose, onSave, customerTypes, isCreating }) => {
   const navigate = useNavigate();
+  const defaultCustomerType = customerTypes[0]?.value || "RESIDENTIAL";
   const [formData, setFormData] = useState({
     name: "",
-    type: "RESIDENTIAL" as string,
+    type: defaultCustomerType as string,
     email: "",
     phone: "",
-    secondaryEmailsText: "",
-    secondaryPhonesText: "",
     companyName: "",
     propertyType: "",
     projectType: "",
@@ -289,27 +288,31 @@ const AddCustomerModal: React.FC<{
     const newErrors: Record<string, string> = {};
 
     if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.type) newErrors.type = "Customer type is required";
-
-    // Email validation (optional but validate format if provided)
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Invalid email format";
     }
 
-    // Phone validation (optional but validate format if provided)
-    if (formData.phone && formData.phone.length < 10) {
-      newErrors.phone = "Phone must be at least 10 digits";
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone is required";
+    } else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone)) {
+      newErrors.phone = "Invalid phone format";
     }
+
+    if (!formData.propertyType) newErrors.propertyType = "Property type is required";
+    if (!formData.projectType) newErrors.projectType = "Project type is required";
+    if (!formData.city.trim()) newErrors.city = "City is required";
+    if (!formData.startTimeline)
+      newErrors.startTimeline = "Start timeline is required";
+    if (!formData.budgetComfort)
+      newErrors.budgetComfort = "Budget comfort is required";
+    if (!formData.projectScope)
+      newErrors.projectScope = "Project scope is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
-  const parseCsvValues = (value: string): string[] =>
-    value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
 
   // Debounced duplicate check
   const checkForDuplicates = React.useCallback(
@@ -371,16 +374,11 @@ const AddCustomerModal: React.FC<{
     }
 
     try {
-      const secondaryEmails = parseCsvValues(formData.secondaryEmailsText);
-      const secondaryPhones = parseCsvValues(formData.secondaryPhonesText);
-
       const customerData = {
         name: formData.name.trim(),
         type: formData.type,
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
-        ...(secondaryEmails.length ? { secondaryEmails } : {}),
-        ...(secondaryPhones.length ? { secondaryPhones } : {}),
         uiIntake: {
           companyName: formData.companyName.trim() || undefined,
           propertyType: formData.propertyType || undefined,
@@ -402,11 +400,9 @@ const AddCustomerModal: React.FC<{
       // Reset form on success
       setFormData({
         name: "",
-        type: "RESIDENTIAL",
+        type: defaultCustomerType,
         email: "",
         phone: "",
-        secondaryEmailsText: "",
-        secondaryPhonesText: "",
         companyName: "",
         propertyType: "",
         projectType: "",
@@ -448,11 +444,9 @@ const AddCustomerModal: React.FC<{
     if (!isOpen) {
       setFormData({
         name: "",
-        type: "RESIDENTIAL",
+        type: defaultCustomerType,
         email: "",
         phone: "",
-        secondaryEmailsText: "",
-        secondaryPhonesText: "",
         companyName: "",
         propertyType: "",
         projectType: "",
@@ -476,7 +470,7 @@ const AddCustomerModal: React.FC<{
         clearTimeout(debounceTimerRef.current);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, defaultCustomerType]);
 
   // Cleanup on unmount
   React.useEffect(() => {
@@ -570,51 +564,10 @@ const AddCustomerModal: React.FC<{
             />
           </div>
 
-          {/* Customer Type */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">
-              Customer Type <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.type}
-              onChange={(e) =>
-                setFormData({ ...formData, type: e.target.value })
-              }
-              disabled={isCreating}
-              className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all duration-200 cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:20px] bg-[right_1rem_center] bg-no-repeat pr-12 disabled:opacity-50 disabled:cursor-not-allowed ${
-                errors.type
-                  ? "border-red-300 bg-red-50/50"
-                  : "border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              {customerTypes.length > 0 ? (
-                customerTypes.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))
-              ) : (
-                <>
-                  <option value="RESIDENTIAL">🏠 Residential</option>
-                  <option value="COMMERCIAL">🏢 Commercial</option>
-                </>
-              )}
-            </select>
-            {errors.type && (
-              <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{errors.type}</span>
-              </div>
-            )}
-            <p className="text-xs text-gray-500 mt-1">
-              Select whether this is a household customer or a company
-            </p>
-          </div>
-
           {/* Email */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">
-              Email <span className="text-xs text-gray-500">(Optional)</span>
+              Email <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -651,7 +604,7 @@ const AddCustomerModal: React.FC<{
           {/* Phone */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">
-              Phone <span className="text-xs text-gray-500">(Optional)</span>
+              Phone <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -685,44 +638,6 @@ const AddCustomerModal: React.FC<{
             </p>
           </div>
 
-          {/* Secondary Emails */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">
-              Secondary Emails{" "}
-              <span className="text-xs text-gray-500">(Optional)</span>
-            </label>
-            <textarea
-              value={formData.secondaryEmailsText}
-              onChange={(e) =>
-                setFormData({ ...formData, secondaryEmailsText: e.target.value })
-              }
-              rows={2}
-              placeholder="wife@gmail.com, office@company.com"
-              disabled={isCreating}
-              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
-            />
-            <p className="text-xs text-gray-500">Comma-separated emails</p>
-          </div>
-
-          {/* Secondary Phones */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">
-              Secondary Phones{" "}
-              <span className="text-xs text-gray-500">(Optional)</span>
-            </label>
-            <textarea
-              value={formData.secondaryPhonesText}
-              onChange={(e) =>
-                setFormData({ ...formData, secondaryPhonesText: e.target.value })
-              }
-              rows={2}
-              placeholder="+919123456789, +919000000000"
-              disabled={isCreating}
-              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
-            />
-            <p className="text-xs text-gray-500">Comma-separated phone numbers</p>
-          </div>
-
           {/* Intake fields */}
           <div className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4 space-y-4">
             <div>
@@ -730,14 +645,14 @@ const AddCustomerModal: React.FC<{
                 Project Intake Details
               </h3>
               <p className="text-xs text-gray-500 mt-1">
-                Optional discovery fields visible during customer creation
+                Add discovery details for qualified lead creation
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Property Type
+                  Property Type <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.propertyType}
@@ -745,7 +660,11 @@ const AddCustomerModal: React.FC<{
                     setFormData({ ...formData, propertyType: e.target.value })
                   }
                   disabled={isCreating}
-                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.propertyType
+                      ? "border-red-300 bg-red-50/50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 >
                   <option value="">Select property type</option>
                   {customerPropertyTypeOptions.map((option) => (
@@ -754,11 +673,14 @@ const AddCustomerModal: React.FC<{
                     </option>
                   ))}
                 </select>
+                {errors.propertyType && (
+                  <p className="text-xs text-red-600 mt-1">{errors.propertyType}</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Project Type
+                  Project Type <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.projectType}
@@ -766,7 +688,11 @@ const AddCustomerModal: React.FC<{
                     setFormData({ ...formData, projectType: e.target.value })
                   }
                   disabled={isCreating}
-                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.projectType
+                      ? "border-red-300 bg-red-50/50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 >
                   <option value="">Select project type</option>
                   {customerProjectTypeOptions.map((option) => (
@@ -775,6 +701,9 @@ const AddCustomerModal: React.FC<{
                     </option>
                   ))}
                 </select>
+                {errors.projectType && (
+                  <p className="text-xs text-red-600 mt-1">{errors.projectType}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -795,7 +724,7 @@ const AddCustomerModal: React.FC<{
 
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  City
+                  City <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -805,8 +734,15 @@ const AddCustomerModal: React.FC<{
                   }
                   placeholder="e.g., Bengaluru"
                   disabled={isCreating}
-                  className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-3.5 border-2 bg-white rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.city
+                      ? "border-red-300 bg-red-50/50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 />
+                {errors.city && (
+                  <p className="text-xs text-red-600 mt-1">{errors.city}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -832,7 +768,7 @@ const AddCustomerModal: React.FC<{
 
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Start Timeline
+                  Start Timeline <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.startTimeline}
@@ -840,7 +776,11 @@ const AddCustomerModal: React.FC<{
                     setFormData({ ...formData, startTimeline: e.target.value })
                   }
                   disabled={isCreating}
-                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.startTimeline
+                      ? "border-red-300 bg-red-50/50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 >
                   <option value="">Select timeline</option>
                   {customerStartTimelineOptions.map((option) => (
@@ -849,11 +789,14 @@ const AddCustomerModal: React.FC<{
                     </option>
                   ))}
                 </select>
+                {errors.startTimeline && (
+                  <p className="text-xs text-red-600 mt-1">{errors.startTimeline}</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Budget Comfort
+                  Budget Comfort <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.budgetComfort}
@@ -861,7 +804,11 @@ const AddCustomerModal: React.FC<{
                     setFormData({ ...formData, budgetComfort: e.target.value })
                   }
                   disabled={isCreating}
-                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.budgetComfort
+                      ? "border-red-300 bg-red-50/50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 >
                   <option value="">Select budget comfort</option>
                   {customerBudgetComfortOptions.map((option) => (
@@ -870,11 +817,14 @@ const AddCustomerModal: React.FC<{
                     </option>
                   ))}
                 </select>
+                {errors.budgetComfort && (
+                  <p className="text-xs text-red-600 mt-1">{errors.budgetComfort}</p>
+                )}
               </div>
 
               <div className="space-y-2 md:col-span-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Project Scope
+                  Project Scope <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.projectScope}
@@ -882,7 +832,11 @@ const AddCustomerModal: React.FC<{
                     setFormData({ ...formData, projectScope: e.target.value })
                   }
                   disabled={isCreating}
-                  className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white hover:border-gray-300 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.projectScope
+                      ? "border-red-300 bg-red-50/50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 >
                   <option value="">Select project scope</option>
                   {customerProjectScopeOptions.map((option) => (
@@ -891,6 +845,9 @@ const AddCustomerModal: React.FC<{
                     </option>
                   ))}
                 </select>
+                {errors.projectScope && (
+                  <p className="text-xs text-red-600 mt-1">{errors.projectScope}</p>
+                )}
               </div>
 
               <div className="space-y-2 md:col-span-2">

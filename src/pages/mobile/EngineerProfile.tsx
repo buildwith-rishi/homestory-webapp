@@ -78,13 +78,7 @@ export function EngineerProfile() {
       value: notificationsEnabled,
       onChange: setNotificationsEnabled,
     },
-    {
-      icon: isDarkMode ? Moon : Sun,
-      label: "Dark Mode",
-      isToggle: true,
-      value: isDarkMode,
-      onChange: setIsDarkMode,
-    },
+    
   ];
 
   return (

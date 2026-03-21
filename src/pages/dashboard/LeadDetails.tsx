@@ -589,6 +589,12 @@ const LeadDetails: React.FC = () => {
   const formatEnum = (value: string): string =>
     value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+  const assignedToDisplayName =
+    lead?.assignedTo?.name ||
+    (lead?.assignedToId
+      ? teamUsers.find((u) => u.id === lead.assignedToId)?.name || lead.assignedToId
+      : "");
+
   if (loading) {
     return <PageLoader message="Loading lead details..." />;
   }
@@ -764,6 +770,8 @@ const LeadDetails: React.FC = () => {
                 {!lead.phone &&
                 !lead.email &&
                 !lead.location &&
+                !lead.city &&
+                (lead.score === undefined || lead.score === null) &&
                 !lead.siteContactName &&
                 !lead.siteContactPhone &&
                 !lead.source ? (
@@ -865,6 +873,36 @@ const LeadDetails: React.FC = () => {
                       </div>
                     )}
 
+                    {lead.city && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <MapPin className="w-5 h-5 text-emerald-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">City</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {lead.city}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {(lead.score || lead.score === 0) && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Star className="w-5 h-5 text-amber-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-0.5">
+                            Lead Score
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {lead.score}/100
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {(lead.siteContactName || lead.siteContactPhone) && (
                       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                         <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
@@ -900,7 +938,7 @@ const LeadDetails: React.FC = () => {
                       </div>
                     )}
 
-                    {lead.assignedTo && (
+                    {assignedToDisplayName && (
                       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                         <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
                           <User className="w-5 h-5 text-indigo-500" />
@@ -910,7 +948,7 @@ const LeadDetails: React.FC = () => {
                             Assigned To
                           </p>
                           <p className="text-sm font-semibold text-gray-900">
-                            {lead.assignedTo.name}
+                            {assignedToDisplayName}
                           </p>
                         </div>
                       </div>
@@ -949,7 +987,11 @@ const LeadDetails: React.FC = () => {
               lead.propertySubtype ||
               lead.propertyBHK ||
               lead.budgetTier ||
+              lead.area ||
+              lead.area === 0 ||
+              lead.city ||
               lead.propertySizeSqft ||
+              lead.propertySizeSqft === 0 ||
               lead.constructionStatus ||
               lead.tentativeHandoverDate ||
               lead.propertyAddress ||
@@ -960,6 +1002,7 @@ const LeadDetails: React.FC = () => {
               lead.propertyLandmarks ||
               lead.location ||
               lead.designPackage ||
+              lead.requirements ||
               lead.specialRequirements ||
               lead.message ||
               typeof lead.wantsExperienceCenterVisit === "boolean") && (
@@ -991,6 +1034,13 @@ const LeadDetails: React.FC = () => {
                         <Layers className="w-5 h-5 text-cyan-600 mx-auto mb-1.5" />
                         <p className="text-xs text-gray-500 mb-1">Project Type</p>
                         <p className="text-sm font-bold text-gray-900">{formatEnum(lead.projectType)}</p>
+                      </div>
+                    )}
+                    {lead.city && (
+                      <div className="p-3 bg-emerald-50 rounded-lg text-center">
+                        <MapPin className="w-5 h-5 text-emerald-600 mx-auto mb-1.5" />
+                        <p className="text-xs text-gray-500 mb-1">City</p>
+                        <p className="text-sm font-bold text-gray-900">{lead.city}</p>
                       </div>
                     )}
                     {lead.pipelineType && (
@@ -1056,11 +1106,11 @@ const LeadDetails: React.FC = () => {
                         <p className="text-sm font-bold text-gray-900">{lead.propertyBHK}</p>
                       </div>
                     )}
-                    {(lead.propertySizeSqft || lead.propertySizeSqft === 0) && (
+                    {(lead.area || lead.area === 0 || lead.propertySizeSqft || lead.propertySizeSqft === 0) && (
                       <div className="p-3 bg-pink-50 rounded-lg text-center">
                         <Ruler className="w-5 h-5 text-pink-600 mx-auto mb-1.5" />
                         <p className="text-xs text-gray-500 mb-1">Size</p>
-                        <p className="text-sm font-bold text-gray-900">{lead.propertySizeSqft} sqft</p>
+                        <p className="text-sm font-bold text-gray-900">{lead.area ?? lead.propertySizeSqft} sqft</p>
                       </div>
                     )}
                     {lead.budgetTier && (
@@ -1133,8 +1183,14 @@ const LeadDetails: React.FC = () => {
                     </div>
                   )}
 
-                  {(lead.specialRequirements || lead.message) && (
+                  {(lead.requirements || lead.specialRequirements || lead.message) && (
                     <div className="space-y-2">
+                      {lead.requirements && (
+                        <div className="p-3 bg-amber-50 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-1">Requirements</p>
+                          <p className="text-sm font-medium text-gray-900 whitespace-pre-wrap">{lead.requirements}</p>
+                        </div>
+                      )}
                       {lead.specialRequirements && (
                         <div className="p-3 bg-orange-50 rounded-lg">
                           <p className="text-xs text-gray-600 mb-1">Special Requirements</p>

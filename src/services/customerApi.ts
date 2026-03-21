@@ -3,6 +3,7 @@ import type {
   Customer,
   CustomerType,
   CustomerStatus,
+  CustomerImportantDate,
   SearchCustomerResponse,
   SearchCustomerParams,
 } from "../types/customer";
@@ -570,7 +571,7 @@ export async function getKycDocuments(
 export async function saveBankDetailsApi(
   accountId: string,
   bankDetails: string,
-): Promise<void> {
+): Promise<string> {
   const token = localStorage.getItem("auth_token");
   const url = `${API_BASE_URL}/api/accounts/${accountId}/bank-details`;
 
@@ -595,7 +596,29 @@ export async function saveBankDetailsApi(
     });
 
     if (response.ok) {
-      return;
+      try {
+        const data = await response.json();
+        if (typeof data === "string") return data;
+        const obj = data as Record<string, unknown>;
+        if (typeof obj.bankDetails === "string") return obj.bankDetails;
+        if (obj.account && typeof obj.account === "object") {
+          const accountObj = obj.account as Record<string, unknown>;
+          if (typeof accountObj.bankDetails === "string") {
+            return accountObj.bankDetails;
+          }
+        }
+        if (typeof obj.data === "string") return obj.data;
+        if (
+          obj.data &&
+          typeof obj.data === "object" &&
+          typeof (obj.data as Record<string, unknown>).bankDetails === "string"
+        ) {
+          return (obj.data as Record<string, unknown>).bankDetails as string;
+        }
+      } catch {
+        // Ignore response parse issues and fall back to submitted value.
+      }
+      return bankDetails;
     }
 
     let message = `HTTP error ${response.status}`;
