@@ -45,7 +45,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [totalDays, setTotalDays] = useState(1);
+  const [totalDaysInput, setTotalDaysInput] = useState("1");
   const [includeSundays, setIncludeSundays] = useState(false);
   const [startDate, setStartDate] = useState(
     new Date().toISOString().split("T")[0],
@@ -71,6 +71,22 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
     }[]
   >([]);
   const [membersLoading, setMembersLoading] = useState(false);
+
+  const parsedTotalDays = Number.parseInt(totalDaysInput, 10);
+  const totalDays = Number.isNaN(parsedTotalDays) ? 0 : parsedTotalDays;
+
+  const normalizeTotalDaysInput = () => {
+    const parsed = Number.parseInt(totalDaysInput, 10);
+    if (Number.isNaN(parsed) || parsed < 1) {
+      setTotalDaysInput("1");
+      return;
+    }
+    if (parsed > 30) {
+      setTotalDaysInput("30");
+      return;
+    }
+    setTotalDaysInput(String(parsed));
+  };
 
   useEffect(() => {
     setMembersLoading(true);
@@ -352,8 +368,9 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                 type="number"
                 min={1}
                 max={30}
-                value={totalDays}
-                onChange={(e) => setTotalDays(Number(e.target.value))}
+                value={totalDaysInput}
+                onChange={(e) => setTotalDaysInput(e.target.value)}
+                onBlur={normalizeTotalDaysInput}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 required
               />
