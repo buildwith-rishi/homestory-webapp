@@ -67,7 +67,7 @@ export const ROLES: Record<RoleId, RoleMeta> = {
     accessLevel: "Medium",
     color: "text-indigo-700",
     bgColor: "bg-indigo-100",
-    defaultRoute: "/bdr",
+    defaultRoute: "/dashboard/leads",
   },
   HR: {
     id: "HR",
@@ -76,7 +76,7 @@ export const ROLES: Record<RoleId, RoleMeta> = {
     accessLevel: "Medium",
     color: "text-cyan-700",
     bgColor: "bg-cyan-100",
-    defaultRoute: "/dashboard",
+    defaultRoute: "/dashboard/engineers",
   },
   PROJECT_MANAGER: {
     id: "PROJECT_MANAGER",
@@ -86,7 +86,7 @@ export const ROLES: Record<RoleId, RoleMeta> = {
     accessLevel: "High",
     color: "text-blue-700",
     bgColor: "bg-blue-100",
-    defaultRoute: "/dashboard",
+    defaultRoute: "/dashboard/projects",
   },
   LEAD_PROJECT_MANAGER: {
     id: "LEAD_PROJECT_MANAGER",
@@ -136,7 +136,7 @@ export const ROLES: Record<RoleId, RoleMeta> = {
     accessLevel: "High",
     color: "text-violet-700",
     bgColor: "bg-violet-100",
-    defaultRoute: "/dashboard",
+    defaultRoute: "/dashboard/projects",
   },
 };
 
@@ -160,7 +160,6 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "reports.view",
     "activity.*",
     "attachments.*",
-    "dashboard.view",
   ],
 
   // ── BDR ──────────────────────────────────────────────────────────────────
@@ -200,7 +199,6 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "contacts.*",
     "activity.*",
     "attachments.*",
-    "dashboard.view",
   ],
 
   // ── PROJECT_MANAGER ───────────────────────────────────────────────────────
@@ -213,7 +211,6 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "activity.*",
     "attachments.*",
     "products.*",
-    "dashboard.view",
   ],
 
   // ── LEAD_PROJECT_MANAGER ─────────────────────────────────────────────────
@@ -249,7 +246,6 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "tasks.update",
     "activity.*",
     "attachments.*",
-    "dashboard.view",
   ],
 
   // ── SITE_ENGINEER ─────────────────────────────────────────────────────────
@@ -338,13 +334,10 @@ export const NAV_ITEMS: NavItemConfig[] = [
     allowedRoles: [
       "SUPER_ADMIN",
       "ADMIN",
-      "DESIGN_HEAD",
-      "PROJECT_MANAGER",
       "LEAD_PROJECT_MANAGER",
       "ACCOUNTS",
       "BDR",
       "SALES",
-      "HR",
       "SITE_ENGINEER",
     ],
   },
@@ -419,7 +412,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/users",
     icon: "Shield",
     section: "account",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER", "HR"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER"],
   },
 ];
 

@@ -96,7 +96,14 @@ function App() {
             }
           >
             {/* Dashboard overview – visible to any role with dashboard.view or dashboard.* */}
-            <Route index element={<DashboardOverview />} />
+            <Route
+              index
+              element={
+                <ProtectedRoute requiredPermission="dashboard.view">
+                  <DashboardOverview />
+                </ProtectedRoute>
+              }
+            />
 
             {/* CRM: Leads */}
             <Route
@@ -272,7 +279,7 @@ function App() {
             {/* <Route path="settings" element={<SettingsPage />} /> */}
 
 
-            {/* User Management – admin + lead_pm + hr */}
+            {/* User Management – admin + lead_pm */}
             <Route
               path="users"
               element={
@@ -281,7 +288,6 @@ function App() {
                     "SUPER_ADMIN",
                     "ADMIN",
                     "LEAD_PROJECT_MANAGER",
-                    "HR",
                   ]}
                 >
                   <UserManagement />
