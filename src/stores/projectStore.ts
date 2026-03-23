@@ -280,6 +280,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await projectAPI.updateProjectStage(projectId, stageCode, data);
+      
+      // Re-fetch project to ensure status/progress is in sync
+      await get().fetchProjectById(projectId);
+
       // Re-fetch stages to get updated data
       const response = await projectAPI.getProjectStages(projectId);
       set({
@@ -301,6 +305,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await projectAPI.addProjectStage(projectId, data);
+      
+      // Re-fetch project to ensure status/progress is in sync
+      await get().fetchProjectById(projectId);
+
       // Re-fetch stages to get updated data
       const response = await projectAPI.getProjectStages(projectId);
       set({
@@ -320,6 +328,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await projectAPI.deleteProjectStage(projectId, stageCode);
+      
+      // Re-fetch project to ensure status/progress is in sync
+      await get().fetchProjectById(projectId);
+
       // Re-fetch stages to get updated data
       const response = await projectAPI.getProjectStages(projectId);
       set({
@@ -344,6 +356,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await projectAPI.reorderProjectStages(projectId, data);
+      
+      // Re-fetch project to ensure status/progress is in sync
+      await get().fetchProjectById(projectId);
+
       // Re-fetch stages to get updated data
       const response = await projectAPI.getProjectStages(projectId);
       set({
@@ -369,6 +385,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await projectAPI.updateProjectPayment(projectId, paymentId, data);
+      
+      // Re-fetch project to ensure paidAmount/status is in sync
+      await get().fetchProjectById(projectId);
+
       // Re-fetch payments to get updated data
       const response = await projectAPI.getProjectPayments(projectId);
       set({
@@ -393,6 +413,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await projectAPI.createProjectPayment(projectId, data);
+
+      // Re-fetch project to ensure paidAmount/status is in sync
+      await get().fetchProjectById(projectId);
+
       const response = await projectAPI.getProjectPayments(projectId);
       set({
         projectPayments: response.payments || [],
@@ -413,6 +437,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   deleteProjectPayment: async (projectId: string, paymentId: string) => {
     try {
       await projectAPI.deleteProjectPayment(paymentId);
+      
+      // Re-fetch project to ensure paidAmount/status is in sync
+      await get().fetchProjectById(projectId);
+
       const response = await projectAPI.getProjectPayments(projectId);
       set({
         projectPayments: response.payments || [],
@@ -473,7 +501,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
 
       // Re-fetch the projects list to stay in sync
-      const response = await projectAPI.listProjects();
+      const response = await projectAPI.listProjects({ limit: 1000 });
       set({ projects: response.projects, isLoading: false });
       return createdProject;
     } catch (error) {
