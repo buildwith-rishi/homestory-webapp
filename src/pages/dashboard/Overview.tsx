@@ -34,7 +34,6 @@ import { StatCard } from "../../components/dashboard/StatCard";
 import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
 import { RevenueChart } from "../../components/dashboard/RevenueChart";
 import { LeadSourceChart } from "../../components/dashboard/LeadSourceChart";
-import { ActivityFeed } from "../../components/dashboard/ActivityFeed";
 import { DashboardGrid } from "../../components/dashboard/DashboardGrid";
 import { WidgetLibraryModal } from "../../components/dashboard/WidgetLibraryModal";
 import { WIDGET_REGISTRY } from "../../components/dashboard/widgets";
@@ -706,21 +705,13 @@ export const DashboardOverview: React.FC = () => {
             )}
           </div>
 
-          {/* Charts Grid – only for roles with reports/dashboard access */}
-          {canAny(["reports.view", "dashboard.*"]) && (
-            <div className="grid lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2">
-                <RevenueChart />
-              </div>
-              <div>
-                <LeadSourceChart />
-              </div>
-            </div>
-          )}
 
           {/* Projects and Activity Grid */}
           <div className="grid lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 space-y-4">
+              {/* Revenue Chart - gated by reports/dashboard access, moved here to eliminate gaps */}
+              {canAny(["reports.view", "dashboard.*"]) && <RevenueChart />}
+
               {/* Today's Meetings – gated by meetings.read */}
               {can("meetings.read") && (
                 <Card className="animate-scale-in">
@@ -752,42 +743,53 @@ export const DashboardOverview: React.FC = () => {
                         </p>
                       </div>
                     ) : (
-                      filteredMeetings.map((meeting) => {
-                        const { time, title, avatar, status, type } =
-                          getMeetingDisplayProps(meeting);
-                        return (
-                          <div
-                            key={meeting.id}
-                            className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer"
-                            onClick={() =>
-                              navigate(`/dashboard/meetings/${meeting.id}`)
-                            }
-                          >
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                              {avatar}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 truncate">
-                                {time} – {title}
-                              </p>
-                              <p className="text-sm text-gray-600 capitalize">
-                                {type}
-                              </p>
-                            </div>
-                            <Badge
-                              variant={
-                                status === "In Progress"
-                                  ? "info"
-                                  : status === "Completed"
-                                    ? "success"
-                                    : "neutral"
+                      <>
+                        {filteredMeetings.slice(0, 5).map((meeting) => {
+                          const { time, title, avatar, status, type } =
+                            getMeetingDisplayProps(meeting);
+                          return (
+                            <div
+                              key={meeting.id}
+                              className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer"
+                              onClick={() =>
+                                navigate(`/dashboard/meetings/${meeting.id}`)
                               }
                             >
-                              {status}
-                            </Badge>
-                          </div>
-                        );
-                      })
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                                {avatar}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 truncate">
+                                  {time} – {title}
+                                </p>
+                                <p className="text-sm text-gray-600 capitalize">
+                                  {type}
+                                </p>
+                              </div>
+                              <Badge
+                                variant={
+                                  status === "In Progress"
+                                    ? "info"
+                                    : status === "Completed"
+                                      ? "success"
+                                      : "neutral"
+                                }
+                              >
+                                {status}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                        {filteredMeetings.length > 5 && (
+                          <Button
+                            variant="ghost"
+                            className="w-full text-orange-600 hover:text-orange-700 hover:bg-orange-50 mt-2"
+                            onClick={() => navigate("/dashboard/meetings")}
+                          >
+                            View All Meetings →
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 </Card>
@@ -1105,7 +1107,9 @@ export const DashboardOverview: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              <ActivityFeed />
+              {/* Lead Source Chart - gated by reports/dashboard access, moved here for layout balance */}
+              {canAny(["reports.view", "dashboard.*"]) && <LeadSourceChart />}
+
               {/* Payments summary – only for ACCOUNTS role */}
               {roleId === "ACCOUNTS" && (
                 <Card>

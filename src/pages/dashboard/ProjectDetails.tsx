@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission, RoleId } from "../../config/rbac";
 import {
   ArrowLeft,
   Calendar,
@@ -233,7 +234,16 @@ const getStatusDisplay = (
 export const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { roleId } = useAuth();
+  const { roleId, user } = useAuth();
+  
+  // Permissions
+  const canCreatePayment = hasPermission(roleId as RoleId, "payments.create");
+  const canUpdatePayment = hasPermission(roleId as RoleId, "payments.update");
+  const canDeletePayment = hasPermission(roleId as RoleId, "payments.delete");
+  // Basic check for project editing (further scoped by assignment for designers)
+  const canEditProjectBase = hasPermission(roleId as RoleId, "projects.update");
+
+
 
   // Store
   const {
@@ -262,11 +272,29 @@ export const ProjectDetails: React.FC = () => {
     fetchPaymentById,
   } = useProjectStore();
 
+  const isAssigned = useMemo(() => {
+    if (!currentProject || !user) return false;
+    // Check precise ID matches first
+    if (currentProject.assignedDesignerId === user.id) return true;
+    if (currentProject.assignedPMId === user.id) return true;
+    
+    // Fallback: Check name matches in string arrays (designTeam, executionTeam are string[])
+    if (currentProject.designTeam?.includes(user.name)) return true;
+    if (currentProject.executionTeam?.includes(user.name)) return true;
+    
+    return false;
+  }, [currentProject, user]);
+
+  const canEditProject =
+    roleId === "SUPER_ADMIN" ||
+    roleId === "ADMIN" ||
+    roleId === "LEAD_PROJECT_MANAGER" ||
+    (canEditProjectBase && (roleId !== "DESIGNER" || isAssigned));
+
+  const canDeleteProject = hasPermission(roleId as RoleId, "projects.delete");
+
   // Project options from API
-  const {
-    options: projectOptions,
-    getSubtypesForCategory,
-  } = useProjectOptions();
+
 
   // Local state
   const [activeTab, setActiveTab] = useState<
@@ -1916,7 +1944,7 @@ export const ProjectDetails: React.FC = () => {
 
             <div className="flex flex-wrap gap-2">
               {/* Status Action Buttons */}
-              {getStatusActions().map((statusAction) => (
+              {canEditProject && getStatusActions().map((statusAction) => (
                 <button
                   key={statusAction.action}
                   onClick={() => {
@@ -1933,6 +1961,7 @@ export const ProjectDetails: React.FC = () => {
                 </button>
               ))}
 
+              {canEditProject && (
               <Button
                 variant="secondary"
                 className="bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-md"
@@ -1941,6 +1970,8 @@ export const ProjectDetails: React.FC = () => {
                 <Edit3 className="w-4 h-4 mr-2" />
                 Edit
               </Button>
+              )}
+              {canDeleteProject && (
               <Button
                 variant="secondary"
                 className="bg-white hover:bg-red-50 border-2 border-red-400 hover:border-red-500 text-red-600 hover:text-red-700 shadow-md"
@@ -1949,6 +1980,7 @@ export const ProjectDetails: React.FC = () => {
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
               </Button>
+              )}
             </div>
           </div>
 
@@ -2072,8 +2104,8 @@ export const ProjectDetails: React.FC = () => {
             {[
               { id: "overview", label: "Overview", icon: FileText },
               { id: "stages", label: "Stages", icon: CheckCircle2 },
-              // Payments tab hidden from DESIGNER role
-              ...(roleId !== "DESIGNER"
+              // Payments tab hidden from DESIGNER and SITE_ENGINEER roles (field roles)
+              ...(!["DESIGNER", "SITE_ENGINEER"].includes(roleId)
                 ? [{ id: "payments", label: "Payments", icon: CreditCard }]
                 : []),
               { id: "references", label: "References", icon: Image },
@@ -2941,6 +2973,7 @@ export const ProjectDetails: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                    {canUpdatePayment && (
                     <button
                       onClick={() => handleEditPayment(payment)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
@@ -2949,6 +2982,7 @@ export const ProjectDetails: React.FC = () => {
                       <Edit3 className="w-3.5 h-3.5" />
                       Update Status
                     </button>
+                    )}
                     <button
                       onClick={() => handleOpenSendInvoice(payment)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
@@ -3027,6 +3061,7 @@ export const ProjectDetails: React.FC = () => {
                         Send Reminder
                       </button>
                     )}
+                    {canDeletePayment && (
                     <button
                       onClick={async () => {
                         if (
@@ -3051,6 +3086,7 @@ export const ProjectDetails: React.FC = () => {
                       <Trash2 className="w-3.5 h-3.5" />
                       Delete
                     </button>
+                    )}
                   </div>
                 </div>
               );
@@ -3172,6 +3208,7 @@ export const ProjectDetails: React.FC = () => {
                         Upload Work
                       </Button>
                       {/* Add Payment for active phase */}
+                      {canCreatePayment && (
                       <Button
                         onClick={() => {
                           const nextStage =
@@ -3210,6 +3247,7 @@ export const ProjectDetails: React.FC = () => {
                           : "Execution"}{" "}
                         Payment
                       </Button>
+                      )}
                     </div>
                   </div>
 
@@ -5011,208 +5049,22 @@ export const ProjectDetails: React.FC = () => {
                     />
                   </div>
 
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Lead ID
+                      Tentative Handover Date
                     </label>
                     <input
-                      type="text"
-                      value={editForm.leadId}
+                      type="date"
+                      value={editForm.tentativeHandoverDate}
                       onChange={(e) =>
                         setEditForm({
                           ...editForm,
-                          leadId: e.target.value,
+                          tentativeHandoverDate: e.target.value,
                         })
                       }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none text-sm"
-                      placeholder="lead-uuid"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
                     />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Pipeline Type
-                      </label>
-                      <select
-                        value={editForm.pipelineType}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            pipelineType: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Select</option>
-                        {projectOptions.pipelineTypes.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Category
-                      </label>
-                      <select
-                        value={editForm.projectCategory}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            projectCategory: e.target.value,
-                            propertySubtype: "",
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Select</option>
-                        {projectOptions.categories.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Scope Type
-                      </label>
-                      <select
-                        value={editForm.scopeType}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            scopeType: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Select</option>
-                        {projectOptions.scopeTypes.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Budget Tier
-                      </label>
-                      <select
-                        value={editForm.budgetTier}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            budgetTier: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Select</option>
-                        {projectOptions.budgetTiers.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Property Type
-                      </label>
-                      <select
-                        value={editForm.propertySubtype}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            propertySubtype: e.target.value,
-                          })
-                        }
-                        disabled={!editForm.projectCategory}
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm disabled:opacity-50"
-                      >
-                        <option value="">Select</option>
-                        {editForm.projectCategory &&
-                          getSubtypesForCategory(editForm.projectCategory).map(
-                            (opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ),
-                          )}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Status
-                      </label>
-                      <select
-                        value={editForm.status}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, status: e.target.value })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Unchanged</option>
-                        <option value="YET_TO_START">Yet to Start</option>
-                        <option value="ACTIVE">Active</option>
-                        <option value="ONGOING">Ongoing</option>
-                        <option value="ON_HOLD">On Hold</option>
-                        <option value="PAUSED">Paused</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="CANCELLED">Cancelled</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Current Stage
-                      </label>
-                      <select
-                        value={editForm.currentStageCode}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            currentStageCode: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Unchanged</option>
-                        {projectOptions.stages.map((stage) => (
-                          <option key={stage.value} value={stage.value}>
-                            {stage.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Current Phase
-                      </label>
-                      <select
-                        value={editForm.currentPhase}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            currentPhase: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Unchanged</option>
-                        <option value="DESIGN">Design</option>
-                        <option value="EXECUTION">Execution</option>
-                      </select>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -5223,45 +5075,9 @@ export const ProjectDetails: React.FC = () => {
                   Property Details
                 </h4>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Size (sq.ft)
-                      </label>
-                      <input
-                        type="number"
-                        value={editForm.propertySizeSqft}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            propertySizeSqft: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="e.g., 2500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        BHK
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.propertyBHK}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            propertyBHK: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="e.g., 3BHK"
-                      />
-                    </div>
-                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Street Address
+                      Property Address
                     </label>
                     <input
                       type="text"
@@ -5275,153 +5091,6 @@ export const ProjectDetails: React.FC = () => {
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
                       placeholder="Street address"
                     />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Building
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.propertyBuilding}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            propertyBuilding: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="Building name"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Unit / Flat
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.propertyUnit}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            propertyUnit: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="Unit / Flat No."
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        City
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.propertyCity}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            propertyCity: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="City"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        State
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.propertyState}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            propertyState: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="State"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Pincode
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.propertyPincode}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            propertyPincode: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="560001"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Landmarks
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.propertyLandmarks}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          propertyLandmarks: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      placeholder="Nearby landmarks"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Construction Status
-                      </label>
-                      <select
-                        value={editForm.constructionStatus}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            constructionStatus: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Select</option>
-                        <option value="NOT_STARTED">Not Started</option>
-                        <option value="UNDER_CONSTRUCTION">
-                          Under Construction
-                        </option>
-                        <option value="READY_TO_MOVE">Ready to Move</option>
-                        <option value="RENOVATION">Renovation</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Tentative Handover Date
-                      </label>
-                      <input
-                        type="date"
-                        value={editForm.tentativeHandoverDate}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            tentativeHandoverDate: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -5516,119 +5185,6 @@ export const ProjectDetails: React.FC = () => {
                         Comma-separated names
                       </p>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Assigned Designer ID
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.assignedDesignerId}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            assignedDesignerId: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="designer-uuid"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Assigned PM ID
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.assignedPMId}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            assignedPMId: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="pm-uuid"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Design Package
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.designPackage}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            designPackage: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                        placeholder="e.g., PREMIUM"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        3D Design Status
-                      </label>
-                      <select
-                        value={editForm.design3DStatus}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            design3DStatus: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none bg-white text-sm"
-                      >
-                        <option value="">Select</option>
-                        <option value="NOT_STARTED">Not Started</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="COMPLETED">Completed</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Number of Meetings
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={editForm.numberOfMeetings}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          numberOfMeetings: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      placeholder="e.g., 3"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 pt-1">
-                    <input
-                      type="checkbox"
-                      id="editMoodBoard"
-                      checked={editForm.moodBoardShared}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          moodBoardShared: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 text-orange-500 rounded focus:ring-orange-400"
-                    />
-                    <label
-                      htmlFor="editMoodBoard"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Moodboard Shared
-                    </label>
                   </div>
                 </div>
               </div>
@@ -5743,37 +5299,6 @@ export const ProjectDetails: React.FC = () => {
                       rows={2}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
                       placeholder="Vastu-compliant, eco-friendly materials, etc."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Pause Reason
-                    </label>
-                    <textarea
-                      value={editForm.pauseReason}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, pauseReason: e.target.value })
-                      }
-                      rows={2}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
-                      placeholder="Client travel (optional)"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Cancellation Reason
-                    </label>
-                    <textarea
-                      value={editForm.cancellationReason}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          cancellationReason: e.target.value,
-                        })
-                      }
-                      rows={2}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none resize-none text-sm"
-                      placeholder="Budget constraints (optional)"
                     />
                   </div>
                   <div>

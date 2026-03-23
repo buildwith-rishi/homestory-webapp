@@ -254,8 +254,12 @@ const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
   if (updates.phone !== undefined) payload.phone = updates.phone;
   if (updates.companyName !== undefined) payload.companyName = updates.companyName;
   if (updates.source !== undefined) payload.source = updates.source;
+  if (updates.status !== undefined) payload.status = updates.status;
+  if (updates.stage !== undefined) payload.stage = updates.stage;
+  if (updates.priority !== undefined) payload.priority = updates.priority;
   if (updates.score !== undefined) payload.score = updates.score;
   if (updates.assignedToId !== undefined) payload.assignedToId = updates.assignedToId;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
 
   // Property & Project (current frontend)
   if (updates.propertyType !== undefined) payload.propertyType = updates.propertyType;
