@@ -202,11 +202,11 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
 
   const handleAddDaySuccess = () => {
     setShowAddDayModal(false);
-    fetchMatrix();
+    fetchMatrix(true);
   };
 
-  const fetchMatrix = useCallback(async () => {
-    setLoading(true);
+  const fetchMatrix = useCallback(async (refreshInBackground = false) => {
+    if (!refreshInBackground) setLoading(true);
     setError(null);
     try {
       // Try with stageCode first (backend expects stageCode, not UUID)
@@ -315,7 +315,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       };
       await updateMatrixTaskStatus(taskId, data);
       toast.success("Task status updated");
-      await fetchMatrix();
+      await fetchMatrix(true);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to update status",
@@ -378,7 +378,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
         `Day ${holidayDraft.dayEntry.dayNumber} marked as holiday`,
       );
       setHolidayDraft(null);
-      await fetchMatrix();
+      await fetchMatrix(true);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to mark holiday",
@@ -795,7 +795,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                       }}
                       onStatusChange={handleStatusChange}
                       updatingTaskId={updatingTaskId}
-                      onDayDateUpdated={fetchMatrix}
+                      onDayDateUpdated={() => fetchMatrix(true)}
                     />
                   </div>
                 )}
@@ -831,7 +831,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           onClose={() => setShowEditModal(false)}
           onSuccess={() => {
             setShowEditModal(false);
-            fetchMatrix();
+            fetchMatrix(true);
           }}
         />
       )}
@@ -965,7 +965,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           onClose={() => setShowAddCategoryModal(false)}
           onSuccess={() => {
             setShowAddCategoryModal(false);
-            fetchMatrix();
+            fetchMatrix(true);
           }}
         />
       )}
@@ -986,7 +986,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             setSelectedTaskData(null);
           }}
           onStatusChanged={() => {
-            fetchMatrix();
+            fetchMatrix(true);
           }}
         />
       )}

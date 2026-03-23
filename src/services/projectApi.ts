@@ -1872,7 +1872,7 @@ export async function getMatrixByStage(
   stageId: string,
 ): Promise<TaskMatrix | null> {
   try {
-    const url = `${API_BASE_URL}/api/projects/${projectId}/stages/${stageId}/matrix`;
+    const url = `${API_BASE_URL}/api/projects/${projectId}/stages/${stageId}/matrix?_t=${new Date().getTime()}`;
     console.log("[getMatrixByStage] GET", url);
     const response = await fetch(url, {
       method: "GET",
