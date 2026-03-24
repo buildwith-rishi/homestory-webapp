@@ -1,9 +1,14 @@
-import { useState, useRef } from 'react';
-import { Camera, X, Send } from 'lucide-react';
-import { MobileHeader } from '../../components/mobile/MobileHeader';
-import { useProjectStore } from '../../stores/projectStore';
-import { IssueCategory, IssueSeverity } from '../../types';
-import Spinner from '../../components/ui/Spinner';
+import { useState, useRef, useEffect } from "react";
+import { Camera, X, Send } from "lucide-react";
+import { MobileHeader } from "../../components/mobile/MobileHeader";
+import { IssueCategory, IssueSeverity } from "../../types";
+import Spinner from "../../components/ui/Spinner";
+import toast from "react-hot-toast";
+import {
+  createSiteEngineerIssue,
+  getSiteEngineerProjects,
+  type SiteEngineerProject,
+} from "../../services/siteEngineerApi";
 
 const categories = [
   { value: IssueCategory.MATERIAL, label: 'Material' },
@@ -21,7 +26,6 @@ const severities = [
 ];
 
 export function ReportIssue() {
-  const { projects } = useProjectStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [projectId, setProjectId] = useState('');
@@ -32,8 +36,23 @@ export function ReportIssue() {
   const [location, setLocation] = useState('');
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [projects, setProjects] = useState<SiteEngineerProject[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
 
-  const activeProjects = projects.filter((p) => p.status === 'active');
+  useEffect(() => {
+    setProjectsLoading(true);
+    getSiteEngineerProjects()
+      .then(setProjects)
+      .catch((err) => {
+        console.warn("Failed to load site engineer projects:", err);
+        toast.error("Unable to load projects");
+      })
+      .finally(() => setProjectsLoading(false));
+  }, []);
+
+  const activeProjects = projects.filter(
+    (p) => p.status === "active" || p.status === "ACTIVE",
+  );
 
   const handleAddPhoto = () => {
     fileInputRef.current?.click();
@@ -55,29 +74,50 @@ export function ReportIssue() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!projectId || !category || !severity || !description || description.length < 20) {
-      alert('Please fill in all required fields');
+    if (
+      !projectId ||
+      !category ||
+      !severity ||
+      !description ||
+      description.length < 20
+    ) {
+      toast.error("Please fill in all required fields");
       return;
     }
 
-    if ((category === IssueCategory.QUALITY || category === IssueCategory.SAFETY) && photos.length === 0) {
-      alert('Photos are required for quality and safety issues');
+    if (
+      (category === IssueCategory.QUALITY || category === IssueCategory.SAFETY) &&
+      photos.length === 0
+    ) {
+      toast.error("Photos are required for quality and safety issues");
       return;
     }
 
     setSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      await createSiteEngineerIssue({
+        projectId,
+        category,
+        severity,
+        title: title.trim() || undefined,
+        description: description.trim(),
+        location: location.trim() || undefined,
+      });
 
-    setProjectId('');
-    setCategory('');
-    setSeverity('');
-    setTitle('');
-    setDescription('');
-    setLocation('');
-    setPhotos([]);
-    setSubmitting(false);
+      setProjectId("");
+      setCategory("");
+      setSeverity("");
+      setTitle("");
+      setDescription("");
+      setLocation("");
+      setPhotos([]);
 
-    alert('Issue reported successfully!');
+      toast.success("Issue reported successfully");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to report issue");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const canSubmit =
@@ -99,11 +139,14 @@ export function ReportIssue() {
           <select
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
-            className="w-full h-12 px-4 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            disabled={projectsLoading}
+            className="w-full h-12 px-4 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-60"
             required
           >
-            <option value="">Select project...</option>
-            {activeProjects.map((project) => (
+            <option value="">
+              {projectsLoading ? "Loading projects..." : "Select project..."}
+            </option>
+            {(activeProjects.length > 0 ? activeProjects : projects).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
               </option>

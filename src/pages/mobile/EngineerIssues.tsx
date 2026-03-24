@@ -18,7 +18,11 @@ import {
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { IssueCategory, IssueSeverity } from "../../types";
-import { getSiteEngineerIssues } from "../../services/siteEngineerApi";
+import toast from "react-hot-toast";
+import {
+  getSiteEngineerIssues,
+  updateSiteEngineerIssueStatus,
+} from "../../services/siteEngineerApi";
 
 interface Issue {
   id: string;
@@ -39,6 +43,7 @@ export function EngineerIssues() {
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [updatingIssueId, setUpdatingIssueId] = useState<string | null>(null);
 
   const loadIssues = () => {
     setIssuesLoading(true);
@@ -54,6 +59,31 @@ export function EngineerIssues() {
   useEffect(() => {
     loadIssues();
   }, []);
+
+  const handleStatusUpdate = async (
+    issueId: string,
+    status: "OPEN" | "IN_PROGRESS" | "RESOLVED",
+  ) => {
+    setUpdatingIssueId(issueId);
+    try {
+      const updated = await updateSiteEngineerIssueStatus(issueId, { status });
+      setIssues((prev) =>
+        prev.map((issue) =>
+          issue.id === issueId
+            ? ({
+                ...issue,
+                status: updated.status,
+              } as Issue)
+            : issue,
+        ),
+      );
+      toast.success("Issue status updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update issue");
+    } finally {
+      setUpdatingIssueId(null);
+    }
+  };
 
   const getCategoryIcon = (category: IssueCategory) => {
     switch (category) {
@@ -316,6 +346,40 @@ export function EngineerIssues() {
                     <Clock className="w-3 h-3" />
                     {formatTimeAgo(issue.createdAt)}
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3">
+                  {issue.status === "OPEN" && (
+                    <button
+                      onClick={() =>
+                        handleStatusUpdate(issue.id, "IN_PROGRESS")
+                      }
+                      disabled={updatingIssueId === issue.id}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-100 text-blue-700 disabled:opacity-60"
+                    >
+                      {updatingIssueId === issue.id ? "Updating..." : "Start Work"}
+                    </button>
+                  )}
+                  {issue.status !== "RESOLVED" && (
+                    <button
+                      onClick={() => handleStatusUpdate(issue.id, "RESOLVED")}
+                      disabled={updatingIssueId === issue.id}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-100 text-green-700 disabled:opacity-60"
+                    >
+                      {updatingIssueId === issue.id
+                        ? "Updating..."
+                        : "Mark Resolved"}
+                    </button>
+                  )}
+                  {issue.status === "IN_PROGRESS" && (
+                    <button
+                      onClick={() => handleStatusUpdate(issue.id, "OPEN")}
+                      disabled={updatingIssueId === issue.id}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 disabled:opacity-60"
+                    >
+                      Reopen
+                    </button>
+                  )}
                 </div>
               </div>
             );

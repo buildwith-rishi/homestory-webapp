@@ -17,7 +17,6 @@ import {
   LeadsPage,
   UpdatesPage,
   EngineersPage,
-  SettingsPage,
   Customers,
   CustomerDetails,
   Marketing,
@@ -37,6 +36,7 @@ import {
   EngineerTasks,
   PhotoUpload,
   ReportIssue,
+  DailySiteReport,
   EngineerProfile,
   EngineerIssues,
 } from "./pages/mobile";
@@ -381,6 +381,18 @@ function App() {
               >
                 <MobileAppShell>
                   <ReportIssue />
+                </MobileAppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/dsr"
+            element={
+              <ProtectedRoute
+                allowedRoleIds={["SITE_ENGINEER", "SUPER_ADMIN", "ADMIN"]}
+              >
+                <MobileAppShell>
+                  <DailySiteReport />
                 </MobileAppShell>
               </ProtectedRoute>
             }

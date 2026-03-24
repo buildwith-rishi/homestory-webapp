@@ -47,6 +47,21 @@ export interface SiteEngineerProject {
   endDate?: string;
 }
 
+type RawSEProject = Record<string, unknown> & {
+  id: string;
+  name?: string;
+  projectName?: string;
+  title?: string;
+  location?: string;
+  siteLocation?: string;
+  status?: string;
+  stage?: string;
+  progress?: number | string;
+  clientName?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
 export interface SiteEngineerProfile {
   id: string;
   name: string;
@@ -385,20 +400,45 @@ export async function uploadSiteEngineerTaskPhoto(
 export async function getSiteEngineerProjects(): Promise<
   SiteEngineerProject[]
 > {
+  const normaliseProject = (raw: RawSEProject): SiteEngineerProject => {
+    const name =
+      raw.name?.trim() ||
+      raw.projectName?.trim() ||
+      raw.title?.trim() ||
+      "Untitled Project";
+
+    const progressValue =
+      typeof raw.progress === "string" ? Number(raw.progress) : raw.progress;
+
+    return {
+      id: raw.id,
+      name,
+      location: raw.location ?? raw.siteLocation,
+      status: raw.status ?? "ACTIVE",
+      stage: raw.stage,
+      progress: Number.isFinite(progressValue) ? Number(progressValue) : 0,
+      clientName: raw.clientName,
+      startDate: raw.startDate,
+      endDate: raw.endDate,
+    };
+  };
+
   const response = await fetch(`${API_BASE_URL}/api/site-engineer/projects`, {
     method: "GET",
     headers: getAuthHeaders(),
   });
 
   const data = await handleResponse<
-    | SiteEngineerProject[]
-    | { projects: SiteEngineerProject[]; total?: number }
-    | { data: SiteEngineerProject[] }
+    | RawSEProject[]
+    | { projects: RawSEProject[]; total?: number }
+    | { data: RawSEProject[] }
   >(response);
 
-  if (Array.isArray(data)) return data;
-  if ("projects" in data && Array.isArray(data.projects)) return data.projects;
-  if ("data" in data && Array.isArray(data.data)) return data.data;
+  if (Array.isArray(data)) return data.map(normaliseProject);
+  if ("projects" in data && Array.isArray(data.projects))
+    return data.projects.map(normaliseProject);
+  if ("data" in data && Array.isArray(data.data))
+    return data.data.map(normaliseProject);
   return [];
 }
 
@@ -438,6 +478,20 @@ export interface SiteEngineerIssue {
   location?: string;
 }
 
+export interface CreateSiteEngineerIssueRequest {
+  projectId: string;
+  category: string;
+  severity: string;
+  title?: string;
+  description: string;
+  location?: string;
+}
+
+export interface UpdateSiteEngineerIssueStatusRequest {
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
+  resolutionNotes?: string;
+}
+
 export async function getSiteEngineerIssues(): Promise<SiteEngineerIssue[]> {
   const response = await fetch(`${API_BASE_URL}/api/site-engineer/issues`, {
     method: "GET",
@@ -454,6 +508,118 @@ export async function getSiteEngineerIssues(): Promise<SiteEngineerIssue[]> {
   if ("issues" in data && Array.isArray(data.issues)) return data.issues;
   if ("data" in data && Array.isArray(data.data)) return data.data;
   return [];
+}
+
+export async function createSiteEngineerIssue(
+  payload: CreateSiteEngineerIssueRequest,
+): Promise<SiteEngineerIssue> {
+  const response = await fetch(`${API_BASE_URL}/api/site-engineer/issues`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await handleResponse<
+    SiteEngineerIssue | { issue: SiteEngineerIssue } | { data: SiteEngineerIssue }
+  >(response);
+
+  if ("issue" in data && data.issue) return data.issue;
+  if ("data" in data && data.data) return data.data;
+  return data as SiteEngineerIssue;
+}
+
+export async function updateSiteEngineerIssueStatus(
+  issueId: string,
+  payload: UpdateSiteEngineerIssueStatusRequest,
+): Promise<SiteEngineerIssue> {
+  // Primary endpoint for issue state transitions
+  const primary = await fetch(
+    `${API_BASE_URL}/api/site-engineer/issues/${issueId}/status`,
+    {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (primary.ok) {
+    const data = await handleResponse<
+      SiteEngineerIssue | { issue: SiteEngineerIssue } | { data: SiteEngineerIssue }
+    >(primary);
+    if ("issue" in data && data.issue) return data.issue;
+    if ("data" in data && data.data) return data.data;
+    return data as SiteEngineerIssue;
+  }
+
+  // Fallback endpoint for servers that expect PUT /issues/:id
+  const fallback = await fetch(`${API_BASE_URL}/api/site-engineer/issues/${issueId}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const fbData = await handleResponse<
+    SiteEngineerIssue | { issue: SiteEngineerIssue } | { data: SiteEngineerIssue }
+  >(fallback);
+  if ("issue" in fbData && fbData.issue) return fbData.issue;
+  if ("data" in fbData && fbData.data) return fbData.data;
+  return fbData as SiteEngineerIssue;
+}
+
+export interface DailySiteReportRequest {
+  projectId: string;
+  reportDate: string;
+  workSummary: string;
+  workProgress?: number;
+  manpowerCount?: number;
+  materialUsed?: string;
+  blockers?: string;
+  tomorrowPlan?: string;
+}
+
+export interface DailySiteReportResponse {
+  id: string;
+  projectId: string;
+  reportDate: string;
+  createdAt?: string;
+}
+
+export async function submitDailySiteReport(
+  payload: DailySiteReportRequest,
+): Promise<DailySiteReportResponse> {
+  // Preferred endpoint
+  const primary = await fetch(`${API_BASE_URL}/api/site-engineer/dsr`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (primary.ok) {
+    const data = await handleResponse<
+      | DailySiteReportResponse
+      | { report: DailySiteReportResponse }
+      | { data: DailySiteReportResponse }
+    >(primary);
+    if ("report" in data && data.report) return data.report;
+    if ("data" in data && data.data) return data.data;
+    return data as DailySiteReportResponse;
+  }
+
+  // Backend compatibility fallback
+  const fallback = await fetch(`${API_BASE_URL}/api/site-engineer/reports/daily`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const fbData = await handleResponse<
+    | DailySiteReportResponse
+    | { report: DailySiteReportResponse }
+    | { data: DailySiteReportResponse }
+  >(fallback);
+  if ("report" in fbData && fbData.report) return fbData.report;
+  if ("data" in fbData && fbData.data) return fbData.data;
+  return fbData as DailySiteReportResponse;
 }
 
 // ── Matrix Task Details ──────────────────────────────────────────────────────

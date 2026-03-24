@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import { Home, CheckSquare, AlertCircle, User } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -23,7 +23,6 @@ interface MobileAppShellProps {
 export function MobileAppShell({ children }: MobileAppShellProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [refreshing, setRefreshing] = useState(false);
 
   const activeTab =
     tabs.find((tab) => location.pathname === tab.path)?.id || "home";
@@ -32,18 +31,9 @@ export function MobileAppShell({ children }: MobileAppShellProps) {
     navigate(tab.path);
   };
 
-  const handlePullToRefresh = async () => {
-    setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setRefreshing(false);
-  };
-
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       <main className="flex-1 overflow-y-auto pb-20">
-        {refreshing && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-orange-500 animate-pulse z-50"></div>
-        )}
         {children}
       </main>
 

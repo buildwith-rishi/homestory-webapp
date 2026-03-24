@@ -12,6 +12,7 @@ import {
   WifiOff,
   Calendar,
   ListTodo,
+  ClipboardCheck,
   ArrowRight,
   Loader2,
   RefreshCw,
@@ -24,10 +25,12 @@ import { Spinner } from "../../components/ui";
 import {
   getSiteEngineerTasks,
   getSiteEngineerProjects,
+  getSiteEngineerIssues,
   getSiteEngineerProfile,
   type SiteEngineerTask,
   type SiteEngineerProject,
   type SiteEngineerProfile,
+  type SiteEngineerIssue,
 } from "../../services/siteEngineerApi";
 
 export function EngineerHome() {
@@ -52,22 +55,25 @@ export function EngineerHome() {
   const [seTasks, setSeTasks] = useState<SiteEngineerTask[]>([]);
   const [seProjects, setSeProjects] = useState<SiteEngineerProject[]>([]);
   const [seProfile, setSeProfile] = useState<SiteEngineerProfile | null>(null);
+  const [seIssues, setSeIssues] = useState<SiteEngineerIssue[]>([]);
 
   // Handle retry for tasks
   const handleRetryTasks = async () => {
     setIsRefreshing(true);
     clearError();
     try {
-      const [, , tasks, seProjs, profile] = await Promise.all([
+      const [, , tasks, seProjs, profile, issues] = await Promise.all([
         fetchAllTasks(),
         fetchUpcomingTasks(),
         getSiteEngineerTasks(),
         getSiteEngineerProjects(),
         getSiteEngineerProfile(),
+        getSiteEngineerIssues(),
       ]);
       setSeTasks(tasks);
       setSeProjects(seProjs);
       setSeProfile(profile);
+      setSeIssues(issues);
     } catch (err) {
       console.warn("Retry failed:", err);
     } finally {
@@ -90,11 +96,13 @@ export function EngineerHome() {
       getSiteEngineerTasks(),
       getSiteEngineerProjects(),
       getSiteEngineerProfile(),
+      getSiteEngineerIssues(),
     ])
-      .then(([tasks, seProjs, profile]) => {
+      .then(([tasks, seProjs, profile, issues]) => {
         setSeTasks(tasks);
         setSeProjects(seProjs);
         setSeProfile(profile);
+        setSeIssues(issues);
       })
       .catch((err) => console.warn("Site engineer home API error:", err));
 
@@ -116,9 +124,16 @@ export function EngineerHome() {
     ...seProjects,
     ...(projects || []).filter((p) => !seProjectIds.has(p.id)),
   ];
-  const activeProjects = mergedProjects.filter(
-    (p) => p.status === "active" || p.status === "ACTIVE",
-  );
+  const orderedProjects = [...mergedProjects].sort((a, b) => {
+    const rank = (status?: string) => {
+      const s = (status || "").toUpperCase();
+      if (s === "ACTIVE") return 0;
+      if (s === "ON_HOLD") return 1;
+      if (s === "COMPLETED") return 2;
+      return 3;
+    };
+    return rank(a.status) - rank(b.status);
+  });
 
   const seTaskIds = new Set(seTasks.map((t) => t.id));
   const today = new Date().toISOString().split("T")[0];
@@ -132,7 +147,15 @@ export function EngineerHome() {
 
   // Derived stats – come from real API data only
   const todayPhotos = seProfile?.stats?.totalPhotos ?? 0;
-  const openIssues = 0; // Will populate once issues API is available
+  const openIssues = seIssues.filter((i) => i.status !== "RESOLVED").length;
+
+  const statusPill = (status?: string) => {
+    const s = (status || "").toUpperCase();
+    if (s === "ACTIVE") return "bg-green-100 text-green-700";
+    if (s === "ON_HOLD") return "bg-yellow-100 text-yellow-700";
+    if (s === "COMPLETED") return "bg-blue-100 text-blue-700";
+    return "bg-gray-100 text-gray-700";
+  };
 
   // Get upcoming tasks from SE API + store (next 7 days, limited to 5)
   const seUpcoming = seTasks
@@ -261,7 +284,7 @@ export function EngineerHome() {
             <div className="w-1 h-4 bg-orange-500 rounded-full" />
             Quick Actions
           </h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button
               onClick={() => navigate("/app/tasks")}
               className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
@@ -282,6 +305,17 @@ export function EngineerHome() {
               </div>
               <span className="text-sm font-semibold text-gray-900">
                 Report Issue
+              </span>
+            </button>
+            <button
+              onClick={() => navigate("/app/dsr")}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
+            >
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <ClipboardCheck className="w-6 h-6 text-green-600" />
+              </div>
+              <span className="text-sm font-semibold text-gray-900 text-center">
+                Submit DSR
               </span>
             </button>
           </div>
@@ -402,14 +436,14 @@ export function EngineerHome() {
           )}
         </div>
 
-        {/* Active Projects */}
+        {/* Project Status */}
         <div>
           <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
             <div className="w-1 h-4 bg-orange-500 rounded-full" />
-            Active Projects
+            Project Status
           </h2>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-            {activeProjects.map((project) => {
+            {orderedProjects.map((project) => {
               const projectTasks = (allTasks || []).filter(
                 (t) => t.projectId === project.id && !t.completed,
               );
@@ -424,6 +458,11 @@ export function EngineerHome() {
                       <h3 className="font-bold text-gray-900 text-base">
                         {project.name}
                       </h3>
+                      <span
+                        className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusPill(project.status)}`}
+                      >
+                        {(project.status || "UNKNOWN").replace("_", " ")}
+                      </span>
                       <div className="flex items-center gap-1 mt-1">
                         <MapPin className="w-3 h-3 text-gray-500" />
                         <p className="text-xs text-gray-600">
@@ -468,13 +507,13 @@ export function EngineerHome() {
                 </div>
               );
             })}
-            {activeProjects.length === 0 && (
+            {orderedProjects.length === 0 && (
               <div className="flex-shrink-0 w-80 bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <MapPin className="w-8 h-8 text-gray-400" />
                 </div>
                 <p className="text-sm font-medium text-gray-900 mb-1">
-                  No Active Projects
+                  No Assigned Projects
                 </p>
                 <p className="text-xs text-gray-500">
                   You'll see your assigned projects here

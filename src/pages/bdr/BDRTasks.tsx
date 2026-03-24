@@ -33,6 +33,11 @@ import {
   deleteBDRTask,
   type BDRTaskAPIItem,
 } from "../../services/bdrApi";
+import {
+  getSiteEngineerTasks,
+  updateSiteEngineerTaskStatus,
+  type SiteEngineerTask,
+} from "../../services/siteEngineerApi";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface BDRTask {
@@ -144,6 +149,33 @@ const mapAPITask = (t: BDRTaskAPIItem): BDRTask => ({
   updatedAt: t.updatedAt,
 });
 
+/** Map a Matrix/SiteEngineer task to the BDRTask shape */
+const mapMatrixTask = (t: SiteEngineerTask): BDRTask => ({
+  id: t.id,
+  title: t.projectName ? `[${t.projectName}] ${t.title}` : t.title,
+  description: t.description,
+  taskType: "Project Task",
+  dueDate: t.dueDate ?? TODAY_STR,
+  dueTime: t.dueTime ?? undefined,
+  // Normalize priority
+  priority:
+    t.priority === "URGENT" || t.priority === "HIGH"
+      ? "HIGH"
+      : t.priority === "LOW"
+        ? "LOW"
+        : "MEDIUM",
+  status:
+    t.status === "COMPLETED"
+      ? "COMPLETED"
+      : t.status === "IN_PROGRESS"
+        ? "IN_PROGRESS"
+        : "TODO",
+  completed: t.status === "COMPLETED",
+  createdAt: t.createdAt,
+  updatedAt: t.updatedAt,
+  completionPhoto: t.photos?.[0]?.url,
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatTime(time?: string) {
   if (!time) return "";
@@ -190,8 +222,22 @@ export function BDRTasks() {
     setIsLoading(true);
     setTasksError(null);
     try {
-      const res = await getBDRTasks(100, 0);
-      setTasks(res.tasks.map(mapAPITask));
+      // Fetch both BDR specific tasks and assigned Matrix tasks
+      const [bdrRes, matrixRes] = await Promise.all([
+        getBDRTasks(100, 0),
+        getSiteEngineerTasks().catch(() => []), // Fail gracefully for matrix tasks
+      ]);
+
+      const bdrTasks = bdrRes.tasks.map(mapAPITask);
+      const matrixTasks = matrixRes.map(mapMatrixTask);
+
+      // Merge and sort by creation date (newest first)
+      const allTasks = [...bdrTasks, ...matrixTasks].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+
+      setTasks(allTasks);
     } catch (err) {
       setTasksError(
         err instanceof Error ? err.message : "Failed to load tasks",
@@ -262,11 +308,26 @@ export function BDRTasks() {
     if (!selectedTask) return;
     setIsSavingStatus(true);
     try {
-      const updated = await updateBDRTask(selectedTask.id, {
-        status: toAPIStatus(editStatus),
-      });
+      let updated: BDRTask;
+      if (selectedTask.taskType === "Project Task") {
+        // Handle Matrix/Site Engineer Task
+        const apiStatus = toAPIStatus(editStatus);
+        const seStatus = apiStatus === "PENDING" ? "TODO" : apiStatus;
+
+        const res = await updateSiteEngineerTaskStatus(selectedTask.id, {
+          status: seStatus as "TODO" | "IN_PROGRESS" | "COMPLETED",
+        });
+        updated = mapMatrixTask(res);
+      } else {
+        // Handle Standard BDR Task
+        const res = await updateBDRTask(selectedTask.id, {
+          status: toAPIStatus(editStatus),
+        });
+        updated = mapAPITask(res);
+      }
+
       setTasks((prev) =>
-        prev.map((t) => (t.id === selectedTask.id ? mapAPITask(updated) : t)),
+        prev.map((t) => (t.id === selectedTask.id ? updated : t)),
       );
       toast.success("Task status updated!");
       handleCloseTaskDetail();
@@ -289,6 +350,9 @@ export function BDRTasks() {
   };
 
   const handleToggleTask = async (taskId: string, shouldComplete: boolean) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
     const optimisticStatus: BDRTask["status"] = shouldComplete
       ? "COMPLETED"
       : "TODO";
@@ -301,11 +365,21 @@ export function BDRTasks() {
       ),
     );
     try {
-      const updated = await updateBDRTask(taskId, {
-        status: toAPIStatus(optimisticStatus),
-      });
+      let updated: BDRTask;
+      if (task.taskType === "Project Task") {
+        const res = await updateSiteEngineerTaskStatus(taskId, {
+          status: shouldComplete ? "COMPLETED" : "TODO",
+        });
+        updated = mapMatrixTask(res);
+      } else {
+        const res = await updateBDRTask(taskId, {
+          status: toAPIStatus(optimisticStatus),
+        });
+        updated = mapAPITask(res);
+      }
+
       setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? mapAPITask(updated) : t)),
+        prev.map((t) => (t.id === taskId ? updated : t)),
       );
       toast.success(shouldComplete ? "Task completed!" : "Task reopened");
     } catch (err) {
@@ -333,6 +407,14 @@ export function BDRTasks() {
   };
 
   const handleDeleteTask = async (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (task?.taskType === "Project Task") {
+      toast.error(
+        "Project tasks cannot be deleted from here. Go to the project page.",
+      );
+      return;
+    }
+
     if (!window.confirm("Delete this task? This cannot be undone.")) return;
     try {
       await deleteBDRTask(taskId);

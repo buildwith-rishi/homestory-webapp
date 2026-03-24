@@ -690,7 +690,6 @@ export const LeadModal: React.FC<{
                     className={selectClass(errors.propertyType)}
                   >
                     <option value="">Select...</option>
-                    <option value="HOME">Home</option>
                     <option value="RESIDENTIAL">Residential</option>
                     <option value="COMMERCIAL">Commercial</option>
                     <option value="MIXED_USE">Mixed Use</option>
@@ -841,7 +840,6 @@ export const LeadModal: React.FC<{
                     <option value="">Select...</option>
                     <option value="NOT_SURE">Not Sure</option>
                     <option value="TURNKEY">Turnkey</option>
-                    <option value="DESIGN_ONLY">Design Only</option>
                     <option value="KITCHEN_WARDROBES">Kitchen & Wardrobes</option>
                     <option value="INTERIOR_DESIGN_ONLY">Interior Design Only</option>
                     <option value="INTERIOR_DESIGN_AND_BUILD">Interior Design & Build</option>
