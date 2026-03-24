@@ -155,6 +155,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
   DESIGN_HEAD: [
     "projects.*",
     "meetings.*",
+    "contacts.read",
     "tasks.*",
     "users.read",
     "reports.view",
@@ -221,6 +222,9 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     "leads.read",
     "leads.create",
     "leads.update",
+    "contacts.read",
+    "contacts.create",
+    "contacts.update",
     "accounts.read",
     "accounts.update",
     "meetings.*",
@@ -404,7 +408,14 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/engineers",
     icon: "Users",
     section: "account",
-    requiredPermission: "users.read",
+    // Keep vendor/team directory visible to operational leadership roles,
+    // but hide it for HR as requested.
+    allowedRoles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "LEAD_PROJECT_MANAGER",
+      "PROJECT_MANAGER",
+    ],
   },
   {
     id: "users",
@@ -412,7 +423,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/users",
     icon: "Shield",
     section: "account",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER"],
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER", "HR"],
   },
 ];
 

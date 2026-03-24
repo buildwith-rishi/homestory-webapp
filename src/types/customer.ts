@@ -77,6 +77,9 @@ export interface Customer {
   shippingState?: string | null;
   shippingPincode?: string | null;
   status?: string;
+  isActive?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   notes?: string | null;
   ownerId?: string | null;
   convertedFromLeadId?: string | null;

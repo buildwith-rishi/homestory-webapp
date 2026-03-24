@@ -124,8 +124,13 @@ export const UserManagement: React.FC = () => {
         }
       }
 
-      setUsers(usersList);
-      console.log(`✅ Successfully loaded ${usersList.length} users`);
+      // Deactivated users should not be visible in User Management UI.
+      const activeUsersOnly = usersList.filter((user) => user.isActive !== false);
+
+      setUsers(activeUsersOnly);
+      console.log(
+        `✅ Successfully loaded ${activeUsersOnly.length} active users (from ${usersList.length} total)`,
+      );
     } catch (error) {
       console.error("❌ Failed to load users:", error);
       const errorMessage =
@@ -342,6 +347,8 @@ export const UserManagement: React.FC = () => {
 
   // Filter users
   const filteredUsers = users.filter((user) => {
+    const isVisibleUser = user.isActive !== false;
+
     const matchesSearch =
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -350,10 +357,10 @@ export const UserManagement: React.FC = () => {
 
     const matchesStatus =
       statusFilter === "all" ||
-      (statusFilter === "active" && !user.isBanned) ||
-      (statusFilter === "banned" && user.isBanned);
+      (statusFilter === "active" && !user.isBanned && user.isActive !== false) ||
+      (statusFilter === "banned" && user.isBanned && user.isActive !== false);
 
-    return matchesSearch && matchesRole && matchesStatus;
+    return isVisibleUser && matchesSearch && matchesRole && matchesStatus;
   });
 
   const getRoleBadgeColor = (role: string) => {
@@ -424,7 +431,7 @@ export const UserManagement: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-500">Active Users</p>
               <p className="text-2xl font-bold text-green-600 mt-1">
-                {users.filter((u) => !u.isBanned).length}
+                {users.filter((u) => u.isActive !== false && !u.isBanned).length}
               </p>
             </div>
             <div className="p-3 bg-green-50 rounded-xl">
@@ -438,7 +445,7 @@ export const UserManagement: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-500">Banned Users</p>
               <p className="text-2xl font-bold text-red-600 mt-1">
-                {users.filter((u) => u.isBanned).length}
+                {users.filter((u) => u.isActive !== false && u.isBanned).length}
               </p>
             </div>
             <div className="p-3 bg-red-50 rounded-xl">
@@ -597,6 +604,11 @@ export const UserManagement: React.FC = () => {
                         <Badge className="bg-red-100 text-red-700 px-3 py-1">
                           <Ban className="w-3 h-3 mr-1" />
                           Banned
+                        </Badge>
+                      ) : user.isActive === false ? (
+                        <Badge className="bg-gray-100 text-gray-700 px-3 py-1">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Inactive
                         </Badge>
                       ) : (
                         <Badge className="bg-green-100 text-green-700 px-3 py-1">

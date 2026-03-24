@@ -1090,6 +1090,7 @@ export interface AdminUser {
     | "CARPENTER";
   phone?: string;
   avatar?: string;
+  isActive?: boolean;
   isBanned: boolean;
   banReason?: string;
   bannedAt?: string;

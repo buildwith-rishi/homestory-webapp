@@ -2984,7 +2984,7 @@ export const ProjectDetails: React.FC = () => {
                     </button>
                     )}
                     <button
-                      onClick={() => handleOpenSendInvoice(payment)}
+                      onClick={() => handleOpenSendInvoice(payment, "proforma")}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
                       title="Send proforma invoice"
                     >
@@ -2992,7 +2992,7 @@ export const ProjectDetails: React.FC = () => {
                       Send Proforma Invoice
                     </button>
                     <button
-                      onClick={() => handleOpenSendInvoice(payment, "proforma")}
+                      onClick={() => handleOpenSendInvoice(payment)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
                       title="Send invoice"
                     >

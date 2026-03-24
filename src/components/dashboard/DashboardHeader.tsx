@@ -199,6 +199,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
     // Capitalize and format the path segment
     const formatSegment = (segment: string) => {
+      if (segment === "engineers") {
+        return "Vendors";
+      }
+
       return segment
         .split("-")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))

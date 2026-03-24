@@ -695,8 +695,18 @@ export async function uploadFloorPlan(
 
   const data = await response.json();
   console.log("Upload response:", data);
-  // User requested downloadUrl to be used for the floor plan field
-  return { url: data.downloadUrl || data.url || "" };
+
+  // Extract URL from various possible response structures
+  const url =
+    data.downloadUrl ||
+    data.url ||
+    data.fileUrl ||
+    data.attachment?.downloadUrl ||
+    data.attachment?.url ||
+    data.data?.url ||
+    "";
+
+  return { url };
 }
 
 // ==========================================

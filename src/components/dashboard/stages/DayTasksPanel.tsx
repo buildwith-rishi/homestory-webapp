@@ -1354,6 +1354,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
           matrixId={matrixId}
           dayNumber={dayNumber}
           startDate={startDate}
+          dayDate={getCurrentDayDateInput()}
           categories={categories}
           onClose={() => setShowNewTaskModal(false)}
           onSuccess={() => {

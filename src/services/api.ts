@@ -1,9 +1,7 @@
 // API Configuration
-// In development, use empty string so requests go through Vite proxy (avoids CORS)
-// In production, use the full URL from env var
-const API_BASE_URL = import.meta.env.DEV
-  ? ""
-  : (import.meta.env.VITE_API_BASE_URL || "");
+// Always use backend base URL from environment so API calls never hit localhost.
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
 
 // API Response Types
 interface LoginResponse {

@@ -96,6 +96,8 @@ interface Customer {
   notes?: Note[];
   occupation?: string;
   companyName?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const mockCustomers: Customer[] = [
@@ -2590,6 +2592,7 @@ export const Customers: React.FC = () => {
   // Filter states
   const [activeTypeFilter, setActiveTypeFilter] = useState<string>("all");
   const [activeStatusFilter, setActiveStatusFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"latest" | "oldest">("latest");
 
   // Ref for debounce timer
   const searchDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -2690,7 +2693,28 @@ export const Customers: React.FC = () => {
       }
 
       // Map API customers to UI Customer format
-      const mappedCustomers: Customer[] = response.customers.map(
+      const activeCustomersOnly = (response.customers || []).filter(
+        (apiCustomer: APICustomer & {
+          isActive?: boolean;
+          isDeleted?: boolean;
+          deletedAt?: string | null;
+        }) => {
+          const status = (apiCustomer.status || "").toLowerCase();
+          // Deactivated / soft-deleted customers should not be shown in the dashboard list.
+          if (apiCustomer.isActive === false) return false;
+          if (apiCustomer.isDeleted === true) return false;
+          if (apiCustomer.deletedAt) return false;
+          if (
+            status === "inactive" ||
+            status === "deactivated" ||
+            status === "deleted"
+          )
+            return false;
+          return true;
+        },
+      );
+
+      const mappedCustomers: Customer[] = activeCustomersOnly.map(
         (apiCustomer) => {
           const initials = apiCustomer.name
             .split(" ")
@@ -2812,6 +2836,8 @@ export const Customers: React.FC = () => {
             notes: [],
             occupation: undefined,
             companyName: undefined,
+            createdAt: apiCustomer.createdAt,
+            updatedAt: apiCustomer.updatedAt,
           };
         },
       );
@@ -3027,6 +3053,24 @@ export const Customers: React.FC = () => {
     return true;
   });
 
+  const getCustomerSortTime = (customer: Customer): number => {
+    const sourceDate = customer.createdAt || customer.updatedAt;
+    if (!sourceDate) return 0;
+    const time = new Date(sourceDate).getTime();
+    return Number.isFinite(time) ? time : 0;
+  };
+
+  const sortedFilteredCustomers = [...filteredCustomers].sort((a, b) => {
+    const aTime = getCustomerSortTime(a);
+    const bTime = getCustomerSortTime(b);
+
+    if (aTime === bTime) {
+      return a.name.localeCompare(b.name);
+    }
+
+    return sortOrder === "oldest" ? aTime - bTime : bTime - aTime;
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -3211,25 +3255,39 @@ export const Customers: React.FC = () => {
         )}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-        <input
-          type="text"
-          placeholder="Search customers by name..."
-          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        {isSearching && (
-          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-            <Spinner size="xs" color="brand" />
-          </div>
-        )}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            type="text"
+            placeholder="Search customers by name..."
+            className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <Spinner size="xs" color="brand" />
+            </div>
+          )}
+        </div>
+
+        <select
+          value={sortOrder}
+          onChange={(e) =>
+            setSortOrder(e.target.value as "latest" | "oldest")
+          }
+          className="md:w-64 px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+          aria-label="Sort customers by creation date"
+        >
+          <option value="latest">Latest to Oldest</option>
+          <option value="oldest">Oldest to Latest</option>
+        </select>
       </div>
 
       {loading ? (
         <SectionLoader message="Loading customers..." />
-      ) : filteredCustomers.length === 0 ? (
+      ) : sortedFilteredCustomers.length === 0 ? (
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -3245,7 +3303,7 @@ export const Customers: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCustomers.map((customer) => {
+          {sortedFilteredCustomers.map((customer) => {
             const statusColor =
               statusColors[customer.status as keyof typeof statusColors] ||
               statusColors[customer.status?.toLowerCase() as keyof typeof statusColors] ||

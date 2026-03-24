@@ -329,6 +329,7 @@ const LEAD_REFERENCE_RENDERED_KEYS = new Set([
   "email",
   "phone",
   "source",
+  "assignedToId",
   "status",
   "stage",
   "score",
@@ -394,15 +395,34 @@ const formatLeadReferenceValue = (value: unknown): string => {
 
   if (Array.isArray(value)) {
     return value
-      .map((item) =>
-        typeof item === "object" && item !== null
-          ? JSON.stringify(item)
-          : String(item),
-      )
+      .map((item) => {
+        if (typeof item === "object" && item !== null) {
+          const v = item as Record<string, unknown>;
+          return (
+            (v.name as string) ||
+            (v.title as string) ||
+            (v.label as string) ||
+            JSON.stringify(item)
+          );
+        }
+        return String(item);
+      })
       .join(", ");
   }
 
   if (typeof value === "object" && value !== null) {
+    const v = value as Record<string, unknown>;
+    // Handle specific object shapes like { name, email, id }
+    if (v.name && typeof v.name === "string") {
+      return v.name;
+    }
+    if (v.title && typeof v.title === "string") {
+      return v.title;
+    }
+    if (v.label && typeof v.label === "string") {
+      return v.label;
+    }
+    
     return JSON.stringify(value, null, 2);
   }
 

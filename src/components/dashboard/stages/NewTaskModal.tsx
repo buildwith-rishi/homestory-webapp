@@ -22,6 +22,7 @@ interface NewTaskModalProps {
   matrixId: string;
   dayNumber: number;
   startDate: string;
+  dayDate?: string;
   categories: MatrixCategory[];
   onClose: () => void;
   onSuccess: () => void;
@@ -40,7 +41,7 @@ const normalizeStartDate = (startDate: string): string => {
   const dateOnly = startDate.includes("T")
     ? startDate.split("T")[0]
     : startDate;
-  return new Date(dateOnly + "T00:00:00").toISOString();
+  return `${dateOnly}T00:00:00.000Z`;
 };
 
 // Helper to convert ISO/date string to YYYY-MM-DD for <input type="date">
@@ -53,8 +54,10 @@ const getTaskDate = (startDate: string, dayNum: number): string => {
   const dateOnly = startDate.includes("T")
     ? startDate.split("T")[0]
     : startDate;
-  const date = new Date(dateOnly + "T00:00:00");
-  date.setDate(date.getDate() + (dayNum - 1));
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  if (!year || !month || !day) return normalizeStartDate(dateOnly);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + (dayNum - 1));
   return date.toISOString();
 };
 
@@ -78,15 +81,17 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   matrixId,
   dayNumber,
   startDate,
+  dayDate,
   categories,
   onClose,
   onSuccess,
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedStartDate, setSelectedStartDate] = useState<string>(() =>
-    toDateInputValue(startDate),
-  );
+  const [selectedStartDate, setSelectedStartDate] = useState<string>(() => {
+    if (dayDate) return toDateInputValue(dayDate);
+    return toDateInputValue(getTaskDate(startDate, dayNumber));
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,7 +112,9 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const taskDate = getTaskDate(selectedStartDate, dayNumber);
+  const taskDate = dayDate
+    ? normalizeStartDate(selectedStartDate)
+    : getTaskDate(selectedStartDate, dayNumber);
   const normalizedStartDate = normalizeStartDate(selectedStartDate);
 
   useEffect(() => {

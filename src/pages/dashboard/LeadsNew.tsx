@@ -8,7 +8,6 @@ import {
   Mail,
   MessageSquare,
   Search,
-  MoreVertical,
   MapPin,
   Clock,
   User,
@@ -28,7 +27,6 @@ import {
   UserPlus,
   Users,
   Upload,
-  FileText,
 } from "lucide-react";
 import { Button, Badge } from "../../components/ui";
 import toast from "react-hot-toast";
@@ -170,6 +168,55 @@ export const LeadModal: React.FC<{
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const hasFloorPlanAttachment = Boolean(
+    pendingFloorPlanFile || formData.floorPlanUrl,
+  );
+
+  const getExistingFloorPlanUrl = (currentLead: Lead): string => {
+    // Primary field
+    if (currentLead.floorPlanUrl) return currentLead.floorPlanUrl;
+
+    // Fallback fields seen in some API shapes
+    const fallbackDirect = (currentLead as Lead & {
+      floorPlanFileUrl?: string | null;
+      floorPlanAttachmentUrl?: string | null;
+      floorPlan?: string | null;
+      attachments?: Array<Record<string, unknown>>;
+      references?: Array<Record<string, unknown>>;
+    });
+
+    if (fallbackDirect.floorPlanFileUrl) return fallbackDirect.floorPlanFileUrl;
+    if (fallbackDirect.floorPlanAttachmentUrl)
+      return fallbackDirect.floorPlanAttachmentUrl;
+    if (fallbackDirect.floorPlan) return fallbackDirect.floorPlan;
+
+    const combined = [
+      ...(fallbackDirect.attachments || []),
+      ...(fallbackDirect.references || []),
+    ];
+
+    const floorPlanEntry = combined.find((entry) => {
+      const type = String(
+        (entry.attachmentType as string | undefined) ||
+          (entry.type as string | undefined) ||
+          "",
+      ).toUpperCase();
+      const category = String(
+        (entry.category as string | undefined) || "",
+      ).toUpperCase();
+      return type.includes("FLOOR") || category.includes("FLOOR");
+    });
+
+    if (!floorPlanEntry) return "";
+
+    return (
+      (floorPlanEntry.downloadUrl as string | undefined) ||
+      (floorPlanEntry.url as string | undefined) ||
+      (floorPlanEntry.fileUrl as string | undefined) ||
+      ""
+    );
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -191,9 +238,10 @@ export const LeadModal: React.FC<{
     setIsUploading(true);
     try {
       const response = await uploadFloorPlan(file, lead.id);
-      if (response && response.url) {
+      // Relaxed check: if response is returned, treat as success even if URL is missing
+      if (response) {
         setPendingFloorPlanFile(null);
-        f("floorPlanUrl", response.url);
+        f("floorPlanUrl", response.url || "_UPLOADED_");
         toast.success("Floor plan uploaded successfully");
       }
     } catch (error) {
@@ -210,6 +258,7 @@ export const LeadModal: React.FC<{
 
   useEffect(() => {
     if (lead) {
+      const existingFloorPlanUrl = getExistingFloorPlanUrl(lead);
       setFormData({
         name: lead.name || "",
         email: lead.email || "",
@@ -223,7 +272,7 @@ export const LeadModal: React.FC<{
         area: lead.area ?? null,
         message: lead.message || "",
         requirements: lead.requirements || "",
-        floorPlanUrl: lead.floorPlanUrl || "",
+        floorPlanUrl: existingFloorPlanUrl,
         assignedToId: lead.assignedToId || "",
         referrerName: lead.referrerName || "",
         referrerPhone: lead.referrerPhone || "",
@@ -430,9 +479,12 @@ export const LeadModal: React.FC<{
         requirements: formData.requirements?.trim() || null,
         specialRequirements: formData.requirements?.trim() || null,
 
-        floorPlanUrl: pendingFloorPlanFile
-          ? null
-          : formData.floorPlanUrl?.trim() || null,
+        // If we have a pending file (new lead) or just uploaded one without a URL (edit lead using marker),
+        // send null so backend doesn't save the marker string. The attachment is already linked.
+        floorPlanUrl:
+          pendingFloorPlanFile || formData.floorPlanUrl === "_UPLOADED_"
+            ? null
+            : formData.floorPlanUrl?.trim() || null,
         floorPlanFile: pendingFloorPlanFile,
       };
       await onSave(payload as unknown as Omit<Lead, "id">);
@@ -858,9 +910,9 @@ export const LeadModal: React.FC<{
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center justify-between">
                     <span>Floor Plan</span>
-                    {formData.floorPlanUrl && (
+                    {hasFloorPlanAttachment && (
                       <span className="text-xs font-normal text-emerald-600 flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Uploaded
+                        <Check className="w-3 h-3" /> File uploaded
                       </span>
                     )}
                   </label>
@@ -897,41 +949,23 @@ export const LeadModal: React.FC<{
                         </span>
                       </button>
                     ) : (
-                      <div className="flex items-center gap-2 p-3 border border-gray-200 rounded-xl bg-gray-50">
-                        <div className="bg-white p-2 rounded-lg border border-gray-200 text-orange-600">
-                          <FileText className="w-5 h-5" />
+                      <div className="w-full px-4 py-8 border-2 border-dashed border-emerald-500 bg-emerald-50/30 rounded-xl flex flex-col items-center justify-center gap-3 relative group">
+                        <div className="bg-emerald-100 p-2.5 rounded-full ring-4 ring-emerald-50 text-emerald-600">
+                          <Check className="w-6 h-6" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {pendingFloorPlanFile
-                              ? pendingFloorPlanFile.name
-                              : "Floor Plan Uploaded"}
-                          </p>
-                          {pendingFloorPlanFile ? (
-                            <p className="text-xs text-gray-500 truncate">
-                              Will upload after lead is created
-                            </p>
-                          ) : (
-                            <a
-                              href={formData.floorPlanUrl || ""}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-orange-600 hover:text-orange-700 hover:underline truncate"
-                            >
-                              View Document
-                            </a>
-                          )}
-                        </div>
+                        <p className="text-sm font-semibold text-emerald-900">
+                          File uploaded
+                        </p>
                         <button
                           type="button"
                           onClick={() => {
                             setPendingFloorPlanFile(null);
                             f("floorPlanUrl", "");
                           }}
-                          className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                          className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-red-500 transition-colors bg-white hover:bg-red-50 rounded-lg border border-gray-200 shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100"
                           title="Remove file"
                         >
-                          <X className="w-5 h-5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     )}

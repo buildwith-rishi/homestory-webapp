@@ -288,6 +288,7 @@ function App() {
                     "SUPER_ADMIN",
                     "ADMIN",
                     "LEAD_PROJECT_MANAGER",
+                    "HR",
                   ]}
                 >
                   <UserManagement />
