@@ -17,6 +17,7 @@ export interface NewEngineer {
   phone: string;
   role: string;
   department: string;
+  memberType: string;
 }
 
 const roleOptions = [
@@ -31,9 +32,6 @@ const roleOptions = [
   "Tile Setter",
   "Flooring Specialist",
   "General Contractor",
-  "Site Manager",
-  "Project Manager",
-  "Designer",
   "Other",
 ];
 
@@ -59,6 +57,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
     phone: "",
     role: "",
     department: "",
+    memberType: "VENDOR",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -107,12 +106,12 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
 
     try {
       await createTeamMember(formData);
-      toast.success(`${formData.name} has been added to the team!`);
+      toast.success(`${formData.name} has been added as a vendor!`);
       onAdd();
       handleClose();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to add team member.",
+        error instanceof Error ? error.message : "Failed to add vendor.",
       );
     } finally {
       setIsSubmitting(false);
@@ -126,6 +125,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
       phone: "",
       role: "",
       department: "",
+      memberType: "VENDOR",
     });
     setErrors({});
     onClose();
@@ -161,10 +161,10 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">
-                  Add New Team Member
+                  Add New Vendor
                 </h2>
                 <p className="text-orange-100 text-sm">
-                  Fill in the details below
+                  Fill in the vendor details below
                 </p>
               </div>
             </div>

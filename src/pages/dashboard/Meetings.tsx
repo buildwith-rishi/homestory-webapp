@@ -1823,10 +1823,7 @@ export const MeetingsPage: React.FC = () => {
                         <option value="">Select project (optional)</option>
                         {projects.map((project) => (
                           <option key={project.id} value={project.id}>
-                            {(project.projectName || project.name || "Untitled Project") +
-                              " (" +
-                              project.id +
-                              ")"}
+                            {project.projectName || project.name || "Untitled Project"}
                           </option>
                         ))}
                       </select>
@@ -1845,7 +1842,7 @@ export const MeetingsPage: React.FC = () => {
                       <option value="">Select lead (optional)</option>
                       {leads.map((lead) => (
                         <option key={lead.id} value={lead.id}>
-                          {(lead.name || "Unnamed Lead") + " (" + (lead.id || "") + ")"}
+                          {lead.name || "Unnamed Lead"}
                         </option>
                       ))}
                     </select>
