@@ -207,6 +207,15 @@ export function EngineerHome() {
     return labels[stage];
   };
 
+  const getProjectDisplayName = (project: {
+    name?: string;
+    projectName?: string;
+  }) => {
+    if (project.name?.trim()) return project.name;
+    if (project.projectName?.trim()) return project.projectName;
+    return "Untitled Project";
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 pb-20">
       <MobileHeader showNotifications />
@@ -415,7 +424,9 @@ export function EngineerHome() {
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-gray-500 truncate">
-                          {project?.name || "Unknown Project"}
+                          {project
+                            ? getProjectDisplayName(project)
+                            : "Unknown Project"}
                         </span>
                         <span
                           className={`text-xs px-1.5 py-0.5 rounded ${getPriorityBadge(task.priority || "MEDIUM")}`}
@@ -456,7 +467,7 @@ export function EngineerHome() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="font-bold text-gray-900 text-base">
-                        {project.name}
+                        {getProjectDisplayName(project)}
                       </h3>
                       <span
                         className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusPill(project.status)}`}
