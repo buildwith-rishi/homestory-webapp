@@ -31,7 +31,6 @@ import {
   User,
   Mic,
   Play,
-  Share2,
   ChevronDown,
   Search,
 } from "lucide-react";
@@ -1163,44 +1162,6 @@ export const MeetingDetailsPage: React.FC = () => {
     // TODO: Persist to API
   };
 
-  // Share AI Summary via WhatsApp
-  const handleShareWhatsApp = () => {
-    if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
-
-    const summary = meeting.aiAnalysis?.summary || (meeting as any).summary;
-    const keyPoints =
-      meeting.aiAnalysis?.keyPoints || (meeting as any).keyPoints || [];
-    const actionItems =
-      meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
-
-    let message = `*${meeting.title}* - AI Meeting Summary\n\n`;
-    message += `${summary}\n\n`;
-
-    if (keyPoints.length > 0) {
-      message += `*Key Points:*\n`;
-      keyPoints.forEach((point: any, idx: number) => {
-        const text =
-          typeof point === "string" ? point : point?.text || point?.point;
-        message += `${idx + 1}. ${text}\n`;
-      });
-      message += `\n`;
-    }
-
-    if (actionItems.length > 0) {
-      message += `*Action Items:*\n`;
-      actionItems.forEach((item: any, idx: number) => {
-        const text =
-          typeof item === "string"
-            ? item
-            : item?.task || item?.text || item?.action;
-        message += `✓ ${text}\n`;
-      });
-    }
-
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, "_blank");
-  };
-
   // Share AI Summary via Email — opens compose modal
   const resolveDefaultRecipientEmail = useCallback(
     async (currentMeeting: Meeting & { participants?: Participant[] }) => {
@@ -1694,14 +1655,6 @@ export const MeetingDetailsPage: React.FC = () => {
                   >
                     <Edit3 className="w-4 h-4" />
                     Edit
-                  </button>
-                  <button
-                    onClick={handleShareWhatsApp}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
-                    title="Share via WhatsApp"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    WhatsApp
                   </button>
                   <button
                     onClick={handleShareEmail}

@@ -77,9 +77,10 @@ export const LeadModal: React.FC<{
   onClose: () => void;
   lead?: Lead | null;
   onSave: (lead: Omit<Lead, "id">) => Promise<void>;
-  sources: LeadSource[];
+  sources?: LeadSource[];
+  statuses?: LeadStatus[];
   users?: AdminUser[];
-}> = ({ isOpen, onClose, lead, onSave, sources, users = [] }) => {
+}> = ({ isOpen, onClose, lead, onSave, sources = [], statuses = [], users = [] }) => {
   const defaultSources = [
     { value: "WEBSITE", label: "Website" },
     { value: "WHATSAPP", label: "WhatsApp" },
@@ -97,6 +98,14 @@ export const LeadModal: React.FC<{
   ];
 
   const availableSources = sources.length > 0 ? sources : defaultSources;
+  const defaultStatuses = [
+    { value: "NEW", label: "New" },
+    { value: "WORKING", label: "Working" },
+    { value: "QUALIFIED", label: "Qualified" },
+    { value: "DISQUALIFIED", label: "Disqualified" },
+    { value: "CONVERTED", label: "Converted" },
+  ];
+  const availableStatuses = statuses.length > 0 ? statuses : defaultStatuses;
 
   const [activeTab, setActiveTab] = useState<"basic" | "property">("basic");
 
@@ -452,6 +461,7 @@ export const LeadModal: React.FC<{
         email: formData.email || null,
         phone: formData.phone,
         source: formData.source || "WEBSITE",
+        status: formData.status || "NEW",
         score:
           formData.score !== null &&
           formData.score !== undefined &&
@@ -680,6 +690,23 @@ export const LeadModal: React.FC<{
                     className={selectClass()}
                   >
                     {availableSources.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Lead Status
+                  </label>
+                  <select
+                    value={formData.status || "NEW"}
+                    onChange={(e) => f("status", e.target.value)}
+                    className={selectClass()}
+                  >
+                    {availableStatuses.map((s) => (
                       <option key={s.value} value={s.value}>
                         {s.label}
                       </option>
@@ -1817,6 +1844,12 @@ export const LeadsPage: React.FC = () => {
 
   const isLeadUnassigned = (lead: Lead) => !lead.assignedToId && !lead.assignedTo?.id;
 
+  const isWebsiteSourceLead = (lead: Lead) =>
+    String(lead.source || "").toUpperCase() === "WEBSITE";
+
+  const isUnqualifiedLead = (lead: Lead) =>
+    lead.status === "DISQUALIFIED" || isWebsiteSourceLead(lead);
+
   const matchesLeadSearch = (lead: Lead) =>
     (lead.name?.toLowerCase() || "").includes(searchLower) ||
     (lead.email?.toLowerCase() || "").includes(searchLower) ||
@@ -1827,8 +1860,9 @@ export const LeadsPage: React.FC = () => {
     const matchesStage =
       selectedStage === "all" ||
       selectedStage === "__unassigned__" ||
-      (selectedStage === UNQUALIFIED_FILTER && lead.status === "DISQUALIFIED") ||
-      lead.status === selectedStage;
+      (selectedStage === UNQUALIFIED_FILTER
+        ? isUnqualifiedLead(lead)
+        : lead.status === selectedStage && !isWebsiteSourceLead(lead));
     return matchesSearch && matchesStage;
   });
 
@@ -1852,13 +1886,15 @@ export const LeadsPage: React.FC = () => {
     ? statuses.reduce(
         (acc, status) => {
           acc[status.value] = nonConvertedLeads.filter(
-            (l) => l.status === status.value,
+            (l) => l.status === status.value && !isWebsiteSourceLead(l),
           ).length;
           return acc;
         },
         {} as Record<string, number>,
       )
     : {};
+
+  const unqualifiedCount = nonConvertedLeads.filter(isUnqualifiedLead).length;
 
   const effectiveUnassignedCount = unassignedSourceLeads.filter(
     isLeadUnassigned,
@@ -1946,7 +1982,7 @@ export const LeadsPage: React.FC = () => {
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}
         >
-          Unqualified ({leadCounts.DISQUALIFIED || 0})
+          Unqualified ({unqualifiedCount})
         </button>
         <button
           onClick={() => {
@@ -2674,6 +2710,7 @@ export const LeadsPage: React.FC = () => {
         onClose={() => setShowAddModal(false)}
         onSave={handleCreateLead}
         sources={sources}
+        statuses={statuses}
         users={bdrUsers}
       />
 
@@ -2686,6 +2723,7 @@ export const LeadsPage: React.FC = () => {
         lead={leadToEdit}
         onSave={handleUpdateLead}
         sources={sources}
+        statuses={statuses}
         users={bdrUsers}
       />
 

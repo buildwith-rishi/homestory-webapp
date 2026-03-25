@@ -40,6 +40,11 @@ function formatRoleName(role: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const EXCLUDED_VENDOR_ROLE_FILTERS = new Set([
+  "Project Manager",
+  "Lead Project Manager",
+]);
+
 function toEngineer(m: TeamMember): Engineer {
   return {
     id: String(m.id),
@@ -92,6 +97,7 @@ export const EngineersPage: React.FC = () => {
     "all",
     ...Array.from(new Set(engineers.map((e) => formatRoleName(e.role))))
       .filter((role) => role !== "Site Manager")
+      .filter((role) => !EXCLUDED_VENDOR_ROLE_FILTERS.has(role))
       .sort(),
   ];
 

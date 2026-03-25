@@ -75,11 +75,18 @@ const statusToColumn: Record<string, string> = {
   CONVERTED: "col-converted",
 };
 
+const isWebsiteSourceLead = (lead: Lead) =>
+  String(lead.source || "").toUpperCase() === "WEBSITE";
+
+const isUnqualifiedLead = (lead: Lead) =>
+  lead.status === "DISQUALIFIED" || isWebsiteSourceLead(lead);
+
 // Map column ID to API status
 const columnToStatus: Record<string, string> = {
   "col-new": "NEW",
   "col-working": "WORKING",
   "col-qualified": "QUALIFIED",
+  "col-unqualified": "DISQUALIFIED",
   "col-disqualified": "DISQUALIFIED",
   "col-converted": "CONVERTED",
 };
@@ -351,6 +358,12 @@ const KanbanView: React.FC = () => {
         taskIds: [],
         color: "#10B981", // Emerald
       },
+      "col-unqualified": {
+        id: "col-unqualified",
+        title: "Unqualified",
+        taskIds: [],
+        color: "#9CA3AF", // Slate
+      },
       "col-disqualified": {
         id: "col-disqualified",
         title: "Disqualified",
@@ -369,6 +382,7 @@ const KanbanView: React.FC = () => {
       "col-new",
       "col-working",
       "col-qualified",
+      "col-unqualified",
       "col-disqualified",
       "col-converted",
     ],
@@ -500,7 +514,9 @@ const KanbanView: React.FC = () => {
       
       // Use API status field, fallback to NEW if not set
       const apiStatus = lead.status || "NEW";
-      const columnId = statusToColumn[apiStatus] || "col-new";
+      const columnId = isUnqualifiedLead(lead)
+        ? "col-unqualified"
+        : statusToColumn[apiStatus] || "col-new";
       if (!columns[columnId]) return;
 
       tasks[lead.id] = {
