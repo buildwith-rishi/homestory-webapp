@@ -30,7 +30,7 @@ import {
 import toast from "react-hot-toast";
 import { useEmailTemplateStore } from "../../stores/emailTemplateStore";
 import { EmailTemplate, Project } from "../../types";
-import { listProjects } from "../../services/projectApi";
+import { getProjectById, listProjects } from "../../services/projectApi";
 import EmailSendAPI, {
   SendEmailRequest,
   SendTemplateEmailRequest,
@@ -426,18 +426,34 @@ export const EmailEditor: React.FC = () => {
   };
 
   /** Select a project: auto-fill TO + NAME and (re-)populate template vars */
-  const handleSelectProject = (project: Project) => {
+  const handleSelectProject = async (project: Project) => {
     setSelectedProject(project);
-    const email = project.lead?.email || project.account?.email || "";
-    const name = project.lead?.name || project.account?.name || "";
-    if (email) setTo(email);
-    if (name) setToName(name);
     setShowProjectDropdown(false);
     setProjectSearch("");
 
-    // If a template is already applied, refresh variable values and push to editor
+    let resolvedProject = project;
+    let email = project.lead?.email || project.account?.email || "";
+    let name = project.lead?.name || project.account?.name || "";
+
+    // List payload can miss contact details; hydrate from project detail endpoint.
+    if (!email || !name) {
+      try {
+        const fullProject = await getProjectById(project.id);
+        resolvedProject = fullProject;
+        setSelectedProject(fullProject);
+        email = fullProject.lead?.email || fullProject.account?.email || email;
+        name = fullProject.lead?.name || fullProject.account?.name || name;
+      } catch {
+        // Keep list payload values if detail fetch fails.
+      }
+    }
+
+    setTo(email || "");
+    setToName(name || "");
+
+    // If a template is already applied, refresh variable values and push to editor.
     if (appliedTemplate) {
-      const pv = buildVarsFromProject(project);
+      const pv = buildVarsFromProject(resolvedProject);
       const baseVars =
         appliedTemplate.variables && appliedTemplate.variables.length > 0
           ? appliedTemplate.variables.reduce<Record<string, string>>(
@@ -450,7 +466,6 @@ export const EmailEditor: React.FC = () => {
           : pv;
       const mergedVars = { ...pv, ...baseVars };
       setTemplateVarValues(mergedVars);
-      // Resolve placeholders in the raw template and push to editor
       const rawHtml = appliedTemplateRawHtml || appliedTemplate.htmlBody || "";
       const rawSubject =
         appliedTemplateRawSubject || appliedTemplate.subject || "";
@@ -460,7 +475,11 @@ export const EmailEditor: React.FC = () => {
       if (resolvedSubject) setSubject(resolvedSubject);
     }
 
-    toast.success(`Project "${project.projectName}" selected`);
+    if (email) {
+      toast.success(`Project "${project.projectName}" selected`);
+    } else {
+      toast("Project selected, but no customer email found", { icon: "\u2139\ufe0f" });
+    }
   };
 
   // ── Template actions ────────────────────────────────────────────

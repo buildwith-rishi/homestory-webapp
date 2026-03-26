@@ -1273,9 +1273,6 @@ const LeadDetails: React.FC = () => {
                         className="p-3 bg-gray-50 rounded-lg border border-gray-100"
                       >
                         <div className="flex items-start justify-between mb-1">
-                          <span className="text-xs font-medium text-gray-900">
-                            {note.type}
-                          </span>
                           <span className="text-xs text-gray-500">
                             {new Date(note.createdAt).toLocaleDateString(
                               "en-US",
