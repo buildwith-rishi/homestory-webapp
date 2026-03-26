@@ -4,31 +4,23 @@ import {
   Camera,
   CheckSquare,
   AlertCircle,
-  ChevronRight,
-  MapPin,
-  Clock,
-  TrendingUp,
   Wifi,
   WifiOff,
   Calendar,
   ListTodo,
   ClipboardCheck,
   ArrowRight,
-  Loader2,
   RefreshCw,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAuthStore } from "../../stores/authStore";
-import { ProjectStage, Task } from "../../types";
 import { Spinner } from "../../components/ui";
 import {
   getSiteEngineerTasks,
-  getSiteEngineerProjects,
   getSiteEngineerIssues,
   getSiteEngineerProfile,
   type SiteEngineerTask,
-  type SiteEngineerProject,
   type SiteEngineerProfile,
   type SiteEngineerIssue,
 } from "../../services/siteEngineerApi";
@@ -53,7 +45,6 @@ export function EngineerHome() {
 
   // Site engineer API data
   const [seTasks, setSeTasks] = useState<SiteEngineerTask[]>([]);
-  const [seProjects, setSeProjects] = useState<SiteEngineerProject[]>([]);
   const [seProfile, setSeProfile] = useState<SiteEngineerProfile | null>(null);
   const [seIssues, setSeIssues] = useState<SiteEngineerIssue[]>([]);
 
@@ -62,16 +53,14 @@ export function EngineerHome() {
     setIsRefreshing(true);
     clearError();
     try {
-      const [, , tasks, seProjs, profile, issues] = await Promise.all([
+      const [, , tasks, profile, issues] = await Promise.all([
         fetchAllTasks(),
         fetchUpcomingTasks(),
         getSiteEngineerTasks(),
-        getSiteEngineerProjects(),
         getSiteEngineerProfile(),
         getSiteEngineerIssues(),
       ]);
       setSeTasks(tasks);
-      setSeProjects(seProjs);
       setSeProfile(profile);
       setSeIssues(issues);
     } catch (err) {
@@ -94,13 +83,11 @@ export function EngineerHome() {
     // Load from site engineer APIs
     Promise.all([
       getSiteEngineerTasks(),
-      getSiteEngineerProjects(),
       getSiteEngineerProfile(),
       getSiteEngineerIssues(),
     ])
-      .then(([tasks, seProjs, profile, issues]) => {
+      .then(([tasks, profile, issues]) => {
         setSeTasks(tasks);
-        setSeProjects(seProjs);
         setSeProfile(profile);
         setSeIssues(issues);
       })
@@ -118,23 +105,6 @@ export function EngineerHome() {
     };
   }, [fetchProjects, fetchAllTasks, fetchUpcomingTasks]);
 
-  // Prefer SE API data; fall back to project store
-  const seProjectIds = new Set(seProjects.map((p) => p.id));
-  const mergedProjects = [
-    ...seProjects,
-    ...(projects || []).filter((p) => !seProjectIds.has(p.id)),
-  ];
-  const orderedProjects = [...mergedProjects].sort((a, b) => {
-    const rank = (status?: string) => {
-      const s = (status || "").toUpperCase();
-      if (s === "ACTIVE") return 0;
-      if (s === "ON_HOLD") return 1;
-      if (s === "COMPLETED") return 2;
-      return 3;
-    };
-    return rank(a.status) - rank(b.status);
-  });
-
   const seTaskIds = new Set(seTasks.map((t) => t.id));
   const today = new Date().toISOString().split("T")[0];
   const seTodayTasks = seTasks.filter(
@@ -148,14 +118,6 @@ export function EngineerHome() {
   // Derived stats – come from real API data only
   const todayPhotos = seProfile?.stats?.totalPhotos ?? 0;
   const openIssues = seIssues.filter((i) => i.status !== "RESOLVED").length;
-
-  const statusPill = (status?: string) => {
-    const s = (status || "").toUpperCase();
-    if (s === "ACTIVE") return "bg-green-100 text-green-700";
-    if (s === "ON_HOLD") return "bg-yellow-100 text-yellow-700";
-    if (s === "COMPLETED") return "bg-blue-100 text-blue-700";
-    return "bg-gray-100 text-gray-700";
-  };
 
   // Get upcoming tasks from SE API + store (next 7 days, limited to 5)
   const seUpcoming = seTasks
@@ -178,7 +140,9 @@ export function EngineerHome() {
   };
 
   // Format due date relative
-  const formatDueDate = (dueDate: string) => {
+  const formatDueDate = (dueDate?: string) => {
+    if (!dueDate) return "No due date";
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const due = new Date(dueDate);
@@ -194,17 +158,6 @@ export function EngineerHome() {
       day: "numeric",
       month: "short",
     });
-  };
-
-  const getStageLabel = (stage: ProjectStage) => {
-    const labels: Record<ProjectStage, string> = {
-      [ProjectStage.PRE_CONSTRUCTION]: "Pre-Construction",
-      [ProjectStage.EXECUTION]: "Execution",
-      [ProjectStage.FINISHING]: "Finishing",
-      [ProjectStage.FINAL_FIXES]: "Final Fixes",
-      [ProjectStage.COMPLETE]: "Complete",
-    };
-    return labels[stage];
   };
 
   const getProjectDisplayName = (project: {
@@ -445,93 +398,6 @@ export function EngineerHome() {
               })}
             </div>
           )}
-        </div>
-
-        {/* Project Status */}
-        <div>
-          <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-            <div className="w-1 h-4 bg-orange-500 rounded-full" />
-            Project Status
-          </h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-            {orderedProjects.map((project) => {
-              const projectTasks = (allTasks || []).filter(
-                (t) => t.projectId === project.id && !t.completed,
-              );
-              return (
-                <div
-                  key={project.id}
-                  className="flex-shrink-0 w-80 bg-white rounded-xl shadow-sm border border-gray-200 p-4 cursor-pointer active:scale-[0.98] transition-all hover:shadow-md"
-                  onClick={() => navigate(`/dashboard/projects/${project.id}`)}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 text-base">
-                        {getProjectDisplayName(project)}
-                      </h3>
-                      <span
-                        className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusPill(project.status)}`}
-                      >
-                        {(project.status || "UNKNOWN").replace("_", " ")}
-                      </span>
-                      <div className="flex items-center gap-1 mt-1">
-                        <MapPin className="w-3 h-3 text-gray-500" />
-                        <p className="text-xs text-gray-600">
-                          {project.location}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 text-gray-600">
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        <span>{getStageLabel(project.stage)}</span>
-                      </div>
-                      <span className="font-bold text-orange-600">
-                        {project.progress}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div
-                        className="bg-gradient-to-r from-orange-500 to-orange-600 h-2.5 rounded-full transition-all"
-                        style={{ width: `${project.progress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <CheckSquare className="w-4 h-4 text-orange-500" />
-                      <span className="text-sm font-medium">
-                        {projectTasks.length}{" "}
-                        {projectTasks.length === 1 ? "Task" : "Tasks"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Clock className="w-3 h-3" />
-                      <span>Today</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {orderedProjects.length === 0 && (
-              <div className="flex-shrink-0 w-80 bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <MapPin className="w-8 h-8 text-gray-400" />
-                </div>
-                <p className="text-sm font-medium text-gray-900 mb-1">
-                  No Assigned Projects
-                </p>
-                <p className="text-xs text-gray-500">
-                  You'll see your assigned projects here
-                </p>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

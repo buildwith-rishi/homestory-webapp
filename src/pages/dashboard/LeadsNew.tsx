@@ -159,6 +159,22 @@ export const LeadModal: React.FC<{
     canWhatsApp: true,
   };
 
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("");
+
+  // Get unique roles from users list
+  const userRoles = React.useMemo(() => {
+    return Array.from(new Set(users.map((u) => u.role)))
+      .filter(Boolean)
+      .sort();
+  }, [users]);
+
+  // Filter users based on selected role
+  const filteredUsers = React.useMemo(() => {
+    return selectedRoleFilter
+      ? users.filter((u) => u.role === selectedRoleFilter)
+      : users;
+  }, [selectedRoleFilter, users]);
+
   const [formData, setFormData] = useState<Omit<Lead, "id">>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -268,6 +284,17 @@ export const LeadModal: React.FC<{
   useEffect(() => {
     if (lead) {
       const existingFloorPlanUrl = getExistingFloorPlanUrl(lead);
+
+      // Initialize role filter based on assigned user
+      if (lead.assignedToId) {
+        const assignedUser = users.find((u) => u.id === lead.assignedToId);
+        if (assignedUser) {
+          setSelectedRoleFilter(assignedUser.role);
+        }
+      } else {
+        setSelectedRoleFilter("");
+      }
+
       setFormData({
         name: lead.name || "",
         email: lead.email || "",
@@ -318,6 +345,7 @@ export const LeadModal: React.FC<{
       });
     } else {
       setFormData(emptyForm);
+      setSelectedRoleFilter("");
     }
     setErrors({});
     setActiveTab("basic");
@@ -736,15 +764,33 @@ export const LeadModal: React.FC<{
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Lead By
+                    Role Filter
+                  </label>
+                  <select
+                    value={selectedRoleFilter}
+                    onChange={(e) => setSelectedRoleFilter(e.target.value)}
+                    className={selectClass()}
+                  >
+                    <option value="">All Roles</option>
+                    {userRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {formatEnumValue(role)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Assigned Member
                   </label>
                   <select
                     value={formData.assignedToId || ""}
                     onChange={(e) => f("assignedToId", e.target.value || null)}
                     className={selectClass()}
                   >
-                    <option value="">Select internal team member...</option>
-                    {users.map((u) => (
+                    <option value="">Select team member...</option>
+                    {filteredUsers.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name || u.email}
                       </option>

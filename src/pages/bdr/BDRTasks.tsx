@@ -114,11 +114,11 @@ const TASK_TYPE_ICONS: Record<string, typeof Briefcase> = {
 /** Convert UI status ("TODO" / "IN_PROGRESS" / "COMPLETED") → API status string */
 const toAPIStatus = (s: string): string => {
   const m: Record<string, string> = {
-    TODO: "PENDING",
+    TODO: "TODO",
     IN_PROGRESS: "IN_PROGRESS",
     COMPLETED: "COMPLETED",
   };
-  return m[s.toUpperCase()] ?? "PENDING";
+  return m[s.toUpperCase()] ?? "TODO";
 };
 
 /** Convert API status string → UI status enum */
@@ -312,7 +312,7 @@ export function BDRTasks() {
       if (selectedTask.taskType === "Project Task") {
         // Handle Matrix/Site Engineer Task
         const apiStatus = toAPIStatus(editStatus);
-        const seStatus = apiStatus === "PENDING" ? "TODO" : apiStatus;
+        const seStatus = apiStatus;
 
         const res = await updateSiteEngineerTaskStatus(selectedTask.id, {
           status: seStatus as "TODO" | "IN_PROGRESS" | "COMPLETED",

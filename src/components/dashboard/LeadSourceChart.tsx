@@ -1,133 +1,141 @@
 import React, { useState, useEffect } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import {
+  Globe,
+  Instagram,
+  Users,
+  Store,
+  Phone,
+  MoreHorizontal,
+  Mail,
+  Megaphone,
+} from "lucide-react";
 import Card from "../ui/Card";
 import { listLeads } from "../../services/leadApi";
 
-const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
-  website: { label: "Website", color: "#DC5800" },
-  instagram: { label: "Instagram", color: "#F59E0B" },
-  referral: { label: "Referrals", color: "#10B981" },
-  walk_in: { label: "Walk In", color: "#3B82F6" },
-  other: { label: "Others", color: "#8B5CF6" },
-};
-
-const COLORS = ["#DC5800", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6"];
-
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; payload: { color: string } }>;
-}
-
-const CustomTooltip: React.FC<CustomTooltipProps> = ({
-  active,
-  payload,
-  total = 0,
-}: CustomTooltipProps & { total?: number }) => {
-  if (active && payload && payload.length) {
-    const percentage =
-      total > 0 ? ((payload[0].value / total) * 100).toFixed(1) : "0";
-
-    return (
-      <div className="bg-white px-4 py-2 rounded-lg shadow-lg border border-gray-200">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: payload[0].payload.color }}
-          />
-          <span className="text-xs text-gray-600">{payload[0].name}</span>
-        </div>
-        <p className="text-sm font-semibold text-gray-900 mt-1">
-          {payload[0].value} leads ({percentage}%)
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
-interface LegendEntry {
-  name: string;
-  value: number;
-  color: string;
-}
-
-const CustomLegend = ({ payload }: { payload: LegendEntry[] }) => {
-  const total = payload.reduce((sum, item) => sum + item.value, 0);
-
-  return (
-    <div className="mt-4 space-y-2">
-      {payload.map((entry: LegendEntry, index: number) => {
-        const percentage = ((entry.value / total) * 100).toFixed(0);
-        return (
-          <div
-            key={index}
-            className="flex items-center justify-between text-xs"
-          >
-            <div className="flex items-center gap-2">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: entry.color }}
-              />
-              <span className="text-gray-700">{entry.value}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-gray-900 font-medium">{entry.name}</span>
-              <span className="text-gray-500 min-w-[40px] text-right">
-                {percentage}%
-              </span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+const SOURCE_CONFIG: Record<
+  string,
+  { label: string; color: string; bgColor: string; barColor: string; icon: any }
+> = {
+  website: {
+    label: "Website",
+    color: "text-orange-600",
+    bgColor: "bg-orange-100",
+    barColor: "bg-orange-600",
+    icon: Globe,
+  },
+  instagram: {
+    label: "Instagram",
+    color: "text-pink-600",
+    bgColor: "bg-pink-100",
+    barColor: "bg-pink-600",
+    icon: Instagram,
+  },
+  referral: {
+    label: "Referrals",
+    color: "text-emerald-600",
+    bgColor: "bg-emerald-100",
+    barColor: "bg-emerald-600",
+    icon: Users,
+  },
+  walk_in: {
+    label: "Walk In",
+    color: "text-blue-600",
+    bgColor: "bg-blue-100",
+    barColor: "bg-blue-600",
+    icon: Store,
+  },
+  phone: {
+    label: "Phone",
+    color: "text-cyan-600",
+    bgColor: "bg-cyan-100",
+    barColor: "bg-cyan-600",
+    icon: Phone,
+  },
+  email: {
+    label: "Email",
+    color: "text-indigo-600",
+    bgColor: "bg-indigo-100",
+    barColor: "bg-indigo-600",
+    icon: Mail,
+  },
+  facebook: {
+    label: "Facebook",
+    color: "text-blue-700",
+    bgColor: "bg-blue-50",
+    barColor: "bg-blue-700",
+    icon: Megaphone,
+  },
+  other: {
+    label: "Others",
+    color: "text-violet-600",
+    bgColor: "bg-violet-100",
+    barColor: "bg-violet-600",
+    icon: MoreHorizontal,
+  },
 };
 
 export const LeadSourceChart: React.FC = () => {
   const [data, setData] = useState<
-    { name: string; value: number; color: string }[]
+    {
+      key: string;
+      name: string;
+      value: number;
+      percentage: number;
+      config: any;
+    }[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [totalLeads, setTotalLeads] = useState(0);
 
   useEffect(() => {
     const fetchLeads = async () => {
       setLoading(true);
       try {
-        // Fetch all leads (large limit to get full source distribution)
         const res = await listLeads({ limit: 1000 });
         const leads = res.leads || [];
+        setTotalLeads(leads.length);
 
-        // Group by source
         const counts: Record<string, number> = {};
         leads.forEach((lead) => {
           const src = (lead.source || "other").toLowerCase();
-          counts[src] = (counts[src] || 0) + 1;
+          // Normalize common variations
+          const normalized = src.includes("insta")
+            ? "instagram"
+            : src.includes("facebook")
+              ? "facebook"
+              : src.includes("refer")
+                ? "referral"
+                : src.includes("walk")
+                  ? "walk_in"
+                  : src.includes("site") || src.includes("web")
+                    ? "website"
+                    : src.includes("phone") || src.includes("call")
+                      ? "phone"
+                      : src.includes("email")
+                        ? "email"
+                        : SOURCE_CONFIG[src]
+                          ? src
+                          : "other";
+          counts[normalized] = (counts[normalized] || 0) + 1;
         });
 
-        // Build chart data ordered by SOURCE_CONFIG keys
-        const orderedKeys = Object.keys(SOURCE_CONFIG);
-        const dynamicEntries = Object.entries(counts)
-          .filter(([k]) => !orderedKeys.includes(k.toLowerCase()))
-          .map(([k, v], i) => ({
-            name: k.charAt(0).toUpperCase() + k.slice(1),
-            value: v,
-            color: COLORS[i % COLORS.length],
-          }));
+        const total = leads.length;
+        const processedData = Object.entries(counts)
+          .map(([key, value]) => {
+            const config = SOURCE_CONFIG[key] || SOURCE_CONFIG["other"];
+            return {
+              key,
+              name: config.label,
+              value,
+              percentage: total > 0 ? (value / total) * 100 : 0,
+              config,
+            };
+          })
+          .sort((a, b) => b.value - a.value);
 
-        const builtData = [
-          ...orderedKeys
-            .filter((k) => counts[k] > 0)
-            .map((k) => ({
-              name: SOURCE_CONFIG[k].label,
-              value: counts[k],
-              color: SOURCE_CONFIG[k].color,
-            })),
-          ...dynamicEntries,
-        ].sort((a, b) => b.value - a.value);
-
-        setData(builtData);
+        setData(processedData);
       } catch (err) {
-        console.error("LeadSourceChart fetch failed:", err);
+        console.error("Failed to fetch lead sources", err);
       } finally {
         setLoading(false);
       }
@@ -135,84 +143,98 @@ export const LeadSourceChart: React.FC = () => {
     fetchLeads();
   }, []);
 
-  const total = data.reduce((sum, item) => sum + item.value, 0);
-
   return (
-    <Card className="p-6 animate-scale-in">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Lead Sources</h3>
-        <p className="text-sm text-gray-500 mt-1">Distribution by channel</p>
+    <Card className="h-full flex flex-col">
+      <div className="p-5 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Lead Sources
+            </h3>
+            <p className="text-sm text-gray-500">Distribution by channel</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-gray-900">{totalLeads}</p>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+              Total Leads
+            </p>
+          </div>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-60">
-          <div className="w-8 h-8 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : (
-        <div className="flex items-center justify-center">
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={
-                  data.length > 0
-                    ? data
-                    : [{ name: "No Data", value: 1, color: "#E5E7EB" }]
-                }
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {(data.length > 0 ? data : [{ color: "#E5E7EB" }]).map(
-                  (entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ),
-                )}
-              </Pie>
-              <Tooltip content={<CustomTooltip total={total} />} />
-              <text
-                x="50%"
-                y="50%"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="fill-gray-900 text-2xl font-bold"
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  fill: "#111827",
-                }}
-              >
-                {total}
-              </text>
-              <text
-                x="50%"
-                y="50%"
-                dy={20}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="fill-gray-500 text-xs"
-              >
-                Total Leads
-              </text>
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {!loading && data.length > 0 && <CustomLegend payload={data} />}
-
-      {!loading && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">Top Source:</span>
-            <span className="font-semibold text-gray-900">
-              {data.length > 0
-                ? `${data[0].name} (${((data[0].value / total) * 100).toFixed(0)}%)`
-                : "No data"}
-            </span>
+      <div className="p-5 flex-1 overflow-y-auto custom-scrollbar">
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="animate-pulse flex items-center gap-4">
+                <div className="w-10 h-10 bg-gray-100 rounded-lg"></div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-gray-100 rounded w-1/4"></div>
+                  <div className="h-2 bg-gray-100 rounded w-full"></div>
+                </div>
+              </div>
+            ))}
           </div>
+        ) : data.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center py-8">
+            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
+              <Globe className="w-6 h-6 text-gray-300" />
+            </div>
+            <p className="text-gray-900 font-medium">No Data Available</p>
+            <p className="text-sm text-gray-500 max-w-[200px]">
+              Start adding leads to see source analytics here
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {data.map((item) => {
+              const Icon = item.config.icon;
+              return (
+                <div key={item.key} className="group">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.config.bgColor} ${item.config.color}`}
+                      >
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {item.name}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-gray-900">
+                        {item.value}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-1">
+                        ({item.percentage.toFixed(1)}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${item.config.barColor}`}
+                      style={{
+                        width: `${item.percentage}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {!loading && data.length > 0 && (
+        <div className="p-4 bg-gray-50 border-t border-gray-100 text-center rounded-b-xl">
+          <p className="text-xs text-gray-500">
+            Top source is{" "}
+            <span className="font-semibold text-gray-900">{data[0].name}</span>{" "}
+            with {data[0].percentage.toFixed(0)}% of total leads
+          </p>
         </div>
       )}
     </Card>

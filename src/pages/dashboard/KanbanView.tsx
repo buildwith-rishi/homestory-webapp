@@ -79,7 +79,8 @@ const isWebsiteSourceLead = (lead: Lead) =>
   String(lead.source || "").toUpperCase() === "WEBSITE";
 
 const isUnqualifiedLead = (lead: Lead) =>
-  lead.status === "DISQUALIFIED" || isWebsiteSourceLead(lead);
+  lead.status === "DISQUALIFIED" ||
+  (isWebsiteSourceLead(lead) && lead.status !== "CONVERTED");
 
 // Map column ID to API status
 const columnToStatus: Record<string, string> = {

@@ -148,7 +148,7 @@ export interface BDRTaskAPIItem {
   dueDate: string;
   dueTime?: string | null;
   priority?: "HIGH" | "MEDIUM" | "LOW" | null;
-  status: string; // "todo" | "inprogress" | "completed" (lowercase from API)
+  status: string; // Task status from API (e.g. TODO / IN_PROGRESS / COMPLETED)
   notes?: string | null;
   completionPhoto?: string | null;
   createdAt: string;
@@ -192,7 +192,10 @@ export const getBDRTasks = (
     limit: String(limit),
     offset: String(offset),
   });
-  if (status) params.set("status", status);
+  if (status) {
+    const normalizedStatus = status.toUpperCase();
+    params.set("status", normalizedStatus);
+  }
   return fetchAPI<BDRTasksResponse>(`/api/bdr/tasks?${params.toString()}`, {
     method: "GET",
   });

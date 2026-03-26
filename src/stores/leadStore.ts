@@ -133,7 +133,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
   fetchLeads: async () => {
     set({ isLoading: true });
     try {
-      const response = await LeadAPI.listLeads({ limit: 100 });
+      const response = await LeadAPI.listLeads({ limit: 1000 });
       console.log("Fetched leads from API:", response);
 
       // Convert API leads to frontend Lead type

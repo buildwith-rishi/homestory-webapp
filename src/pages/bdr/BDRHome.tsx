@@ -24,21 +24,50 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useAuthStore } from "../../stores/authStore";
 import { ProjectStage } from "../../types";
 import { Spinner } from "../../components/ui";
-import { getBDRLeads, getBDRMeetings, BDRMeeting } from "../../services/bdrApi";
+import {
+  getBDRLeads,
+  getBDRMeetings,
+  getBDRTasks,
+  BDRMeeting,
+  BDRTaskAPIItem,
+} from "../../services/bdrApi";
+
+type BDRHomeTask = {
+  id: string;
+  title: string;
+  dueDate: string;
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  status: "TODO" | "IN_PROGRESS" | "COMPLETED";
+  completed: boolean;
+};
+
+const fromBDRApiStatus = (status: string): BDRHomeTask["status"] => {
+  const normalized = status.toLowerCase();
+  if (normalized === "completed") return "COMPLETED";
+  if (normalized === "in_progress" || normalized === "inprogress") {
+    return "IN_PROGRESS";
+  }
+  return "TODO";
+};
+
+const mapBDRHomeTask = (task: BDRTaskAPIItem): BDRHomeTask => {
+  const status = fromBDRApiStatus(task.status);
+  return {
+    id: task.id,
+    title: task.title,
+    dueDate: task.dueDate?.split("T")[0] || "",
+    priority: task.priority || "MEDIUM",
+    status,
+    completed: status === "COMPLETED",
+  };
+};
 
 export function BDRHome() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const {
     projects,
-    allTasks,
-    upcomingTasks,
-    tasksLoading,
-    tasksError,
     fetchProjects,
-    fetchAllTasks,
-    fetchUpcomingTasks,
-    clearError,
   } = useProjectStore();
   const [greeting, setGreeting] = useState("Good morning");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -50,6 +79,25 @@ export function BDRHome() {
   const [meetingsTotal, setMeetingsTotal] = useState(0);
   const [bdrLoading, setBdrLoading] = useState(true);
   const [bdrError, setBdrError] = useState<string | null>(null);
+  const [bdrTasks, setBdrTasks] = useState<BDRHomeTask[]>([]);
+  const [bdrTasksLoading, setBdrTasksLoading] = useState(true);
+  const [bdrTasksError, setBdrTasksError] = useState<string | null>(null);
+
+  const loadBDRTasks = useCallback(async () => {
+    setBdrTasksLoading(true);
+    setBdrTasksError(null);
+    try {
+      // BDR must use dedicated endpoint, not generic /api/tasks.
+      const taskRes = await getBDRTasks(50, 0, "TODO");
+      setBdrTasks((taskRes.tasks || []).map(mapBDRHomeTask));
+    } catch (err) {
+      setBdrTasksError(
+        err instanceof Error ? err.message : "Failed to load tasks",
+      );
+    } finally {
+      setBdrTasksLoading(false);
+    }
+  }, []);
 
   const loadBDRData = useCallback(async () => {
     setBdrLoading(true);
@@ -71,9 +119,8 @@ export function BDRHome() {
 
   const handleRetryTasks = async () => {
     setIsRefreshing(true);
-    clearError();
     try {
-      await Promise.all([fetchAllTasks(), fetchUpcomingTasks(), loadBDRData()]);
+      await Promise.all([loadBDRTasks(), loadBDRData()]);
     } finally {
       setIsRefreshing(false);
     }
@@ -86,9 +133,8 @@ export function BDRHome() {
     else setGreeting("Good evening");
 
     fetchProjects();
-    fetchAllTasks();
-    fetchUpcomingTasks();
     loadBDRData();
+  loadBDRTasks();
 
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -99,14 +145,13 @@ export function BDRHome() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [fetchProjects, fetchAllTasks, fetchUpcomingTasks, loadBDRData]);
+  }, [fetchProjects, loadBDRData, loadBDRTasks]);
 
   const activeProjects = (projects || []).filter((p) => p.status === "active");
-  const todayTasks = (allTasks || []).filter(
-    (t) => !t.completed && t.dueDate === new Date().toISOString().split("T")[0],
-  );
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayTasks = bdrTasks.filter((t) => !t.completed && t.dueDate === todayStr);
 
-  const displayUpcomingTasks = (upcomingTasks || [])
+  const displayUpcomingTasks = bdrTasks
     .filter((t) => !t.completed)
     .slice(0, 5);
 
@@ -415,7 +460,7 @@ export function BDRHome() {
               Upcoming Tasks
             </h2>
             <div className="flex items-center gap-2">
-              {tasksError && (
+              {bdrTasksError && (
                 <button
                   onClick={handleRetryTasks}
                   disabled={isRefreshing}
@@ -436,12 +481,12 @@ export function BDRHome() {
             </div>
           </div>
 
-          {tasksLoading || isRefreshing ? (
+          {bdrTasksLoading || isRefreshing ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
               <Spinner size="md" color="brand" className="mx-auto" />
               <p className="text-xs text-gray-500 mt-2">Loading tasks...</p>
             </div>
-          ) : tasksError ? (
+          ) : bdrTasksError ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
               <p className="text-sm font-medium text-gray-900">
                 Couldn't load tasks
@@ -467,9 +512,6 @@ export function BDRHome() {
           ) : (
             <div className="space-y-2">
               {displayUpcomingTasks.map((task) => {
-                const project = (projects || []).find(
-                  (p) => p.id === task.projectId,
-                );
                 return (
                   <div
                     key={task.id}
@@ -478,14 +520,14 @@ export function BDRHome() {
                   >
                     <div
                       className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        task.priority === "URGENT" || task.priority === "HIGH"
+                        task.priority === "HIGH"
                           ? "bg-red-100"
                           : "bg-orange-100"
                       }`}
                     >
                       <ListTodo
                         className={`w-5 h-5 ${
-                          task.priority === "URGENT" || task.priority === "HIGH"
+                          task.priority === "HIGH"
                             ? "text-red-600"
                             : "text-orange-600"
                         }`}
@@ -496,9 +538,7 @@ export function BDRHome() {
                         {task.title}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-gray-500 truncate">
-                          {project?.name || "BDR Task"}
-                        </span>
+                        <span className="text-xs text-gray-500 truncate">BDR Task</span>
                         <span
                           className={`text-xs px-1.5 py-0.5 rounded ${getPriorityBadge(task.priority || "MEDIUM")}`}
                         >
@@ -524,11 +564,12 @@ export function BDRHome() {
             <div className="w-1 h-4 bg-orange-500 rounded-full" />
             Active Projects
           </h2>
+          <p className="text-xs text-gray-500 mb-2 px-1">
+            Task counts on this card use BDR task data from /api/bdr/tasks.
+          </p>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
             {activeProjects.map((project) => {
-              const projectTasks = (allTasks || []).filter(
-                (t) => t.projectId === project.id && !t.completed,
-              );
+              const pendingTaskCount = bdrTasks.filter((t) => !t.completed).length;
               return (
                 <div
                   key={project.id}
@@ -572,8 +613,7 @@ export function BDRHome() {
                     <div className="flex items-center gap-1.5 text-gray-700">
                       <CheckSquare className="w-4 h-4 text-orange-500" />
                       <span className="text-sm font-medium">
-                        {projectTasks.length}{" "}
-                        {projectTasks.length === 1 ? "Task" : "Tasks"}
+                        {pendingTaskCount} {pendingTaskCount === 1 ? "Task" : "Tasks"}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-gray-500">

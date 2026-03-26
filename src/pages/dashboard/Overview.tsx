@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   differenceInDays,
   parseISO,
@@ -20,10 +20,7 @@ import {
   LayoutGrid,
   Plus,
   DollarSign,
-  Wrench,
-  FileCheck,
   Phone,
-  ShieldCheck,
   Hammer,
   PaintBucket,
   ReceiptText,
@@ -41,13 +38,13 @@ import { Card, Button, Badge, Progress } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuth } from "../../contexts/AuthContext";
-import { getRoleDisplayName, ROLES } from "../../config/rbac";
+import { ROLES } from "../../config/rbac";
 import { getProjectStages, getAllPayments } from "../../services/projectApi";
 import { listMeetings } from "../../services/meetingApi";
 import { listLeads } from "../../services/leadApi";
 import { getUpcomingTasks } from "../../services/tasksApi";
 import { useProjectStore } from "../../stores/projectStore";
-import type { Project, ProjectStageData, Meeting } from "../../types";
+import type { ProjectStageData, Meeting } from "../../types";
 
 export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
@@ -86,7 +83,6 @@ export const DashboardOverview: React.FC = () => {
 
   // Role-specific context
   const roleMeta = roleId ? ROLES[roleId] : null;
-  const roleName = roleMeta?.name ?? "User";
 
   useEffect(() => {
     // Use the shared store fetch (same call as the Projects page)
@@ -145,17 +141,6 @@ export const DashboardOverview: React.FC = () => {
 
   // Derive stats from projects — same logic as the Projects page
   const totalProjectsCount = projects.length;
-  const activeProjectsCount = projects.filter(
-    (p) =>
-      p.status === "ACTIVE" ||
-      p.status === "active" ||
-      p.status === "YET_TO_START" ||
-      p.status === "ONGOING",
-  ).length;
-  const inProgressProjectsCount = projects.filter((p) => {
-    const s = (p.status || "").toUpperCase();
-    return s !== "COMPLETED" && s !== "CANCELLED";
-  }).length;
 
   // Fetch total leads count
   useEffect(() => {
@@ -255,39 +240,6 @@ export const DashboardOverview: React.FC = () => {
     };
     fetchTodaysMeetings();
   }, []);
-
-  // Helper to format a meeting for display
-  const getMeetingDisplayProps = (meeting: Meeting) => {
-    const dateStr =
-      meeting.scheduledAt || meeting.scheduledDate || meeting.createdAt;
-    const time = dateStr ? format(parseISO(dateStr), "hh:mm a") : "--:--";
-    const title = meeting.title || "Meeting";
-    const words = title.trim().split(/\s+/);
-    const avatar =
-      words.length >= 2
-        ? (words[0][0] + words[1][0]).toUpperCase()
-        : title.slice(0, 2).toUpperCase();
-    const statusRaw = (meeting.status || "").toLowerCase();
-    const status =
-      statusRaw === "in_progress" || statusRaw === "in progress"
-        ? "In Progress"
-        : statusRaw === "completed"
-          ? "Completed"
-          : "Upcoming";
-    const type = meeting.type
-      ? String(meeting.type).replace(/_/g, " ")
-      : "Meeting";
-    return { time, title, avatar, status, type };
-  };
-
-  // Filter meetings based on selected project
-  const filteredMeetings = useMemo(() => {
-    if (!selectedProject) return todaysMeetings;
-    return todaysMeetings.filter(
-      (m) =>
-        m.projectId === selectedProject.id || m.entityId === selectedProject.id,
-    );
-  }, [todaysMeetings, selectedProject]);
 
   // All deadlines data
   const allDeadlines = useMemo(() => {
@@ -705,461 +657,386 @@ export const DashboardOverview: React.FC = () => {
             )}
           </div>
 
+          {/* Dashboard Content Grid */}
+          <div className="space-y-5">
+            {/* Top Row: Revenue & Lead Sources */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              {/* Revenue Chart */}
+              {canAny(["reports.view", "dashboard.*"]) && (
+                <div className="h-full">
+                  <RevenueChart />
+                </div>
+              )}
 
-          {/* Projects and Activity Grid */}
-          <div className="grid lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 space-y-4">
-              {/* Revenue Chart - gated by reports/dashboard access, moved here to eliminate gaps */}
-              {canAny(["reports.view", "dashboard.*"]) && <RevenueChart />}
-
-              {/* Today's Meetings – gated by meetings.read */}
-              {can("meetings.read") && (
-                <Card className="animate-scale-in">
-                  <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        Today's Meetings
-                      </h2>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Your schedule for today
-                      </p>
-                    </div>
-
+              {/* Lead Source Chart & Payments Summary */}
+              <div className="space-y-5 flex flex-col h-full">
+                {canAny(["reports.view", "dashboard.*"]) && (
+                  <div className="flex-1">
+                    <LeadSourceChart />
                   </div>
-                  <div className="p-4 space-y-3">
-                    {meetingsLoading ? (
-                      <div className="text-center py-8 text-gray-400">
-                        <div className="inline-block w-5 h-5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin mb-2" />
-                        <p className="text-sm">Loading today's meetings…</p>
-                      </div>
-                    ) : filteredMeetings.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <Calendar className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm font-medium">No meetings today</p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {selectedProject
-                            ? "No meetings for the selected project."
-                            : "Your schedule is clear for today."}
+                )}
+
+                {/* Payments summary – only for ACCOUNTS role */}
+                {roleId === "ACCOUNTS" && (
+                  <Card>
+                    <div className="p-4 border-b border-ash/10">
+                      <h2 className="font-display text-display-sm text-secondary flex items-center gap-2">
+                        <ReceiptText className="w-4 h-4 text-green-600" />
+                        Payments Summary
+                      </h2>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {[
+                        {
+                          label: "Received",
+                          count: "₹18.4L",
+                          color: "text-green-600",
+                        },
+                        {
+                          label: "Pending",
+                          count: "₹7.2L",
+                          color: "text-orange-500",
+                        },
+                        {
+                          label: "Overdue",
+                          count: "₹2.1L",
+                          color: "text-red-500",
+                        },
+                        {
+                          label: "This Month",
+                          count: "₹9.8L",
+                          color: "text-blue-600",
+                        },
+                      ].map((item, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="font-body text-sm text-secondary">
+                            {item.label}
+                          </span>
+                          <span
+                            className={`font-body font-semibold text-sm ${item.color}`}
+                          >
+                            {item.count}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+
+            {/* Project Deadlines Section – gated by projects.read */}
+            {can("projects.read") && (
+              <Card className="animate-scale-in w-full">
+                <div className="p-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          Project Deadlines
+                        </h2>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Upcoming project due dates
                         </p>
                       </div>
-                    ) : (
-                      <>
-                        {filteredMeetings.slice(0, 5).map((meeting) => {
-                          const { time, title, avatar, status, type } =
-                            getMeetingDisplayProps(meeting);
-                          return (
-                            <div
-                              key={meeting.id}
-                              className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer"
-                              onClick={() =>
-                                navigate(`/dashboard/meetings/${meeting.id}`)
-                              }
-                            >
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                                {avatar}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 truncate">
-                                  {time} – {title}
-                                </p>
-                                <p className="text-sm text-gray-600 capitalize">
-                                  {type}
-                                </p>
-                              </div>
-                              <Badge
-                                variant={
-                                  status === "In Progress"
-                                    ? "info"
-                                    : status === "Completed"
-                                      ? "success"
-                                      : "neutral"
-                                }
-                              >
-                                {status}
-                              </Badge>
-                            </div>
-                          );
-                        })}
-                        {filteredMeetings.length > 5 && (
-                          <Button
-                            variant="ghost"
-                            className="w-full text-orange-600 hover:text-orange-700 hover:bg-orange-50 mt-2"
-                            onClick={() => navigate("/dashboard/meetings")}
-                          >
-                            View All Meetings →
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </Card>
-              )}{" "}
-              {/* end meetings.read guard */}
-              {/* Project Deadlines Section – gated by projects.read */}
-              {can("projects.read") && (
-                <Card className="animate-scale-in">
-                  <div className="p-4 border-b border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <h2 className="text-lg font-semibold text-gray-900">
-                            Project Deadlines
-                          </h2>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Upcoming project due dates
-                          </p>
-                        </div>
-                        {/* Results Count Badge */}
-                        <Badge
-                          variant={
-                            filteredDeadlines.length === 0
-                              ? "neutral"
-                              : filteredDeadlines.some(
-                                    (d) =>
-                                      d.status === "critical" ||
-                                      d.status === "urgent",
-                                  )
-                                ? "error"
-                                : "info"
-                          }
-                        >
-                          {filteredDeadlines.length}{" "}
-                          {filteredDeadlines.length === 1
-                            ? "Project"
-                            : "Projects"}
-                        </Badge>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowAllDeadlines((prev) => !prev)}
+                      {/* Results Count Badge */}
+                      <Badge
+                        variant={
+                          filteredDeadlines.length === 0
+                            ? "neutral"
+                            : filteredDeadlines.some(
+                                  (d) =>
+                                    d.status === "critical" ||
+                                    d.status === "urgent",
+                                )
+                              ? "error"
+                              : "info"
+                        }
                       >
-                        {showAllDeadlines ? "Show Less ↑" : "View All →"}
-                      </Button>
+                        {filteredDeadlines.length}{" "}
+                        {filteredDeadlines.length === 1
+                          ? "Project"
+                          : "Projects"}
+                      </Badge>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllDeadlines((prev) => !prev)}
+                    >
+                      {showAllDeadlines ? "Show Less ↑" : "View All →"}
+                    </Button>
+                  </div>
 
-                    {/* Pipeline Type Filter Pills (Level 1) */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {pipelineTypeFilterOptions.map((option) => {
-                        const count =
-                          option.value === "all"
-                            ? allDeadlines.length
-                            : allDeadlines.filter(
-                                (d) => d.pipelineType === option.value,
+                  {/* Pipeline Type Filter Pills (Level 1) */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {pipelineTypeFilterOptions.map((option) => {
+                      const count =
+                        option.value === "all"
+                          ? allDeadlines.length
+                          : allDeadlines.filter(
+                              (d) => d.pipelineType === option.value,
+                            ).length;
+                      const isActive = pipelineTypeFilter === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            setPipelineTypeFilter(option.value);
+                            setProjectCategoryFilter("all");
+                            setShowAllDeadlines(false);
+                          }}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                            isActive
+                              ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-200"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            {option.label}
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                isActive
+                                  ? "bg-white/20 text-white"
+                                  : "bg-gray-200 text-gray-600"
+                              }`}
+                            >
+                              {count}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Sub-category Filter Pills (Level 2) – shown when Architecture or Interiors selected */}
+                  {pipelineTypeFilter !== "all" && (
+                    <div className="flex items-center gap-2 mt-2 pl-1">
+                      <span className="text-xs text-gray-400 font-medium mr-1">
+                        {pipelineTypeFilter === "DESIGN_ONLY"
+                          ? "Architecture"
+                          : "Interiors"}
+                        :
+                      </span>
+                      {projectCategoryOptions.map((cat) => {
+                        const baseFiltered = allDeadlines.filter(
+                          (d) => d.pipelineType === pipelineTypeFilter,
+                        );
+                        const catCount =
+                          cat.value === "all"
+                            ? baseFiltered.length
+                            : baseFiltered.filter(
+                                (d) =>
+                                  (
+                                    d as any
+                                  ).projectCategory?.toUpperCase() ===
+                                  cat.value,
                               ).length;
-                        const isActive = pipelineTypeFilter === option.value;
+                        const isCatActive =
+                          projectCategoryFilter === cat.value;
 
                         return (
                           <button
-                            key={option.value}
+                            key={cat.value}
                             onClick={() => {
-                              setPipelineTypeFilter(option.value);
-                              setProjectCategoryFilter("all");
+                              setProjectCategoryFilter(cat.value);
                               setShowAllDeadlines(false);
                             }}
-                            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                              isActive
-                                ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-200"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md"
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                              isCatActive
+                                ? "bg-orange-100 text-orange-700 border border-orange-300"
+                                : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
                             }`}
                           >
-                            <span className="flex items-center gap-2">
-                              {option.label}
+                            <span className="flex items-center gap-1.5">
+                              {cat.label}
                               <span
-                                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                  isActive
-                                    ? "bg-white/20 text-white"
-                                    : "bg-gray-200 text-gray-600"
+                                className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                                  isCatActive
+                                    ? "bg-orange-200 text-orange-700"
+                                    : "bg-gray-200 text-gray-500"
                                 }`}
                               >
-                                {count}
+                                {catCount}
                               </span>
                             </span>
                           </button>
                         );
                       })}
                     </div>
-
-                    {/* Sub-category Filter Pills (Level 2) – shown when Architecture or Interiors selected */}
-                    {pipelineTypeFilter !== "all" && (
-                      <div className="flex items-center gap-2 mt-2 pl-1">
-                        <span className="text-xs text-gray-400 font-medium mr-1">
-                          {pipelineTypeFilter === "DESIGN_ONLY"
-                            ? "Architecture"
-                            : "Interiors"}
-                          :
-                        </span>
-                        {projectCategoryOptions.map((cat) => {
-                          const baseFiltered = allDeadlines.filter(
-                            (d) => d.pipelineType === pipelineTypeFilter,
-                          );
-                          const catCount =
-                            cat.value === "all"
-                              ? baseFiltered.length
-                              : baseFiltered.filter(
-                                  (d) =>
-                                    (
-                                      d as any
-                                    ).projectCategory?.toUpperCase() ===
-                                    cat.value,
-                                ).length;
-                          const isCatActive =
-                            projectCategoryFilter === cat.value;
-
-                          return (
-                            <button
-                              key={cat.value}
-                              onClick={() => {
-                                setProjectCategoryFilter(cat.value);
-                                setShowAllDeadlines(false);
-                              }}
-                              className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-                                isCatActive
-                                  ? "bg-orange-100 text-orange-700 border border-orange-300"
-                                  : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
-                              }`}
-                            >
-                              <span className="flex items-center gap-1.5">
-                                {cat.label}
-                                <span
-                                  className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                                    isCatActive
-                                      ? "bg-orange-200 text-orange-700"
-                                      : "bg-gray-200 text-gray-500"
-                                  }`}
-                                >
-                                  {catCount}
-                                </span>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4 space-y-3">
-                    {(showAllDeadlines
-                      ? filteredDeadlines
-                      : filteredDeadlines.slice(0, 5)
-                    ).map((project, i) => (
+                  )}
+                </div>
+                <div className="p-4 space-y-3">
+                  {(showAllDeadlines
+                    ? filteredDeadlines
+                    : filteredDeadlines.slice(0, 5)
+                  ).map((project, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-all cursor-pointer ${
+                        project.status === "critical" ||
+                        project.status === "overdue"
+                          ? "border-red-300 bg-red-50"
+                          : project.status === "urgent"
+                            ? "border-orange-300 bg-orange-50"
+                            : project.status === "warning"
+                              ? "border-yellow-300 bg-yellow-50"
+                              : project.status === "no-deadline"
+                                ? "border-gray-200 bg-gray-50/50"
+                                : "border-gray-200 hover:border-orange-300"
+                      }`}
+                    >
+                      {/* Status Icon */}
                       <div
-                        key={i}
-                        className={`flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-all cursor-pointer ${
+                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
                           project.status === "critical" ||
                           project.status === "overdue"
-                            ? "border-red-300 bg-red-50"
+                            ? "bg-red-100"
                             : project.status === "urgent"
-                              ? "border-orange-300 bg-orange-50"
+                              ? "bg-orange-100"
                               : project.status === "warning"
-                                ? "border-yellow-300 bg-yellow-50"
+                                ? "bg-yellow-100"
                                 : project.status === "no-deadline"
-                                  ? "border-gray-200 bg-gray-50/50"
-                                  : "border-gray-200 hover:border-orange-300"
+                                  ? "bg-gray-100"
+                                  : "bg-green-100"
                         }`}
                       >
-                        {/* Status Icon */}
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            project.status === "critical" ||
-                            project.status === "overdue"
-                              ? "bg-red-100"
-                              : project.status === "urgent"
-                                ? "bg-orange-100"
-                                : project.status === "warning"
-                                  ? "bg-yellow-100"
-                                  : project.status === "no-deadline"
-                                    ? "bg-gray-100"
-                                    : "bg-green-100"
-                          }`}
-                        >
-                          {project.status === "critical" ||
-                          project.status === "overdue" ||
-                          project.status === "urgent" ? (
-                            <AlertTriangle
-                              className={`w-5 h-5 ${
+                        {project.status === "critical" ||
+                        project.status === "overdue" ||
+                        project.status === "urgent" ? (
+                          <AlertTriangle
+                            className={`w-5 h-5 ${
+                              project.status === "critical" ||
+                              project.status === "overdue"
+                                ? "text-red-600"
+                                : "text-orange-600"
+                            }`}
+                          />
+                        ) : project.status === "warning" ? (
+                          <Clock className="w-5 h-5 text-yellow-600" />
+                        ) : project.status === "no-deadline" ? (
+                          <Calendar className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        )}
+                      </div>
+
+                      {/* Project Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium text-gray-900 truncate">
+                            {project.name}
+                          </p>
+                          <Badge
+                            variant={
+                              project.stage === "Design"
+                                ? "info"
+                                : project.stage === "Execution"
+                                  ? "warning"
+                                  : project.stage === "Handover"
+                                    ? "success"
+                                    : "neutral"
+                            }
+                            className="text-xs"
+                          >
+                            {project.stage}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1">
+                            <Progress
+                              value={project.progress}
+                              className="h-1.5"
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {project.progress}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Deadline Info */}
+                      <div className="text-right flex-shrink-0">
+                        {project.status === "no-deadline" ? (
+                          <>
+                            <p className="text-sm font-semibold text-gray-500">
+                              No deadline set
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              Schedule Pending
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p
+                              className={`text-sm font-semibold ${
                                 project.status === "critical" ||
                                 project.status === "overdue"
-                                  ? "text-red-600"
-                                  : "text-orange-600"
+                                  ? "text-red-700"
+                                  : project.status === "urgent"
+                                    ? "text-orange-600"
+                                    : project.status === "warning"
+                                      ? "text-yellow-600"
+                                      : "text-gray-700"
                               }`}
-                            />
-                          ) : project.status === "warning" ? (
-                            <Clock className="w-5 h-5 text-yellow-600" />
-                          ) : project.status === "no-deadline" ? (
-                            <Calendar className="w-5 h-5 text-gray-400" />
-                          ) : (
-                            <CheckCircle className="w-5 h-5 text-green-600" />
-                          )}
-                        </div>
-
-                        {/* Project Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-medium text-gray-900 truncate">
-                              {project.name}
-                            </p>
-                            <Badge
-                              variant={
-                                project.stage === "Design"
-                                  ? "info"
-                                  : project.stage === "Execution"
-                                    ? "warning"
-                                    : project.stage === "Handover"
-                                      ? "success"
-                                      : "neutral"
-                              }
-                              className="text-xs"
                             >
-                              {project.stage}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="flex-1">
-                              <Progress
-                                value={project.progress}
-                                className="h-1.5"
-                              />
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              {project.progress}%
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Deadline Info */}
-                        <div className="text-right flex-shrink-0">
-                          {project.status === "no-deadline" ? (
-                            <>
-                              <p className="text-sm font-semibold text-gray-500">
-                                No deadline set
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                Schedule Pending
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <p
-                                className={`text-sm font-semibold ${
-                                  project.status === "critical" ||
-                                  project.status === "overdue"
-                                    ? "text-red-700"
-                                    : project.status === "urgent"
-                                      ? "text-orange-600"
-                                      : project.status === "warning"
-                                        ? "text-yellow-600"
-                                        : "text-gray-700"
-                                }`}
-                              >
-                                {project.deadline}
-                              </p>
-                              <p
-                                className={`text-xs font-medium ${
-                                  project.status === "overdue"
-                                    ? "text-red-500"
-                                    : project.status === "critical" ||
-                                        project.status === "urgent"
-                                      ? "text-orange-500"
-                                      : project.status === "warning"
-                                        ? "text-yellow-500"
-                                        : "text-gray-400"
-                                }`}
-                              >
-                                {project.status === "overdue"
-                                  ? `${Math.abs(project.daysLeft)}d overdue`
-                                  : `${project.daysLeft}d left`}{" "}
-                                · {project.deadlineLabel}
-                              </p>
-                            </>
-                          )}
-                        </div>
+                              {project.deadline}
+                            </p>
+                            <p
+                              className={`text-xs font-medium ${
+                                project.status === "overdue"
+                                  ? "text-red-500"
+                                  : project.status === "critical" ||
+                                      project.status === "urgent"
+                                    ? "text-orange-500"
+                                    : project.status === "warning"
+                                      ? "text-yellow-500"
+                                      : "text-gray-400"
+                              }`}
+                            >
+                              {project.status === "overdue"
+                                ? `${Math.abs(project.daysLeft)}d overdue`
+                                : `${project.daysLeft}d left`}{" "}
+                              · {project.deadlineLabel}
+                            </p>
+                          </>
+                        )}
                       </div>
-                    ))}
-                    {!showAllDeadlines && filteredDeadlines.length > 5 && (
-                      <button
-                        onClick={() => navigate("/dashboard/projects")}
-                        className="w-full py-2.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-dashed border-orange-200 hover:border-orange-300"
-                      >
-                        + {filteredDeadlines.length - 5} more project
-                        {filteredDeadlines.length - 5 !== 1 ? "s" : ""} — View
-                        All Projects
-                      </button>
-                    )}
-                    {filteredDeadlines.length === 0 && (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Clock className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <p className="text-gray-900 font-medium mb-1">
-                          No Deadlines Found
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {pipelineTypeFilter !== "all"
-                            ? `No ${pipelineTypeFilterOptions.find((o) => o.value === pipelineTypeFilter)?.label}${projectCategoryFilter !== "all" ? ` · ${projectCategoryOptions.find((c) => c.value === projectCategoryFilter)?.label}` : ""} projects with upcoming deadlines.`
-                            : "No upcoming deadlines for the selected filter."}
-                        </p>
+                    </div>
+                  ))}
+                  {!showAllDeadlines && filteredDeadlines.length > 5 && (
+                    <button
+                      onClick={() => navigate("/dashboard/projects")}
+                      className="w-full py-2.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-dashed border-orange-200 hover:border-orange-300"
+                    >
+                      + {filteredDeadlines.length - 5} more project
+                      {filteredDeadlines.length - 5 !== 1 ? "s" : ""} — View
+                      All Projects
+                    </button>
+                  )}
+                  {filteredDeadlines.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Clock className="w-8 h-8 text-gray-400" />
                       </div>
-                    )}
-                  </div>
-                </Card>
-              )}{" "}
-              {/* end projects.read guard */}
-            </div>
-
-            <div className="space-y-4">
-              {/* Lead Source Chart - gated by reports/dashboard access, moved here for layout balance */}
-              {canAny(["reports.view", "dashboard.*"]) && <LeadSourceChart />}
-
-              {/* Payments summary – only for ACCOUNTS role */}
-              {roleId === "ACCOUNTS" && (
-                <Card>
-                  <div className="p-4 border-b border-ash/10">
-                    <h2 className="font-display text-display-sm text-secondary flex items-center gap-2">
-                      <ReceiptText className="w-4 h-4 text-green-600" />
-                      Payments Summary
-                    </h2>
-                  </div>
-                  <div className="p-4 space-y-3">
-                    {[
-                      {
-                        label: "Received",
-                        count: "₹18.4L",
-                        color: "text-green-600",
-                      },
-                      {
-                        label: "Pending",
-                        count: "₹7.2L",
-                        color: "text-orange-500",
-                      },
-                      {
-                        label: "Overdue",
-                        count: "₹2.1L",
-                        color: "text-red-500",
-                      },
-                      {
-                        label: "This Month",
-                        count: "₹9.8L",
-                        color: "text-blue-600",
-                      },
-                    ].map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="font-body text-sm text-secondary">
-                          {item.label}
-                        </span>
-                        <span
-                          className={`font-body font-semibold text-sm ${item.color}`}
-                        >
-                          {item.count}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
-            </div>
+                      <p className="text-gray-900 font-medium mb-1">
+                        No Deadlines Found
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {pipelineTypeFilter !== "all"
+                          ? `No ${pipelineTypeFilterOptions.find((o) => o.value === pipelineTypeFilter)?.label}${projectCategoryFilter !== "all" ? ` · ${projectCategoryOptions.find((c) => c.value === projectCategoryFilter)?.label}` : ""} projects with upcoming deadlines.`
+                          : "No upcoming deadlines for the selected filter."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+            {/* end projects.read guard */}
           </div>
         </>
       )}

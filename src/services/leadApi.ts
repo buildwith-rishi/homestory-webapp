@@ -189,6 +189,7 @@ export interface LeadNote {
   type: string;
   createdAt: string;
   createdBy?: string;
+  createdByName?: string;
 }
 
 const mapActivityToLeadNote = (activity: LeadActivity): LeadNote => ({
@@ -198,6 +199,7 @@ const mapActivityToLeadNote = (activity: LeadActivity): LeadNote => ({
   type: activity.activityType || activity.type || "GENERAL",
   createdAt: activity.occurredAt || activity.createdAt,
   createdBy: activity.performedByUserId || activity.createdBy,
+  createdByName: activity.performedByUser?.name || activity.createdBy,
 });
 
 export interface LeadSource {

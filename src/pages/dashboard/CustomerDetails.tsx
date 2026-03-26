@@ -2045,7 +2045,7 @@ export const CustomerDetails: React.FC = () => {
             {customer.ownerName && (
               <div>
                 <p className="text-xs font-medium text-gray-400 mb-1">
-                  Account Owner
+                 Lead By
                 </p>
                 <p className="text-sm font-semibold text-gray-900">
                   {customer.ownerName}

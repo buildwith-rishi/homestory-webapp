@@ -239,6 +239,11 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
         return task;
       });
 
+    if (validTasks.length === 0) {
+      setError("Add at least one initial task");
+      return;
+    }
+
     console.log(
       "[CreateMatrix] validTasks payload:",
       JSON.stringify(validTasks, null, 2),
@@ -497,8 +502,8 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
               <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
                 <ListChecks className="w-4 h-4 text-gray-400" />
                 Initial Tasks
-                <span className="text-[10px] font-normal text-gray-400">
-                  (optional)
+                <span className="text-[10px] font-normal text-red-500">
+                  (required)
                 </span>
               </label>
               <button
@@ -517,8 +522,8 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                 onClick={addTask}
                 className="w-full border-2 border-dashed border-gray-200 rounded-lg py-4 text-xs text-gray-400 hover:border-orange-300 hover:text-orange-500 transition-colors flex items-center justify-center gap-1.5"
               >
-                <Plus className="w-3.5 h-3.5" /> Add tasks to pre-populate this
-                plan
+                <Plus className="w-3.5 h-3.5" /> Add at least one task to
+                create this plan
               </button>
             ) : (
               <div className="space-y-2">

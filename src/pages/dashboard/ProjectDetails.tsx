@@ -22,7 +22,7 @@ import {
   RefreshCw,
   DollarSign,
   Mail,
-  TrendingUp,
+
   MessageSquare,
   Send,
   BellRing,
@@ -33,7 +33,7 @@ import {
   Ban,
   Image,
   Gift,
-  ClipboardList,
+
   Plus,
   Paperclip,
   Pencil,
@@ -69,8 +69,11 @@ import {
 import { getLeadById } from "../../services/leadApi";
 import {
   createActivity,
-  getActivitiesByEntity,
 } from "../../services/activitiesApi";
+import {
+  getAllTeamMembers,
+  TeamMember,
+} from "../../services/teamApi";
 import {
   getAttachment,
   listAttachments,
@@ -80,7 +83,7 @@ import {
   Attachment,
   AttachmentType,
 } from "../../services/attachmentApi";
-import type { Activity } from "../../types";
+
 
 // Helper function to format currency
 const formatCurrency = (value: number): string => {
@@ -495,6 +498,15 @@ export const ProjectDetails: React.FC = () => {
     status: "",
   });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [teamMembersList, setTeamMembersList] = useState<TeamMember[]>([]);
+
+  useEffect(() => {
+    if (showEditModal) {
+      getAllTeamMembers()
+        .then((data) => setTeamMembersList(data))
+        .catch((err) => console.error("Failed to load team members", err));
+    }
+  }, [showEditModal]);
 
   // Pause modal state
   const [showPauseModal, setShowPauseModal] = useState(false);
@@ -508,37 +520,7 @@ export const ProjectDetails: React.FC = () => {
   >(null);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
 
-  // Activity state
-  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
-  const [activitiesLoading, setActivitiesLoading] = useState(false);
 
-  // Fetch recent activities for the project
-  const fetchRecentActivities = async (projectId: string) => {
-    try {
-      setActivitiesLoading(true);
-      const response = await getActivitiesByEntity("PROJECT", projectId);
-
-      // Normalise API shapes: some endpoints return an array, others wrap it
-      const list = Array.isArray(response)
-        ? response
-        : Array.isArray((response as any)?.data)
-          ? (response as any).data
-          : Array.isArray((response as any)?.activities)
-            ? (response as any).activities
-            : [];
-
-      // Sort by creation date and take the latest 10 so pause/resume history is always shown
-      const sorted = list.sort(
-        (a: any, b: any) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-      setRecentActivities(sorted.slice(0, 10));
-    } catch (error) {
-      console.error("Failed to fetch activities:", error);
-    } finally {
-      setActivitiesLoading(false);
-    }
-  };
 
   // Fetch project data on mount
   useEffect(() => {
@@ -546,7 +528,6 @@ export const ProjectDetails: React.FC = () => {
       fetchProjectById(projectId);
       fetchProjectStages(projectId);
       fetchProjectPayments(projectId);
-      fetchRecentActivities(projectId);
       fetchProjectAttachments(projectId);
     }
   }, [projectId, fetchProjectById, fetchProjectStages, fetchProjectPayments]);
@@ -1604,8 +1585,6 @@ export const ProjectDetails: React.FC = () => {
       toast.success(successMessage);
       setShowStatusConfirm(null);
       fetchProjectById(projectId);
-      // Refresh activities to show the new status change log
-      if (projectId) fetchRecentActivities(projectId);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : `Failed to ${action} project`;
@@ -1690,8 +1669,6 @@ export const ProjectDetails: React.FC = () => {
       setPauseForm({ pauseDays: 7, reason: "" });
       setPauseReasonError("");
       fetchProjectById(projectId);
-      // Refresh activities to show the new pause log
-      if (projectId) fetchRecentActivities(projectId);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to pause project";
@@ -2281,7 +2258,7 @@ export const ProjectDetails: React.FC = () => {
                   {(project.designTeam || [])
                     .filter(Boolean)
                     .map((member, idx) => (
-                      <TeamMember
+                      <TeamMemberItem
                         key={`design-${idx}`}
                         name={member}
                         role="Design Team"
@@ -2293,7 +2270,7 @@ export const ProjectDetails: React.FC = () => {
                   {(project.executionTeam || [])
                     .filter(Boolean)
                     .map((member, idx) => (
-                      <TeamMember
+                      <TeamMemberItem
                         key={`exec-${idx}`}
                         name={member}
                         role="Execution Team"
@@ -2503,311 +2480,7 @@ export const ProjectDetails: React.FC = () => {
                 </div>
               </Card>
 
-              {/* Recent Activity */}
-              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
-                    <ClipboardList className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  Recent Activity
-                </h3>
 
-                {activitiesLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                    <span className="ml-2 text-sm text-gray-500">
-                      Loading...
-                    </span>
-                  </div>
-                ) : recentActivities.length > 0 ? (
-                  <div className="space-y-2 relative">
-                    {/* Timeline line */}
-                    <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-gray-200" />
-
-                    {recentActivities.map((activity) => {
-                      // Determine specific icon/color for pause/resume actions
-                      const isPause =
-                        activity.type === "STATUS_CHANGE" &&
-                        activity.metadata?.statusChange?.to === "PAUSED";
-                      const isResume =
-                        activity.type === "STATUS_CHANGE" &&
-                        activity.metadata?.action === "resume";
-
-                      const config = isPause
-                        ? {
-                            icon: Pause,
-                            color: "text-yellow-600",
-                            bgColor: "bg-yellow-50",
-                            borderColor: "border-yellow-300",
-                            dotColor: "bg-yellow-500",
-                          }
-                        : isResume
-                          ? {
-                              icon: Play,
-                              color: "text-green-600",
-                              bgColor: "bg-green-50",
-                              borderColor: "border-green-300",
-                              dotColor: "bg-green-500",
-                            }
-                          : {
-                              NOTE: {
-                                icon: FileText,
-                                color: "text-blue-600",
-                                bgColor: "bg-blue-50",
-                                borderColor: "border-blue-200",
-                                dotColor: "bg-blue-500",
-                              },
-                              CALL: {
-                                icon: Phone,
-                                color: "text-green-600",
-                                bgColor: "bg-green-50",
-                                borderColor: "border-green-200",
-                                dotColor: "bg-green-500",
-                              },
-                              MEETING: {
-                                icon: Users,
-                                color: "text-purple-600",
-                                bgColor: "bg-purple-50",
-                                borderColor: "border-purple-200",
-                                dotColor: "bg-purple-500",
-                              },
-                              EMAIL: {
-                                icon: Mail,
-                                color: "text-orange-600",
-                                bgColor: "bg-orange-50",
-                                borderColor: "border-orange-200",
-                                dotColor: "bg-orange-500",
-                              },
-                              WHATSAPP: {
-                                icon: MessageSquare,
-                                color: "text-emerald-600",
-                                bgColor: "bg-emerald-50",
-                                borderColor: "border-emerald-200",
-                                dotColor: "bg-emerald-500",
-                              },
-                              SITE_VISIT: {
-                                icon: MapPin,
-                                color: "text-red-600",
-                                bgColor: "bg-red-50",
-                                borderColor: "border-red-200",
-                                dotColor: "bg-red-500",
-                              },
-                              STAGE_CHANGE: {
-                                icon: TrendingUp,
-                                color: "text-indigo-600",
-                                bgColor: "bg-indigo-50",
-                                borderColor: "border-indigo-200",
-                                dotColor: "bg-indigo-500",
-                              },
-                              STATUS_CHANGE: {
-                                icon: RefreshCw,
-                                color: "text-amber-600",
-                                bgColor: "bg-amber-50",
-                                borderColor: "border-amber-200",
-                                dotColor: "bg-amber-500",
-                              },
-                              PAYMENT: {
-                                icon: CreditCard,
-                                color: "text-teal-600",
-                                bgColor: "bg-teal-50",
-                                borderColor: "border-teal-200",
-                                dotColor: "bg-teal-500",
-                              },
-                              DOCUMENT_UPLOAD: {
-                                icon: Upload,
-                                color: "text-cyan-600",
-                                bgColor: "bg-cyan-50",
-                                borderColor: "border-cyan-200",
-                                dotColor: "bg-cyan-500",
-                              },
-                              TASK_COMPLETED: {
-                                icon: CheckCircle2,
-                                color: "text-lime-600",
-                                bgColor: "bg-lime-50",
-                                borderColor: "border-lime-200",
-                                dotColor: "bg-lime-500",
-                              },
-                            }[activity.type] || {
-                              icon: ClipboardList,
-                              color: "text-gray-600",
-                              bgColor: "bg-gray-50",
-                              borderColor: "border-gray-200",
-                              dotColor: "bg-gray-500",
-                            };
-
-                      const ActivityIcon = config.icon;
-
-                      // Activity label
-                      const activityLabel = isPause
-                        ? "Project Paused"
-                        : isResume
-                          ? "Project Resumed"
-                          : (activity.type || "ACTIVITY").replace("_", " ");
-
-                      // Format full date and time
-                      const activityTime = new Date(activity.createdAt);
-                      const formattedDate = activityTime.toLocaleDateString(
-                        "en-IN",
-                        {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        },
-                      );
-                      const formattedTime = activityTime.toLocaleTimeString(
-                        "en-IN",
-                        {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: true,
-                        },
-                      );
-
-                      // Show relative time for recent items
-                      const now = new Date();
-                      const diffMs = now.getTime() - activityTime.getTime();
-                      const diffMins = Math.floor(diffMs / 60000);
-                      const diffHours = Math.floor(diffMs / 3600000);
-                      const timeAgo =
-                        diffMins < 1
-                          ? "Just now"
-                          : diffMins < 60
-                            ? `${diffMins}m ago`
-                            : diffHours < 24
-                              ? `${diffHours}h ago`
-                              : "";
-
-                      // Build pause/resume date chips
-                      const pauseFromStr = activity.metadata?.pausedFrom
-                        ? new Date(
-                            activity.metadata.pausedFrom,
-                          ).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                          })
-                        : null;
-                      const pauseUntilStr = activity.metadata
-                        ?.expectedResumeDate
-                        ? new Date(
-                            activity.metadata.expectedResumeDate,
-                          ).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                          })
-                        : null;
-                      const resumedOnStr = activity.metadata?.resumedOn
-                        ? new Date(
-                            activity.metadata.resumedOn,
-                          ).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                          })
-                        : null;
-                      const actualPauseDays =
-                        activity.metadata?.actualPauseDays;
-                      const pauseDays = activity.metadata?.pauseDays;
-                      const pauseReason = activity.metadata?.reason;
-
-                      return (
-                        <div
-                          key={activity.id}
-                          className="relative flex gap-3 pb-2"
-                        >
-                          {/* Timeline dot */}
-                          <div
-                            className={`relative z-10 w-8 h-8 rounded-full ${config.bgColor} border-2 ${config.borderColor} flex items-center justify-center flex-shrink-0`}
-                          >
-                            <ActivityIcon
-                              className={`w-3.5 h-3.5 ${config.color}`}
-                            />
-                          </div>
-
-                          {/* Content */}
-                          <div className="flex-1 min-w-0 pt-0.5">
-                            <div className="flex items-start justify-between gap-2 mb-0.5">
-                              <p className="text-xs font-semibold text-gray-900">
-                                {activityLabel}
-                              </p>
-                              {timeAgo && (
-                                <span className="text-[10px] text-gray-500 flex-shrink-0">
-                                  {timeAgo}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Compact pause date-range chip */}
-                            {isPause && pauseFromStr && pauseUntilStr && (
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <div className="inline-flex items-center gap-1 bg-yellow-50 border border-yellow-200 rounded-md px-1.5 py-0.5">
-                                  <Calendar className="w-2.5 h-2.5 text-yellow-500" />
-                                  <span className="text-[10px] font-medium text-yellow-700">
-                                    {pauseFromStr} → {pauseUntilStr}
-                                  </span>
-                                  {pauseDays && (
-                                    <span className="text-[10px] text-yellow-500">
-                                      ({pauseDays}d)
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Compact resume chip */}
-                            {isResume && (
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <div className="inline-flex items-center gap-1 bg-green-50 border border-green-200 rounded-md px-1.5 py-0.5">
-                                  <Play className="w-2.5 h-2.5 text-green-500" />
-                                  <span className="text-[10px] font-medium text-green-700">
-                                    Resumed
-                                    {resumedOnStr ? ` on ${resumedOnStr}` : ""}
-                                  </span>
-                                  {actualPauseDays !== undefined &&
-                                    actualPauseDays !== null && (
-                                      <span className="text-[10px] text-green-500">
-                                        · paused {actualPauseDays}d
-                                      </span>
-                                    )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Pause reason inline */}
-                            {isPause && pauseReason && (
-                              <p
-                                className="text-[10px] text-gray-500 italic mb-1 truncate"
-                                title={pauseReason}
-                              >
-                                "{pauseReason}"
-                              </p>
-                            )}
-
-                            {/* Default description for non-pause/resume activities */}
-                            {!isPause && !isResume && (
-                              <p className="text-xs text-gray-700 leading-relaxed mb-1.5">
-                                {activity.description}
-                              </p>
-                            )}
-
-                            <div className="flex items-center gap-1 text-[10px] text-gray-500">
-                              <Clock className="w-3 h-3" />
-                              <span>
-                                {formattedDate} at {formattedTime}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* View All Link removed — Tasks tab is hidden */}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <ClipboardList className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-xs text-gray-500">No activities yet</p>
-                  </div>
-                )}
-              </Card>
             </div>
           </div>
         )}
@@ -2984,20 +2657,20 @@ export const ProjectDetails: React.FC = () => {
                     </button>
                     )}
                     <button
-                      onClick={() => handleOpenSendInvoice(payment, "proforma")}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
-                      title="Send proforma invoice"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      Send Proforma Invoice
-                    </button>
-                    <button
                       onClick={() => handleOpenSendInvoice(payment)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
                       title="Send invoice"
                     >
-                      <FileText className="w-3.5 h-3.5" />
+                      <Send className="w-3.5 h-3.5" />
                       Send Invoice
+                    </button>
+                    <button
+                      onClick={() => handleOpenSendInvoice(payment, "proforma")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                      title="Send proforma invoice"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Send Proforma Invoice
                     </button>
                     <button
                       onClick={() => handleOpenUploadDoc(payment)}
@@ -5161,9 +4834,33 @@ export const ProjectDetails: React.FC = () => {
                         className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
                         placeholder="Sathish, Thrisha"
                       />
-                      <p className="text-xs text-gray-400 mt-1">
-                        Comma-separated names
-                      </p>
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (!val) return;
+                          const current = editForm.designTeam
+                            ? editForm.designTeam
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean)
+                            : [];
+                          if (!current.includes(val)) {
+                            setEditForm((prev) => ({
+                              ...prev,
+                              designTeam: [...current, val].join(", "),
+                            }));
+                          }
+                          e.target.value = "";
+                        }}
+                        className="mt-2 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                      >
+                        <option value="">+ Add Member</option>
+                        {teamMembersList.map((m) => (
+                          <option key={m.id} value={m.name}>
+                            {m.name} ({m.role?.replace(/_/g, " ")})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -5181,9 +4878,33 @@ export const ProjectDetails: React.FC = () => {
                         className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
                         placeholder="Dilip, Santhosh"
                       />
-                      <p className="text-xs text-gray-400 mt-1">
-                        Comma-separated names
-                      </p>
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (!val) return;
+                          const current = editForm.executionTeam
+                            ? editForm.executionTeam
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean)
+                            : [];
+                          if (!current.includes(val)) {
+                            setEditForm((prev) => ({
+                              ...prev,
+                              executionTeam: [...current, val].join(", "),
+                            }));
+                          }
+                          e.target.value = "";
+                        }}
+                        className="mt-2 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                      >
+                        <option value="">+ Add Member</option>
+                        {teamMembersList.map((m) => (
+                          <option key={m.id} value={m.name}>
+                            {m.name} ({m.role?.replace(/_/g, " ")})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -5641,7 +5362,7 @@ const InfoItem: React.FC<{ label: string; value: string }> = ({
 );
 
 // Helper component for team members
-const TeamMember: React.FC<{
+const TeamMemberItem: React.FC<{
   name: string;
   role: string;
   email?: string;
