@@ -137,6 +137,7 @@ interface TestimonialsTabProps {
 
 export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
   projectId,
+  clientName,
 }) => {
   const { user } = useAuth();
   const [testimonials, setTestimonials] = useState<ProjectTestimonial[]>([]);
@@ -411,6 +412,7 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
         <AddTestimonialModal
           projectId={projectId}
           designerId={user?.id || ""}
+          clientName={clientName}
           onClose={() => setShowAddModal(false)}
           onCreated={() => {
             setShowAddModal(false);
@@ -713,6 +715,7 @@ const TestimonialRow: React.FC<TestimonialRowProps> = ({
 interface AddTestimonialModalProps {
   projectId: string;
   designerId: string;
+  clientName?: string;
   onClose: () => void;
   onCreated: (t: ProjectTestimonial) => void;
 }
@@ -720,11 +723,12 @@ interface AddTestimonialModalProps {
 const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
   projectId,
   designerId,
+  clientName,
   onClose,
   onCreated,
 }) => {
   const [form, setForm] = useState({
-    customerName: "",
+    customerName: clientName?.trim() || "",
     testimonialText: "",
     rating: 5,
     canSharePublicly: true,

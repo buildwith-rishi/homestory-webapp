@@ -173,7 +173,6 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   // Edit modal
   const [editingRef, setEditingRef] = useState<ProjectReference | null>(null);
   const [editForm, setEditForm] = useState({
-    linkTitle: "",
     notes: "",
     category: "",
     subCategory: "",
@@ -360,7 +359,6 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     setIsSavingEdit(true);
     try {
       await updateProjectReference(projectId, editingRef.id, {
-        linkTitle: editForm.linkTitle || undefined,
         notes: editForm.notes || undefined,
         description: editForm.notes || undefined,
         category: editForm.category || undefined,
@@ -454,7 +452,6 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   const openEdit = (ref: ProjectReference) => {
     setEditingRef(ref);
     setEditForm({
-      linkTitle: ref.linkTitle || ref.title || "",
       notes: ref.notes || ref.description || "",
       category: ref.category || "",
       subCategory: ref.subCategory || "",
@@ -1189,20 +1186,6 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Title
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.linkTitle}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, linkTitle: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                    />
-                  </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Category

@@ -3024,7 +3024,7 @@ export const ProjectDetails: React.FC = () => {
           <TestimonialsTab
             projectId={project.id}
             projectName={project.projectName || project.name}
-            clientName={project.lead?.name || "Client"}
+            clientName={project.lead?.name || project.account?.name || ""}
           />
         )}
 
