@@ -898,8 +898,8 @@ export const ProjectDetails: React.FC = () => {
       attachments: [],
       customMessage:
         mode === "proforma"
-          ? `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`
-          : `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`,
+          ? `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`
+          : `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`,
     }));
     setShowSendInvoiceModal(true);
   };
@@ -1011,16 +1011,16 @@ export const ProjectDetails: React.FC = () => {
       setInvoiceSentSuccessMessage(
         response.message ||
           (invoiceSendMode === "proforma"
-            ? "Proforma invoice email has been sent successfully."
-            : "Invoice email has been sent successfully."),
+            ? "Invoice email has been sent successfully."
+            : "Proforma invoice email has been sent successfully."),
       );
       setShowInvoiceSentSuccessModal(true);
       setShowSendInvoiceModal(false);
     } catch {
       toast.error(
         invoiceSendMode === "proforma"
-          ? "Failed to send proforma invoice"
-          : "Failed to send invoice",
+          ? "Failed to send invoice"
+          : "Failed to send proforma invoice",
       );
     } finally {
       setIsSendingInvoice(false);
@@ -2664,18 +2664,18 @@ export const ProjectDetails: React.FC = () => {
                     <button
                       onClick={() => handleOpenSendInvoice(payment)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
-                      title="Send invoice"
+                      title="Send proforma invoice"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      Send Invoice
+                      Send Proforma Invoice
                     </button>
                     <button
                       onClick={() => handleOpenSendInvoice(payment, "proforma")}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
-                      title="Send proforma invoice"
+                      title="Send invoice"
                     >
                       <FileText className="w-3.5 h-3.5" />
-                      Send Proforma Invoice
+                      Send Invoice
                     </button>
                     <button
                       onClick={() => handleOpenUploadDoc(payment)}
@@ -3604,8 +3604,8 @@ export const ProjectDetails: React.FC = () => {
                   <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <Send className="w-5 h-5 text-green-600" />
                     {invoiceSendMode === "proforma"
-                      ? "Send Proforma Invoice"
-                      : "Send Invoice"}
+                      ? "Send Invoice"
+                      : "Send Proforma Invoice"}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">
                     {invoiceTargetPayment.title ||
@@ -3882,8 +3882,8 @@ export const ProjectDetails: React.FC = () => {
                   {isSendingInvoice
                     ? "Sending..."
                     : invoiceSendMode === "proforma"
-                      ? "Send Proforma Invoice"
-                      : "Send Invoice"}
+                      ? "Send Invoice"
+                      : "Send Proforma Invoice"}
                 </Button>
               </div>
             </div>
