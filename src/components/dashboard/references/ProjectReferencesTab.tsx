@@ -34,6 +34,7 @@ import toast from "react-hot-toast";
 import type { ProjectReference } from "../../../types";
 import {
   getProjectReferences,
+  getProjectReference,
   addLinkReference,
   uploadFileReference,
   updateProjectReference,
@@ -92,6 +93,13 @@ const formatFileSize = (bytes: number | null): string => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const getReferenceNotes = (reference: ProjectReference): string => {
+  const text = [reference.notes, reference.description].find(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
+  return text?.trim() || "";
 };
 
 export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
@@ -178,6 +186,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
 
   // Preview
   const [previewRef, setPreviewRef] = useState<ProjectReference | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   // ── Fetch references ──
   const fetchReferences = useCallback(async () => {
@@ -353,6 +362,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       await updateProjectReference(projectId, editingRef.id, {
         linkTitle: editForm.linkTitle || undefined,
         notes: editForm.notes || undefined,
+        description: editForm.notes || undefined,
         category: editForm.category || undefined,
         subCategory: editForm.subCategory || undefined,
       });
@@ -449,6 +459,19 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       category: ref.category || "",
       subCategory: ref.subCategory || "",
     });
+  };
+
+  const handleOpenPreview = async (ref: ProjectReference) => {
+    setPreviewRef(ref);
+    setIsLoadingPreview(true);
+    try {
+      const fullReference = await getProjectReference(projectId, ref.id);
+      setPreviewRef(fullReference);
+    } catch {
+      // Keep existing reference snapshot if detail fetch fails.
+    } finally {
+      setIsLoadingPreview(false);
+    }
   };
 
   // ── Render ──
@@ -748,7 +771,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
               onDelete={() => setDeletingId(ref.id)}
               onDownload={() => handleDownload(ref)}
               onViewFile={() => handleViewFile(ref)}
-              onPreview={() => setPreviewRef(ref)}
+              onPreview={() => handleOpenPreview(ref)}
             />
           ))}
         </div>
@@ -787,7 +810,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                     onDelete={() => setDeletingId(ref.id)}
                     onDownload={() => handleDownload(ref)}
                     onViewFile={() => handleViewFile(ref)}
-                    onPreview={() => setPreviewRef(ref)}
+                    onPreview={() => handleOpenPreview(ref)}
                   />
                 ))}
               </tbody>
@@ -1349,6 +1372,13 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                     "Untitled"}
                 </h3>
 
+                {isLoadingPreview && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Loading full details...
+                  </div>
+                )}
+
                 {/* Image preview for PHOTO type */}
                 {previewRef.referenceType === "PHOTO" &&
                   (previewRef.storageUrl || previewRef.downloadUrl) && (
@@ -1373,9 +1403,9 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                     </div>
                   )}
 
-                {(previewRef.notes || previewRef.description) && (
+                {getReferenceNotes(previewRef) && (
                   <p className="text-sm text-gray-600 mb-4">
-                    {previewRef.notes || previewRef.description}
+                    {getReferenceNotes(previewRef)}
                   </p>
                 )}
 
@@ -1509,6 +1539,7 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
   const displayTitle =
     reference.linkTitle || reference.title || reference.fileName || "Untitled";
   const isLink = reference.referenceType === "LINK";
+  const noteText = getReferenceNotes(reference);
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all group overflow-hidden">
@@ -1605,9 +1636,9 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
         )}
 
         {/* Description */}
-        {(reference.notes || reference.description) && (
+        {noteText && (
           <p className="text-xs text-gray-500 mb-2 line-clamp-2">
-            {reference.notes || reference.description}
+            {noteText}
           </p>
         )}
 
@@ -1711,6 +1742,7 @@ const ReferenceRow: React.FC<ReferenceItemProps> = ({
   const displayTitle =
     reference.linkTitle || reference.title || reference.fileName || "Untitled";
   const isLink = reference.referenceType === "LINK";
+  const noteText = getReferenceNotes(reference);
 
   return (
     <tr className="hover:bg-orange-50/30 transition-colors group">
@@ -1750,6 +1782,11 @@ const ReferenceRow: React.FC<ReferenceItemProps> = ({
               <span className="text-xs text-gray-400">
                 {formatFileSize(reference.fileSize)}
               </span>
+            )}
+            {noteText && (
+              <p className="text-xs text-gray-500 line-clamp-1 max-w-[300px]">
+                {noteText}
+              </p>
             )}
           </div>
         </div>

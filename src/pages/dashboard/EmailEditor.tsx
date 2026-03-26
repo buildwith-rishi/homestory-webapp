@@ -237,8 +237,6 @@ export const EmailEditor: React.FC = () => {
   // UI state
   const [sending, setSending] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [showSource, setShowSource] = useState(false);
-  const [htmlSource, setHtmlSource] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [charCount, setCharCount] = useState(0);
@@ -512,17 +510,7 @@ export const EmailEditor: React.FC = () => {
     toast.success(`"${template.name}" template applied`);
   };
 
-  // ── Source / Preview toggles ────────────────────────────────────
-
-  const toggleSource = () => {
-    if (showSource) {
-      if (editorRef.current) editorRef.current.setHtml(htmlSource);
-      setShowSource(false);
-    } else {
-      if (editorRef.current) setHtmlSource(editorRef.current.getHtml());
-      setShowSource(true);
-    }
-  };
+  // ── Preview toggle ───────────────────────────────────────────────
 
   const getPreviewHtml = () => currentHtml;
 
@@ -1280,23 +1268,15 @@ export const EmailEditor: React.FC = () => {
             <div className="flex items-center bg-white border border-gray-200 rounded-lg p-0.5 gap-0.5">
               <button
                 onClick={() => {
-                  if (showSource) toggleSource();
                   setShowPreview(false);
                 }}
-                className={`px-3 py-1 text-[11px] font-semibold rounded-md transition-all ${!showPreview && !showSource ? "bg-orange-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                className={`px-3 py-1 text-[11px] font-semibold rounded-md transition-all ${!showPreview ? "bg-orange-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
               >
                 Edit
               </button>
               <button
-                onClick={toggleSource}
-                className={`px-3 py-1 text-[11px] font-semibold rounded-md transition-all ${showSource ? "bg-orange-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-              >
-                HTML
-              </button>
-              <button
                 onClick={() => {
                   setShowPreview(!showPreview);
-                  if (showSource) toggleSource();
                 }}
                 className={`px-3 py-1 text-[11px] font-semibold rounded-md transition-all ${showPreview ? "bg-orange-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
               >
@@ -1331,9 +1311,6 @@ export const EmailEditor: React.FC = () => {
             onChange={handleEditorChange}
             isFullscreen={isFullscreen}
             showPreview={showPreview}
-            showSource={showSource}
-            htmlSource={htmlSource}
-            onHtmlSourceChange={setHtmlSource}
           />
 
           {/* Preview Mode */}

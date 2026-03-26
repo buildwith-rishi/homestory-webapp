@@ -1170,7 +1170,10 @@ export async function uploadFileReference(
     formData.append("category", category);
     formData.append("referenceType", referenceType);
     if (subCategory) formData.append("subCategory", subCategory);
-    if (notes) formData.append("notes", notes);
+    if (notes) {
+      formData.append("notes", notes);
+      formData.append("description", notes);
+    }
     if (tags && tags.length > 0) formData.append("tags", tags.join(","));
 
     const response = await fetch(

@@ -491,6 +491,13 @@ const LeadDetails: React.FC = () => {
       ? teamUsers.find((u) => u.id === lead.assignedToId)?.name || lead.assignedToId
       : "");
 
+  const secondaryEmails = (lead?.secondaryEmails || [])
+    .map((email) => (email || "").trim())
+    .filter(Boolean);
+  const secondaryPhones = (lead?.secondaryPhones || [])
+    .map((phone) => (phone || "").trim())
+    .filter(Boolean);
+
   if (loading) {
     return <PageLoader message="Loading lead details..." />;
   }
@@ -558,6 +565,11 @@ const LeadDetails: React.FC = () => {
                     <h1 className="text-2xl font-bold text-gray-900">
                       {safeDisplay(lead.name, "Unknown Lead")}
                     </h1>
+                    {lead.leadNumber && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+                        Lead No: {lead.leadNumber}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-gray-600">
                     {lead.phone &&
@@ -665,6 +677,8 @@ const LeadDetails: React.FC = () => {
               <div className="p-4">
                 {!lead.phone &&
                 !lead.email &&
+                secondaryPhones.length === 0 &&
+                secondaryEmails.length === 0 &&
                 !lead.location &&
                 !lead.city &&
                 (lead.score === undefined || lead.score === null) &&
@@ -711,6 +725,24 @@ const LeadDetails: React.FC = () => {
                         </div>
                       )}
 
+                    {secondaryPhones.length > 0 && (
+                      <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Phone className="w-5 h-5 text-orange-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-1">Secondary Phones</p>
+                          <div className="space-y-1">
+                            {secondaryPhones.map((phone, idx) => (
+                              <p key={`secondary-phone-${idx}`} className="text-sm font-semibold text-gray-900">
+                                {phone}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {typeof lead.canWhatsApp === "boolean" && (
                       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                         <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
@@ -752,6 +784,24 @@ const LeadDetails: React.FC = () => {
                           </button>
                         </div>
                       )}
+
+                    {secondaryEmails.length > 0 && (
+                      <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Mail className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 mb-1">Secondary Emails</p>
+                          <div className="space-y-1">
+                            {secondaryEmails.map((email, idx) => (
+                              <p key={`secondary-email-${idx}`} className="text-sm font-semibold text-gray-900 break-all">
+                                {email}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {lead.location && (
                       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">

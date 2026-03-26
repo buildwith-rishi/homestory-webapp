@@ -23,19 +23,46 @@ import {
   type RoleId,
 } from "../../config/rbac";
 
-interface ApiRole {
+interface ApiRoleTitle {
+  id: string;
+  roleTitle: string;
+  departmentId?: string;
+  credentialId?: string;
+  department?: {
+    id: string;
+    name: string;
+    description?: string;
+  };
+  credential?: {
+    id: string;
+    name: string;
+    description?: string;
+    roleKey?: string;
+  };
+}
+
+interface ApiDepartment {
   id: string;
   name: string;
-  description: string;
-  accessLevel: string;
-  permissions: string[];
+  description?: string;
+  isActive?: boolean;
+}
+
+interface ApiCredential {
+  id: string;
+  name: string;
+  description?: string;
+  roleKey?: string;
+  isActive?: boolean;
 }
 
 export const UserManagement: React.FC = () => {
   const { roleId } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [apiRoles, setApiRoles] = useState<ApiRole[]>([]);
+  const [roleTitles, setRoleTitles] = useState<ApiRoleTitle[]>([]);
+  const [departments, setDepartments] = useState<ApiDepartment[]>([]);
+  const [credentials, setCredentials] = useState<ApiCredential[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "banned">(
@@ -57,16 +84,20 @@ export const UserManagement: React.FC = () => {
     name: "",
     email: "",
     password: "",
-    role: "BDR",
+    roleTitle: "",
     phone: "",
   });
   const [editForm, setEditForm] = useState<{
     name: string;
-    role: AdminUser["role"];
+    roleTitle: string;
+    departmentId: string;
+    credentialId: string;
     phone: string;
   }>({
     name: "",
-    role: "BDR",
+    roleTitle: "",
+    departmentId: "",
+    credentialId: "",
     phone: "",
   });
   const [banReason, setBanReason] = useState("");
@@ -89,16 +120,16 @@ export const UserManagement: React.FC = () => {
       console.log("📦 API Response:", response);
 
       // Handle different response formats
-      let usersList: AdminUser[] = [];
+      let usersList: Array<Record<string, unknown>> = [];
       if (response && typeof response === "object") {
         // Check if response has users array
         if ("users" in response && Array.isArray(response.users)) {
-          usersList = response.users;
+          usersList = response.users as Array<Record<string, unknown>>;
           console.log("✅ Found users in response.users:", usersList.length);
         }
         // Check if response itself is an array
         else if (Array.isArray(response)) {
-          usersList = response;
+          usersList = response as Array<Record<string, unknown>>;
           console.log("✅ Response is array:", usersList.length);
         }
         // Check if response has data property with users
@@ -109,13 +140,13 @@ export const UserManagement: React.FC = () => {
         ) {
           const data = response.data as Record<string, unknown>;
           if (Array.isArray(data)) {
-            usersList = data;
+            usersList = data as Array<Record<string, unknown>>;
             console.log(
               "✅ Found users in response.data (array):",
               usersList.length,
             );
           } else if ("users" in data && Array.isArray(data.users)) {
-            usersList = data.users as AdminUser[];
+            usersList = data.users as Array<Record<string, unknown>>;
             console.log(
               "✅ Found users in response.data.users:",
               usersList.length,
@@ -124,8 +155,34 @@ export const UserManagement: React.FC = () => {
         }
       }
 
+      // Normalize role and roleTitle from varying backend response shapes.
+      const normalizedUsers = usersList.map((user) => {
+        const roleFromApi =
+          user.role ||
+          (user.credential as { roleKey?: string; name?: string } | undefined)
+            ?.roleKey ||
+          (user.credential as { roleKey?: string; name?: string } | undefined)
+            ?.name ||
+          "BDR";
+
+        const roleTitleFromApi =
+          (user.roleTitle as string | undefined) ||
+          (user.userRoleTitle as string | undefined) ||
+          (user.title as string | undefined);
+
+        return {
+          ...user,
+          role: String(roleFromApi).toUpperCase() as AdminUser["role"],
+          roleTitle: roleTitleFromApi,
+          departmentId: user.departmentId as string | undefined,
+          credentialId: user.credentialId as string | undefined,
+        } as AdminUser;
+      });
+
       // Deactivated users should not be visible in User Management UI.
-      const activeUsersOnly = usersList.filter((user) => user.isActive !== false);
+      const activeUsersOnly = normalizedUsers.filter(
+        (user) => user.isActive !== false,
+      );
 
       setUsers(activeUsersOnly);
       console.log(
@@ -145,23 +202,119 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  const loadRoles = async () => {
+  const loadRoleTitles = async () => {
     try {
-      const response = await adminAPI.getRoles() as any;
-      if (response?.roles && Array.isArray(response.roles)) {
-        setApiRoles(response.roles);
+      const response = (await adminAPI.getRoleTitles()) as unknown;
+      let titles: ApiRoleTitle[] = [];
+
+      if (Array.isArray(response)) {
+        titles = response;
+      } else if (
+        response &&
+        typeof response === "object" &&
+        "roleTitles" in response &&
+        Array.isArray((response as { roleTitles: unknown[] }).roleTitles)
+      ) {
+        titles = (response as { roleTitles: ApiRoleTitle[] }).roleTitles;
+      } else if (
+        response &&
+        typeof response === "object" &&
+        "data" in response &&
+        Array.isArray((response as { data: unknown[] }).data)
+      ) {
+        titles = (response as { data: ApiRoleTitle[] }).data;
+      }
+
+      setRoleTitles(titles);
+      if (titles.length > 0) {
+        setCreateForm((prev) => ({
+          ...prev,
+          roleTitle: prev.roleTitle || titles[0].roleTitle,
+        }));
       }
     } catch (err) {
-      console.error("Failed to load roles:", err);
+      console.error("Failed to load role titles:", err);
+    }
+  };
+
+  const loadDepartments = async () => {
+    try {
+      const response = (await adminAPI.getDepartments()) as unknown;
+      let departmentList: ApiDepartment[] = [];
+
+      if (Array.isArray(response)) {
+        departmentList = response;
+      } else if (
+        response &&
+        typeof response === "object" &&
+        "departments" in response &&
+        Array.isArray((response as { departments: unknown[] }).departments)
+      ) {
+        departmentList = (response as { departments: ApiDepartment[] })
+          .departments;
+      } else if (
+        response &&
+        typeof response === "object" &&
+        "data" in response &&
+        Array.isArray((response as { data: unknown[] }).data)
+      ) {
+        departmentList = (response as { data: ApiDepartment[] }).data;
+      }
+
+      setDepartments(departmentList.filter((department) => department.isActive !== false));
+    } catch (err) {
+      console.error("Failed to load departments:", err);
+    }
+  };
+
+  const loadCredentials = async () => {
+    try {
+      const response = (await adminAPI.getCredentials()) as unknown;
+      let credentialList: ApiCredential[] = [];
+
+      if (Array.isArray(response)) {
+        credentialList = response;
+      } else if (
+        response &&
+        typeof response === "object" &&
+        "credentials" in response &&
+        Array.isArray((response as { credentials: unknown[] }).credentials)
+      ) {
+        credentialList = (response as { credentials: ApiCredential[] })
+          .credentials;
+      } else if (
+        response &&
+        typeof response === "object" &&
+        "data" in response &&
+        Array.isArray((response as { data: unknown[] }).data)
+      ) {
+        credentialList = (response as { data: ApiCredential[] }).data;
+      }
+
+      setCredentials(credentialList.filter((credential) => credential.isActive !== false));
+    } catch (err) {
+      console.error("Failed to load credentials:", err);
     }
   };
 
   useEffect(() => {
     if (isAdmin) {
       loadUsers();
-      loadRoles();
+      loadRoleTitles();
+      loadDepartments();
+      loadCredentials();
     }
   }, [isAdmin]);
+
+  const getUserRoleLabel = (user: AdminUser) => {
+    if (user.roleTitle && user.roleTitle.trim()) {
+      return user.roleTitle;
+    }
+    if (user.role) {
+      return getRoleDisplayName(user.role as RoleId);
+    }
+    return "N/A";
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,13 +347,19 @@ export const UserManagement: React.FC = () => {
         JSON.parse(localStorage.getItem("user") || "{}").role,
       );
 
-      await adminAPI.createUser(createForm);
+      await adminAPI.createUser({
+        name: createForm.name,
+        email: createForm.email,
+        password: createForm.password,
+        roleTitle: createForm.roleTitle,
+        phone: createForm.phone?.trim() || undefined,
+      });
       setShowCreateModal(false);
       setCreateForm({
         name: "",
         email: "",
         password: "",
-        role: "BDR",
+        roleTitle: roleTitles[0]?.roleTitle || "",
         phone: "",
       });
       await loadUsers();
@@ -287,8 +446,9 @@ export const UserManagement: React.FC = () => {
       setActionLoading(true);
       await adminAPI.updateUser(selectedUser.id, {
         name: editForm.name,
-        role: editForm.role.toUpperCase(),
-        phone: editForm.phone || undefined,
+        roleTitle: editForm.roleTitle,
+        departmentId: editForm.departmentId,
+        credentialId: editForm.credentialId,
       });
       setShowEditModal(false);
       setSelectedUser(null);
@@ -353,7 +513,8 @@ export const UserManagement: React.FC = () => {
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesRole = roleFilter === "all" || user.role === roleFilter;
+    const matchesRole =
+      roleFilter === "all" || getUserRoleLabel(user) === roleFilter;
 
     const matchesStatus =
       statusFilter === "all" ||
@@ -496,9 +657,9 @@ export const UserManagement: React.FC = () => {
             }}
           >
             <option value="all">All Roles</option>
-            {apiRoles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
+            {roleTitles.map((role) => (
+              <option key={role.id} value={role.roleTitle}>
+                {role.roleTitle}
               </option>
             ))}
           </select>
@@ -591,7 +752,7 @@ export const UserManagement: React.FC = () => {
                       <Badge
                         className={`${getRoleBadgeColor(user.role)} px-3 py-1`}
                       >
-                        {getRoleDisplayName(user.role as RoleId)}
+                        {getUserRoleLabel(user)}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -624,11 +785,26 @@ export const UserManagement: React.FC = () => {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => {
+                            const fallbackRoleTitle =
+                              user.roleTitle || roleTitles[0]?.roleTitle || "";
+                            const roleTitleConfig = roleTitles.find(
+                              (roleTitle) => roleTitle.roleTitle === fallbackRoleTitle,
+                            );
+
                             setSelectedUser(user);
                             setEditForm({
                               name: user.name,
-                              role: (user.role?.toUpperCase() ||
-                                "BDR") as AdminUser["role"],
+                              roleTitle: fallbackRoleTitle,
+                              departmentId:
+                                user.departmentId ||
+                                roleTitleConfig?.departmentId ||
+                                departments[0]?.id ||
+                                "",
+                              credentialId:
+                                user.credentialId ||
+                                roleTitleConfig?.credentialId ||
+                                credentials[0]?.id ||
+                                "",
                               phone: user.phone || "",
                             });
                             setShowEditModal(true);
@@ -774,11 +950,11 @@ export const UserManagement: React.FC = () => {
             </label>
             <select
               required
-              value={createForm.role}
+              value={createForm.roleTitle}
               onChange={(e) =>
                 setCreateForm({
                   ...createForm,
-                  role: e.target.value as AdminUser["role"],
+                  roleTitle: e.target.value,
                 })
               }
               className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-900 transition-all text-sm appearance-none cursor-pointer"
@@ -789,9 +965,9 @@ export const UserManagement: React.FC = () => {
                 backgroundSize: "1.25em 1.25em",
               }}
             >
-              {apiRoles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
+              {roleTitles.map((role) => (
+                <option key={role.id} value={role.roleTitle}>
+                  {role.roleTitle}
                 </option>
               ))}
             </select>
@@ -814,18 +990,26 @@ export const UserManagement: React.FC = () => {
           </div>
 
           {/* Role Description */}
-          {createForm.role &&
-            apiRoles
-              .filter((r) => r.id === createForm.role)
+          {createForm.roleTitle &&
+            roleTitles
+              .filter((r) => r.roleTitle === createForm.roleTitle)
               .map((role) => (
                 <div
                   key={role.id}
                   className="p-3 bg-blue-50 rounded-lg border border-blue-100"
                 >
                   <p className="text-xs font-medium text-blue-700 mb-1">
-                    {role.name} — {role.accessLevel} Access
+                    {role.roleTitle}
+                    {role.credential?.name ? ` - ${role.credential.name}` : ""}
                   </p>
-                  <p className="text-xs text-blue-600">{role.description}</p>
+                  <p className="text-xs text-blue-600">
+                    {role.credential?.description || "Role permissions as configured by admin."}
+                  </p>
+                  {role.department?.name && (
+                    <p className="text-xs text-blue-500 mt-1">
+                      Department: {role.department.name}
+                    </p>
+                  )}
                 </div>
               ))}
 
@@ -1044,11 +1228,49 @@ export const UserManagement: React.FC = () => {
             </label>
             <select
               required
-              value={editForm.role}
+              value={editForm.roleTitle}
+              onChange={(e) => {
+                const nextRoleTitle = e.target.value;
+                const roleTitleConfig = roleTitles.find(
+                  (role) => role.roleTitle === nextRoleTitle,
+                );
+
+                setEditForm({
+                  ...editForm,
+                  roleTitle: nextRoleTitle,
+                  departmentId:
+                    roleTitleConfig?.departmentId || editForm.departmentId,
+                  credentialId:
+                    roleTitleConfig?.credentialId || editForm.credentialId,
+                });
+              }}
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-900 transition-all text-sm appearance-none cursor-pointer"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: "right 0.75rem center",
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "1.25em 1.25em",
+              }}
+            >
+              {roleTitles.map((role) => (
+                <option key={role.id} value={role.roleTitle}>
+                  {role.roleTitle}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Department <span className="text-red-500">*</span>
+            </label>
+            <select
+              required
+              value={editForm.departmentId}
               onChange={(e) =>
                 setEditForm({
                   ...editForm,
-                  role: e.target.value as AdminUser["role"],
+                  departmentId: e.target.value,
                 })
               }
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-900 transition-all text-sm appearance-none cursor-pointer"
@@ -1059,9 +1281,38 @@ export const UserManagement: React.FC = () => {
                 backgroundSize: "1.25em 1.25em",
               }}
             >
-              {apiRoles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Credential <span className="text-red-500">*</span>
+            </label>
+            <select
+              required
+              value={editForm.credentialId}
+              onChange={(e) =>
+                setEditForm({
+                  ...editForm,
+                  credentialId: e.target.value,
+                })
+              }
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-900 transition-all text-sm appearance-none cursor-pointer"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: "right 0.75rem center",
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "1.25em 1.25em",
+              }}
+            >
+              {credentials.map((credential) => (
+                <option key={credential.id} value={credential.id}>
+                  {credential.name}
                 </option>
               ))}
             </select>

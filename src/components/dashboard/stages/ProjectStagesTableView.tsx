@@ -58,6 +58,7 @@ const formatDate = (d?: string | null) => {
   return new Date(d).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
+    year: "numeric",
   });
 };
 
@@ -90,7 +91,6 @@ export const ProjectStagesTableView: React.FC<Props> = ({
     completedDate: "",
     remarks: "",
   });
-  const [actionMenuId, setActionMenuId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const openEdit = (stage: ProjectStageData) => {
@@ -105,7 +105,6 @@ export const ProjectStagesTableView: React.FC<Props> = ({
         : "",
       remarks: stage.remarks || "",
     });
-    setActionMenuId(null);
   };
 
   const cancelEdit = () => {
@@ -178,7 +177,7 @@ export const ProjectStagesTableView: React.FC<Props> = ({
             </tr>
           </thead>
           <tbody>
-            {stages.map((stage, idx) => {
+            {stages.map((stage) => {
               const isEditing = editingId === stage.id;
               const isCurrent = stage.stageCode === currentStageCode;
               const badge = statusBadge[stage.status] || statusBadge.PENDING;

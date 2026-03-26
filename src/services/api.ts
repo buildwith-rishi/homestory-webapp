@@ -348,7 +348,7 @@ export const adminAPI = {
     name: string;
     email: string;
     password: string;
-    role: string;
+    roleTitle: string;
     phone?: string;
   }) => {
     return fetchAPI("/api/admin/users", {
@@ -362,8 +362,9 @@ export const adminAPI = {
     userId: string,
     userData: {
       name?: string;
-      role?: string;
-      phone?: string;
+      roleTitle?: string;
+      departmentId?: string;
+      credentialId?: string;
     },
   ) => {
     return fetchAPI(`/api/users/${userId}`, {
@@ -406,6 +407,21 @@ export const adminAPI = {
   // Get all roles from backend
   getRoles: async () => {
     return fetchAPI("/api/roles", { method: "GET" });
+  },
+
+  // Get all role titles for user creation and display
+  getRoleTitles: async () => {
+    return fetchAPI("/api/users/role-titles", { method: "GET" });
+  },
+
+  // Get all departments for update-user form
+  getDepartments: async () => {
+    return fetchAPI("/api/departments", { method: "GET" });
+  },
+
+  // Get all credentials for update-user form
+  getCredentials: async () => {
+    return fetchAPI("/api/credentials", { method: "GET" });
   },
 };
 

@@ -16,7 +16,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Button, Input, Toggle } from "../ui";
+import { Button, Input } from "../ui";
 import {
   CreateProjectRequest,
   PipelineType,
@@ -24,7 +24,7 @@ import {
   ScopeType,
 } from "../../types";
 import type { Customer } from "../../types/customer";
-import { listCustomers } from "../../services/customerApi";
+import { getCustomerById, listCustomers } from "../../services/customerApi";
 import { listProjects } from "../../services/projectApi";
 import { type TeamMember } from "../../services/teamApi";
 import { adminAPI } from "../../services/api";
@@ -240,10 +240,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     {},
   );
   const [submitting, setSubmitting] = useState(false);
-  const [autoPopulate, setAutoPopulate] = useState(true);
+  const [autoPopulate, setAutoPopulate] = useState(false);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [customerDetailsLoading, setCustomerDetailsLoading] = useState(false);
   const [customersError, setCustomersError] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -263,10 +264,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       setFormData({ ...INITIAL_FORM_DATA });
       setErrors({});
       setSubmitting(false);
-      setAutoPopulate(true);
+      setAutoPopulate(false);
       setSelectedCustomer(null);
       setCustomerSearch("");
       setShowCustomerDropdown(false);
+      setCustomerDetailsLoading(false);
     }
   }, [isOpen]);
 
@@ -395,20 +397,35 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     });
   }, [internalTeamMembers]);
 
-  const populateFromCustomer = (
-    customer: Customer,
-    shouldPopulate: boolean = autoPopulate,
-  ) => {
-    if (!shouldPopulate) return;
-
+  const getCustomerAutofillUpdates = (customer: Customer): Partial<FormData> => {
     const primaryContact =
       customer.contacts?.find((contact) => contact.isPrimary) ??
       customer.contacts?.[0];
 
     const updates: Partial<FormData> = {};
 
-    if (customer.billingAddress) updates.propertyAddress = customer.billingAddress;
     if (customer.billingAddress) updates.billingAddress = customer.billingAddress;
+    if (customer.shippingAddress) {
+      updates.propertyAddress = customer.shippingAddress;
+    } else if (customer.billingAddress) {
+      updates.propertyAddress = customer.billingAddress;
+    }
+
+    const fallbackName = (customer.name || "").trim();
+    if (fallbackName) updates.siteContactName = fallbackName;
+
+    if (customer.phone?.trim()) {
+      updates.siteContactPhone = customer.phone.trim();
+    } else if (customer.secondaryPhones && customer.secondaryPhones.length > 0) {
+      const firstSecondary = customer.secondaryPhones.find((phone) =>
+        (phone || "").trim(),
+      );
+      if (firstSecondary) updates.siteContactPhone = firstSecondary.trim();
+    }
+
+    if (customer.notes?.trim()) {
+      updates.specialRequirements = customer.notes.trim();
+    }
 
     if (primaryContact) {
       const fullName = [primaryContact.firstName, primaryContact.lastName]
@@ -419,8 +436,32 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
       if (primaryContact.phone) updates.siteContactPhone = primaryContact.phone;
     }
 
-    setFormData((prev) => ({ ...prev, ...updates }));
+    return updates;
   };
+
+  const applyCustomerAutofill = async (customerId: string) => {
+    if (!customerId || !autoPopulate) return;
+
+    setCustomerDetailsLoading(true);
+    try {
+      const customer = await getCustomerById(customerId);
+      const updates = getCustomerAutofillUpdates(customer);
+      setFormData((prev) => ({ ...prev, ...updates }));
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to auto-fill customer details";
+      toast.error(message);
+    } finally {
+      setCustomerDetailsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!autoPopulate || !formData.accountId) return;
+    void applyCustomerAutofill(formData.accountId);
+  }, [autoPopulate, formData.accountId]);
 
   const handleChange = (field: keyof FormData, value: string | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -648,19 +689,21 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 font-medium">Auto-fill details</span>
-                    <Toggle
+                    <input
+                      type="checkbox"
                       checked={autoPopulate}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setAutoPopulate(checked);
-                        if (checked && selectedCustomer) {
-                          populateFromCustomer(selectedCustomer, true);
-                        }
-                      }}
-                      className="scale-75 origin-right"
+                      onChange={(e) => setAutoPopulate(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
                     />
                   </div>
                 </div>
+
+                {customerDetailsLoading && (
+                  <p className="text-xs text-orange-600 mb-2 flex items-center gap-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Auto-filling matching customer fields...
+                  </p>
+                )}
 
                 {customersError ? (
                   <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
@@ -742,7 +785,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                                 onClick={() => {
                                   setSelectedCustomer(customer);
                                   handleChange("accountId", customer.id);
-                                  populateFromCustomer(customer);
                                   setCustomerSearch("");
                                   setShowCustomerDropdown(false);
                                 }}

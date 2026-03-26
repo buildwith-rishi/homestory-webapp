@@ -60,6 +60,7 @@ export interface ConvertedFromLead {
 
 export interface Customer {
   id: string;
+  customerNumber?: string;
   name: string;
   type?: string;
   bankDetails?: string | null;

@@ -113,6 +113,7 @@ interface AssignedProject {
 
 interface Customer {
   id: string | number;
+  customerNumber?: string;
   name: string;
   initials: string;
   bankDetails?: string;
@@ -764,6 +765,7 @@ export const CustomerDetails: React.FC = () => {
 
         const mappedCustomer: Customer = {
           id: apiCustomer.id, // Keep UUID as string
+          customerNumber: apiCustomer.customerNumber || undefined,
           name: customerName,
           initials,
           bankDetails: apiCustomer.bankDetails || "",
@@ -1741,6 +1743,11 @@ export const CustomerDetails: React.FC = () => {
                         <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
                           {customer.name}
                         </h1>
+                        {customer.customerNumber && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+                            Customer No: {customer.customerNumber}
+                          </span>
+                        )}
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full ${statusColor.bg} ${statusColor.text}`}
                         >

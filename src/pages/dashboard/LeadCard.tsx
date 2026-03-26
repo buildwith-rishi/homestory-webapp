@@ -8,8 +8,6 @@ import {
   Users,
   ArrowRight,
   Check,
-  User,
-  Clock,
 } from "lucide-react";
 import { Lead } from "../../services/leadApi";
 import { getSourceLabel } from "../../utils/leadHelpers";
@@ -61,6 +59,13 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
   onOpenBdrDropdown,
   registerBdrButtonRef,
 }) => {
+  const secondaryEmails = (lead.secondaryEmails || [])
+    .map((email) => (email || "").trim())
+    .filter(Boolean);
+  const secondaryPhones = (lead.secondaryPhones || [])
+    .map((phone) => (phone || "").trim())
+    .filter(Boolean);
+
   return (
     <div
       className={`group bg-white rounded-2xl border shadow-sm hover:shadow-xl hover:border-orange-100 transition-all duration-300 cursor-pointer overflow-hidden relative ${
@@ -188,6 +193,14 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
             <p className="text-sm font-medium text-gray-900 truncate">
               {lead.phone || "Not provided"}
             </p>
+            {secondaryPhones.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1 truncate">
+                {secondaryPhones[0]}
+                {secondaryPhones.length > 1
+                  ? ` +${secondaryPhones.length - 1} more`
+                  : ""}
+              </p>
+            )}
           </div>
           {/* Email */}
           <div className="bg-gray-50 rounded-xl p-3 group/item hover:bg-blue-50 transition-colors">
@@ -200,6 +213,14 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
             <p className="text-sm font-medium text-gray-900 truncate">
               {lead.email || "Not provided"}
             </p>
+            {secondaryEmails.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1 truncate">
+                {secondaryEmails[0]}
+                {secondaryEmails.length > 1
+                  ? ` +${secondaryEmails.length - 1} more`
+                  : ""}
+              </p>
+            )}
           </div>
         </div>
 

@@ -112,7 +112,9 @@ export const LeadModal: React.FC<{
   const emptyForm: Omit<Lead, "id"> = {
     name: "",
     email: "",
+    secondaryEmails: [],
     phone: "",
+    secondaryPhones: [],
     source: availableSources[0]?.value || "WEBSITE",
     score: undefined,
     companyName: "",
@@ -281,6 +283,29 @@ export const LeadModal: React.FC<{
   const f = (field: keyof Omit<Lead, "id">, value: unknown) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
+  const updateSecondaryValue = (
+    field: "secondaryEmails" | "secondaryPhones",
+    index: number,
+    value: string,
+  ) => {
+    const current = [...(formData[field] || [])];
+    current[index] = value;
+    f(field, current);
+  };
+
+  const addSecondaryValue = (field: "secondaryEmails" | "secondaryPhones") => {
+    f(field, [...(formData[field] || []), ""]);
+  };
+
+  const removeSecondaryValue = (
+    field: "secondaryEmails" | "secondaryPhones",
+    index: number,
+  ) => {
+    const current = [...(formData[field] || [])];
+    current.splice(index, 1);
+    f(field, current);
+  };
+
   useEffect(() => {
     if (lead) {
       const existingFloorPlanUrl = getExistingFloorPlanUrl(lead);
@@ -298,7 +323,9 @@ export const LeadModal: React.FC<{
       setFormData({
         name: lead.name || "",
         email: lead.email || "",
+        secondaryEmails: (lead.secondaryEmails || []).filter(Boolean),
         phone: lead.phone || "",
+        secondaryPhones: (lead.secondaryPhones || []).filter(Boolean),
         source: lead.source || availableSources[0]?.value || "WEBSITE",
         score: lead.score ?? undefined,
         companyName: lead.companyName || "",
@@ -372,6 +399,23 @@ export const LeadModal: React.FC<{
       newErrors.budgetComfort = "Budget comfort is required";
     if (!formData.projectScope?.trim())
       newErrors.projectScope = "Project scope is required";
+
+    const hasInvalidSecondaryEmail = (formData.secondaryEmails || [])
+      .map((email) => email.trim())
+      .filter(Boolean)
+      .some((email) => !/\S+@\S+\.\S+/.test(email));
+    if (hasInvalidSecondaryEmail) {
+      newErrors.secondaryEmails = "One or more secondary emails are invalid";
+    }
+
+    const hasInvalidSecondaryPhone = (formData.secondaryPhones || [])
+      .map((phone) => phone.trim())
+      .filter(Boolean)
+      .some((phone) => !/^\+?[\d\s-]{10,}$/.test(phone));
+    if (hasInvalidSecondaryPhone) {
+      newErrors.secondaryPhones = "One or more secondary phone numbers are invalid";
+    }
+
     setErrors(newErrors);
     return newErrors;
   };
@@ -483,11 +527,28 @@ export const LeadModal: React.FC<{
 
     setIsSubmitting(true);
     try {
+      const secondaryEmails = Array.from(
+        new Set(
+          (formData.secondaryEmails || [])
+            .map((email) => email.trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      );
+      const secondaryPhones = Array.from(
+        new Set(
+          (formData.secondaryPhones || [])
+            .map((phone) => phone.trim())
+            .filter(Boolean),
+        ),
+      );
+
       // Only include fields currently exposed in the LeadModal UI.
       const payload = {
         name: formData.name,
         email: formData.email || null,
+        secondaryEmails,
         phone: formData.phone,
+        secondaryPhones,
         source: formData.source || "WEBSITE",
         status: formData.status || "NEW",
         score:
@@ -691,6 +752,96 @@ export const LeadModal: React.FC<{
                   {errors.phone && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5" /> {errors.phone}
+                    </p>
+                  )}
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Secondary Emails
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => addSecondaryValue("secondaryEmails")}
+                      className="text-xs font-semibold text-orange-600 hover:text-orange-700"
+                    >
+                      + Add email
+                    </button>
+                  </div>
+                  {(formData.secondaryEmails || []).map((email, index) => (
+                    <div key={`secondary-email-${index}`} className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) =>
+                          updateSecondaryValue(
+                            "secondaryEmails",
+                            index,
+                            e.target.value,
+                          )
+                        }
+                        placeholder="secondary@example.com"
+                        className={inputClass(errors.secondaryEmails)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSecondaryValue("secondaryEmails", index)}
+                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        aria-label="Remove secondary email"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  {errors.secondaryEmails && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.secondaryEmails}
+                    </p>
+                  )}
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Secondary Phones
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => addSecondaryValue("secondaryPhones")}
+                      className="text-xs font-semibold text-orange-600 hover:text-orange-700"
+                    >
+                      + Add phone
+                    </button>
+                  </div>
+                  {(formData.secondaryPhones || []).map((phone, index) => (
+                    <div key={`secondary-phone-${index}`} className="flex items-center gap-2">
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) =>
+                          updateSecondaryValue(
+                            "secondaryPhones",
+                            index,
+                            e.target.value,
+                          )
+                        }
+                        placeholder="+91 98765 43210"
+                        className={inputClass(errors.secondaryPhones)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSecondaryValue("secondaryPhones", index)}
+                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        aria-label="Remove secondary phone"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  {errors.secondaryPhones && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.secondaryPhones}
                     </p>
                   )}
                 </div>

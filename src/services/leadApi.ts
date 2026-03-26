@@ -10,7 +10,9 @@ export interface Lead {
   leadNumber?: string;
   name?: string;
   email?: string;
+  secondaryEmails?: string[];
   phone?: string;
+  secondaryPhones?: string[];
   source: string;
   status?: string;
   stage?: string;
@@ -253,7 +255,11 @@ const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
   // Basic Info (current frontend)
   if (updates.name !== undefined) payload.name = updates.name;
   if (updates.email !== undefined) payload.email = updates.email;
+  if (updates.secondaryEmails !== undefined)
+    payload.secondaryEmails = updates.secondaryEmails;
   if (updates.phone !== undefined) payload.phone = updates.phone;
+  if (updates.secondaryPhones !== undefined)
+    payload.secondaryPhones = updates.secondaryPhones;
   if (updates.companyName !== undefined) payload.companyName = updates.companyName;
   if (updates.source !== undefined) payload.source = updates.source;
   if (updates.status !== undefined) payload.status = updates.status;

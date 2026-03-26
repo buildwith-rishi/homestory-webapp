@@ -92,6 +92,30 @@ const columnToStatus: Record<string, string> = {
   "col-converted": "CONVERTED",
 };
 
+const formatProjectCurrency = (value: unknown): string => {
+  if (value === null || value === undefined || value === "") return "";
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `₹${value.toLocaleString("en-IN")}`;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return "";
+
+  const cleanedNumeric = raw
+    .replace(/\\u20B9/gi, "")
+    .replace(/₹/g, "")
+    .replace(/,/g, "")
+    .trim();
+
+  const parsed = Number(cleanedNumeric);
+  if (Number.isFinite(parsed)) {
+    return `₹${parsed.toLocaleString("en-IN")}`;
+  }
+
+  return raw.replace(/\\u20B9/gi, "₹");
+};
+
 const KanbanView: React.FC = () => {
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<ViewType>("leads");
@@ -105,6 +129,7 @@ const KanbanView: React.FC = () => {
   const [bdrDropdownPos, setBdrDropdownPos] = useState<{
     top: number;
     left: number;
+    openUpward?: boolean;
   } | null>(null);
   const bdrButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -197,6 +222,28 @@ const KanbanView: React.FC = () => {
     [fetchLeads],
   );
 
+  const updateBdrDropdownPosition = useCallback((leadId: string) => {
+    const btn = bdrButtonRefs.current[leadId];
+    if (!btn) return false;
+
+    const rect = btn.getBoundingClientRect();
+    const dropdownHeight = 280;
+    const dropdownWidth = 208;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < dropdownHeight + 8;
+    const left = Math.max(
+      8,
+      Math.min(rect.left, window.innerWidth - dropdownWidth - 8),
+    );
+
+    setBdrDropdownPos({
+      top: openUpward ? rect.top - 4 : rect.bottom + 4,
+      left,
+      openUpward,
+    });
+    return true;
+  }, []);
+
   // Open BDR dropdown positioned relative to button
   const openBdrDropdown = useCallback(
     (leadId: string) => {
@@ -205,32 +252,30 @@ const KanbanView: React.FC = () => {
         setBdrDropdownPos(null);
         return;
       }
-      const btn = bdrButtonRefs.current[leadId];
-      if (btn) {
-        const rect = btn.getBoundingClientRect();
-        const scrollY = window.scrollY || document.documentElement.scrollTop;
-        const scrollX = window.scrollX || document.documentElement.scrollLeft;
-        setBdrDropdownPos({
-          top: rect.bottom + scrollY + 4,
-          left: rect.left + scrollX,
-        });
-      }
+      updateBdrDropdownPosition(leadId);
       setBdrDropdownOpen(leadId);
     },
-    [bdrDropdownOpen],
+    [bdrDropdownOpen, updateBdrDropdownPosition],
   );
 
-  // Close dropdown on scroll to prevent detachment issues
+  // Keep dropdown anchored to its button while scrolling/resizing.
   useEffect(() => {
-    const handleScroll = () => {
-      if (bdrDropdownOpen) {
+    const syncPosition = () => {
+      if (!bdrDropdownOpen) return;
+      const anchored = updateBdrDropdownPosition(bdrDropdownOpen);
+      if (!anchored) {
         setBdrDropdownOpen(null);
         setBdrDropdownPos(null);
       }
     };
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [bdrDropdownOpen]);
+
+    window.addEventListener("scroll", syncPosition, true);
+    window.addEventListener("resize", syncPosition);
+    return () => {
+      window.removeEventListener("scroll", syncPosition, true);
+      window.removeEventListener("resize", syncPosition);
+    };
+  }, [bdrDropdownOpen, updateBdrDropdownPosition]);
 
   // ─── Assignee Panel Handlers ──────────────────────────────────────────────
 
@@ -1120,8 +1165,7 @@ const KanbanView: React.FC = () => {
                   className="text-green-500 flex-shrink-0"
                 />
                 <span className="font-medium text-gray-700">
-                  \u20B9
-                  {parseFloat(String(project.totalValue)).toLocaleString()}
+                  {formatProjectCurrency(project.totalValue)}
                 </span>
               </div>
             )}
@@ -1223,6 +1267,10 @@ const KanbanView: React.FC = () => {
                 top: bdrDropdownPos.top,
                 left: bdrDropdownPos.left,
                 maxHeight: "280px",
+                position: "fixed",
+                ...(bdrDropdownPos.openUpward
+                  ? { transform: "translateY(-100%)" }
+                  : null),
               }}
             >
               <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50 rounded-t-lg">

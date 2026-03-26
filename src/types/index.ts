@@ -563,6 +563,7 @@ export interface AddReferenceRequest {
 export interface UpdateReferenceRequest {
   linkTitle?: string;
   notes?: string;
+  description?: string;
   category?: string;
   subCategory?: string;
   tags?: string[];
@@ -1089,6 +1090,9 @@ export interface AdminUser {
     | "PLUMBER"
     | "CARPENTER";
   phone?: string;
+  roleTitle?: string;
+  departmentId?: string;
+  credentialId?: string;
   avatar?: string;
   isActive?: boolean;
   isBanned: boolean;
@@ -1103,23 +1107,7 @@ export interface CreateUserRequest {
   name: string;
   email: string;
   password: string;
-  role:
-    | "SUPER_ADMIN"
-    | "ADMIN"
-    | "BDR"
-    | "SALES"
-    | "HR"
-    | "PROJECT_MANAGER"
-    | "LEAD_PROJECT_MANAGER"
-    | "ACCOUNTS"
-    | "SITE_ENGINEER"
-    | "DESIGNER"
-    | "DESIGN_HEAD"
-    | "CIVIL"
-    | "PAINTER"
-    | "ELECTRICIAN"
-    | "PLUMBER"
-    | "CARPENTER";
+  roleTitle: string;
   phone?: string;
 }
 

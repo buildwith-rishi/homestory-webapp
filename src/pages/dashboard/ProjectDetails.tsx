@@ -1886,6 +1886,11 @@ export const ProjectDetails: React.FC = () => {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-orange-600 bg-clip-text text-transparent">
                   {projectName}
                 </h1>
+                {project.projectNumber && (
+                  <Badge className="bg-orange-50 text-orange-700 border-orange-200 text-sm px-3 py-1 font-semibold">
+                    Project No: {project.projectNumber}
+                  </Badge>
+                )}
                 <Badge
                   className={`${statusDisplay.className} border text-sm px-3 py-1 font-semibold`}
                 >
@@ -4257,46 +4262,6 @@ export const ProjectDetails: React.FC = () => {
                 </button>
               </div>
               <div className="space-y-4">
-                {attachmentUploadContext === "work" ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Document Type
-                    </label>
-                    <div className="w-full px-4 py-3 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 font-semibold">
-                      QUICK_ACTION (Work Upload)
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Document Type
-                    </label>
-                    <select
-                      value={attachmentUploadForm.attachmentType}
-                      onChange={(e) =>
-                        setAttachmentUploadForm((prev) => ({
-                          ...prev,
-                          attachmentType: e.target.value as AttachmentType,
-                        }))
-                      }
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus-visible:outline-none"
-                    >
-                      <option value="FLOOR_PLAN">Floor Plan</option>
-                      <option value="SITE_PHOTO">Site Photo</option>
-                      <option value="RENDER_3D">3D Render</option>
-                      <option value="BOQ">BOQ</option>
-                      <option value="QUOTE_PDF">Quote PDF</option>
-                      <option value="CONTRACT">Contract</option>
-                      <option value="APPROVAL_DOCUMENT">Approval Document</option>
-                      <option value="SIGN_OFF">Sign Off</option>
-                      <option value="WARRANTY_DOCUMENT">Warranty Document</option>
-                      <option value="INVOICE_PDF">Invoice PDF</option>
-                      <option value="ID_PROOF">ID Proof</option>
-                      <option value="QUICK_ACTION">Quick Action</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                  </div>
-                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     File *
@@ -4426,6 +4391,11 @@ export const ProjectDetails: React.FC = () => {
                           <p className="text-xs text-gray-500 truncate">
                             {formatDate(attachment.createdAt)}
                           </p>
+                          {attachment.notes && (
+                            <p className="text-xs text-gray-400 mt-1 line-clamp-2">
+                              {attachment.notes}
+                            </p>
+                          )}
                         </div>
                         <button
                           onClick={() => handleViewAttachment(attachment)}

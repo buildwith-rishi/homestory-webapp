@@ -71,6 +71,7 @@ interface Note {
 
 interface Customer {
   id: string | number;
+  customerNumber?: string;
   name: string;
   initials: string;
   email: string;
@@ -2793,6 +2794,7 @@ export const Customers: React.FC = () => {
 
           return {
             id: apiCustomer.id, // Keep UUID as string
+            customerNumber: apiCustomer.customerNumber || undefined,
             name: apiCustomer.name,
             initials,
             email: customerEmail,
@@ -3325,6 +3327,11 @@ export const Customers: React.FC = () => {
                       <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
                         {customer.name}
                       </h3>
+                      {customer.customerNumber && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Customer No: {customer.customerNumber}
+                        </p>
+                      )}
                       <p className="text-sm text-gray-600">
                         {customer.location}
                       </p>

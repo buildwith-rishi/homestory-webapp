@@ -340,6 +340,7 @@ export const ProjectsPage: React.FC = () => {
       filtered = filtered.filter(
         (p) =>
           (p.projectName || p.name || "").toLowerCase().includes(q) ||
+          (p.projectNumber || "").toLowerCase().includes(q) ||
           (p.lead?.name || "").toLowerCase().includes(q) ||
           (p.propertyCity || "").toLowerCase().includes(q),
       );
@@ -642,6 +643,11 @@ export const ProjectsPage: React.FC = () => {
                     <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
                       {displayName}
                     </h3>
+                    {project.projectNumber && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Project No: {project.projectNumber}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-600 mt-1">{clientName}</p>
                   </div>
                 </div>
@@ -797,6 +803,11 @@ export const ProjectsPage: React.FC = () => {
                           <p className="font-semibold text-sm text-gray-900 group-hover:text-orange-600 transition-colors">
                             {displayName}
                           </p>
+                          {project.projectNumber && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {project.projectNumber}
+                            </p>
+                          )}
                         </div>
                       </td>
 
