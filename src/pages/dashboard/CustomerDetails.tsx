@@ -60,6 +60,9 @@ import {
   listAttachments,
   getAttachment,
   deleteAttachment,
+  uploadAttachment,
+  fileToBase64,
+  mimeToAttachmentType,
   type Attachment,
 } from "../../services/attachmentApi";
 import { useCustomerStore } from "../../stores/customerStore";
@@ -430,6 +433,24 @@ const formatLeadReferenceValue = (value: unknown): string => {
   return String(value);
 };
 
+const isHttpUrl = (value: string): boolean => /^https?:\/\//i.test(value.trim());
+
+const getFileNameFromUrl = (url: string): string => {
+  try {
+    const parsedUrl = new URL(url);
+    const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
+    const rawFileName = pathSegments[pathSegments.length - 1];
+
+    if (rawFileName) {
+      return decodeURIComponent(rawFileName);
+    }
+  } catch {
+    // Fall back to a generic label for malformed URLs.
+  }
+
+  return "Open file";
+};
+
 const getAdditionalLeadReferenceFields = (
   lead: LeadOption | null,
 ): Array<{ key: string; value: unknown }> => {
@@ -551,6 +572,12 @@ export const CustomerDetails: React.FC = () => {
   );
   const [leadAttachments, setLeadAttachments] = useState<Attachment[]>([]);
   const [loadingLeadReferences, setLoadingLeadReferences] = useState(false);
+  const leadReferenceUploadInputRef = useRef<HTMLInputElement>(null);
+  const [referenceUploadTitle, setReferenceUploadTitle] = useState("");
+  const [referenceUploadFile, setReferenceUploadFile] = useState<File | null>(
+    null,
+  );
+  const [uploadingReference, setUploadingReference] = useState(false);
   // Tracks which attachment is currently being fetched: { id, action }
   const [attachmentLoading, setAttachmentLoading] = useState<{
     id: string;
@@ -647,6 +674,72 @@ export const CustomerDetails: React.FC = () => {
       toast.error("Failed to load file. Please try again.");
     } finally {
       setAttachmentLoading(null);
+    }
+  };
+
+  const getUploadFileName = (file: File, title: string): string => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return file.name;
+
+    const extension = file.name.includes(".")
+      ? `.${file.name.split(".").pop()}`
+      : "";
+    return `${cleanTitle}${extension}`;
+  };
+
+  const handleUploadLeadReference = async () => {
+    if (uploadingReference) return;
+    const leadId = customerData?.leadId;
+
+    if (!leadId) {
+      toast.error("Lead reference is not available for this customer");
+      return;
+    }
+
+    if (!referenceUploadFile) {
+      toast.error("Please select a file to upload");
+      return;
+    }
+
+    setUploadingReference(true);
+    try {
+      const fileBase64 = await fileToBase64(referenceUploadFile);
+      const fileName = getUploadFileName(referenceUploadFile, referenceUploadTitle);
+
+      const uploadedAttachment = await uploadAttachment({
+        entityType: "LEAD",
+        entityId: leadId,
+        attachmentType: mimeToAttachmentType(referenceUploadFile.type),
+        fileName,
+        fileType: referenceUploadFile.type || "application/octet-stream",
+        fileBase64,
+        notes: referenceUploadTitle.trim() || "Customer reference upload",
+      });
+
+      // Fetch the freshly uploaded attachment by id as required by API flow.
+      const freshAttachment = await getAttachment(uploadedAttachment.id);
+      const normalizedAttachment = {
+        ...uploadedAttachment,
+        ...freshAttachment,
+      } as Attachment;
+
+      setLeadAttachments((prev) => {
+        const deduped = prev.filter((a) => a.id !== normalizedAttachment.id);
+        return [normalizedAttachment, ...deduped];
+      });
+
+      setReferenceUploadTitle("");
+      setReferenceUploadFile(null);
+      if (leadReferenceUploadInputRef.current) {
+        leadReferenceUploadInputRef.current.value = "";
+      }
+
+      toast.success("Reference uploaded successfully");
+    } catch (err) {
+      console.error("Failed to upload reference:", err);
+      toast.error("Failed to upload reference");
+    } finally {
+      setUploadingReference(false);
     }
   };
 
@@ -4027,6 +4120,9 @@ export const CustomerDetails: React.FC = () => {
                                   typeof value === "object" &&
                                   value !== null &&
                                   !Array.isArray(value);
+                                const isStringValue = typeof value === "string";
+                                const isUrlValue =
+                                  isStringValue && isHttpUrl(value);
 
                                 return (
                                   <div key={key}>
@@ -4037,6 +4133,17 @@ export const CustomerDetails: React.FC = () => {
                                       <pre className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all">
                                         {formatLeadReferenceValue(value)}
                                       </pre>
+                                    ) : isUrlValue ? (
+                                      <a
+                                        href={value}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-800 hover:underline break-all"
+                                        title="Open attached file"
+                                      >
+                                        <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                                        <span>{getFileNameFromUrl(value)}</span>
+                                      </a>
                                     ) : (
                                       <p className="text-sm font-medium text-gray-800 break-words">
                                         {formatLeadReferenceValue(value)}
@@ -4068,6 +4175,69 @@ export const CustomerDetails: React.FC = () => {
                         {leadAttachments.length !== 1 ? "s" : ""}
                       </span>
                     </div>
+
+                    {activeTab === "references" && (
+                      <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                          Upload Reference File
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-gray-500 mb-1">
+                              Title
+                            </label>
+                            <input
+                              type="text"
+                              value={referenceUploadTitle}
+                              onChange={(e) =>
+                                setReferenceUploadTitle(e.target.value)
+                              }
+                              placeholder="Enter reference title"
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">
+                              File
+                            </label>
+                            <input
+                              ref={leadReferenceUploadInputRef}
+                              type="file"
+                              onChange={(e) =>
+                                setReferenceUploadFile(
+                                  e.target.files?.[0] ?? null,
+                                )
+                              }
+                              className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-white file:text-gray-700 border border-gray-200 rounded-lg"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <p className="text-xs text-gray-400 truncate">
+                            {referenceUploadFile
+                              ? `Selected: ${referenceUploadFile.name}`
+                              : "No file selected"}
+                          </p>
+                          <button
+                            onClick={handleUploadLeadReference}
+                            disabled={!referenceUploadFile || uploadingReference}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+                          >
+                            {uploadingReference ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5" />
+                                Upload
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {leadAttachments.length === 0 ? (
                       <div className="text-center py-8">
@@ -4164,7 +4334,7 @@ export const CustomerDetails: React.FC = () => {
                               </div>
 
                               {/* Actions */}
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={() =>
                                     handleAttachmentAction(attachment, "view")

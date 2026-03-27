@@ -37,6 +37,7 @@ import {
 } from "../../../types";
 import {
   getProjectTestimonials,
+  getProjectTestimonial,
   createTestimonial,
   updateTestimonial,
   deleteTestimonial,
@@ -762,25 +763,44 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
         ...(form.notes && { notes: form.notes.trim() }),
       };
 
-      let created = await createTestimonial(projectId, payload);
+      const created = await createTestimonial(projectId, payload);
 
-      // Upload media files if any
-      for (const media of mediaFiles) {
-        try {
-          created = await uploadTestimonialMedia(
-            projectId,
-            created.id,
-            media.file,
-            media.type,
-          );
-        } catch (err) {
-          console.error("Media upload failed:", err);
-          toast.error(`Failed to upload ${media.file.name}`);
-        }
-      }
+      // Upload each media type through separate API call batches.
+      const photos = mediaFiles.filter((media) => media.type === "PHOTO");
+      const videos = mediaFiles.filter((media) => media.type === "VIDEO");
+      const audios = mediaFiles.filter((media) => media.type === "AUDIO");
+
+      const uploadBatch = async (
+        files: { file: File; type: "PHOTO" | "VIDEO" | "AUDIO" }[],
+        mediaType: "PHOTO" | "VIDEO" | "AUDIO",
+      ) => {
+        if (files.length === 0) return;
+        await Promise.all(
+          files.map(async (media) => {
+            try {
+              await uploadTestimonialMedia(
+                projectId,
+                created.id,
+                media.file,
+                mediaType,
+              );
+            } catch (err) {
+              console.error(`${mediaType} upload failed:`, err);
+              toast.error(`Failed to upload ${media.file.name}`);
+            }
+          }),
+        );
+      };
+
+      await uploadBatch(photos, "PHOTO");
+      await uploadBatch(videos, "VIDEO");
+      await uploadBatch(audios, "AUDIO");
+
+      // Fetch the latest testimonial so all uploaded media are reflected together.
+      const finalTestimonial = await getProjectTestimonial(projectId, created.id);
 
       toast.success("Testimonial created successfully");
-      onCreated(created);
+      onCreated(finalTestimonial);
     } catch (err: any) {
       toast.error(err.message || "Failed to create testimonial");
     } finally {

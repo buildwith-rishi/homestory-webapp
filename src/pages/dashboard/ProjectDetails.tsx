@@ -116,6 +116,29 @@ const parseEmailList = (value: string): string[] =>
     .map((email) => email.trim())
     .filter(Boolean);
 
+const sanitizeNumericInput = (value: string): string => {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const firstDotIndex = cleaned.indexOf(".");
+  if (firstDotIndex === -1) return cleaned;
+  return (
+    cleaned.slice(0, firstDotIndex + 1) +
+    cleaned
+      .slice(firstDotIndex + 1)
+      .replace(/\./g, "")
+  );
+};
+
+const toAmountNumber = (value: string): number => {
+  if (!value) return 0;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const calculateTotalValue = (designValue: string, executionValue: string): string => {
+  const total = toAmountNumber(designValue) + toAmountNumber(executionValue);
+  return total > 0 ? String(total) : "";
+};
+
 type PaymentDocumentListItem = {
   url: string;
   fileName: string;
@@ -490,7 +513,6 @@ export const ProjectDetails: React.FC = () => {
     totalValue: "",
     designValue: "",
     executionValue: "",
-    paidAmount: "",
     billingAddress: "",
     pauseReason: "",
     cancellationReason: "",
@@ -1273,18 +1295,19 @@ export const ProjectDetails: React.FC = () => {
           : "",
       currentStageCode: currentProject.currentStageCode || "",
       currentPhase: currentProject.currentPhase || "",
-      totalValue: currentProject.totalValue
-        ? String(currentProject.totalValue)
-        : "",
       designValue: currentProject.designValue
         ? String(currentProject.designValue)
         : "",
       executionValue: currentProject.executionValue
         ? String(currentProject.executionValue)
         : "",
-      paidAmount: currentProject.paidAmount
-        ? String(currentProject.paidAmount)
-        : "",
+      totalValue: calculateTotalValue(
+        currentProject.designValue ? String(currentProject.designValue) : "",
+        currentProject.executionValue
+          ? String(currentProject.executionValue)
+          : "",
+      ) ||
+        (currentProject.totalValue ? String(currentProject.totalValue) : ""),
       billingAddress: currentProject.billingAddress || "",
       pauseReason: currentProject.pauseReason || "",
       cancellationReason: currentProject.cancellationReason || "",
@@ -1298,6 +1321,10 @@ export const ProjectDetails: React.FC = () => {
     if (!projectId) return;
     setIsSavingEdit(true);
     try {
+      const derivedTotalValue = calculateTotalValue(
+        editForm.designValue,
+        editForm.executionValue,
+      );
       const updates: UpdateProjectRequest = {};
       if (editForm.projectName) updates.projectName = editForm.projectName;
       if (editForm.leadId) updates.leadId = editForm.leadId;
@@ -1359,14 +1386,12 @@ export const ProjectDetails: React.FC = () => {
       if (editForm.currentStageCode)
         updates.currentStageCode = editForm.currentStageCode;
       if (editForm.currentPhase) updates.currentPhase = editForm.currentPhase;
-      if (editForm.totalValue !== "")
-        updates.totalValue = parseFloat(editForm.totalValue);
+      if (derivedTotalValue !== "")
+        updates.totalValue = parseFloat(derivedTotalValue);
       if (editForm.designValue !== "")
         updates.designValue = parseFloat(editForm.designValue);
       if (editForm.executionValue !== "")
         updates.executionValue = parseFloat(editForm.executionValue);
-      if (editForm.paidAmount !== "")
-        updates.paidAmount = parseFloat(editForm.paidAmount);
       if (editForm.billingAddress)
         updates.billingAddress = editForm.billingAddress;
       if (editForm.pauseReason) updates.pauseReason = editForm.pauseReason;
@@ -1460,17 +1485,14 @@ export const ProjectDetails: React.FC = () => {
           ...(editForm.currentPhase && {
             currentPhase: editForm.currentPhase,
           }),
-          ...(editForm.totalValue !== "" && {
-            totalValue: parseFloat(editForm.totalValue),
+          ...(derivedTotalValue !== "" && {
+            totalValue: parseFloat(derivedTotalValue),
           }),
           ...(editForm.designValue !== "" && {
             designValue: parseFloat(editForm.designValue),
           }),
           ...(editForm.executionValue !== "" && {
             executionValue: parseFloat(editForm.executionValue),
-          }),
-          ...(editForm.paidAmount !== "" && {
-            paidAmount: parseFloat(editForm.paidAmount),
           }),
           ...(editForm.billingAddress && {
             billingAddress: editForm.billingAddress,
@@ -4894,9 +4916,17 @@ export const ProjectDetails: React.FC = () => {
                       type="text"
                       inputMode="numeric"
                       value={editForm.designValue}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, designValue: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const designValue = sanitizeNumericInput(e.target.value);
+                        setEditForm((prev) => ({
+                          ...prev,
+                          designValue,
+                          totalValue: calculateTotalValue(
+                            designValue,
+                            prev.executionValue,
+                          ),
+                        }));
+                      }}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
                       placeholder="e.g., 2250000"
                     />
@@ -4909,12 +4939,19 @@ export const ProjectDetails: React.FC = () => {
                       type="text"
                       inputMode="numeric"
                       value={editForm.executionValue}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          executionValue: e.target.value,
-                        })
-                      }
+                      onChange={(e) => {
+                        const executionValue = sanitizeNumericInput(
+                          e.target.value,
+                        );
+                        setEditForm((prev) => ({
+                          ...prev,
+                          executionValue,
+                          totalValue: calculateTotalValue(
+                            prev.designValue,
+                            executionValue,
+                          ),
+                        }));
+                      }}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
                       placeholder="e.g., 5250000"
                     />
@@ -4927,26 +4964,9 @@ export const ProjectDetails: React.FC = () => {
                       type="text"
                       inputMode="numeric"
                       value={editForm.totalValue}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, totalValue: e.target.value })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      placeholder="e.g., 5000000"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Paid Amount (₹)
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={editForm.paidAmount}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, paidAmount: e.target.value })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      placeholder="e.g., 2500000"
+                      readOnly
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-600 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                      placeholder="Auto-calculated"
                     />
                   </div>
                 </div>

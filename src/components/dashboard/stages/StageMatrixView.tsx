@@ -159,6 +159,46 @@ const isHolidayDay = (day: MatrixDayWiseItem): boolean => {
   );
 };
 
+const getHolidayDayNumbersFromMatrix = (matrix: TaskMatrix): Set<number> => {
+  const holidayDayNumbers = new Set<number>();
+
+  // Some APIs return holiday flags in matrixDayWise.
+  (matrix.matrixDayWise || []).forEach((day) => {
+    if (isHolidayDay(day)) holidayDayNumbers.add(day.dayNumber);
+  });
+
+  // Primary source: backend holidays array with explicit dayNumber/date.
+  const holidays =
+    ((matrix as TaskMatrix & {
+      holidays?: Array<{ dayNumber?: number; date?: string }>;
+    }).holidays || []) as Array<{ dayNumber?: number; date?: string }>;
+
+  holidays.forEach((holiday) => {
+    if (typeof holiday.dayNumber === "number" && holiday.dayNumber > 0) {
+      holidayDayNumbers.add(holiday.dayNumber);
+      return;
+    }
+
+    if (!holiday.date) return;
+    const holidayDateOnly = holiday.date.includes("T")
+      ? holiday.date.split("T")[0]
+      : holiday.date;
+
+    const mappedDay = (matrix.matrixDayWise || []).find((entry) => {
+      const entryDateOnly = entry.date.includes("T")
+        ? entry.date.split("T")[0]
+        : entry.date;
+      return entryDateOnly === holidayDateOnly;
+    });
+
+    if (mappedDay) {
+      holidayDayNumbers.add(mappedDay.dayNumber);
+    }
+  });
+
+  return holidayDayNumbers;
+};
+
 const toDateInputValue = (isoDate: string): string => {
   const parsed = toUtcStartOfDayIso(isoDate);
   return parsed ? parsed.split("T")[0] : "";
@@ -199,6 +239,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     includeSundays: boolean;
     reason: string;
   } | null>(null);
+  const holidayCount = matrix ? getHolidayDayNumbersFromMatrix(matrix).size : 0;
 
   const handleAddDaySuccess = () => {
     setShowAddDayModal(false);
@@ -234,11 +275,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
 
       // Keep a local holiday map so the checkbox remains checked immediately
       // even if backend holiday flags are delayed in matrixDayWise responses.
-      const backendHolidayDays = new Set(
-        (data.matrixDayWise || [])
-          .filter((d) => isHolidayDay(d))
-          .map((d) => d.dayNumber),
-      );
+      const backendHolidayDays = getHolidayDayNumbersFromMatrix(data);
       if (backendHolidayDays.size > 0) {
         setHolidayDayNumbers((prev) => {
           const next = new Set(prev);
@@ -401,7 +438,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const matrixDayWise = [...(matrix?.matrixDayWise || [])].sort(
     (a, b) => a.dayNumber - b.dayNumber,
   );
-  const visibleDays: MatrixDayWiseItem[] =
+  const dayEntries: MatrixDayWiseItem[] =
     matrixDayWise.length > 0
       ? matrixDayWise
       : Array.from({ length: totalDays }, (_, i) => i + 1).map((dayNumber) => ({
@@ -420,6 +457,17 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           })(),
           tasks: tasksByDay[dayNumber] || [],
         }));
+  const holidayDaysFromMatrix = matrix
+    ? getHolidayDayNumbersFromMatrix(matrix)
+    : new Set<number>();
+  const effectiveHolidayDayNumbers = new Set<number>([
+    ...holidayDayNumbers,
+    ...holidayDaysFromMatrix,
+  ]);
+  const visibleDays: MatrixDayWiseItem[] = dayEntries.filter(
+    (day) => !effectiveHolidayDayNumbers.has(day.dayNumber),
+  );
+  const visibleDayCount = visibleDays.length;
 
   const categories = matrix?.categories || [];
 
@@ -427,7 +475,11 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   if (loading) {
     return (
       <div className="space-y-4">
-        <MatrixHeader stage={stage} onBack={onBack} />
+        <MatrixHeader
+          stage={stage}
+          onBack={onBack}
+          holidayCount={holidayCount}
+        />
         <div className="flex flex-col items-center justify-center py-16 text-gray-500">
           <Loader2 className="w-8 h-8 animate-spin mb-3 text-orange-500" />
           <p className="text-sm font-medium">Loading day plan...</p>
@@ -440,7 +492,11 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   if (error) {
     return (
       <div className="space-y-4">
-        <MatrixHeader stage={stage} onBack={onBack} />
+        <MatrixHeader
+          stage={stage}
+          onBack={onBack}
+          holidayCount={holidayCount}
+        />
         <div className="flex flex-col items-center justify-center py-16">
           <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
           <p className="text-sm text-red-600 mb-3">{error}</p>
@@ -457,7 +513,11 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   if (!matrix) {
     return (
       <div className="space-y-4">
-        <MatrixHeader stage={stage} onBack={onBack} />
+        <MatrixHeader
+          stage={stage}
+          onBack={onBack}
+          holidayCount={holidayCount}
+        />
         <Card className="p-8 bg-white/80 border-gray-200/50">
           <div className="flex flex-col items-center justify-center text-center">
             <LayoutGrid className="w-12 h-12 text-gray-300 mb-3" />
@@ -499,7 +559,11 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <MatrixHeader stage={stage} onBack={onBack}>
+      <MatrixHeader
+        stage={stage}
+        onBack={onBack}
+        holidayCount={effectiveHolidayDayNumbers.size}
+      >
         <div className="flex flex-wrap items-center gap-1.5">
           <Button
             variant="outline"
@@ -599,7 +663,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             Starts: {formatDate(matrix.startDate)}
           </span>
           <span>
-            {totalDays} day{totalDays !== 1 ? "s" : ""}
+            {visibleDayCount} working day{visibleDayCount !== 1 ? "s" : ""}
           </span>
           <span>
             {categories.length} categor
@@ -683,8 +747,9 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       {/* Day-wise Grid */}
       {matrixViewMode === "days" && (
         <div className="space-y-3">
-          {visibleDays.map((dayEntry) => {
+          {visibleDays.map((dayEntry, visibleIndex) => {
             const dayNum = dayEntry.dayNumber;
+            const displayDayNumber = visibleIndex + 1;
             const dayTasks =
               matrixDayWise.length > 0
                 ? dayEntry.tasks || []
@@ -693,18 +758,12 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
               (t) => t.status === "COMPLETED",
             ).length;
             const isSelected = selectedDay === dayNum;
-            const holidayMarked =
-              isHolidayDay(dayEntry) || holidayDayNumbers.has(dayNum);
             const holidayBusy = markingHolidayDay === dayNum;
 
             return (
               <Card
                 key={dayNum}
                 className={`bg-white/80 border-gray-200/50 shadow-sm overflow-hidden transition-all ${
-                  holidayMarked
-                    ? "opacity-60 border-amber-200 bg-amber-50/30"
-                    : ""
-                } ${
                   isSelected ? "ring-2 ring-orange-400/60" : ""
                 }`}
               >
@@ -715,11 +774,11 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">
-                      {dayNum}
+                      {displayDayNumber}
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-semibold text-gray-900">
-                        Day {dayNum}
+                        Day {displayDayNumber}
                       </p>
                       <p className="text-[11px] text-gray-400">
                         {dayEntry.date
@@ -736,8 +795,8 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                     >
                       <input
                         type="checkbox"
-                        checked={holidayMarked}
-                        disabled={holidayBusy || holidayMarked}
+                        checked={false}
+                        disabled={holidayBusy}
                         onChange={(e) => {
                           if (!e.target.checked) {
                             toast("Holiday unmark is not supported yet");
@@ -749,12 +808,6 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                       />
                       <span>{holidayBusy ? "Saving..." : "Holiday"}</span>
                     </label>
-
-                    {holidayMarked && (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                        Holiday
-                      </span>
-                    )}
 
                     {dayTasks.length > 0 ? (
                       <>
@@ -998,8 +1051,9 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
 const MatrixHeader: React.FC<{
   stage: ProjectStageData;
   onBack: () => void;
+  holidayCount?: number;
   children?: React.ReactNode;
-}> = ({ stage, onBack, children }) => (
+}> = ({ stage, onBack, holidayCount = 0, children }) => (
   <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
     <div className="flex items-center gap-3">
       <button
@@ -1012,7 +1066,12 @@ const MatrixHeader: React.FC<{
         <BarChart3 className="w-4.5 h-4.5 text-white" />
       </div>
       <div>
-        <h2 className="text-lg font-bold text-gray-900">Day Plan</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900">Day Plan</h2>
+          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+            {holidayCount} Holiday{holidayCount !== 1 ? "s" : ""}
+          </span>
+        </div>
         <p className="text-xs text-gray-500">
           {stage.stageName} &middot; {stage.stageCode}
         </p>

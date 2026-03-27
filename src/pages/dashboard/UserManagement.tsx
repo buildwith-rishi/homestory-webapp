@@ -12,6 +12,8 @@ import {
   Edit2,
   Trash2,
   KeyRound,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Card, Badge, Modal } from "../../components/ui";
 import { adminAPI } from "../../services/api";
@@ -102,6 +104,7 @@ export const UserManagement: React.FC = () => {
   });
   const [banReason, setBanReason] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Check if user has admin role
@@ -355,6 +358,7 @@ export const UserManagement: React.FC = () => {
         phone: createForm.phone?.trim() || undefined,
       });
       setShowCreateModal(false);
+      setShowCreatePassword(false);
       setCreateForm({
         name: "",
         email: "",
@@ -871,7 +875,10 @@ export const UserManagement: React.FC = () => {
       {/* Create User Modal */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          setShowCreateModal(false);
+          setShowCreatePassword(false);
+        }}
         showCloseButton={false}
       >
         {/* Modal Header */}
@@ -886,7 +893,10 @@ export const UserManagement: React.FC = () => {
               </p>
             </div>
             <button
-              onClick={() => setShowCreateModal(false)}
+              onClick={() => {
+                setShowCreateModal(false);
+                setShowCreatePassword(false);
+              }}
               className="text-gray-400 hover:text-gray-600 transition-colors p-1.5 hover:bg-gray-100 rounded-lg"
             >
               <X className="w-5 h-5" />
@@ -931,17 +941,31 @@ export const UserManagement: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Password <span className="text-red-500">*</span>
             </label>
-            <input
-              type="password"
-              required
-              value={createForm.password}
-              onChange={(e) =>
-                setCreateForm({ ...createForm, password: e.target.value })
-              }
-              placeholder="Minimum 6 characters"
-              minLength={6}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
-            />
+            <div className="relative">
+              <input
+                type={showCreatePassword ? "text" : "password"}
+                required
+                value={createForm.password}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, password: e.target.value })
+                }
+                placeholder="Minimum 6 characters"
+                minLength={6}
+                className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCreatePassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label={showCreatePassword ? "Hide password" : "Show password"}
+              >
+                {showCreatePassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div>
@@ -1017,7 +1041,10 @@ export const UserManagement: React.FC = () => {
           <div className="flex gap-3 pt-3 border-t border-gray-100 mt-4">
             <button
               type="button"
-              onClick={() => setShowCreateModal(false)}
+              onClick={() => {
+                setShowCreateModal(false);
+                setShowCreatePassword(false);
+              }}
               className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
               disabled={actionLoading}
             >

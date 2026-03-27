@@ -2037,9 +2037,22 @@ export const LeadsPage: React.FC = () => {
   // but ignore scrolls that originate inside the dropdown itself.
   useEffect(() => {
     const handleScroll = (e: Event) => {
-      const target = e.target as Node;
-      if (bdrDropdownRef.current?.contains(target)) return;
-      if (bulkBdrDropdownRef.current?.contains(target)) return;
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+
+      const isFromDropdown = (el: HTMLDivElement | null) => {
+        if (!el) return false;
+        if (el.contains(target)) return true;
+
+        if (typeof e.composedPath === "function") {
+          return e.composedPath().includes(el);
+        }
+        return false;
+      };
+
+      if (isFromDropdown(bdrDropdownRef.current)) return;
+      if (isFromDropdown(bulkBdrDropdownRef.current)) return;
+
       if (bdrDropdownOpen) {
         setBdrDropdownOpen(null);
         setBdrDropdownPos(null);
@@ -3021,7 +3034,7 @@ export const LeadsPage: React.FC = () => {
                   </div>
                 </div>
                 {/* List */}
-                <div className="max-h-52 overflow-y-auto pb-1">
+                <div className="max-h-52 overflow-y-auto overscroll-contain pb-1">
                   {/* Unassign option — only show when not filtering */}
                   {!bdrSearch && (
                     <button
@@ -3157,11 +3170,13 @@ export const LeadsPage: React.FC = () => {
         bulkBdrDropdownPos &&
         ReactDOM.createPortal(
           <div
+            ref={bulkBdrDropdownRef}
             className="fixed z-[70] bg-white rounded-xl shadow-2xl border border-gray-200 py-1 w-56 max-h-64 overflow-y-auto"
             style={{
               top: bulkBdrDropdownPos.top,
               left: bulkBdrDropdownPos.left,
               transform: "translateY(-100%)",
+              overscrollBehavior: "contain",
             }}
             onClick={(e) => e.stopPropagation()}
           >

@@ -1620,6 +1620,11 @@ export interface TaskMatrix {
   totalDays: number;
   startDate: string;
   includeSundays?: boolean;
+  holidays?: Array<{
+    date: string;
+    reason?: string | null;
+    dayNumber?: number;
+  }>;
   categories?: MatrixCategory[];
   dayTasks?: MatrixTask[];
   matrixDayWise?: MatrixDayWiseItem[];
