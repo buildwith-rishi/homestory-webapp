@@ -1457,51 +1457,6 @@ const ViewTestimonialModal: React.FC<ViewTestimonialModalProps> = ({
             </div>
           )}
 
-          {/* Permissions */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">
-              Permissions
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                  testimonial.canSharePublicly
-                    ? "bg-green-50 text-green-700"
-                    : "bg-gray-50 text-gray-500"
-                }`}
-              >
-                <Globe className="w-3 h-3" />
-                {testimonial.canSharePublicly
-                  ? "Can share publicly"
-                  : "Private only"}
-              </span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                  testimonial.canUseName
-                    ? "bg-sky-50 text-sky-700"
-                    : "bg-gray-50 text-gray-500"
-                }`}
-              >
-                <UserCheck className="w-3 h-3" />
-                {testimonial.canUseName
-                  ? "Name can be used"
-                  : "Name cannot be used"}
-              </span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                  testimonial.canUsePhoto
-                    ? "bg-violet-50 text-violet-700"
-                    : "bg-gray-50 text-gray-500"
-                }`}
-              >
-                <Camera className="w-3 h-3" />
-                {testimonial.canUsePhoto
-                  ? "Photo can be used"
-                  : "Photo cannot be used"}
-              </span>
-            </div>
-          </div>
-
           {/* Approval Info */}
           {testimonial.approvedAt && testimonial.approvedBy && (
             <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 flex items-center gap-3">
