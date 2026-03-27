@@ -144,33 +144,33 @@ export const LeadSourceChart: React.FC = () => {
   }, []);
 
   return (
-    <Card className="h-full flex flex-col">
-      <div className="p-5 border-b border-gray-100">
+    <Card className="h-full min-h-[450px] flex flex-col overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="px-6 md:px-8 pt-6 md:pt-8 bg-white shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-xl font-bold text-gray-900 tracking-tight">
               Lead Sources
             </h3>
-            <p className="text-sm text-gray-500">Distribution by channel</p>
+            <p className="text-sm text-gray-500 mt-1 font-medium">Distribution by channel</p>
           </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-gray-900">{totalLeads}</p>
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">
-              Total Leads
-            </p>
+          <div className="text-right flex flex-col items-end justify-center">
+             <div className="flex items-baseline gap-2">
+              <p className="text-3xl font-bold text-gray-900 leading-none tracking-tight">{totalLeads}</p>
+            </div>
+            <p className="text-sm font-semibold text-gray-500 bg-gray-50 px-3 py-1 rounded-full mt-2">Total Leads</p>
           </div>
         </div>
       </div>
 
-      <div className="p-5 flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 px-6 md:px-8 pb-6 pt-8 overflow-y-auto custom-scrollbar bg-white">
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="animate-pulse flex items-center gap-4">
                 <div className="w-10 h-10 bg-gray-100 rounded-lg"></div>
                 <div className="flex-1 space-y-2">
                   <div className="h-4 bg-gray-100 rounded w-1/4"></div>
-                  <div className="h-2 bg-gray-100 rounded w-full"></div>
+                  <div className="h-1.5 bg-gray-100 rounded w-full"></div>
                 </div>
               </div>
             ))}
@@ -186,34 +186,34 @@ export const LeadSourceChart: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-6">
             {data.map((item) => {
               const Icon = item.config.icon;
               return (
                 <div key={item.key} className="group">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-4">
                       <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.config.bgColor} ${item.config.color}`}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.config.bgColor} ${item.config.color} shadow-sm`}
                       >
-                        <Icon className="w-4 h-4" />
+                        <Icon className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">
+                        <p className="text-base font-semibold text-gray-900">
                           {item.name}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-gray-900">
+                    <div className="text-right flex flex-col items-end">
+                      <span className="text-lg font-bold text-gray-900 leading-none mb-1">
                         {item.value}
                       </span>
-                      <span className="text-xs text-gray-500 ml-1">
-                        ({item.percentage.toFixed(1)}%)
+                      <span className="text-xs font-semibold text-gray-500">
+                        {item.percentage.toFixed(1)}%
                       </span>
                     </div>
                   </div>
-                  <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="relative h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${item.config.barColor}`}
                       style={{
@@ -229,12 +229,15 @@ export const LeadSourceChart: React.FC = () => {
       </div>
 
       {!loading && data.length > 0 && (
-        <div className="p-4 bg-gray-50 border-t border-gray-100 text-center rounded-b-xl">
-          <p className="text-xs text-gray-500">
-            Top source is{" "}
-            <span className="font-semibold text-gray-900">{data[0].name}</span>{" "}
-            with {data[0].percentage.toFixed(0)}% of total leads
-          </p>
+        <div className="px-6 py-5 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between shrink-0">
+           <div className="flex flex-col">
+            <span className="text-gray-500 font-medium text-sm">Top Source</span>
+            <span className="font-bold text-gray-900 text-lg mt-0.5">{data[0].name}</span>
+          </div>
+          <div className="flex flex-col text-right">
+             <span className="text-gray-500 font-medium text-sm">Conversion Share</span>
+            <span className="font-bold text-gray-900 text-lg mt-0.5">{data[0].percentage.toFixed(0)}%</span>
+          </div>
         </div>
       )}
     </Card>

@@ -608,6 +608,7 @@ const LeadDetails: React.FC = () => {
                               lead.status === "Contacted"
                             ? "bg-blue-100 text-blue-700 ring-1 ring-blue-600/20"
                             : lead.status === "DISQUALIFIED" ||
+                                lead.status === "UNQUALIFIED" ||
                                 lead.status === "Disqualified"
                               ? "bg-red-100 text-red-700 ring-1 ring-red-600/20"
                               : lead.status === "CONVERTED" ||

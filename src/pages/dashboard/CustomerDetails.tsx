@@ -471,6 +471,10 @@ export const CustomerDetails: React.FC = () => {
   const [editingTab, setEditingTab] = useState<string | null>(null);
   const isEditing = editingTab !== null;
   const [isSaving, setIsSaving] = useState(false);
+  const [validationAlert, setValidationAlert] = useState<{
+    message: string;
+    field?: "email" | "phone";
+  } | null>(null);
 
   // Contact info edit state
   const [contactEditForm, setContactEditForm] = useState<{
@@ -1236,11 +1240,33 @@ export const CustomerDetails: React.FC = () => {
   const additionalLeadReferenceFields =
     getAdditionalLeadReferenceFields(leadReferenceData);
 
+  const getValidationDetails = (
+    error: unknown,
+  ): { message: string; field?: "email" | "phone" } => {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Failed to save changes";
+
+    const lowered = message.toLowerCase();
+    if (lowered.includes("email") && lowered.includes("exist")) {
+      return { message, field: "email" };
+    }
+    if (lowered.includes("phone") && lowered.includes("exist")) {
+      return { message, field: "phone" };
+    }
+
+    return { message };
+  };
+
   // Save customer data to backend
   const handleSaveCustomer = async (updates: Partial<Customer>) => {
     if (!customer || isSaving) return;
 
     setIsSaving(true);
+    setValidationAlert(null);
     const previousData = { ...customer };
 
     // Optimistic update
@@ -1290,13 +1316,16 @@ export const CustomerDetails: React.FC = () => {
       }
 
       await CustomerAPI.updateCustomer(String(customer.id), apiUpdates);
+      setValidationAlert(null);
       toast.success("Customer updated successfully!");
       return true;
     } catch (error: any) {
       console.error("Failed to save customer:", error);
       // Rollback
       setCustomerData(previousData);
-      toast.error(error?.message || "Failed to save changes");
+      const { message, field } = getValidationDetails(error);
+      setValidationAlert({ message, field });
+      toast.error(message || "Failed to save changes");
       return false;
     } finally {
       setIsSaving(false);
@@ -2192,6 +2221,7 @@ export const CustomerDetails: React.FC = () => {
                         });
                         if (success !== false) setEditingTab(null);
                       } else {
+                        setValidationAlert(null);
                         setContactEditForm({
                           email: customer.email || "",
                           phone: customer.phone || "",
@@ -2326,13 +2356,26 @@ export const CustomerDetails: React.FC = () => {
                 {/* EDIT MODE */}
                 {editingTab === "overview" && (
                   <div className="space-y-5">
+                    {validationAlert && (
+                      <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
+                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-red-700">{validationAlert.message}</p>
+                      </div>
+                    )}
+
                     {/* Editable primary fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Primary Email
                         </label>
-                        <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl focus-within:border-orange-400 focus-within:ring-1 focus-within:ring-orange-100">
+                        <div
+                          className={`flex items-center gap-2 px-3 py-2 bg-white border rounded-xl focus-within:ring-1 ${
+                            validationAlert?.field === "email"
+                              ? "border-red-300 focus-within:border-red-400 focus-within:ring-red-100"
+                              : "border-gray-200 focus-within:border-orange-400 focus-within:ring-orange-100"
+                          }`}
+                        >
                           <Mail className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
                           <input
                             type="email"
@@ -2352,7 +2395,13 @@ export const CustomerDetails: React.FC = () => {
                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Primary Phone
                         </label>
-                        <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100">
+                        <div
+                          className={`flex items-center gap-2 px-3 py-2 bg-white border rounded-xl focus-within:ring-1 ${
+                            validationAlert?.field === "phone"
+                              ? "border-red-300 focus-within:border-red-400 focus-within:ring-red-100"
+                              : "border-gray-200 focus-within:border-blue-400 focus-within:ring-blue-100"
+                          }`}
+                        >
                           <Phone className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
                           <input
                             type="tel"

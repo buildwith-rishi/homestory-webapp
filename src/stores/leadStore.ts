@@ -19,6 +19,7 @@ export type APILeadStatus =
   | "WORKING"
   | "QUALIFIED"
   | "DISQUALIFIED"
+  | "UNQUALIFIED"
   | "CONVERTED";
 
 interface LeadState {
@@ -69,6 +70,7 @@ const convertAPILeadToLead = (apiLead: APILead): Lead => {
     WORKING: LeadStage.CONTACTED,
     QUALIFIED: LeadStage.PROPOSAL_SENT,
     DISQUALIFIED: LeadStage.LOST,
+    UNQUALIFIED: LeadStage.LOST,
     CONVERTED: LeadStage.WON,
   };
 
@@ -433,7 +435,10 @@ export const useLeadStore = create<LeadState>((set, get) => ({
         (l) => l.status === "CONVERTED" || l.stage === LeadStage.WON,
       ).length,
       lost: leads.filter(
-        (l) => l.status === "DISQUALIFIED" || l.stage === LeadStage.LOST,
+        (l) =>
+          l.status === "DISQUALIFIED" ||
+          l.status === "UNQUALIFIED" ||
+          l.stage === LeadStage.LOST,
       ).length,
       conversionRate:
         leads.length > 0

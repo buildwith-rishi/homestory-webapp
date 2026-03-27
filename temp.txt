@@ -1,0 +1,81 @@
+          {/* Dashboard Content Grid */}
+          <div className="space-y-6">
+            {/* Top Row: Revenue & Lead Sources */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-stretch">
+              {/* Revenue Chart */}
+              {canAny(["reports.view", "dashboard.*"]) && (
+                <div className="h-full min-h-[450px]">
+                  <RevenueChart />
+                </div>
+              )}
+
+              {/* Lead Source Chart & Payments Summary */}
+              <div className="space-y-6 flex flex-col h-full min-h-[450px]">
+                {canAny(["reports.view", "dashboard.*"]) && (
+                  <div className="flex-1 min-h-[450px]">
+                    <LeadSourceChart />
+                  </div>
+                )}
+
+                {/* Payments summary – only for ACCOUNTS role */}
+                {roleId === "ACCOUNTS" && (
+                  <Card>
+                    <div className="p-4 border-b border-ash/10">
+                      <h2 className="font-display text-display-sm text-secondary flex items-center gap-2">
+                        <ReceiptText className="w-4 h-4 text-green-600" />
+                        Payments Summary
+                      </h2>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {[
+                        {
+                          label: "Received",
+                          count: "₹18.4L",
+                          color: "text-green-600",
+                        },
+                        {
+                          label: "Pending",
+                          count: "₹7.2L",
+                          color: "text-orange-500",
+                        },
+                        {
+                          label: "Overdue",
+                          count: "₹2.1L",
+                          color: "text-red-500",
+                        },
+                        {
+                          label: "This Month",
+                          count: "₹9.8L",
+                          color: "text-blue-600",
+                        },
+                      ].map((item, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="font-body text-sm text-secondary">
+                            {item.label}
+                          </span>
+                          <span
+                            className={`font-body font-semibold text-sm ${item.color}`}
+                          >
+                            {item.count}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+
+            {/* Project Deadlines Section – gated by projects.read */}
+            {can("projects.read") && (
+              <Card className="animate-scale-in w-full">
+                <div className="p-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          Project Deadlines
+                        </h2>

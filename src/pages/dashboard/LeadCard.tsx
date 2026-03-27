@@ -68,7 +68,7 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
 
   return (
     <div
-      className={`group bg-white rounded-2xl border shadow-sm hover:shadow-xl hover:border-orange-100 transition-all duration-300 cursor-pointer overflow-hidden relative ${
+      className={`group h-full flex flex-col bg-white rounded-2xl border shadow-sm hover:shadow-xl hover:border-orange-100 transition-all duration-300 cursor-pointer overflow-hidden relative ${
         lead.id && selectedLeadIds.has(lead.id)
           ? "border-orange-400 ring-2 ring-orange-200"
           : "border-gray-100"
@@ -112,7 +112,7 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
       ></div>
 
       {/* Card Content */}
-      <div className="p-5">
+      <div className="p-5 h-full flex flex-col">
         {/* Header Row */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3.5">
@@ -152,7 +152,8 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
                             : (lead.status || "").toUpperCase() === "WON"
                               ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
                               : (lead.status || "").toUpperCase() === "LOST" ||
-                                  (lead.status || "").toUpperCase() === "DISQUALIFIED"
+                                  (lead.status || "").toUpperCase() === "DISQUALIFIED" ||
+                                  (lead.status || "").toUpperCase() === "UNQUALIFIED"
                                 ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
                                 : "bg-gray-50 text-gray-700 ring-1 ring-gray-600/20"
                   }`}
@@ -278,7 +279,7 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+        <div className="mt-auto flex items-center justify-between pt-3 border-t border-gray-100">
           <div className="flex items-center gap-2 flex-wrap">
             {/* Source Badge */}
             {lead.source && (

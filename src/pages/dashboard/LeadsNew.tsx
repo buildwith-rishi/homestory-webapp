@@ -58,7 +58,7 @@ const getStatusColor = (status?: string) => {
   if (s === "PROPOSAL")
     return "bg-orange-100 text-orange-700 border-orange-200";
   if (s === "WON") return "bg-emerald-100 text-emerald-700 border-emerald-200";
-  if (s === "LOST" || s === "DISQUALIFIED")
+  if (s === "LOST" || s === "DISQUALIFIED" || s === "UNQUALIFIED")
     return "bg-red-100 text-red-700 border-red-200";
   return "bg-gray-100 text-gray-700 border-gray-200";
 };
@@ -103,6 +103,7 @@ export const LeadModal: React.FC<{
     { value: "WORKING", label: "Working" },
     { value: "QUALIFIED", label: "Qualified" },
     { value: "DISQUALIFIED", label: "Disqualified" },
+    { value: "UNQUALIFIED", label: "Unqualified" },
     { value: "CONVERTED", label: "Converted" },
   ];
   const availableStatuses = statuses.length > 0 ? statuses : defaultStatuses;
@@ -1531,6 +1532,7 @@ export const LeadsPage: React.FC = () => {
 
   // Assignment loading state
   const [isAssigning, setIsAssigning] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Load kanban activity log
   useEffect(() => {
@@ -1968,6 +1970,34 @@ export const LeadsPage: React.FC = () => {
     }
   };
 
+  const handleBulkDelete = async () => {
+    const leadIds = Array.from(selectedLeadIds);
+    if (
+      !window.confirm(
+        `Are you sure you want to delete ${leadIds.length} lead${leadIds.length > 1 ? "s" : ""}? This action cannot be undone.`,
+      )
+    )
+      return;
+
+    setIsDeleting(true);
+    try {
+      await Promise.all(leadIds.map((id) => LeadAPI.deleteLead(id)));
+      toast.success(`${leadIds.length} lead(s) deleted successfully`);
+      setSelectedLeadIds(new Set());
+      
+      // Refresh current views
+      fetchData();
+      if (selectedStage === "__unassigned__") fetchUnassignedLeads();
+      useLeadStore.getState().fetchLeads();
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Failed to delete leads";
+      toast.error(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Toggle lead checkbox selection
   const toggleLeadSelection = (leadId: string) => {
     setSelectedLeadIds((prev) => {
@@ -2041,11 +2071,8 @@ export const LeadsPage: React.FC = () => {
 
   const isLeadUnassigned = (lead: Lead) => !lead.assignedToId && !lead.assignedTo?.id;
 
-  const isWebsiteSourceLead = (lead: Lead) =>
-    String(lead.source || "").toUpperCase() === "WEBSITE";
-
   const isUnqualifiedLead = (lead: Lead) =>
-    lead.status === "DISQUALIFIED" || isWebsiteSourceLead(lead);
+    lead.status === "UNQUALIFIED";
 
   const matchesLeadSearch = (lead: Lead) =>
     (lead.name?.toLowerCase() || "").includes(searchLower) ||
@@ -2059,7 +2086,7 @@ export const LeadsPage: React.FC = () => {
       selectedStage === "__unassigned__" ||
       (selectedStage === UNQUALIFIED_FILTER
         ? isUnqualifiedLead(lead)
-        : lead.status === selectedStage && !isWebsiteSourceLead(lead));
+        : lead.status === selectedStage);
     return matchesSearch && matchesStage;
   });
 
@@ -2083,13 +2110,17 @@ export const LeadsPage: React.FC = () => {
     ? statuses.reduce(
         (acc, status) => {
           acc[status.value] = nonConvertedLeads.filter(
-            (l) => l.status === status.value && !isWebsiteSourceLead(l),
+            (l) => l.status === status.value,
           ).length;
           return acc;
         },
         {} as Record<string, number>,
       )
     : {};
+
+  const hasUnqualifiedStatus = Array.isArray(statuses)
+    ? statuses.some((status) => status.value === "UNQUALIFIED")
+    : false;
 
   const unqualifiedCount = nonConvertedLeads.filter(isUnqualifiedLead).length;
 
@@ -2168,19 +2199,21 @@ export const LeadsPage: React.FC = () => {
                 {status.label} ({leadCounts[status.value] || 0})
               </button>
             ))}
-        <button
-          onClick={() => {
-            setSelectedStage(UNQUALIFIED_FILTER);
-            setSelectedLeadIds(new Set());
-          }}
-          className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-            selectedStage === UNQUALIFIED_FILTER
-              ? "bg-orange-500 text-white shadow-md shadow-orange-200"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-          }`}
-        >
-          Unqualified ({unqualifiedCount})
-        </button>
+        {!hasUnqualifiedStatus && (
+          <button
+            onClick={() => {
+              setSelectedStage(UNQUALIFIED_FILTER);
+              setSelectedLeadIds(new Set());
+            }}
+            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+              selectedStage === UNQUALIFIED_FILTER
+                ? "bg-orange-500 text-white shadow-md shadow-orange-200"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            Unqualified ({unqualifiedCount})
+          </button>
+        )}
         <button
           onClick={() => {
             setSelectedStage("__unassigned__");
@@ -2366,7 +2399,7 @@ export const LeadsPage: React.FC = () => {
       )}
 
       {/* Leads Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5 items-stretch">
         {displayLeads.map((lead) => (
           <LazyLeadCard
             key={lead.id}
@@ -3095,6 +3128,19 @@ export const LeadsPage: React.FC = () => {
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
             </div>
+            <button
+                onClick={handleBulkDelete}
+                disabled={isAssigning || isDeleting}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 rounded-xl text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isDeleting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+            <div className="w-px h-8 bg-gray-200" />
             <button
               onClick={() => setSelectedLeadIds(new Set())}
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"

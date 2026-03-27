@@ -72,22 +72,19 @@ const statusToColumn: Record<string, string> = {
   WORKING: "col-working",
   QUALIFIED: "col-qualified",
   DISQUALIFIED: "col-disqualified",
+  UNQUALIFIED: "col-unqualified",
   CONVERTED: "col-converted",
 };
 
-const isWebsiteSourceLead = (lead: Lead) =>
-  String(lead.source || "").toUpperCase() === "WEBSITE";
-
 const isUnqualifiedLead = (lead: Lead) =>
-  lead.status === "DISQUALIFIED" ||
-  (isWebsiteSourceLead(lead) && lead.status !== "CONVERTED");
+  lead.status === "UNQUALIFIED";
 
 // Map column ID to API status
 const columnToStatus: Record<string, string> = {
   "col-new": "NEW",
   "col-working": "WORKING",
   "col-qualified": "QUALIFIED",
-  "col-unqualified": "DISQUALIFIED",
+  "col-unqualified": "UNQUALIFIED",
   "col-disqualified": "DISQUALIFIED",
   "col-converted": "CONVERTED",
 };
@@ -886,6 +883,7 @@ const KanbanView: React.FC = () => {
             { value: "NEW", label: "New" },
             { value: "WORKING", label: "Working" },
             { value: "QUALIFIED", label: "Qualified" },
+            { value: "UNQUALIFIED", label: "Unqualified" },
             { value: "DISQUALIFIED", label: "Disqualified" },
             { value: "CONVERTED", label: "Converted" },
           ]}

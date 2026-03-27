@@ -658,22 +658,23 @@ export const DashboardOverview: React.FC = () => {
           </div>
 
           {/* Dashboard Content Grid */}
-          <div className="space-y-5">
-            {/* Top Row: Revenue & Lead Sources */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-              {/* Revenue Chart */}
-              {canAny(["reports.view", "dashboard.*"]) && (
-                <div className="h-full">
-                  <RevenueChart />
-                </div>
-              )}
+          <div className="space-y-8">
+            {/* Full Row: Revenue Chart */}
+            {canAny(["reports.view", "dashboard.*"]) && (
+              <div className="w-full">
+                <RevenueChart />
+              </div>
+            )}
 
-              {/* Lead Source Chart & Payments Summary */}
-              <div className="space-y-5 flex flex-col h-full">
+            {/* Second Row: Lead Sources & Project Deadlines */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+              
+              {/* Left Column: Lead Sources & Payments */}
+              <div className="space-y-8 flex flex-col h-full">
                 {canAny(["reports.view", "dashboard.*"]) && (
-                  <div className="flex-1">
-                    <LeadSourceChart />
-                  </div>
+                    <div className="flex-1 w-full h-full min-h-[450px]">
+                      <LeadSourceChart />
+                    </div>
                 )}
 
                 {/* Payments summary – only for ACCOUNTS role */}
@@ -726,18 +727,18 @@ export const DashboardOverview: React.FC = () => {
                   </Card>
                 )}
               </div>
-            </div>
 
-            {/* Project Deadlines Section – gated by projects.read */}
-            {can("projects.read") && (
-              <Card className="animate-scale-in w-full">
-                <div className="p-4 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
-                          Project Deadlines
-                        </h2>
+              {/* Right Column: Project Deadlines Section – gated by projects.read */}
+              <div className="flex flex-col h-full w-full">
+                {can("projects.read") && (
+                  <Card className="animate-scale-in flex flex-col h-full w-full bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <div className="px-6 pt-6 border-b border-gray-100 bg-white shrink-0">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <h2 className="text-xl font-bold text-gray-900 tracking-tight">
+                              Project Deadlines
+                            </h2>
                         <p className="text-sm text-gray-500 mt-1">
                           Upcoming project due dates
                         </p>
@@ -870,7 +871,7 @@ export const DashboardOverview: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <div className="p-4 space-y-3">
+                <div className="flex-1 px-6 md:px-8 pb-6 pt-6 space-y-4 overflow-y-auto custom-scrollbar bg-white">
                   {(showAllDeadlines
                     ? filteredDeadlines
                     : filteredDeadlines.slice(0, 5)
@@ -1037,6 +1038,8 @@ export const DashboardOverview: React.FC = () => {
               </Card>
             )}
             {/* end projects.read guard */}
+            </div>
+          </div>
           </div>
         </>
       )}

@@ -111,92 +111,98 @@ export const RevenueChart: React.FC = () => {
       : ((lastRevenue - firstRevenue) / firstRevenue) * 100;
 
   return (
-    <Card className="p-6 animate-scale-in">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">
-            Revenue Overview
-          </h3>
-          <p className="text-sm text-gray-500 mt-1">
-            Last 7 months performance
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-gray-600">Total Revenue</p>
-          {loading ? (
-            <div className="h-8 w-28 bg-gray-100 rounded animate-pulse mt-1" />
-          ) : (
-            <p className="text-2xl font-bold text-gray-900">
-              ₹{(total / 10000000).toFixed(2)}Cr
+    <Card className="h-full min-h-[450px] animate-scale-in flex flex-col overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="px-6 md:px-8 pt-6 md:pt-8 bg-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 tracking-tight">
+              Revenue Overview
+            </h3>
+            <p className="text-sm text-gray-500 mt-1 font-medium">
+              Last 7 months performance
             </p>
-          )}
-          {!loading && (
-            <p
-              className={`text-xs mt-1 ${growth > 0 ? "text-emerald-600" : "text-red-600"}`}
-            >
-              {growth > 0 ? "↑" : "↓"} {Math.abs(growth).toFixed(1)}% vs first
-              month
-            </p>
-          )}
+          </div>
+          <div className="text-right flex flex-col items-end justify-center">
+            {loading ? (
+              <div className="h-10 w-28 bg-gray-100 rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-bold text-gray-900 leading-none tracking-tight">
+                    ₹{(total / 10000000).toFixed(2)}Cr
+                  </p>
+                </div>
+                <p
+                  className={`text-sm mt-2 font-semibold flex items-center gap-1 ${growth > 0 ? "text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full" : growth < 0 ? "text-red-600 bg-red-50 px-2 py-0.5 rounded-full" : "text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full"}`}
+                >
+                  {growth > 0 ? "↑" : growth < 0 ? "↓" : ""} {Math.abs(growth).toFixed(1)}% vs first month
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={280}>
-        <AreaChart
-          data={data}
-          margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
-        >
-          <defs>
-            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#DC5800" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#DC5800" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="#E5E7EB"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="month"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "#6B7280", fontSize: 12 }}
-          />
-          <YAxis
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "#6B7280", fontSize: 12 }}
-            tickFormatter={(value) => `₹${(value / 100000).toFixed(0)}L`}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Area
-            type="monotone"
-            dataKey="revenue"
-            stroke="#DC5800"
-            strokeWidth={2}
-            fillOpacity={1}
-            fill="url(#colorRevenue)"
-            dot={{ fill: "#DC5800", strokeWidth: 2, r: 4 }}
-            activeDot={{ r: 6, fill: "#DC5800" }}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-
-      <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between text-xs">
-        <div>
-          <span className="text-gray-500">Average: </span>
-          <span className="font-semibold text-gray-900">
-            {loading ? "…" : `₹${(average / 100000).toFixed(1)}L/month`}
-          </span>
+      <div className="flex-1 px-6 md:px-8 pb-6 md:pb-8 flex flex-col w-full bg-white mt-8">
+        <div className="h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={data}
+            margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+          >
+            <defs>
+              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#DC5800" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#DC5800" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#E5E7EB"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="month"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#6B7280", fontSize: 12 }}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#6B7280", fontSize: 12 }}
+              tickFormatter={(value) => `₹${(value / 100000).toFixed(0)}L`}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Area
+              type="monotone"
+              dataKey="revenue"
+              stroke="#DC5800"
+              strokeWidth={2}
+              fillOpacity={1}
+              fill="url(#colorRevenue)"
+              dot={{ fill: "#DC5800", strokeWidth: 2, r: 4 }}
+              activeDot={{ r: 6, fill: "#DC5800" }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
         </div>
-        <div>
-          <span className="text-gray-500">Peak: </span>
-          <span className="font-semibold text-gray-900">
-            {loading
-              ? "…"
-              : `₹${(Math.max(...data.map((d) => d.revenue), 0) / 100000).toFixed(1)}L`}
-          </span>
+
+        <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-between text-sm">
+          <div className="flex flex-col">
+            <span className="text-gray-500 font-medium">Average Revenue</span>
+            <span className="font-bold text-gray-900 text-lg mt-0.5">
+              {loading ? "…" : `₹${(average / 100000).toFixed(1)}L/month`}
+            </span>
+          </div>
+          <div className="flex flex-col text-right">
+            <span className="text-gray-500 font-medium">Peak Revenue</span>
+            <span className="font-bold text-gray-900 text-lg mt-0.5">
+              {loading
+                ? "…"
+                : `₹${(Math.max(...data.map((d) => d.revenue), 0) / 100000).toFixed(1)}L`}
+            </span>
+          </div>
         </div>
       </div>
     </Card>
