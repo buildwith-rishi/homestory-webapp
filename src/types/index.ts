@@ -561,7 +561,9 @@ export interface AddReferenceRequest {
 }
 
 export interface UpdateReferenceRequest {
+  linkUrl?: string;
   linkTitle?: string;
+  title?: string;
   notes?: string;
   description?: string;
   category?: string;

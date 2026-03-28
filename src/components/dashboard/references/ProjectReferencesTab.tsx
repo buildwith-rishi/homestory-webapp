@@ -176,6 +176,9 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     notes: "",
     category: "",
     subCategory: "",
+    linkUrl: "",
+    linkTitle: "",
+    tags: "",
   });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
@@ -356,6 +359,19 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   // ── Update reference ──
   const handleSaveEdit = async () => {
     if (!editingRef) return;
+
+    if (editingRef.referenceType === "LINK") {
+      if (!editForm.linkUrl || !editForm.linkTitle || !editForm.category) {
+        toast.error("Please fill in URL, title, and category");
+        return;
+      }
+    } else {
+      if (!editForm.category) {
+        toast.error("Please fill in category");
+        return;
+      }
+    }
+
     setIsSavingEdit(true);
     try {
       await updateProjectReference(projectId, editingRef.id, {
@@ -363,6 +379,14 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
         description: editForm.notes || undefined,
         category: editForm.category || undefined,
         subCategory: editForm.subCategory || undefined,
+        ...(editingRef.referenceType === "LINK" && {
+          linkUrl: editForm.linkUrl,
+          linkTitle: editForm.linkTitle,
+          title: editForm.linkTitle,
+          tags: editForm.tags
+            ? editForm.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+            : [],
+        }),
       });
       toast.success("Reference updated!");
       setEditingRef(null);
@@ -455,6 +479,9 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       notes: ref.notes || ref.description || "",
       category: ref.category || "",
       subCategory: ref.subCategory || "",
+      linkUrl: ref.linkUrl || "",
+      linkTitle: ref.linkTitle || ref.title || "",
+      tags: ref.tags && ref.tags.length > 0 ? ref.tags.join(", ") : "",
     });
   };
 
@@ -1174,9 +1201,23 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold text-gray-900">
-                    Edit Reference
-                  </h3>
+                  <div className="flex items-center gap-3">
+                    {editingRef.referenceType === "LINK" && (
+                      <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                        <Link2 className="w-5 h-5 text-blue-600" />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        Edit Reference
+                      </h3>
+                      {editingRef.referenceType === "LINK" && (
+                        <p className="text-xs text-gray-500">
+                          Pinterest, Instagram, websites
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <button
                     onClick={() => setEditingRef(null)}
                     className="p-2 hover:bg-gray-100 rounded-lg"
@@ -1186,9 +1227,43 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                 </div>
 
                 <div className="space-y-4">
+                  {editingRef.referenceType === "LINK" && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          URL <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={editForm.linkUrl}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, linkUrl: e.target.value })
+                          }
+                          placeholder="https://pinterest.com/pin/..."
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Title <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editForm.linkTitle}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, linkTitle: e.target.value })
+                          }
+                          placeholder="e.g., Modern Kitchen Idea"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Category
+                      Category {editingRef.referenceType === "LINK" && <span className="text-red-500">*</span>}
                     </label>
                     <select
                       value={editForm.category}
@@ -1232,19 +1307,39 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Notes
-                    </label>
-                    <textarea
-                      value={editForm.notes}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, notes: e.target.value })
-                      }
-                      rows={3}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
-                    />
-                  </div>
+                  {editingRef.referenceType === "LINK" ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Tags{" "}
+                        <span className="text-gray-400 font-normal">
+                          (comma-separated)
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.tags}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, tags: e.target.value })
+                        }
+                        placeholder="modern, minimalist, white"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Notes
+                      </label>
+                      <textarea
+                        value={editForm.notes}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, notes: e.target.value })
+                        }
+                        rows={3}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3 mt-6">
