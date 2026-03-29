@@ -313,6 +313,7 @@ export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
   const [view, setView] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { projects, isLoading, error, fetchProjects, addProject, clearError } =
@@ -346,8 +347,15 @@ export const ProjectsPage: React.FC = () => {
       );
     }
 
+    // Filter by category
+    if (categoryFilter !== "ALL") {
+      filtered = filtered.filter(
+        (p) => (p.projectCategory || p.projectType) === categoryFilter
+      );
+    }
+
     return filtered;
-  }, [projects, selectedProject, searchQuery]);
+  }, [projects, selectedProject, searchQuery, categoryFilter]);
 
   // Compute stats from real data
   const stats = useMemo(() => {
@@ -513,7 +521,18 @@ export const ProjectsPage: React.FC = () => {
             Manage all interior design projects
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white min-w-[150px]"
+          >
+            <option value="ALL">All Categories</option>
+            <option value="RESIDENTIAL">Residential</option>
+            <option value="COMMERCIAL">Commercial</option>
+            <option value="HOSPITALITY">Hospitality</option>
+            <option value="HEALTHCARE">Healthcare</option>
+          </select>
           <div className="flex gap-1 bg-white border border-gray-300 rounded-xl p-1">
             <button
               onClick={() => setView("grid")}

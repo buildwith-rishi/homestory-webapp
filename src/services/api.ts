@@ -338,6 +338,29 @@ export const adminAPI = {
     return fetchAPI("/api/users?limit=1000", { method: "GET" });
   },
 
+  // Get only BDR users (filtered server-side with role param, falls back to client filter)
+  getBDRUsers: async (): Promise<{ id: string; name: string; email: string; role: string; isActive: boolean; isBanned: boolean }[]> => {
+    const response = await fetchAPI<{ users?: unknown[]; [key: string]: unknown } | unknown[]>(
+      "/api/users?limit=1000&role=BDR",
+      { method: "GET" }
+    );
+    const raw = Array.isArray(response)
+      ? response
+      : (response as { users?: unknown[] })?.users ?? [];
+    // Normalize role to uppercase and filter strictly for BDR
+    return (raw as Record<string, unknown>[])
+      .filter((u) => u && u.id)
+      .map((u) => ({
+        id: String(u.id),
+        name: String(u.name || ""),
+        email: String(u.email || ""),
+        role: String(u.role || "").toUpperCase(),
+        isActive: u.isActive !== false,
+        isBanned: u.isBanned === true,
+      }))
+      .filter((u) => u.role === "BDR" && !u.isBanned && u.isActive);
+  },
+
   // Get user by ID
   getUserById: async (userId: string) => {
     return fetchAPI(`/api/users/${userId}`, { method: "GET" });

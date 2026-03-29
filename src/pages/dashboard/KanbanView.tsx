@@ -163,30 +163,12 @@ const KanbanView: React.FC = () => {
   // Filter for already converted leads
   const [showAlreadyConverted, setShowAlreadyConverted] = useState(false);
 
-  // Fetch BDR users on mount
+  // Fetch BDR users on mount from live user management API
   useEffect(() => {
     const fetchBDRs = async () => {
       try {
-        const response = await adminAPI.getAllUsers();
-        let usersList: AdminUser[] = [];
-
-        if (response && typeof response === "object") {
-          if ("users" in response && Array.isArray(response.users)) {
-            usersList = response.users;
-          } else if (Array.isArray(response)) {
-            usersList = response;
-          }
-        }
-
-        // Deduplicate users by id
-        const seen = new Set<string>();
-        const uniqueUsers = usersList.filter((u) => {
-          if (seen.has(u.id)) return false;
-          seen.add(u.id);
-          return true;
-        });
-
-        setBdrUsers(uniqueUsers);
+        const bdrs = await adminAPI.getBDRUsers();
+        setBdrUsers(bdrs as unknown as AdminUser[]);
       } catch (error) {
         console.error("Failed to fetch BDR users:", error);
         setBdrUsers([]);

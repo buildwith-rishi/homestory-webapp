@@ -1543,26 +1543,15 @@ export const LeadsPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch BDR users
+  // Fetch BDR users from live user management API
   useEffect(() => {
     const fetchBDRs = async () => {
       try {
-        const response = await adminAPI.getAllUsers();
-        const usersArray = Array.isArray(response)
-          ? response
-          : (response as { users?: AdminUser[] })?.users || [];
-        // Deduplicate by id
-        const seen = new Set<string>();
-        const uniqueUsers: AdminUser[] = [];
-        for (const u of usersArray) {
-          if (u.id && !seen.has(u.id) && !u.isBanned) {
-            seen.add(u.id);
-            uniqueUsers.push(u);
-          }
-        }
-        setBdrUsers(uniqueUsers);
+        const bdrs = await adminAPI.getBDRUsers();
+        setBdrUsers(bdrs as unknown as AdminUser[]);
       } catch (error) {
         console.error("Error fetching BDR users:", error);
+        setBdrUsers([]);
       }
     };
     fetchBDRs();

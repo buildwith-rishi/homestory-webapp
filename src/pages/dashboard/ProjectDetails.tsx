@@ -478,6 +478,8 @@ export const ProjectDetails: React.FC = () => {
 
   // Edit project modal
   const [showEditModal, setShowEditModal] = useState(false);
+  const [designTeamRoleFilter, setDesignTeamRoleFilter] = useState("");
+  const [executionTeamRoleFilter, setExecutionTeamRoleFilter] = useState("");
   const [editForm, setEditForm] = useState({
     projectName: "",
     leadId: "",
@@ -521,6 +523,14 @@ export const ProjectDetails: React.FC = () => {
   });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [teamMembersList, setTeamMembersList] = useState<TeamMember[]>([]);
+
+  const uniqueRoles = useMemo(() => {
+    const roles = new Set<string>();
+    teamMembersList.forEach((m) => {
+      if (m.role) roles.add(m.role);
+    });
+    return Array.from(roles).sort();
+  }, [teamMembersList]);
 
   useEffect(() => {
     if (showEditModal) {
@@ -4823,36 +4833,52 @@ export const ProjectDetails: React.FC = () => {
                             designTeam: e.target.value,
                           })
                         }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm mb-2"
                         placeholder="Sathish, Thrisha"
                       />
-                      <select
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (!val) return;
-                          const current = editForm.designTeam
-                            ? editForm.designTeam
-                                .split(",")
-                                .map((s) => s.trim())
-                                .filter(Boolean)
-                            : [];
-                          if (!current.includes(val)) {
-                            setEditForm((prev) => ({
-                              ...prev,
-                              designTeam: [...current, val].join(", "),
-                            }));
-                          }
-                          e.target.value = "";
-                        }}
-                        className="mt-2 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                      >
-                        <option value="">+ Add Member</option>
-                        {teamMembersList.map((m) => (
-                          <option key={m.id} value={m.name}>
-                            {m.name} ({m.role?.replace(/_/g, " ")})
-                          </option>
-                        ))}
-                      </select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={designTeamRoleFilter}
+                          onChange={(e) => setDesignTeamRoleFilter(e.target.value)}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                        >
+                          <option value="">All Roles</option>
+                          {uniqueRoles.map((role) => (
+                            <option key={role} value={role}>
+                              {role.replace(/_/g, " ")}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            const current = editForm.designTeam
+                              ? editForm.designTeam
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean)
+                              : [];
+                            if (!current.includes(val)) {
+                              setEditForm((prev) => ({
+                                ...prev,
+                                designTeam: [...current, val].join(", "),
+                              }));
+                            }
+                            e.target.value = "";
+                          }}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                        >
+                          <option value="">+ Add Member</option>
+                          {teamMembersList
+                            .filter(m => !designTeamRoleFilter || m.role === designTeamRoleFilter)
+                            .map((m) => (
+                              <option key={m.id} value={m.name}>
+                                {m.name} {!designTeamRoleFilter && `(${m.role?.replace(/_/g, " ")})`}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -4867,36 +4893,52 @@ export const ProjectDetails: React.FC = () => {
                             executionTeam: e.target.value,
                           })
                         }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm mb-2"
                         placeholder="Dilip, Santhosh"
                       />
-                      <select
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (!val) return;
-                          const current = editForm.executionTeam
-                            ? editForm.executionTeam
-                                .split(",")
-                                .map((s) => s.trim())
-                                .filter(Boolean)
-                            : [];
-                          if (!current.includes(val)) {
-                            setEditForm((prev) => ({
-                              ...prev,
-                              executionTeam: [...current, val].join(", "),
-                            }));
-                          }
-                          e.target.value = "";
-                        }}
-                        className="mt-2 w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                      >
-                        <option value="">+ Add Member</option>
-                        {teamMembersList.map((m) => (
-                          <option key={m.id} value={m.name}>
-                            {m.name} ({m.role?.replace(/_/g, " ")})
-                          </option>
-                        ))}
-                      </select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={executionTeamRoleFilter}
+                          onChange={(e) => setExecutionTeamRoleFilter(e.target.value)}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                        >
+                          <option value="">All Roles</option>
+                          {uniqueRoles.map((role) => (
+                            <option key={role} value={role}>
+                              {role.replace(/_/g, " ")}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            const current = editForm.executionTeam
+                              ? editForm.executionTeam
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean)
+                              : [];
+                            if (!current.includes(val)) {
+                              setEditForm((prev) => ({
+                                ...prev,
+                                executionTeam: [...current, val].join(", "),
+                              }));
+                            }
+                            e.target.value = "";
+                          }}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                        >
+                          <option value="">+ Add Member</option>
+                          {teamMembersList
+                            .filter(m => !executionTeamRoleFilter || m.role === executionTeamRoleFilter)
+                            .map((m) => (
+                              <option key={m.id} value={m.name}>
+                                {m.name} {!executionTeamRoleFilter && `(${m.role?.replace(/_/g, " ")})`}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
