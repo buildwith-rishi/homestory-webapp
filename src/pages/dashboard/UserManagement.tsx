@@ -1349,21 +1349,7 @@ export const UserManagement: React.FC = () => {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Phone{" "}
-              <span className="text-gray-400 font-normal">(Optional)</span>
-            </label>
-            <input
-              type="tel"
-              value={editForm.phone}
-              onChange={(e) =>
-                setEditForm({ ...editForm, phone: e.target.value })
-              }
-              placeholder="+91 98765 43210"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
-            />
-          </div>
+          
 
           {/* Modal Footer */}
           <div className="flex gap-3 pt-4 border-t border-gray-100 mt-6">
