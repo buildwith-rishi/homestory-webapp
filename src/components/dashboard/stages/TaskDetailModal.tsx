@@ -171,6 +171,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   // Users list for assignee dropdown
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   // Resolve assignee display name from all possible API field shapes.
   // The backend Prisma FK may be "assignedToUserId" while the MatrixTask type
@@ -218,6 +219,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
+  const [editAssigneeRole, setEditAssigneeRole] = useState("");
   const [editAssigneeId, setEditAssigneeId] = useState("");
   const [editDayNumber, setEditDayNumber] = useState<number>(1);
   const [editStartDate, setEditStartDate] = useState("");
@@ -246,6 +248,16 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const cancelEditing = () => {
     setIsEditing(false);
   };
+
+  const availableAssigneeRoles = useMemo(
+    () => [...new Set(users.map((u) => u.role))].sort(),
+    [users],
+  );
+
+  const roleFilteredUsers = useMemo(() => {
+    if (!editAssigneeRole) return [];
+    return users.filter((u) => u.role === editAssigneeRole);
+  }, [users, editAssigneeRole]);
 
   const handleNotifyCustomer = async () => {
     setNotifying(true);
@@ -414,31 +426,84 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   // Fetch users for assignee dropdown
   useEffect(() => {
     const fetchUsers = async () => {
+      setUsersLoading(true);
       try {
         const response = await adminAPI.getAllUsers();
-        let usersList: AdminUser[] = [];
-        if (response && typeof response === "object") {
+        let usersList: Array<Record<string, unknown>> = [];
+        if (Array.isArray(response)) {
+          usersList = response as Array<Record<string, unknown>>;
+        } else if (response && typeof response === "object") {
           if ("users" in response && Array.isArray(response.users)) {
-            usersList = response.users;
-          } else if (Array.isArray(response)) {
-            usersList = response;
+            usersList = response.users as Array<Record<string, unknown>>;
+          } else if (
+            "data" in response &&
+            response.data &&
+            typeof response.data === "object" &&
+            "users" in response.data &&
+            Array.isArray(
+              (response.data as { users: Array<Record<string, unknown>> }).users,
+            )
+          ) {
+            usersList = (
+              response.data as { users: Array<Record<string, unknown>> }
+            ).users;
+          } else if ("data" in response && Array.isArray(response.data)) {
+            usersList = response.data as Array<Record<string, unknown>>;
           }
         }
+
+        const normalizedUsers = usersList.map((user) => {
+          const roleFromApi =
+            user.role ||
+            (
+              user.credential as { roleKey?: string; name?: string } | undefined
+            )?.roleKey ||
+            (
+              user.credential as { roleKey?: string; name?: string } | undefined
+            )?.name ||
+            "BDR";
+
+          const roleTitleFromApi =
+            (user.roleTitle as string | undefined) ||
+            (user.userRoleTitle as string | undefined) ||
+            (user.title as string | undefined);
+
+          return {
+            ...user,
+            role: String(roleFromApi).toUpperCase() as AdminUser["role"],
+            roleTitle: roleTitleFromApi,
+          } as AdminUser;
+        });
+
         // Deduplicate
         const seen = new Set<string>();
         setUsers(
-          usersList.filter((u) => {
+          normalizedUsers.filter((u) => {
             if (seen.has(u.id)) return false;
             seen.add(u.id);
-            return true;
+            return u.isActive !== false && !u.isBanned;
           }),
         );
       } catch {
         // Non-critical, silently fail
+      } finally {
+        setUsersLoading(false);
       }
     };
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    if (!editAssigneeId) {
+      if (editAssigneeRole) setEditAssigneeRole("");
+      return;
+    }
+    const assigned = users.find((u) => u.id === editAssigneeId);
+    if (assigned && assigned.role !== editAssigneeRole) {
+      setEditAssigneeRole(assigned.role);
+    }
+  }, [isEditing, editAssigneeId, users, editAssigneeRole]);
 
   useEffect(() => {
     fetchTaskDetails();
@@ -817,18 +882,44 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
                           Assigned To
                         </label>
-                        <select
-                          value={editAssigneeId}
-                          onChange={(e) => setEditAssigneeId(e.target.value)}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white"
-                        >
-                          <option value="">Unassigned</option>
-                          {users.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name} ({u.role.replace(/_/g, " ")})
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <select
+                            value={editAssigneeRole}
+                            onChange={(e) => {
+                              const nextRole = e.target.value;
+                              setEditAssigneeRole(nextRole);
+                              setEditAssigneeId("");
+                            }}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white"
+                          >
+                            <option value="">
+                              {usersLoading ? "Loading roles..." : "Select Role"}
                             </option>
-                          ))}
-                        </select>
+                            {availableAssigneeRoles.map((role) => (
+                              <option key={role} value={role}>
+                                {role.replace(/_/g, " ")}
+                              </option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={editAssigneeId}
+                            onChange={(e) => setEditAssigneeId(e.target.value)}
+                            disabled={!editAssigneeRole}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                          >
+                            <option value="">
+                              {editAssigneeRole
+                                ? "Unassigned"
+                                : "Select role first"}
+                            </option>
+                            {roleFilteredUsers.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 pt-1">
                         <Button

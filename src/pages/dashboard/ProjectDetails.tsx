@@ -3146,6 +3146,26 @@ export const ProjectDetails: React.FC = () => {
                       const matched = projectStages.find(
                         (s) => s.stageCode === code,
                       );
+                      const nextPhaseType = matched
+                        ? matched.phaseType
+                        : newPaymentForm.phaseType;
+                      const phaseBaseValue =
+                        nextPhaseType === "DESIGN"
+                          ? parseFloat(String(project?.designValue ?? 0)) || 0
+                          : parseFloat(String(project?.executionValue ?? 0)) || 0;
+                      const autoExpected =
+                        newPaymentForm.percentage > 0 && phaseBaseValue > 0
+                          ? String(
+                              Math.round(
+                                (newPaymentForm.percentage / 100) *
+                                  phaseBaseValue,
+                              ),
+                            )
+                          : newPaymentForm.expectedAmount;
+                      const tax = parseFloat(newPaymentForm.taxPercentage || "0");
+                      const autoInvoice = autoExpected
+                        ? (parseFloat(autoExpected) * (1 + tax / 100)).toFixed(2)
+                        : newPaymentForm.invoiceAmount;
                       setNewPaymentForm({
                         ...newPaymentForm,
                         stageCode: code,
@@ -3153,6 +3173,8 @@ export const ProjectDetails: React.FC = () => {
                         dueDate: matched
                           ? toDateInputValue(matched.tentativeEndDate)
                           : "",
+                        expectedAmount: autoExpected,
+                        invoiceAmount: autoInvoice,
                         ...(matched
                           ? {
                               phaseType: matched.phaseType,
@@ -3219,9 +3241,12 @@ export const ProjectDetails: React.FC = () => {
                           return;
                         }
                         setPaymentFormErrors((prev) => ({ ...prev, percentage: "", expectedAmount: "" }));
-                        const projectTotal = parseFloat(String(project?.totalValue || "0")) || 0;
-                        const autoExpected = (!isNaN(val) && val > 0 && projectTotal > 0)
-                          ? String(Math.round((val / 100) * projectTotal))
+                        const phaseBaseValue =
+                          newPaymentForm.phaseType === "DESIGN"
+                            ? parseFloat(String(project?.designValue ?? 0)) || 0
+                            : parseFloat(String(project?.executionValue ?? 0)) || 0;
+                        const autoExpected = (!isNaN(val) && val > 0 && phaseBaseValue > 0)
+                          ? String(Math.round((val / 100) * phaseBaseValue))
                           : newPaymentForm.expectedAmount;
                         const tax = parseFloat(newPaymentForm.taxPercentage || "0");
                         const autoInvoice = autoExpected
