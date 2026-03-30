@@ -71,7 +71,6 @@ export function BDRHome() {
   } = useProjectStore();
   const [greeting, setGreeting] = useState("Good morning");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // BDR API state
   const [leadsTotal, setLeadsTotal] = useState(0);
@@ -80,22 +79,14 @@ export function BDRHome() {
   const [bdrLoading, setBdrLoading] = useState(true);
   const [bdrError, setBdrError] = useState<string | null>(null);
   const [bdrTasks, setBdrTasks] = useState<BDRHomeTask[]>([]);
-  const [bdrTasksLoading, setBdrTasksLoading] = useState(true);
-  const [bdrTasksError, setBdrTasksError] = useState<string | null>(null);
 
   const loadBDRTasks = useCallback(async () => {
-    setBdrTasksLoading(true);
-    setBdrTasksError(null);
     try {
       // BDR must use dedicated endpoint, not generic /api/tasks.
       const taskRes = await getBDRTasks(50, 0, "TODO");
       setBdrTasks((taskRes.tasks || []).map(mapBDRHomeTask));
-    } catch (err) {
-      setBdrTasksError(
-        err instanceof Error ? err.message : "Failed to load tasks",
-      );
-    } finally {
-      setBdrTasksLoading(false);
+    } catch {
+      setBdrTasks([]);
     }
   }, []);
 
@@ -116,15 +107,6 @@ export function BDRHome() {
       setBdrLoading(false);
     }
   }, []);
-
-  const handleRetryTasks = async () => {
-    setIsRefreshing(true);
-    try {
-      await Promise.all([loadBDRTasks(), loadBDRData()]);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -151,10 +133,6 @@ export function BDRHome() {
   const todayStr = new Date().toISOString().split("T")[0];
   const todayTasks = bdrTasks.filter((t) => !t.completed && t.dueDate === todayStr);
 
-  const displayUpcomingTasks = bdrTasks
-    .filter((t) => !t.completed)
-    .slice(0, 5);
-
   const upcomingMeetings = meetings
     .filter((m) => m.status === "SCHEDULED")
     .slice(0, 3);
@@ -178,33 +156,6 @@ export function BDRHome() {
       CANCELLED: "bg-red-100 text-red-700",
     };
     return map[status] || "bg-gray-100 text-gray-700";
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    const styles: Record<string, string> = {
-      URGENT: "bg-red-100 text-red-700",
-      HIGH: "bg-orange-100 text-orange-700",
-      MEDIUM: "bg-yellow-100 text-yellow-700",
-      LOW: "bg-green-100 text-green-700",
-    };
-    return styles[priority] || "bg-gray-100 text-gray-700";
-  };
-
-  const formatDueDate = (dueDate: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const due = new Date(dueDate);
-    due.setHours(0, 0, 0, 0);
-    const diffDays = Math.ceil(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-    );
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays < 7) return `In ${diffDays} days`;
-    return new Date(dueDate).toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-    });
   };
 
   const getStageLabel = (stage: ProjectStage) => {
@@ -448,112 +399,6 @@ export function BDRHome() {
                   </span>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
-
-        {/* Upcoming Tasks */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-1 h-4 bg-orange-500 rounded-full" />
-              Upcoming Tasks
-            </h2>
-            <div className="flex items-center gap-2">
-              {bdrTasksError && (
-                <button
-                  onClick={handleRetryTasks}
-                  disabled={isRefreshing}
-                  className="text-xs text-orange-600 font-medium flex items-center gap-1"
-                >
-                  <RefreshCw
-                    className={`w-3 h-3 ${isRefreshing ? "animate-spin" : ""}`}
-                  />
-                  Retry
-                </button>
-              )}
-              <button
-                onClick={() => navigate("/bdr/tasks")}
-                className="text-xs text-orange-600 font-medium flex items-center gap-1"
-              >
-                View All <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-
-          {bdrTasksLoading || isRefreshing ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-              <Spinner size="md" color="brand" className="mx-auto" />
-              <p className="text-xs text-gray-500 mt-2">Loading tasks...</p>
-            </div>
-          ) : bdrTasksError ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-              <p className="text-sm font-medium text-gray-900">
-                Couldn't load tasks
-              </p>
-              <button
-                onClick={handleRetryTasks}
-                className="inline-flex items-center gap-1.5 bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium mt-2"
-              >
-                <RefreshCw className="w-3 h-3" />
-                Try Again
-              </button>
-            </div>
-          ) : displayUpcomingTasks.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <CheckSquare className="w-6 h-6 text-green-600" />
-              </div>
-              <p className="text-sm font-medium text-gray-900">
-                All caught up!
-              </p>
-              <p className="text-xs text-gray-500">No upcoming tasks</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {displayUpcomingTasks.map((task) => {
-                return (
-                  <div
-                    key={task.id}
-                    onClick={() => navigate("/bdr/tasks")}
-                    className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3 active:scale-[0.98] transition-all cursor-pointer"
-                  >
-                    <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        task.priority === "HIGH"
-                          ? "bg-red-100"
-                          : "bg-orange-100"
-                      }`}
-                    >
-                      <ListTodo
-                        className={`w-5 h-5 ${
-                          task.priority === "HIGH"
-                            ? "text-red-600"
-                            : "text-orange-600"
-                        }`}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {task.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-gray-500 truncate">BDR Task</span>
-                        <span
-                          className={`text-xs px-1.5 py-0.5 rounded ${getPriorityBadge(task.priority || "MEDIUM")}`}
-                        >
-                          {task.priority || "MEDIUM"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs font-medium text-orange-600">
-                        {formatDueDate(task.dueDate)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           )}
         </div>

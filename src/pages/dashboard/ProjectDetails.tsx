@@ -318,6 +318,16 @@ export const ProjectDetails: React.FC = () => {
     roleId === "LEAD_PROJECT_MANAGER" ||
     (canEditProjectBase && (roleId !== "DESIGNER" || isAssigned));
 
+  const enforceProjectEditAccess = (): boolean => {
+    if (canEditProject) return true;
+    if (roleId === "DESIGNER") {
+      toast.error("You can only edit projects assigned to you");
+    } else {
+      toast.error("You do not have permission to edit this project");
+    }
+    return false;
+  };
+
   const canDeleteProject = hasPermission(roleId as RoleId, "projects.delete");
 
   // Project options from API
@@ -1332,6 +1342,7 @@ export const ProjectDetails: React.FC = () => {
 
   // Handle edit project
   const handleOpenEdit = () => {
+    if (!enforceProjectEditAccess()) return;
     if (!currentProject) return;
     setDesignTeamRoleFilter("");
     setExecutionTeamRoleFilter("");
@@ -1402,6 +1413,7 @@ export const ProjectDetails: React.FC = () => {
   };
 
   const handleSaveEdit = async () => {
+    if (!enforceProjectEditAccess()) return;
     if (!projectId) return;
     setIsSavingEdit(true);
     try {
@@ -1604,6 +1616,7 @@ export const ProjectDetails: React.FC = () => {
   const handleStatusAction = async (
     action: "start" | "resume" | "complete" | "cancel",
   ) => {
+    if (!enforceProjectEditAccess()) return;
     if (!projectId) return;
     setIsChangingStatus(true);
     try {
@@ -1701,6 +1714,7 @@ export const ProjectDetails: React.FC = () => {
   };
 
   const handlePauseProject = async () => {
+    if (!enforceProjectEditAccess()) return;
     if (!projectId) return;
     const trimmedReason = pauseForm.reason.trim();
     if (!trimmedReason) {

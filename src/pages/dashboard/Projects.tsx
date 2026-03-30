@@ -23,6 +23,8 @@ import {
   SectionLoader,
 } from "../../components/ui";
 import { NewProjectModal } from "../../components/dashboard/NewProjectModal.tsx";
+import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission, RoleId } from "../../config/rbac";
 
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useProjectStore } from "../../stores/projectStore";
@@ -311,6 +313,7 @@ const getPropertyTypeDisplay = (project: Project) => {
 
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { roleId } = useAuth();
   const [view, setView] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
@@ -320,6 +323,7 @@ export const ProjectsPage: React.FC = () => {
     useProjectStore();
 
   const { selectedProject } = useProjectFilter();
+  const canCreateProject = hasPermission(roleId as RoleId, "projects.create");
 
   // Initial data fetch
   useEffect(() => {
@@ -555,10 +559,12 @@ export const ProjectsPage: React.FC = () => {
               <List className="w-4 h-4" />
             </button>
           </div>
-          <Button className="rounded-xl" onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4" />
-            New Project
-          </Button>
+          {canCreateProject && (
+            <Button className="rounded-xl" onClick={() => setIsModalOpen(true)}>
+              <Plus className="w-4 h-4" />
+              New Project
+            </Button>
+          )}
         </div>
       </div>
 
@@ -986,11 +992,13 @@ export const ProjectsPage: React.FC = () => {
       )}
 
       {/* New Project Modal */}
-      <NewProjectModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleCreateProject}
-      />
+      {canCreateProject && (
+        <NewProjectModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleCreateProject}
+        />
+      )}
     </div>
   );
 };
