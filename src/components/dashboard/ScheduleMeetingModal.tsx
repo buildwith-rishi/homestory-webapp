@@ -73,9 +73,12 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
     if (!isOpen) return;
     setTeamMembersLoading(true);
     getAllTeamMembers()
-      .then((members) =>
-        setTeamMembers(members.filter((m) => m.isActive !== false)),
-      )
+      .then((members) => {
+        const normalized = [...members].sort((a, b) =>
+          (a.name || "").localeCompare(b.name || ""),
+        );
+        setTeamMembers(normalized);
+      })
       .catch(() => setTeamMembers([]))
       .finally(() => setTeamMembersLoading(false));
   }, [isOpen]);
@@ -195,8 +198,8 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
   const filteredMembers = teamMembers.filter((m) => {
     const q = memberSearch.toLowerCase();
     return (
-      m.name.toLowerCase().includes(q) ||
-      m.role.toLowerCase().includes(q) ||
+      (m.name || "").toLowerCase().includes(q) ||
+      (m.role || "").toLowerCase().includes(q) ||
       m.department?.toLowerCase().includes(q)
     );
   });

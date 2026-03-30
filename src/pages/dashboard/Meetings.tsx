@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -33,6 +33,7 @@ import {
   Badge,
   SectionLoader,
   Spinner,
+  Modal,
 } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useMeetingStore } from "../../stores/meetingStore";
@@ -130,6 +131,57 @@ const normalizeLeads = (items: unknown[]): Lead[] => {
     }));
 };
 
+const normalizeProjects = (items: unknown[]): Project[] => {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item): item is Record<string, unknown> => {
+      return !!item && typeof item === "object";
+    })
+    .filter((item) => typeof item.id === "string")
+    .map((item) => ({
+      ...(item as unknown as Project),
+      id: item.id as string,
+    }));
+};
+
+const isArchivedOrDeleted = (item: Record<string, unknown>): boolean => {
+  const status = String(item.status || "").toUpperCase();
+  return (
+    item.isDeleted === true ||
+    !!item.deletedAt ||
+    !!item.archivedAt ||
+    status === "DELETED" ||
+    status === "ARCHIVED"
+  );
+};
+
+const uniqueById = <T extends { id: string }>(items: T[]): T[] => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+};
+
+const isCurrentLead = (lead: Lead): boolean => {
+  const status = String((lead as unknown as Record<string, unknown>).status || "").toUpperCase();
+  const stage = String((lead as unknown as Record<string, unknown>).stage || "").toUpperCase();
+
+  if (isArchivedOrDeleted(lead as unknown as Record<string, unknown>)) return false;
+  if (["CONVERTED", "DISQUALIFIED", "UNQUALIFIED", "DELETED", "ARCHIVED"].includes(status)) return false;
+  if (["WON", "LOST"].includes(stage)) return false;
+  return true;
+};
+
+const isCurrentProject = (project: Project): boolean => {
+  const status = String((project as unknown as Record<string, unknown>).status || "").toUpperCase();
+
+  if (isArchivedOrDeleted(project as unknown as Record<string, unknown>)) return false;
+  if (["CANCELLED", "COMPLETED", "DELETED", "ARCHIVED"].includes(status)) return false;
+  return true;
+};
+
 export const MeetingsPage: React.FC = () => {
   const navigate = useNavigate();
   const [selectedMeeting, setSelectedMeeting] = useState<MeetingDisplay | null>(
@@ -149,6 +201,7 @@ export const MeetingsPage: React.FC = () => {
   } = useMeetingStore();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [meetingToDelete, setMeetingToDelete] = useState<string | null>(null);
   const [showMeetingTypeModal, setShowMeetingTypeModal] = useState(false);
 
   // MOM (Minutes of Meeting) state
@@ -195,42 +248,77 @@ export const MeetingsPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingEntities, setLoadingEntities] = useState(false);
 
-  // Fetch leads + projects on mount (for entity name lookups in meeting cards)
-  useEffect(() => {
-    (async () => {
-      try {
-        const [leadsData, projectsData] = await Promise.all([
-          listLeads({ limit: 200 }),
-          listProjects({ limit: 200 }),
-        ]);
-        setLeads(normalizeLeads(leadsData.leads || []));
-        setProjects(projectsData.projects || []);
-      } catch {}
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchLiveEntities = useCallback(async () => {
+    setLoadingEntities(true);
+    try {
+      const LEAD_PAGE_SIZE = 1000;
+      const PROJECT_PAGE_SIZE = 1000;
+
+      const fetchAllLeads = async (): Promise<Lead[]> => {
+        let page = 1;
+        let total = Number.POSITIVE_INFINITY;
+        let collected: Lead[] = [];
+
+        while (collected.length < total) {
+          const response = await listLeads({ limit: LEAD_PAGE_SIZE, page });
+          const chunk = normalizeLeads(response.leads || []);
+          collected = collected.concat(chunk);
+          total = Number(response.total || collected.length);
+          if (chunk.length < LEAD_PAGE_SIZE) break;
+          page += 1;
+        }
+
+        return uniqueById(collected);
+      };
+
+      const fetchAllProjects = async (): Promise<Project[]> => {
+        let offset = 0;
+        let total = Number.POSITIVE_INFINITY;
+        let collected: Project[] = [];
+
+        while (collected.length < total) {
+          const response = await listProjects({
+            limit: PROJECT_PAGE_SIZE,
+            offset,
+          });
+          const chunk = normalizeProjects(response.projects || []);
+          collected = collected.concat(chunk);
+          total = Number(response.total || collected.length);
+          if (chunk.length < PROJECT_PAGE_SIZE) break;
+          offset += PROJECT_PAGE_SIZE;
+        }
+
+        return uniqueById(collected);
+      };
+
+      const [allLeads, allProjects] = await Promise.all([
+        fetchAllLeads(),
+        fetchAllProjects(),
+      ]);
+
+      const activeLeads = allLeads.filter(isCurrentLead);
+      const activeProjects = allProjects.filter(isCurrentProject);
+
+      setLeads(activeLeads);
+      setProjects(activeProjects);
+    } catch (error) {
+      console.error("Error fetching live leads/projects:", error);
+    } finally {
+      setLoadingEntities(false);
+    }
   }, []);
 
-  // Fetch leads and projects when creation modal opens (refresh)
+  // Fetch leads + projects on mount (for entity name lookups in meeting cards)
   useEffect(() => {
-    const fetchEntities = async () => {
-      if (showMeetingTypeModal && !showEntitySelection) {
-        setLoadingEntities(true);
-        try {
-          const [leadsData, projectsData] = await Promise.all([
-            listLeads({ limit: 200 }),
-            listProjects({ limit: 200 }),
-          ]);
-          setLeads(normalizeLeads(leadsData.leads || []));
-          setProjects(projectsData.projects || []);
-        } catch (error) {
-          console.error("Error fetching leads/projects:", error);
-        } finally {
-          setLoadingEntities(false);
-        }
-      }
-    };
-    fetchEntities();
-  }, [showMeetingTypeModal, showEntitySelection]);
+    void fetchLiveEntities();
+  }, [fetchLiveEntities]);
+
+  // Re-fetch every time link-meeting modal opens to keep dropdowns live
+  useEffect(() => {
+    if (showMeetingTypeModal) {
+      void fetchLiveEntities();
+    }
+  }, [showMeetingTypeModal, fetchLiveEntities]);
 
   // Fetch meetings on mount
   useEffect(() => {
@@ -371,6 +459,7 @@ export const MeetingsPage: React.FC = () => {
   }, [apiMeetings, leads, projects]);
 
   const handleStartMeeting = () => {
+    void fetchLiveEntities();
     setShowMeetingTypeModal(true);
     // Reset selections
     setSelectedMeetingType(null);
@@ -589,20 +678,11 @@ export const MeetingsPage: React.FC = () => {
   useEffect(() => {
     const fetchMomEntities = async () => {
       if (!showMomModal) return;
-      try {
-        const [leadsData, projectsData] = await Promise.all([
-          listLeads({ limit: 200 }),
-          listProjects({ limit: 200 }),
-        ]);
-        setLeads(normalizeLeads(leadsData.leads || []));
-        setProjects(projectsData.projects || []);
-      } catch (error) {
-        console.error("Error fetching leads/projects for transcript import:", error);
-      }
+      await fetchLiveEntities();
     };
 
-    fetchMomEntities();
-  }, [showMomModal]);
+    void fetchMomEntities();
+  }, [showMomModal, fetchLiveEntities]);
 
   // View a MOM attachment — fetch fresh signed downloadUrl first
   const handleViewMomAtt = async (att: Attachment) => {
@@ -956,17 +1036,30 @@ export const MeetingsPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${statusColor.bg} ${statusColor.text} border ${statusColor.border}`}
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full ${statusColor.dot}`}
-                    />
-                    <span className="text-xs font-medium">
-                      {meeting.status.replace("_", " ")}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${statusColor.bg} ${statusColor.text} border ${statusColor.border}`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full ${statusColor.dot}`}
+                        />
+                        <span className="text-xs font-medium">
+                          {meeting.status.replace("_", " ")}
+                        </span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMeetingToDelete(meeting.id.toString());
+                          setShowDeleteConfirm(true);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete Meeting"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
                 {/* Linked Entity Chips */}
                 {meeting.linkedEntityType && meeting.linkedEntityName && (
@@ -2001,6 +2094,61 @@ export const MeetingsPage: React.FC = () => {
           </>,
           document.body,
         )}
-    </div>
-  );
-};
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          isOpen={showDeleteConfirm && meetingToDelete !== null}
+          onClose={() => {
+            if (!isDeleting) {
+              setShowDeleteConfirm(false);
+              setMeetingToDelete(null);
+            }
+          }}
+          title="Confirm Deletion"
+          size="sm"
+          footer={
+            <>
+              <Button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setMeetingToDelete(null);
+                }}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (meetingToDelete) {
+                    setIsDeleting(true);
+                    try {
+                      await deleteMeeting(meetingToDelete);
+                      setShowDeleteConfirm(false);
+                      setMeetingToDelete(null);
+                      toast.success("Meeting deleted successfully");
+                      fetchMeetings();
+                    } catch (err) {
+                      console.error("Error deleting meeting:", err);
+                      toast.error("Failed to delete meeting");
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }
+                }}
+                className="bg-red-500 hover:bg-red-600 text-white"
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </Button>
+            </>
+          }
+        >
+          <div className="p-4 text-gray-600">
+            Are you sure you want to delete this meeting? This action cannot be undone.
+          </div>
+        </Modal>
+      </div>
+    );
+  };
+

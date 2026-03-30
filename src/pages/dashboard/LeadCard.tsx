@@ -8,6 +8,7 @@ import {
   Users,
   ArrowRight,
   Check,
+  Trash2,
 } from "lucide-react";
 import { Lead } from "../../services/leadApi";
 import { getSourceLabel } from "../../utils/leadHelpers";
@@ -18,6 +19,7 @@ interface LeadCardProps {
   onToggleSelection: (id: string) => void;
   onNavigate: (path: string) => void;
   onEdit: (lead: Lead) => void;
+  onDelete?: (lead: Lead) => void;
   onOpenBdrDropdown: (leadId: string, e: React.MouseEvent) => void;
   registerBdrButtonRef: (leadId: string, el: HTMLButtonElement | null) => void;
 }
@@ -56,6 +58,7 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
   onToggleSelection,
   onNavigate,
   onEdit,
+  onDelete,
   onOpenBdrDropdown,
   registerBdrButtonRef,
 }) => {
@@ -170,15 +173,30 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
             </div>
           </div>
           {/* Actions Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(lead);
-            }}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <MoreVertical className="w-4 h-4 text-gray-400" />
-          </button>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(lead);
+                }}
+                className="p-2 hover:bg-red-50 hover:text-red-600 text-gray-400 rounded-xl transition-colors"
+                title="Delete Lead"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(lead);
+              }}
+              className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+              title="Edit Lead"
+            >
+              <MoreVertical className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* Contact Info Cards */}

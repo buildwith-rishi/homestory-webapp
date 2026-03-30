@@ -166,6 +166,7 @@ export async function listProjects(
     const response = await fetch(url, {
       method: "GET",
       headers: getAuthHeaders(),
+      cache: "no-store",
     });
 
     return handleResponse<ListProjectsResponse>(response);

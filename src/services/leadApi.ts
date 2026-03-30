@@ -378,6 +378,7 @@ export async function listLeads(params?: {
   const response = await fetch(url, {
     method: "GET",
     headers: getAuthHeaders(),
+    cache: "no-store",
   });
 
   return handleResponse(response);

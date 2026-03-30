@@ -28,7 +28,7 @@ import {
   Users,
   Upload,
 } from "lucide-react";
-import { Button, Badge } from "../../components/ui";
+import { Button, Badge, Modal } from "../../components/ui";
 import toast from "react-hot-toast";
 import LeadAPI, {
   Lead,
@@ -1533,6 +1533,9 @@ export const LeadsPage: React.FC = () => {
   // Assignment loading state
   const [isAssigning, setIsAssigning] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
+  const [isBulkDelete, setIsBulkDelete] = useState(false);
 
   // Load kanban activity log
   useEffect(() => {
@@ -1776,24 +1779,33 @@ export const LeadsPage: React.FC = () => {
   };
 
   // Delete Lead
-  const handleDeleteLead = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this lead?")) return;
+    const handleDeleteLead = (id: string) => {
+      setLeadToDelete(id);
+      setIsBulkDelete(false);
+      setShowDeleteModal(true);
+    };
 
-    try {
-      await LeadAPI.deleteLead(id);
-      setLeads(leads.filter((l) => l.id !== id));
-      if (selectedLead?.id === id) {
-        setSelectedLead(null);
+    const executeDeleteLead = async (id: string) => {
+      setIsDeleting(true);
+      try {
+        await LeadAPI.deleteLead(id);
+        setLeads(leads.filter((l) => l.id !== id));
+        if (selectedLead?.id === id) {
+          setSelectedLead(null);
+        }
+        toast.success("Lead deleted successfully!");
+        setShowDeleteModal(false);
+        setLeadToDelete(null);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to delete lead";
+        toast.error(errorMessage);
+      } finally {
+        setIsDeleting(false);
       }
-      toast.success("Lead deleted successfully!");
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to delete lead";
-      toast.error(errorMessage);
-    }
-  };
+    };
 
-  // Convert Lead to Customer
+    // Convert Lead to Customer
   const handleConvertToCustomer = async () => {
     if (!selectedLead?.id) return;
 
@@ -1959,26 +1971,29 @@ export const LeadsPage: React.FC = () => {
     }
   };
 
-  const handleBulkDelete = async () => {
-    const leadIds = Array.from(selectedLeadIds);
-    if (
-      !window.confirm(
-        `Are you sure you want to delete ${leadIds.length} lead${leadIds.length > 1 ? "s" : ""}? This action cannot be undone.`,
-      )
-    )
-      return;
+const handleBulkDelete = () => {
+      const leadIds = Array.from(selectedLeadIds);
+      if (leadIds.length === 0) return;
+      setIsBulkDelete(true);
+      setShowDeleteModal(true);
+    };
 
-    setIsDeleting(true);
-    try {
-      await Promise.all(leadIds.map((id) => LeadAPI.deleteLead(id)));
-      toast.success(`${leadIds.length} lead(s) deleted successfully`);
-      setSelectedLeadIds(new Set());
-      
-      // Refresh current views
-      fetchData();
-      if (selectedStage === "__unassigned__") fetchUnassignedLeads();
-      useLeadStore.getState().fetchLeads();
-    } catch (error) {
+    const executeBulkDelete = async () => {
+      const leadIds = Array.from(selectedLeadIds);
+      if (leadIds.length === 0) return;
+
+      setIsDeleting(true);
+      try {
+        await Promise.all(leadIds.map((id) => LeadAPI.deleteLead(id)));
+        toast.success(`${leadIds.length} lead(s) deleted successfully`);
+        setSelectedLeadIds(new Set());
+        
+        // Refresh current views
+        fetchData();
+        if (selectedStage === "__unassigned__") fetchUnassignedLeads();
+        useLeadStore.getState().fetchLeads();
+        setShowDeleteModal(false);
+      } catch (error) {
       const msg =
         error instanceof Error ? error.message : "Failed to delete leads";
       toast.error(msg);
@@ -2412,6 +2427,9 @@ export const LeadsPage: React.FC = () => {
             onEdit={(l) => {
               setLeadToEdit(l);
               setShowEditModal(true);
+            }}
+            onDelete={(l) => {
+              if (l.id) handleDeleteLead(l.id);
             }}
             onOpenBdrDropdown={openBdrDropdown}
             registerBdrButtonRef={(id, el) => {
@@ -3340,6 +3358,53 @@ export const LeadsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          if (!isDeleting) {
+            setShowDeleteModal(false);
+            setLeadToDelete(null);
+          }
+        }}
+        title="Confirm Deletion"
+        size="sm"
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setShowDeleteModal(false);
+                setLeadToDelete(null);
+              }}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700"
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (isBulkDelete) {
+                  await executeBulkDelete();
+                } else if (leadToDelete) {
+                  await executeDeleteLead(leadToDelete);
+                }
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white"
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </>
+        }
+      >
+        <div className="p-4 text-gray-600">
+          {isBulkDelete
+            ? `Are you sure you want to delete ${selectedLeadIds.size} lead${selectedLeadIds.size > 1 ? "s" : ""}? This action cannot be undone.`
+            : "Are you sure you want to delete this lead? This action cannot be undone."}
+        </div>
+      </Modal>
+
     </div>
   );
 };

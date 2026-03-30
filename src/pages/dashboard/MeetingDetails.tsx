@@ -140,9 +140,12 @@ const ParticipantModal: React.FC<{
     if (!isOpen) return;
     setTeamLoading(true);
     getAllTeamMembers()
-      .then((members) =>
-        setTeamMembers(members.filter((m) => m.isActive !== false)),
-      )
+      .then((members) => {
+        const normalized = [...members].sort((a, b) =>
+          (a.name || "").localeCompare(b.name || ""),
+        );
+        setTeamMembers(normalized);
+      })
       .catch(console.error)
       .finally(() => setTeamLoading(false));
   }, [isOpen]);
@@ -165,8 +168,8 @@ const ParticipantModal: React.FC<{
 
   const filteredMembers = teamMembers.filter(
     (m) =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.email.toLowerCase().includes(searchQuery.toLowerCase()),
+      (m.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (m.email || "").toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const resetForm = () => {

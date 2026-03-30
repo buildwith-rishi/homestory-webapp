@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Users,
   UserPlus,
@@ -319,6 +319,26 @@ export const UserManagement: React.FC = () => {
     return "N/A";
   };
 
+  const roleFilterOptions = useMemo(() => {
+    const roleMap = new Map<string, string>();
+
+    users.forEach((user) => {
+      const roleKey = String(user.role || "").trim().toUpperCase();
+      if (!roleKey) return;
+
+      if (!roleMap.has(roleKey)) {
+        roleMap.set(roleKey, getRoleDisplayName(roleKey as RoleId));
+      }
+    });
+
+    return Array.from(roleMap.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([value, label]) => ({
+        value,
+        label,
+      }));
+  }, [users]);
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -517,8 +537,8 @@ export const UserManagement: React.FC = () => {
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesRole =
-      roleFilter === "all" || getUserRoleLabel(user) === roleFilter;
+    const normalizedUserRole = String(user.role || "").trim().toUpperCase();
+    const matchesRole = roleFilter === "all" || normalizedUserRole === roleFilter;
 
     const matchesStatus =
       statusFilter === "all" ||
@@ -661,9 +681,9 @@ export const UserManagement: React.FC = () => {
             }}
           >
             <option value="all">All Roles</option>
-            {roleTitles.map((role) => (
-              <option key={role.id} value={role.roleTitle}>
-                {role.roleTitle}
+            {roleFilterOptions.map((role) => (
+              <option key={role.value} value={role.value}>
+                {role.label}
               </option>
             ))}
           </select>
@@ -995,22 +1015,6 @@ export const UserManagement: React.FC = () => {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Phone{" "}
-              <span className="text-gray-400 font-normal">(Optional)</span>
-            </label>
-            <input
-              type="tel"
-              value={createForm.phone}
-              onChange={(e) =>
-                setCreateForm({ ...createForm, phone: e.target.value })
-              }
-              placeholder="+91 98765 43210"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
-            />
           </div>
 
           {/* Role Description */}
