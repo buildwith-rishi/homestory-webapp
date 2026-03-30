@@ -495,10 +495,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   useEffect(() => {
     if (!isEditing) return;
-    if (!editAssigneeId) {
-      if (editAssigneeRole) setEditAssigneeRole("");
-      return;
-    }
+    if (!editAssigneeId) return;
     const assigned = users.find((u) => u.id === editAssigneeId);
     if (assigned && assigned.role !== editAssigneeRole) {
       setEditAssigneeRole(assigned.role);
