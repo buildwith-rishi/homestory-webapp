@@ -50,8 +50,7 @@ import {
   getAttachment,
   type Attachment,
 } from "../../services/attachmentApi";
-import { adminAPI } from "../../services/api";
-import type { Lead, Project, AdminUser } from "../../types";
+import type { Lead, Project } from "../../types";
 import toast from "react-hot-toast";
 
 type MeetingDisplayStatus =
@@ -230,10 +229,10 @@ export const MeetingsPage: React.FC = () => {
   >("RESIDENTIAL");
   const [momProjectId, setMomProjectId] = useState("");
   const [momLeadId, setMomLeadId] = useState("");
-  const [momProjectRole, setMomProjectRole] = useState("");
-  const [momLeadRole, setMomLeadRole] = useState("");
-  const [momUsers, setMomUsers] = useState<AdminUser[]>([]);
-  const [momUsersLoading, setMomUsersLoading] = useState(false);
+  const [momProjectSearch, setMomProjectSearch] = useState("");
+  const [momLeadSearch, setMomLeadSearch] = useState("");
+  const [showMomProjectDropdown, setShowMomProjectDropdown] = useState(false);
+  const [showMomLeadDropdown, setShowMomLeadDropdown] = useState(false);
   const [momScheduledAt, setMomScheduledAt] = useState("");
   const [momTranscriptText, setMomTranscriptText] = useState("");
   const [momParticipants, setMomParticipants] = useState("");
@@ -252,6 +251,44 @@ export const MeetingsPage: React.FC = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingEntities, setLoadingEntities] = useState(false);
+
+  const momProjectOptions = useMemo(
+    () =>
+      projects
+        .map((project) => ({
+          id: project.id,
+          label: project.projectName || project.name || "Untitled Project",
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [projects],
+  );
+
+  const momLeadOptions = useMemo(
+    () =>
+      leads
+        .map((lead) => ({
+          id: lead.id,
+          label: lead.name || "Unnamed Lead",
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [leads],
+  );
+
+  const filteredMomProjects = useMemo(() => {
+    const q = momProjectSearch.trim().toLowerCase();
+    if (!q) return momProjectOptions;
+    return momProjectOptions.filter(
+      (p) => p.label.toLowerCase().includes(q) || p.id.toLowerCase().includes(q),
+    );
+  }, [momProjectOptions, momProjectSearch]);
+
+  const filteredMomLeads = useMemo(() => {
+    const q = momLeadSearch.trim().toLowerCase();
+    if (!q) return momLeadOptions;
+    return momLeadOptions.filter(
+      (l) => l.label.toLowerCase().includes(q) || l.id.toLowerCase().includes(q),
+    );
+  }, [momLeadOptions, momLeadSearch]);
 
   const fetchLiveEntities = useCallback(async () => {
     setLoadingEntities(true);
@@ -324,51 +361,6 @@ export const MeetingsPage: React.FC = () => {
       void fetchLiveEntities();
     }
   }, [showMeetingTypeModal, fetchLiveEntities]);
-
-  const momRoles = useMemo(
-    () => [...new Set(momUsers.map((u) => u.role))].sort(),
-    [momUsers],
-  );
-
-  const momProjectRoleUsers = useMemo(() => {
-    if (!momProjectRole) return [];
-    return momUsers.filter((u) => u.role === momProjectRole);
-  }, [momUsers, momProjectRole]);
-
-  const momLeadRoleUsers = useMemo(() => {
-    if (!momLeadRole) return [];
-    return momUsers.filter((u) => u.role === momLeadRole);
-  }, [momUsers, momLeadRole]);
-
-  const ROLE_VALUE_PREFIX = "__role__:";
-
-  const handleMomProjectSelect = (value: string) => {
-    if (!value) {
-      setMomProjectRole("");
-      setMomProjectId("");
-      return;
-    }
-    if (value.startsWith(ROLE_VALUE_PREFIX)) {
-      setMomProjectRole(value.replace(ROLE_VALUE_PREFIX, ""));
-      setMomProjectId("");
-      return;
-    }
-    setMomProjectId(value);
-  };
-
-  const handleMomLeadSelect = (value: string) => {
-    if (!value) {
-      setMomLeadRole("");
-      setMomLeadId("");
-      return;
-    }
-    if (value.startsWith(ROLE_VALUE_PREFIX)) {
-      setMomLeadRole(value.replace(ROLE_VALUE_PREFIX, ""));
-      setMomLeadId("");
-      return;
-    }
-    setMomLeadId(value);
-  };
 
   // Fetch meetings on mount
   useEffect(() => {
@@ -625,8 +617,10 @@ export const MeetingsPage: React.FC = () => {
     setMomDescription("");
     setMomProjectId("");
     setMomLeadId("");
-    setMomProjectRole("");
-    setMomLeadRole("");
+    setMomProjectSearch("");
+    setMomLeadSearch("");
+    setShowMomProjectDropdown(false);
+    setShowMomLeadDropdown(false);
     setMomScheduledAt("");
     setMomTranscriptText("");
     setMomParticipants("");
@@ -691,8 +685,10 @@ export const MeetingsPage: React.FC = () => {
       setMomDescription("");
       setMomProjectId("");
       setMomLeadId("");
-      setMomProjectRole("");
-      setMomLeadRole("");
+      setMomProjectSearch("");
+      setMomLeadSearch("");
+      setShowMomProjectDropdown(false);
+      setShowMomLeadDropdown(false);
       setMomScheduledAt("");
       setMomTranscriptText("");
       setMomParticipants("");
@@ -730,67 +726,9 @@ export const MeetingsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchMomUsers = async () => {
-      if (!showMomModal) return;
-      setMomUsersLoading(true);
-      try {
-        const response = await adminAPI.getAllUsers();
-        let usersList: Array<Record<string, unknown>> = [];
-
-        if (Array.isArray(response)) {
-          usersList = response as Array<Record<string, unknown>>;
-        } else if (response && typeof response === "object") {
-          if ("users" in response && Array.isArray(response.users)) {
-            usersList = response.users as Array<Record<string, unknown>>;
-          } else if (
-            "data" in response &&
-            response.data &&
-            typeof response.data === "object"
-          ) {
-            const data = response.data as Record<string, unknown>;
-            if (Array.isArray(data)) {
-              usersList = data as Array<Record<string, unknown>>;
-            } else if ("users" in data && Array.isArray(data.users)) {
-              usersList = data.users as Array<Record<string, unknown>>;
-            }
-          }
-        }
-
-        const normalizedUsers = usersList.map((user) => {
-          const roleFromApi =
-            user.role ||
-            (
-              user.credential as { roleKey?: string; name?: string } | undefined
-            )?.roleKey ||
-            (
-              user.credential as { roleKey?: string; name?: string } | undefined
-            )?.name ||
-            "BDR";
-
-          return {
-            ...user,
-            role: String(roleFromApi).toUpperCase() as AdminUser["role"],
-          } as AdminUser;
-        });
-
-        const seen = new Set<string>();
-        const activeUsers = normalizedUsers.filter((u) => {
-          if (!u.id || seen.has(u.id)) return false;
-          seen.add(u.id);
-          return u.isActive !== false && !u.isBanned;
-        });
-
-        setMomUsers(activeUsers);
-      } catch {
-        setMomUsers([]);
-      } finally {
-        setMomUsersLoading(false);
-      }
-    };
-
     const fetchMomEntities = async () => {
       if (!showMomModal) return;
-      await Promise.all([fetchLiveEntities(), fetchMomUsers()]);
+      await fetchLiveEntities();
     };
 
     void fetchMomEntities();
@@ -2020,49 +1958,65 @@ export const MeetingsPage: React.FC = () => {
                       <label className="block text-sm font-semibold text-gray-900 mb-1.5">
                         Project ID
                       </label>
-                      <select
-                        value={
-                          momProjectId ||
-                          (momProjectRole
-                            ? `${ROLE_VALUE_PREFIX}${momProjectRole}`
-                            : "")
-                        }
-                        onChange={(e) => handleMomProjectSelect(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      >
-                        <option value="">
-                          {momUsersLoading
-                            ? "Loading roles..."
-                            : "Select project (optional)"}
-                        </option>
-                        {!momProjectRole &&
-                          momRoles.map((role) => (
-                            <option
-                              key={`mom-project-role-${role}`}
-                              value={`${ROLE_VALUE_PREFIX}${role}`}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={momProjectSearch}
+                          onFocus={() => setShowMomProjectDropdown(true)}
+                          onBlur={() =>
+                            setTimeout(() => setShowMomProjectDropdown(false), 120)
+                          }
+                          onChange={(e) => {
+                            setMomProjectSearch(e.target.value);
+                            setMomProjectId("");
+                            setShowMomProjectDropdown(true);
+                          }}
+                          placeholder="Search project (optional)"
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10"
+                        />
+                        <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                        {showMomProjectDropdown && (
+                          <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 border-b border-gray-100"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setMomProjectId("");
+                                setMomProjectSearch("");
+                                setShowMomProjectDropdown(false);
+                              }}
                             >
-                              {role.replace(/_/g, " ")}
-                            </option>
-                          ))}
-                        {momProjectRole && (
-                          <>
-                            <option value={`${ROLE_VALUE_PREFIX}${momProjectRole}`}>
-                              {momProjectRole.replace(/_/g, " ")} (role selected)
-                            </option>
-                            {momProjectRoleUsers.length === 0 ? (
-                              <option value="" disabled>
-                                No users in this role
-                              </option>
+                              Select project (optional)
+                            </button>
+                            {loadingEntities ? (
+                              <div className="px-3 py-2 text-sm text-gray-500">
+                                Loading projects...
+                              </div>
+                            ) : filteredMomProjects.length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-gray-500">
+                                No projects found
+                              </div>
                             ) : (
-                              momProjectRoleUsers.map((u) => (
-                                <option key={`mom-project-user-${u.id}`} value={u.id}>
-                                  {u.name}
-                                </option>
+                              filteredMomProjects.map((project) => (
+                                <button
+                                  key={project.id}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    setMomProjectId(project.id);
+                                    setMomProjectSearch(project.label);
+                                    setShowMomProjectDropdown(false);
+                                  }}
+                                >
+                                  {project.label}
+                                </button>
                               ))
                             )}
-                          </>
+                          </div>
                         )}
-                      </select>
+                      </div>
                     </div>
                   </div>
 
@@ -2070,47 +2024,65 @@ export const MeetingsPage: React.FC = () => {
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">
                       Lead ID
                     </label>
-                    <select
-                      value={
-                        momLeadId ||
-                        (momLeadRole ? `${ROLE_VALUE_PREFIX}${momLeadRole}` : "")
-                      }
-                      onChange={(e) => handleMomLeadSelect(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    >
-                      <option value="">
-                        {momUsersLoading
-                          ? "Loading roles..."
-                          : "Select lead (optional)"}
-                      </option>
-                      {!momLeadRole &&
-                        momRoles.map((role) => (
-                          <option
-                            key={`mom-lead-role-${role}`}
-                            value={`${ROLE_VALUE_PREFIX}${role}`}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={momLeadSearch}
+                        onFocus={() => setShowMomLeadDropdown(true)}
+                        onBlur={() =>
+                          setTimeout(() => setShowMomLeadDropdown(false), 120)
+                        }
+                        onChange={(e) => {
+                          setMomLeadSearch(e.target.value);
+                          setMomLeadId("");
+                          setShowMomLeadDropdown(true);
+                        }}
+                        placeholder="Search lead (optional)"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10"
+                      />
+                      <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                      {showMomLeadDropdown && (
+                        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 border-b border-gray-100"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setMomLeadId("");
+                              setMomLeadSearch("");
+                              setShowMomLeadDropdown(false);
+                            }}
                           >
-                            {role.replace(/_/g, " ")}
-                          </option>
-                        ))}
-                      {momLeadRole && (
-                        <>
-                          <option value={`${ROLE_VALUE_PREFIX}${momLeadRole}`}>
-                            {momLeadRole.replace(/_/g, " ")} (role selected)
-                          </option>
-                          {momLeadRoleUsers.length === 0 ? (
-                            <option value="" disabled>
-                              No users in this role
-                            </option>
+                            Select lead (optional)
+                          </button>
+                          {loadingEntities ? (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              Loading leads...
+                            </div>
+                          ) : filteredMomLeads.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              No leads found
+                            </div>
                           ) : (
-                            momLeadRoleUsers.map((u) => (
-                              <option key={`mom-lead-user-${u.id}`} value={u.id}>
-                                {u.name}
-                              </option>
+                            filteredMomLeads.map((lead) => (
+                              <button
+                                key={lead.id}
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setMomLeadId(lead.id);
+                                  setMomLeadSearch(lead.label);
+                                  setShowMomLeadDropdown(false);
+                                }}
+                              >
+                                {lead.label}
+                              </button>
                             ))
                           )}
-                        </>
+                        </div>
                       )}
-                    </select>
+                    </div>
                   </div>
 
                   {/* Scheduled At */}
