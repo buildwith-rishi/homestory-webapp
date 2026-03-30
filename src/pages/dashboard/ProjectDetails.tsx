@@ -5,6 +5,7 @@ import { hasPermission, RoleId } from "../../config/rbac";
 import {
   ArrowLeft,
   Calendar,
+  Search,
   Users,
   Phone,
   MapPin,
@@ -480,6 +481,8 @@ export const ProjectDetails: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [designTeamRoleFilter, setDesignTeamRoleFilter] = useState("");
   const [executionTeamRoleFilter, setExecutionTeamRoleFilter] = useState("");
+  const [designTeamSearchQuery, setDesignTeamSearchQuery] = useState("");
+  const [executionTeamSearchQuery, setExecutionTeamSearchQuery] = useState("");
   const [editForm, setEditForm] = useState({
     projectName: "",
     leadId: "",
@@ -531,6 +534,73 @@ export const ProjectDetails: React.FC = () => {
     });
     return Array.from(roles).sort();
   }, [teamMembersList]);
+
+  const parseTeamMembers = (value: string): string[] =>
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const selectedDesignTeamMembers = useMemo(
+    () => parseTeamMembers(editForm.designTeam),
+    [editForm.designTeam],
+  );
+
+  const selectedExecutionTeamMembers = useMemo(
+    () => parseTeamMembers(editForm.executionTeam),
+    [editForm.executionTeam],
+  );
+
+  const setTeamMembersInForm = (
+    field: "designTeam" | "executionTeam",
+    members: string[],
+  ) => {
+    const unique = Array.from(
+      new Set(
+        members
+          .map((member) => member.trim())
+          .filter(Boolean),
+      ),
+    );
+    setEditForm((prev) => ({
+      ...prev,
+      [field]: unique.join(", "),
+    }));
+  };
+
+  const filteredDesignMembers = useMemo(() => {
+    const query = designTeamSearchQuery.trim().toLowerCase();
+    return teamMembersList
+      .filter((member) => {
+        const role = member.role || "";
+        const roleLabel = role.replace(/_/g, " ").toLowerCase();
+        const matchesRole =
+          !designTeamRoleFilter || role === designTeamRoleFilter;
+        const matchesQuery =
+          !query ||
+          member.name.toLowerCase().includes(query) ||
+          roleLabel.includes(query);
+        return matchesRole && matchesQuery;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [teamMembersList, designTeamRoleFilter, designTeamSearchQuery]);
+
+  const filteredExecutionMembers = useMemo(() => {
+    const query = executionTeamSearchQuery.trim().toLowerCase();
+    return teamMembersList
+      .filter((member) => {
+        const role = member.role || "";
+        const roleLabel = role.replace(/_/g, " ").toLowerCase();
+        const matchesRole =
+          !executionTeamRoleFilter || role === executionTeamRoleFilter;
+        const matchesQuery =
+          !query ||
+          member.name.toLowerCase().includes(query) ||
+          roleLabel.includes(query);
+        return matchesRole && matchesQuery;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [teamMembersList, executionTeamRoleFilter, executionTeamSearchQuery]);
 
   useEffect(() => {
     if (showEditModal) {
@@ -1263,6 +1333,10 @@ export const ProjectDetails: React.FC = () => {
   // Handle edit project
   const handleOpenEdit = () => {
     if (!currentProject) return;
+    setDesignTeamRoleFilter("");
+    setExecutionTeamRoleFilter("");
+    setDesignTeamSearchQuery("");
+    setExecutionTeamSearchQuery("");
     setEditForm({
       projectName: currentProject.projectName || "",
       leadId: currentProject.leadId || "",
@@ -4849,79 +4923,213 @@ export const ProjectDetails: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
                         Design Team
                       </label>
-                      <input
-                        type="text"
-                        value={editForm.designTeam}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            designTeam: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm mb-2"
-                        placeholder="Sathish, Thrisha"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        <select
-                          value={designTeamRoleFilter}
-                          onChange={(e) => setDesignTeamRoleFilter(e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                        >
-                          <option value="">All Roles</option>
-                          {uniqueRoles.map((role) => (
-                            <option key={role} value={role}>
-                              {role.replace(/_/g, " ")}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (!val) return;
-                            const current = editForm.designTeam
-                              ? editForm.designTeam
-                                  .split(",")
-                                  .map((s) => s.trim())
-                                  .filter(Boolean)
-                              : [];
-                            if (!current.includes(val)) {
-                              setEditForm((prev) => ({
-                                ...prev,
-                                designTeam: [...current, val].join(", "),
-                              }));
-                            }
-                            e.target.value = "";
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                        >
-                          <option value="">+ Add Member</option>
-                          {teamMembersList
-                            .filter(m => !designTeamRoleFilter || m.role === designTeamRoleFilter)
-                            .map((m) => (
-                              <option key={m.id} value={m.name}>
-                                {m.name} {!designTeamRoleFilter && `(${m.role?.replace(/_/g, " ")})`}
+                      <div className="rounded-xl border border-gray-200 p-3 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Selected ({selectedDesignTeamMembers.length})
+                          </p>
+                          {selectedDesignTeamMembers.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setTeamMembersInForm("designTeam", [])}
+                              className="text-xs text-red-600 hover:text-red-700"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 min-h-[2rem] mb-2">
+                          {selectedDesignTeamMembers.length === 0 ? (
+                            <span className="text-xs text-gray-400">
+                              No design members selected yet
+                            </span>
+                          ) : (
+                            selectedDesignTeamMembers.map((name) => (
+                              <span
+                                key={name}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200"
+                              >
+                                {name}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setTeamMembersInForm(
+                                      "designTeam",
+                                      selectedDesignTeamMembers.filter(
+                                        (member) => member !== name,
+                                      ),
+                                    )
+                                  }
+                                  className="text-blue-500 hover:text-blue-700"
+                                  aria-label={`Remove ${name}`}
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={designTeamRoleFilter}
+                            onChange={(e) => setDesignTeamRoleFilter(e.target.value)}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                          >
+                            <option value="">All Roles</option>
+                            {uniqueRoles.map((role) => (
+                              <option key={role} value={role}>
+                                {role.replace(/_/g, " ")}
                               </option>
                             ))}
-                        </select>
+                          </select>
+                          <div className="relative">
+                            <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={designTeamSearchQuery}
+                              onChange={(e) =>
+                                setDesignTeamSearchQuery(e.target.value)
+                              }
+                              placeholder="Search member"
+                              className="w-full pl-8 pr-2 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-2 max-h-36 overflow-y-auto border border-gray-100 rounded-lg">
+                          {filteredDesignMembers.length === 0 ? (
+                            <p className="text-xs text-gray-400 px-3 py-2">
+                              No matching members
+                            </p>
+                          ) : (
+                            filteredDesignMembers.map((member) => {
+                              const checked = selectedDesignTeamMembers.includes(
+                                member.name,
+                              );
+                              return (
+                                <label
+                                  key={member.id}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      if (checked) {
+                                        setTeamMembersInForm(
+                                          "designTeam",
+                                          selectedDesignTeamMembers.filter(
+                                            (name) => name !== member.name,
+                                          ),
+                                        );
+                                      } else {
+                                        setTeamMembersInForm("designTeam", [
+                                          ...selectedDesignTeamMembers,
+                                          member.name,
+                                        ]);
+                                      }
+                                    }}
+                                  />
+                                  <span className="text-gray-800">
+                                    {member.name}
+                                  </span>
+                                  <span className="text-xs text-gray-400 ml-auto">
+                                    {(member.role || "").replace(/_/g, " ")}
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTeamMembersInForm("designTeam", [
+                                ...selectedDesignTeamMembers,
+                                ...filteredDesignMembers.map((member) => member.name),
+                              ])
+                            }
+                            className="text-xs px-2 py-1 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
+                          >
+                            Select All Filtered
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTeamMembersInForm(
+                                "designTeam",
+                                selectedDesignTeamMembers.filter(
+                                  (name) =>
+                                    !filteredDesignMembers.some(
+                                      (member) => member.name === name,
+                                    ),
+                                ),
+                              )
+                            }
+                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-600 bg-gray-50 hover:bg-gray-100"
+                          >
+                            Remove Filtered
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
                         Execution Team
                       </label>
-                      <input
-                        type="text"
-                        value={editForm.executionTeam}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            executionTeam: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm mb-2"
-                        placeholder="Dilip, Santhosh"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-gray-200 p-3 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Selected ({selectedExecutionTeamMembers.length})
+                          </p>
+                          {selectedExecutionTeamMembers.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setTeamMembersInForm("executionTeam", [])
+                              }
+                              className="text-xs text-red-600 hover:text-red-700"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 min-h-[2rem] mb-2">
+                          {selectedExecutionTeamMembers.length === 0 ? (
+                            <span className="text-xs text-gray-400">
+                              No execution members selected yet
+                            </span>
+                          ) : (
+                            selectedExecutionTeamMembers.map((name) => (
+                              <span
+                                key={name}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-orange-50 text-orange-700 border border-orange-200"
+                              >
+                                {name}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setTeamMembersInForm(
+                                      "executionTeam",
+                                      selectedExecutionTeamMembers.filter(
+                                        (member) => member !== name,
+                                      ),
+                                    )
+                                  }
+                                  className="text-orange-500 hover:text-orange-700"
+                                  aria-label={`Remove ${name}`}
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
                         <select
                           value={executionTeamRoleFilter}
                           onChange={(e) => setExecutionTeamRoleFilter(e.target.value)}
@@ -4934,35 +5142,98 @@ export const ProjectDetails: React.FC = () => {
                             </option>
                           ))}
                         </select>
-                        <select
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (!val) return;
-                            const current = editForm.executionTeam
-                              ? editForm.executionTeam
-                                  .split(",")
-                                  .map((s) => s.trim())
-                                  .filter(Boolean)
-                              : [];
-                            if (!current.includes(val)) {
-                              setEditForm((prev) => ({
-                                ...prev,
-                                executionTeam: [...current, val].join(", "),
-                              }));
+                          <div className="relative">
+                            <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={executionTeamSearchQuery}
+                              onChange={(e) =>
+                                setExecutionTeamSearchQuery(e.target.value)
+                              }
+                              placeholder="Search member"
+                              className="w-full pl-8 pr-2 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-2 max-h-36 overflow-y-auto border border-gray-100 rounded-lg">
+                          {filteredExecutionMembers.length === 0 ? (
+                            <p className="text-xs text-gray-400 px-3 py-2">
+                              No matching members
+                            </p>
+                          ) : (
+                            filteredExecutionMembers.map((member) => {
+                              const checked =
+                                selectedExecutionTeamMembers.includes(member.name);
+                              return (
+                                <label
+                                  key={member.id}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      if (checked) {
+                                        setTeamMembersInForm(
+                                          "executionTeam",
+                                          selectedExecutionTeamMembers.filter(
+                                            (name) => name !== member.name,
+                                          ),
+                                        );
+                                      } else {
+                                        setTeamMembersInForm("executionTeam", [
+                                          ...selectedExecutionTeamMembers,
+                                          member.name,
+                                        ]);
+                                      }
+                                    }}
+                                  />
+                                  <span className="text-gray-800">
+                                    {member.name}
+                                  </span>
+                                  <span className="text-xs text-gray-400 ml-auto">
+                                    {(member.role || "").replace(/_/g, " ")}
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTeamMembersInForm("executionTeam", [
+                                ...selectedExecutionTeamMembers,
+                                ...filteredExecutionMembers.map(
+                                  (member) => member.name,
+                                ),
+                              ])
                             }
-                            e.target.value = "";
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                        >
-                          <option value="">+ Add Member</option>
-                          {teamMembersList
-                            .filter(m => !executionTeamRoleFilter || m.role === executionTeamRoleFilter)
-                            .map((m) => (
-                              <option key={m.id} value={m.name}>
-                                {m.name} {!executionTeamRoleFilter && `(${m.role?.replace(/_/g, " ")})`}
-                              </option>
-                            ))}
-                        </select>
+                            className="text-xs px-2 py-1 rounded-lg border border-orange-200 text-orange-700 bg-orange-50 hover:bg-orange-100"
+                          >
+                            Select All Filtered
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTeamMembersInForm(
+                                "executionTeam",
+                                selectedExecutionTeamMembers.filter(
+                                  (name) =>
+                                    !filteredExecutionMembers.some(
+                                      (member) => member.name === name,
+                                    ),
+                                ),
+                              )
+                            }
+                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-600 bg-gray-50 hover:bg-gray-100"
+                          >
+                            Remove Filtered
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
