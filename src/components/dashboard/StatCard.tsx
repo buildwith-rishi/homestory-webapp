@@ -10,6 +10,7 @@ interface StatCardProps {
   icon: LucideIcon;
   label: string;
   value: string | number;
+  loading?: boolean;
   change?: {
     value: number;
     isPositive: boolean;
@@ -105,6 +106,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   icon: Icon,
   label,
   value,
+  loading = false,
   change,
   iconColor = "primary",
   sparklineData,
@@ -142,13 +144,17 @@ export const StatCard: React.FC<StatCardProps> = ({
 
       <div className="relative z-10 p-5">
         <div className="flex items-start justify-between mb-4">
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300"
-            style={{ background: colors.iconGradient }}
-          >
-            <Icon size={20} className="text-white" strokeWidth={2.5} />
-          </div>
-          {change && (
+          {loading ? (
+            <div className="skeleton w-11 h-11 rounded-xl" />
+          ) : (
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300"
+              style={{ background: colors.iconGradient }}
+            >
+              <Icon size={20} className="text-white" strokeWidth={2.5} />
+            </div>
+          )}
+          {!loading && change && (
             <div
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold shadow-sm ${
                 change.isPositive
@@ -169,12 +175,19 @@ export const StatCard: React.FC<StatCardProps> = ({
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
           {label}
         </p>
-        <p className="text-3xl font-extrabold text-gray-900 leading-none tracking-tight">
-          {displayValue}
-        </p>
+        {loading ? (
+          <div className="space-y-2">
+            <div className="skeleton h-8 w-24 rounded-lg" />
+            <div className="skeleton h-4 w-16 rounded" />
+          </div>
+        ) : (
+          <p className="text-3xl font-extrabold text-gray-900 leading-none tracking-tight">
+            {displayValue}
+          </p>
+        )}
 
         {/* Sparkline Chart */}
-        {sparklineData && chartData && (
+        {!loading && sparklineData && chartData && (
           <div className="mt-4 -mx-1 h-12">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
@@ -214,6 +227,8 @@ export const StatCard: React.FC<StatCardProps> = ({
             </ResponsiveContainer>
           </div>
         )}
+
+        {loading && <div className="skeleton mt-4 h-12 w-full rounded-md" />}
       </div>
     </div>
   );

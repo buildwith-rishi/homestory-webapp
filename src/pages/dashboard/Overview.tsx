@@ -51,7 +51,11 @@ export const DashboardOverview: React.FC = () => {
   const { can, canAny, roleId } = useAuth();
   const navigate = useNavigate();
   // Use the shared project store so Dashboard and Projects page always see the same data
-  const { projects, fetchProjects: fetchProjectsFromStore } = useProjectStore();
+  const {
+    projects,
+    fetchProjects: fetchProjectsFromStore,
+    isLoading: projectsLoading,
+  } = useProjectStore();
 
   // DESIGNER role: redirect away from Dashboard overview to Projects
   useEffect(() => {
@@ -582,6 +586,7 @@ export const DashboardOverview: React.FC = () => {
                 icon={FolderKanban}
                 label="Total Projects"
                 value={totalProjectsCount}
+                loading={projectsLoading}
                 change={{ value: 12, isPositive: true }}
                 iconColor="primary"
                 sparklineData={projectsSparkline}
@@ -594,7 +599,8 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={Users}
                 label="Total Leads"
-                value={leadsLoading ? 0 : totalLeads}
+                value={totalLeads}
+                loading={leadsLoading}
                 change={{ value: 8, isPositive: true }}
                 iconColor="teal"
                 sparklineData={leadsSparkline}
@@ -607,7 +613,8 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={TrendingUp}
                 label="Revenue This Month"
-                value={revenueLoading ? "…" : formatRevenue(revenueThisMonth)}
+                value={formatRevenue(revenueThisMonth)}
+                loading={revenueLoading}
                 change={{ value: 15, isPositive: true }}
                 iconColor="olive"
                 sparklineData={revenueSparkline}
@@ -619,7 +626,8 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={Calendar}
                 label="Meetings Today"
-                value={meetingsLoading ? 0 : todaysMeetings.length}
+                value={todaysMeetings.length}
+                loading={meetingsLoading}
                 iconColor="rose"
                 sparklineData={meetingsSparkline}
                 animated={true}
@@ -631,7 +639,8 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={CheckCircle}
                 label="Tasks Due Today"
-                value={tasksLoading ? 0 : tasksDueToday}
+                value={tasksDueToday}
+                loading={tasksLoading}
                 change={{ value: 3, isPositive: false }}
                 iconColor="primary"
                 sparklineData={[3, 5, 4, 7, 6, 8, 7]}
@@ -644,7 +653,8 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={DollarSign}
                 label="Pending Payments"
-                value={revenueLoading ? 0 : pendingPaymentsCount}
+                value={pendingPaymentsCount}
+                loading={revenueLoading}
                 change={{ value: 2, isPositive: false }}
                 iconColor="teal"
                 sparklineData={[5, 8, 7, 9, 10, 11, 12]}
