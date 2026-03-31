@@ -14,6 +14,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Card, Badge, Modal } from "../../components/ui";
 import { adminAPI } from "../../services/api";
@@ -58,6 +60,82 @@ interface ApiCredential {
   isActive?: boolean;
 }
 
+interface ApiRoleDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  accessLevel?: string;
+  permissions: string[];
+}
+
+const normalizeRolesResponse = (response: unknown): ApiRoleDefinition[] => {
+  let rawRoles: Array<Record<string, unknown>> = [];
+
+  if (Array.isArray(response)) {
+    rawRoles = response as Array<Record<string, unknown>>;
+  } else if (response && typeof response === "object") {
+    const responseObj = response as Record<string, unknown>;
+    if (Array.isArray(responseObj.roles)) {
+      rawRoles = responseObj.roles as Array<Record<string, unknown>>;
+    } else if (
+      responseObj.data &&
+      typeof responseObj.data === "object" &&
+      Array.isArray((responseObj.data as Record<string, unknown>).roles)
+    ) {
+      rawRoles = (responseObj.data as Record<string, unknown>)
+        .roles as Array<Record<string, unknown>>;
+    }
+  }
+
+  return rawRoles
+    .map((role) => {
+      const permissions = Array.isArray(role.permissions)
+        ? role.permissions
+            .map((permission) => String(permission).trim())
+            .filter(Boolean)
+        : [];
+
+      return {
+        id: String(role.id || "").trim().toUpperCase(),
+        name: String(role.name || role.id || "Unknown Role").trim(),
+        description: String(role.description || "").trim(),
+        accessLevel: String(role.accessLevel || "").trim(),
+        permissions,
+      } as ApiRoleDefinition;
+    })
+    .filter((role) => role.id && role.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const formatPermissionLabel = (permission: string): string => {
+  if (permission === "*") return "Full system access";
+
+  const [module = "", action = ""] = permission.split(".");
+  const moduleLabel = module
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  const actionLabel =
+    action === "*"
+      ? "All"
+      : action.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+
+  return action ? `${moduleLabel} - ${actionLabel}` : moduleLabel;
+};
+
+const getPermissionGroupLabel = (permission: string): string => {
+  if (permission === "*") return "SYSTEM";
+  const module = permission.split(".")[0] || "GENERAL";
+  return module.replace(/_/g, " ").toUpperCase();
+};
+
+const getAccessLevelPillClasses = (accessLevel?: string): string => {
+  const normalized = String(accessLevel || "").toLowerCase();
+  if (normalized === "full") return "bg-red-50 text-red-700";
+  if (normalized === "high") return "bg-orange-50 text-orange-700";
+  if (normalized === "medium") return "bg-blue-50 text-blue-700";
+  return "bg-gray-100 text-gray-700";
+};
+
 export const UserManagement: React.FC = () => {
   const { roleId } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -70,6 +148,10 @@ export const UserManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "banned">(
     "all",
   );
+  const [activeView, setActiveView] = useState<"users" | "roles">("users");
+  const [roles, setRoles] = useState<ApiRoleDefinition[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+  const [expandedRoleIds, setExpandedRoleIds] = useState<string[]>([]);
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -300,6 +382,20 @@ export const UserManagement: React.FC = () => {
     }
   };
 
+  const loadRoles = async () => {
+    try {
+      setLoadingRoles(true);
+      const response = await adminAPI.getRoles();
+      const normalizedRoles = normalizeRolesResponse(response);
+      setRoles(normalizedRoles);
+    } catch (error) {
+      console.error("Failed to load roles:", error);
+      alert("Failed to load role permissions. Please try again.");
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       loadUsers();
@@ -308,6 +404,21 @@ export const UserManagement: React.FC = () => {
       loadCredentials();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || activeView !== "roles" || loadingRoles || roles.length > 0) {
+      return;
+    }
+    loadRoles();
+  }, [isAdmin, activeView, loadingRoles, roles.length]);
+
+  const toggleRoleExpand = (roleId: string) => {
+    setExpandedRoleIds((prev) =>
+      prev.includes(roleId)
+        ? prev.filter((id) => id !== roleId)
+        : [...prev, roleId],
+    );
+  };
 
   const getUserRoleLabel = (user: AdminUser) => {
     if (user.roleTitle && user.roleTitle.trim()) {
@@ -586,131 +697,153 @@ export const UserManagement: React.FC = () => {
             Manage system users and permissions
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center px-4 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-all shadow-sm"
-        >
-          <UserPlus className="w-4 h-4 mr-2" />
-          Create User
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-5 border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total Users</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {users.length}
-              </p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-xl">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5 border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Active Users</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">
-                {users.filter((u) => u.isActive !== false && !u.isBanned).length}
-              </p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-xl">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5 border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Banned Users</p>
-              <p className="text-2xl font-bold text-red-600 mt-1">
-                {users.filter((u) => u.isActive !== false && u.isBanned).length}
-              </p>
-            </div>
-            <div className="p-3 bg-red-50 rounded-xl">
-              <Ban className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5 border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Admins</p>
-              <p className="text-2xl font-bold text-purple-600 mt-1">
-                {users.filter((u) => u.role === "ADMIN").length}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-50 rounded-xl">
-              <Shield className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card className="p-5 border border-gray-100">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              placeholder="Search by name or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 text-gray-900 placeholder-gray-400 text-sm transition-all"
-            />
-          </div>
-
-          {/* Role Filter */}
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 bg-white text-gray-900 text-sm transition-all appearance-none cursor-pointer"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-              backgroundPosition: "right 0.75rem center",
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "1.25em 1.25em",
-            }}
-          >
-            <option value="all">All Roles</option>
-            {roleFilterOptions.map((role) => (
-              <option key={role.value} value={role.value}>
-                {role.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as "all" | "active" | "banned")
-            }
-            className="px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 bg-white text-gray-900 text-sm transition-all appearance-none cursor-pointer"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-              backgroundPosition: "right 0.75rem center",
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "1.25em 1.25em",
-            }}
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="banned">Banned</option>
-          </select>
+        <div className="flex items-center gap-3">
+          {activeView === "users" ? (
+            <>
+              <button
+                onClick={() => setActiveView("roles")}
+                className="inline-flex items-center px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all shadow-sm"
+              >
+                <Shield className="w-4 h-4 mr-2" />
+                Role Management
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-all shadow-sm"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Create User
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setActiveView("users")}
+              className="inline-flex items-center px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all shadow-sm"
+            >
+              Back to Users
+            </button>
+          )}
         </div>
-      </Card>
+      </div>
 
-      {/* Users Table */}
-      <Card className="overflow-hidden border border-gray-100">
+      {activeView === "users" && (
+        <>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="p-5 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Total Users</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                    {users.length}
+                  </p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl">
+                  <Users className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-5 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Active Users</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">
+                    {users.filter((u) => u.isActive !== false && !u.isBanned).length}
+                  </p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-xl">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-5 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Banned Users</p>
+                  <p className="text-2xl font-bold text-red-600 mt-1">
+                    {users.filter((u) => u.isActive !== false && u.isBanned).length}
+                  </p>
+                </div>
+                <div className="p-3 bg-red-50 rounded-xl">
+                  <Ban className="w-6 h-6 text-red-600" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-5 border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Admins</p>
+                  <p className="text-2xl font-bold text-purple-600 mt-1">
+                    {users.filter((u) => u.role === "ADMIN").length}
+                  </p>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-xl">
+                  <Shield className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Filters */}
+          <Card className="p-5 border border-gray-100">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  placeholder="Search by name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 text-gray-900 placeholder-gray-400 text-sm transition-all"
+                />
+              </div>
+
+              {/* Role Filter */}
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 bg-white text-gray-900 text-sm transition-all appearance-none cursor-pointer"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: "right 0.75rem center",
+                  backgroundRepeat: "no-repeat",
+                  backgroundSize: "1.25em 1.25em",
+                }}
+              >
+                <option value="all">All Roles</option>
+                {roleFilterOptions.map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as "all" | "active" | "banned")
+                }
+                className="px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 bg-white text-gray-900 text-sm transition-all appearance-none cursor-pointer"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: "right 0.75rem center",
+                  backgroundRepeat: "no-repeat",
+                  backgroundSize: "1.25em 1.25em",
+                }}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="banned">Banned</option>
+              </select>
+            </div>
+          </Card>
+
+          {/* Users Table */}
+          <Card className="overflow-hidden border border-gray-100">
         {loading ? (
           <div className="p-8 text-center">
             <div className="animate-spin rounded-full h-10 w-10 border-2 border-gray-200 border-t-gray-900 mx-auto"></div>
@@ -890,7 +1023,98 @@ export const UserManagement: React.FC = () => {
             </table>
           </div>
         )}
-      </Card>
+          </Card>
+        </>
+      )}
+
+      {activeView === "roles" && (
+        <Card className="p-5 border border-gray-100 space-y-5">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Role Management</h2>
+            <p className="text-sm text-gray-600 mt-1">Manage user roles and their permissions</p>
+          </div>
+
+          {loadingRoles ? (
+            <div className="p-10 text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-gray-200 border-t-gray-900 mx-auto" />
+              <p className="text-gray-500 mt-4 text-sm">Loading roles...</p>
+            </div>
+          ) : roles.length === 0 ? (
+            <div className="p-8 text-center bg-gray-50 rounded-xl border border-gray-100">
+              <p className="text-gray-600 font-medium">No roles found</p>
+              <p className="text-gray-400 text-sm mt-1">The roles API did not return any role definitions.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {roles.map((role) => {
+                const isExpanded = expandedRoleIds.includes(role.id);
+                const uniquePermissions = Array.from(new Set(role.permissions));
+
+                return (
+                  <div key={role.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+                    <div className="px-5 py-4 flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-xl font-semibold text-gray-900">{role.name}</h3>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${getAccessLevelPillClasses(role.accessLevel)}`}
+                          >
+                            {role.accessLevel || "N/A"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1.5 leading-5">
+                          {role.description || "Role permissions as configured in the backend."}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleRoleExpand(role.id)}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
+                      >
+                        <Eye className="w-4 h-4" />
+                        View Access Level
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="px-5 pb-4 border-t border-gray-100">
+                        <h4 className="text-sm font-semibold text-gray-700 mt-4 mb-3">Assigned Permissions</h4>
+                        <div className="space-y-2">
+                          {uniquePermissions.length === 0 ? (
+                            <p className="text-sm text-gray-500">No permissions configured for this role.</p>
+                          ) : (
+                            uniquePermissions.map((permission) => (
+                              <div
+                                key={`${role.id}-${permission}`}
+                                className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                                  <span className="text-sm font-medium text-gray-800 truncate">
+                                    {formatPermissionLabel(permission)}
+                                  </span>
+                                </div>
+                                <span className="text-xs text-gray-400 font-medium whitespace-nowrap">
+                                  {getPermissionGroupLabel(permission)}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Create User Modal */}
       <Modal
