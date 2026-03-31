@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Building2, Bell, Zap, CreditCard, Shield, Save, Camera, Mail, Phone, MapPin, Globe, Eye, EyeOff, Lock, CheckCircle2, XCircle } from 'lucide-react';
+import { User, Building2, Bell, Zap, CreditCard, Shield, Save, Camera, Eye, EyeOff, Lock, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, Button, Input, Toggle } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { resetPassword } from '../../services/passwordApi';

@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { KanbanCard, type KanbanCardTask } from "./KanbanCard";
 import {
-  AddCardFormWithButton,
   type AddCardFormSelectConfig,
   type NewCardData,
 } from "./AddCardForm";
@@ -95,13 +94,9 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onTaskToggleComplete,
   onTaskEdit,
   onTaskDelete,
-  onAddCard,
   onTaskClick,
-  selectConfig,
-  assignees,
   renderTaskContent,
   compactMode = true,
-  renderAddCardForm,
 }) => {
   // -------------------------------------------------------------------------
   // State
@@ -198,13 +193,6 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
     onDeleteColumn?.(column.id);
   }, [column.id, onDeleteColumn]);
 
-  const handleAddCard = useCallback(
-    (data: NewCardData) => {
-      onAddCard?.(column.id, data);
-    },
-    [column.id, onAddCard],
-  );
-
   // -------------------------------------------------------------------------
   // Theme Classes
   // -------------------------------------------------------------------------
@@ -215,10 +203,6 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   const headerBorderClass = isLight
     ? "border-b border-gray-100"
     : "border-b border-gray-700/30";
-
-  const footerBorderClass = isLight
-    ? "border-t border-gray-100"
-    : "border-t border-gray-700/30";
 
   const iconButtonClass = isLight
     ? "hover:bg-gray-100 text-gray-400 hover:text-gray-600"

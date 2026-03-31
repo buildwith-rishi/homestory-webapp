@@ -54,7 +54,6 @@ import { ProjectReferencesTab } from "../../components/dashboard/references";
 import { HandoverTab } from "../../components/dashboard/handover";
 import toast from "react-hot-toast";
 import { useProjectStore } from "../../stores/projectStore";
-import { useProjectOptions } from "../../hooks/useProjectOptions";
 import {
   Project,
   ProjectPayment,
@@ -2207,7 +2206,7 @@ export const ProjectDetails: React.FC = () => {
               { id: "overview", label: "Overview", icon: FileText },
               { id: "stages", label: "Stages", icon: CheckCircle2 },
               // Payments tab hidden from DESIGNER and SITE_ENGINEER roles (field roles)
-              ...(!["DESIGNER", "SITE_ENGINEER"].includes(roleId)
+              ...(!["DESIGNER", "SITE_ENGINEER"].includes(roleId || "")
                 ? [{ id: "payments", label: "Payments", icon: CreditCard }]
                 : []),
               { id: "references", label: "References", icon: Image },

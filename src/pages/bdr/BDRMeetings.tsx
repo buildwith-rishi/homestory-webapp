@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
-  FileText,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { Spinner } from "../../components/ui";

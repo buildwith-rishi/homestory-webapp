@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { LucideIcon, TrendingUp, TrendingDown } from "lucide-react";
 import {
-  LineChart,
-  Line,
   ResponsiveContainer,
   Area,
   AreaChart,
 } from "recharts";
-import Card from "../ui/Card";
 
 interface StatCardProps {
   icon: LucideIcon;

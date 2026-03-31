@@ -262,21 +262,27 @@ export interface CreateBDRLeadPayload {
   name: string;
   phone: string;
   email?: string;
+  secondaryEmails?: string[];
+  secondaryPhones?: string[];
   source?: string;
+  status?: string;
+  score?: number;
   city?: string;
   requirements?: string;
+  specialRequirements?: string;
   message?: string;
   assignedToId: string;
   companyName?: string;
   serviceInterest?: string;
   propertyType?: string;
-  area?: string;
   location?: string;
   homeType?: string;
+  projectType?: string;
   projectStage?: string;
   startTimeline?: string;
   budgetComfort?: string;
   projectScope?: string;
+  area?: number;
   canWhatsApp?: boolean;
   referrerName?: string;
 }
@@ -287,6 +293,19 @@ export const createBDRLead = async (
 ): Promise<BDRLead> => {
   const res = await fetchAPI<{ lead: BDRLead }>("/api/leads", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return res.lead;
+};
+
+/** PUT /api/leads/:id – update a lead from BDR flow */
+export const updateBDRLead = async (
+  leadId: string,
+  payload: Partial<CreateBDRLeadPayload>,
+): Promise<BDRLead> => {
+  const res = await fetchAPI<{ lead: BDRLead }>(`/api/leads/${leadId}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });

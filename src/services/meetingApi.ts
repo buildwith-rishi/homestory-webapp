@@ -8,7 +8,6 @@ import type {
   MeetingType,
   Participant,
   MeetingNote,
-  DiscussionPoint,
 } from "../types";
 
 const API_BASE_URL =

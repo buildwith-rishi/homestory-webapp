@@ -5,8 +5,6 @@ import {
   Calendar,
   Clock,
   Users,
-  Phone,
-  Video,
   MapPin,
   FileText,
   Copy,

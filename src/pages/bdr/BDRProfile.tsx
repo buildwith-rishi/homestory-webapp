@@ -11,8 +11,6 @@ import {
   FileText,
   Shield,
   Bell,
-  Moon,
-  Sun,
   Target,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
@@ -23,7 +21,6 @@ import { Spinner, LogoutConfirmModal } from "../../components/ui";
 export function BDRProfile() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [apiProfile, setApiProfile] = useState<BDRProfileUser | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);

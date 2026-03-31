@@ -1,23 +1,14 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
-import { useNavigate } from "react-router-dom";
 import {
   Plus,
-  Phone,
-  Mail,
-  MessageSquare,
   Search,
   Filter,
   MoreVertical,
   MapPin,
   DollarSign,
-  Clock,
-  Star,
   User,
-  TrendingUp,
   X,
-  LayoutGrid,
-  List,
   Activity,
   Trash2,
 } from "lucide-react";
@@ -90,15 +81,6 @@ const stageColors: Record<string, string> = {
   Won: "bg-emerald-100 text-emerald-700 border-emerald-200",
 };
 
-const priorityColors: Record<
-  string,
-  { bg: string; text: string; dot: string }
-> = {
-  high: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
-  medium: { bg: "bg-yellow-50", text: "text-yellow-700", dot: "bg-yellow-500" },
-  low: { bg: "bg-gray-50", text: "text-gray-700", dot: "bg-gray-500" },
-};
-
 /**
  * Format a date as relative time (e.g. "2 minutes ago", "1 hour ago")
  */
@@ -119,7 +101,6 @@ function getRelativeTime(date: Date): string {
 }
 
 export const LeadsPage: React.FC = () => {
-  const navigate = useNavigate();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStage, setSelectedStage] = useState<string>("all");
@@ -204,7 +185,6 @@ export const LeadsPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
         {filteredLeads.map((lead) => {
-          const priorityColor = priorityColors[lead.priority];
           return (
             <Card
               key={lead.id}

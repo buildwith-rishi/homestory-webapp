@@ -68,7 +68,6 @@ const QuickAddWidget: React.FC<WidgetProps> = ({ onRemove }) => {
         });
       } else if (activeType === "customer") {
         await createAccount({
-          id: "",
           name: formData.name,
           email: formData.email || undefined,
           phone: formData.phone || undefined,

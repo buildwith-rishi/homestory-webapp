@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, MessageSquare, Mail, CheckCheck, Phone, Clock, Filter, Search } from 'lucide-react';
+import { Send, MessageSquare, Mail, CheckCheck, Phone, Clock, Search } from 'lucide-react';
 import { Card, Button, Badge } from '../../components/ui';
 
 interface Update {

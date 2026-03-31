@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Users,
   TrendingUp,
-  DollarSign,
   Star,
   Search,
   Plus,
@@ -1648,7 +1647,7 @@ const EditCustomerModal: React.FC<{
       ...formData,
       importantDates: [
         ...(formData.importantDates || []),
-        { title: "", date: "", type: "other" },
+        { dateType: "OTHER", date: "", notes: "" },
       ],
     });
   };
@@ -2155,11 +2154,11 @@ const EditCustomerModal: React.FC<{
                           </label>
                           <input
                             type="text"
-                            value={date.title}
+                            value={date.dateType}
                             onChange={(e) =>
                               updateImportantDate(
                                 index,
-                                "title",
+                                "dateType",
                                 e.target.value,
                               )
                             }
@@ -2185,15 +2184,15 @@ const EditCustomerModal: React.FC<{
                             Type
                           </label>
                           <select
-                            value={date.type}
+                            value={date.dateType}
                             onChange={(e) =>
-                              updateImportantDate(index, "type", e.target.value)
+                              updateImportantDate(index, "dateType", e.target.value)
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                           >
-                            <option value="birthday">Birthday</option>
-                            <option value="anniversary">Anniversary</option>
-                            <option value="other">Other</option>
+                            <option value="BIRTHDAY">Birthday</option>
+                            <option value="ANNIVERSARY">Anniversary</option>
+                            <option value="OTHER">Other</option>
                           </select>
                         </div>
                       </div>
@@ -2996,9 +2995,6 @@ export const Customers: React.FC = () => {
 
     setIsDeletingCustomer(true);
 
-    // Store previous state for rollback
-    const previousCustomers = [...customers];
-
     try {
       // Call API to delete customer
       await CustomerAPI.deleteCustomer(String(deleteCustomerId));
@@ -3028,11 +3024,6 @@ export const Customers: React.FC = () => {
 
   const totalCustomers = customers.length;
   const activeCustomers = customers.filter((c) => c.status === "active").length;
-  const totalRevenue = customers.reduce((sum, c) => sum + c.totalValue, 0);
-  const avgRating =
-    customers.length > 0
-      ? customers.reduce((sum, c) => sum + c.rating, 0) / customers.length
-      : 0;
 
   // Filter customers based on active filters
   const filteredCustomers = customers.filter((customer) => {

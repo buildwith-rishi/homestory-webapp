@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
-  Plus,
   Link2,
   Upload,
   Image,
@@ -15,21 +14,16 @@ import {
   Save,
   Loader2,
   Search,
-  Filter,
   Grid3X3,
   List,
-  StickyNote,
-  Tag,
   Calendar,
   User,
   Globe,
-  ChevronDown,
   Eye,
-  AlertCircle,
   Receipt,
 } from "lucide-react";
-import { SectionLoader, Spinner } from "../../ui";
-import { Button, Badge, Card } from "../../ui";
+import { SectionLoader } from "../../ui";
+import { Button } from "../../ui";
 import toast from "react-hot-toast";
 import type { ProjectReference } from "../../../types";
 import {

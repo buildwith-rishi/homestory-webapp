@@ -17,7 +17,6 @@ import {
   IndianRupee,
   Calendar,
   FileText,
-  Image as ImageIcon,
   Eye,
   Undo2,
 } from "lucide-react";

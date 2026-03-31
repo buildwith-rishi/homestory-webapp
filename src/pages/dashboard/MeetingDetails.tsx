@@ -12,7 +12,6 @@ import {
   Calendar,
   Clock,
   Users,
-  Video,
   MapPin,
   FileText,
   MessageSquare,
@@ -21,7 +20,6 @@ import {
   Plus,
   Send,
   RefreshCw,
-  Bell,
   Check,
   X,
   Loader2,
@@ -39,7 +37,6 @@ import {
   Button,
   Badge,
   SectionLoader,
-  Spinner,
 } from "../../components/ui";
 import * as meetingAPI from "../../services/meetingApi";
 import { getLeadById } from "../../services/leadApi";
@@ -694,7 +691,6 @@ export const MeetingDetailsPage: React.FC = () => {
   // Modal states
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [showSpeakerModal, setShowSpeakerModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Edit AI Summary states
   const [showEditSummaryModal, setShowEditSummaryModal] = useState(false);
@@ -1091,53 +1087,8 @@ export const MeetingDetailsPage: React.FC = () => {
     }
   };
 
-  const handleRegenerate = async (
-    type: "summary" | "transcription" | "all",
-  ) => {
-    if (!meetingId) return;
-
-    setActionLoading(`regenerate-${type}`);
-    try {
-      const updatedMeeting = await meetingAPI.regenerate(meetingId, type);
-      setMeeting(updatedMeeting);
-    } catch (err) {
-      console.error("Error regenerating:", err);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleSendNotifications = async () => {
-    if (!meetingId) return;
-
-    setActionLoading("notify");
-    try {
-      const result = await meetingAPI.sendNotifications(meetingId);
-      alert(`Notifications sent to ${result.sentCount} participants`);
-    } catch (err) {
-      console.error("Error sending notifications:", err);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   const handleStartMeeting = () => {
     navigate("/dashboard/meeting-room", { state: { meetingId } });
-  };
-
-  const handleDeleteMeeting = async () => {
-    if (!meetingId) return;
-
-    setActionLoading("delete");
-    try {
-      await meetingAPI.deleteMeeting(meetingId);
-      navigate("/dashboard/meetings");
-    } catch (err) {
-      console.error("Error deleting meeting:", err);
-      setShowDeleteConfirm(false);
-    } finally {
-      setActionLoading(null);
-    }
   };
 
   // Reference handlers
@@ -1230,19 +1181,26 @@ export const MeetingDetailsPage: React.FC = () => {
   );
 
   const handleShareEmail = async () => {
-    if (!meeting?.aiAnalysis && !(meeting as any).summary) return;
+    const currentMeeting = meeting;
+    if (!currentMeeting) return;
+    if (!currentMeeting.aiAnalysis && !(currentMeeting as any).summary) return;
 
-    const autoRecipientEmail = await resolveDefaultRecipientEmail(meeting);
+    const autoRecipientEmail = await resolveDefaultRecipientEmail(currentMeeting);
 
-    const summary = meeting.aiAnalysis?.summary || (meeting as any).summary;
+    const summary =
+      currentMeeting.aiAnalysis?.summary || (currentMeeting as any).summary;
     const keyPoints =
-      meeting.aiAnalysis?.keyPoints || (meeting as any).keyPoints || [];
+      currentMeeting.aiAnalysis?.keyPoints ||
+      (currentMeeting as any).keyPoints ||
+      [];
     const actionItems =
-      meeting.aiAnalysis?.actionItems || (meeting as any).actionItems || [];
+      currentMeeting.aiAnalysis?.actionItems ||
+      (currentMeeting as any).actionItems ||
+      [];
 
-    const subjectLine = `Meeting Summary: ${meeting.title}`;
+    const subjectLine = `Meeting Summary: ${currentMeeting.title}`;
 
-    let body = `<p><strong>Meeting:</strong> ${meeting.title}</p>`;
+    let body = `<p><strong>Meeting:</strong> ${currentMeeting.title}</p>`;
     body += `<p><strong>Date:</strong> ${scheduledDate ? new Date(scheduledDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "N/A"}</p>`;
     body += `<br/>`;
     body += `<h3 style="margin-bottom:6px;">AI Summary</h3>`;

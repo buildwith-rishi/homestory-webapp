@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { X, Target, TrendingUp, Loader2 } from "lucide-react";
+import { X, Target, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { WidgetProps } from "./index";
-import { getAllPayments, ProjectPayment } from "../../../services/projectApi";
+import { getAllPayments } from "../../../services/projectApi";
+import type { ProjectPayment } from "../../../types";
 
 const normalizePayments = (input: unknown): ProjectPayment[] => {
   if (Array.isArray(input)) return input as ProjectPayment[];

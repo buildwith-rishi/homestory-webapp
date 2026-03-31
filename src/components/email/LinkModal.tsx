@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Modal } from "../../components/ui";
-import { Link2, ExternalLink, X } from "lucide-react";
+import { Link2, ExternalLink } from "lucide-react";
 
 interface LinkModalProps {
   isOpen: boolean;

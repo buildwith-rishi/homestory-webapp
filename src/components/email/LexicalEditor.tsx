@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useEffect } from "react";
+import { forwardRef, useImperativeHandle } from "react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -13,7 +13,6 @@ import { LinkNode, AutoLinkNode } from "@lexical/link";
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from "@lexical/html";
 import {
   LexicalEditor as LexicalEditorType,
-  EditorState,
   $getRoot,
   $createParagraphNode,
   $createTextNode,
@@ -125,7 +124,7 @@ const EditorInner = forwardRef<
     getEditor: () => editor,
   }));
 
-  const handleChange = (_editorState: EditorState) => {
+  const handleChange = () => {
     if (!onChange) return;
     editor.update(() => {
       const html = $generateHtmlFromNodes(editor);

@@ -3,7 +3,6 @@ import ReactDOM from "react-dom";
 import {
   X,
   Loader2,
-  Calendar,
   FileText,
   ChevronDown,
   Check,
@@ -88,10 +87,9 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedStartDate, setSelectedStartDate] = useState<string>(() => {
-    if (dayDate) return toDateInputValue(dayDate);
-    return toDateInputValue(getTaskDate(startDate, dayNumber));
-  });
+  const selectedStartDate = dayDate
+    ? toDateInputValue(dayDate)
+    : toDateInputValue(getTaskDate(startDate, dayNumber));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

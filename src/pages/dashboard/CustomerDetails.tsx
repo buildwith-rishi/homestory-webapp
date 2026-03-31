@@ -19,7 +19,6 @@ import {
   FileText,
   Clock,
   Users,
-  CheckCircle2,
   FolderOpen,
   Upload,
   X,
@@ -49,7 +48,6 @@ import LeadAPI, { type Lead as LeadOption } from "../../services/leadApi";
 import { fetchAPI } from "../../services/api";
 import CustomerAPI, {
   Customer as APICustomer,
-  type CustomerContact,
   uploadKycDocument,
   saveBankDetailsApi,
   getBankDetails,
@@ -71,7 +69,7 @@ import type { Project } from "../../types";
 
 interface FamilyMember {
   id?: string;
-  firstName: string;
+  firstName?: string;
   lastName?: string;
   relationship: string;
   dateOfBirth?: string;
@@ -162,141 +160,6 @@ interface Customer {
   updatedAt?: string;
   convertedFromLead?: APICustomer["convertedFromLead"] | null;
 }
-
-// Mock data - in production, this would come from API
-const mockCustomers: Customer[] = [
-  {
-    id: 1,
-    name: "Rajesh Sharma",
-    initials: "RS",
-    email: "rajesh@email.com",
-    phone: "+91 98765 43210",
-    alternatePhone: "+91 98765 43299",
-    location: "HSR Layout",
-    address: "123, 5th Main Road, HSR Layout, Bangalore - 560102",
-    projects: 2,
-    totalValue: 3800000,
-    status: "active",
-    rating: 5,
-    lastContact: "2 days ago",
-    occupation: "IT Manager",
-    companyName: "Tech Solutions Pvt Ltd",
-    clientRanking: "vip",
-    communicationPreference: "phone",
-    familyMembers: [
-      {
-        name: "Priya Sharma",
-        relationship: "Spouse",
-        age: "34",
-        occupation: "Teacher",
-      },
-      { name: "Aarav Sharma", relationship: "Son", age: "8" },
-    ],
-    importantDates: [
-      {
-        id: "d1",
-        dateType: "BIRTHDAY",
-        date: "1990-05-15",
-        isRecurring: true,
-        reminderDays: 1,
-        notes: "Birthday celebration",
-      },
-      {
-        id: "d2",
-        dateType: "ANNIVERSARY",
-        date: "2015-12-20",
-        isRecurring: true,
-        reminderDays: 7,
-        notes: "Wedding Anniversary",
-      },
-    ],
-    referrals: [
-      {
-        name: "Amit Verma",
-        phone: "+91 98765 12345",
-        status: "converted",
-        date: "2025-10-15",
-      },
-      {
-        name: "Sneha Reddy",
-        phone: "+91 98765 54321",
-        status: "contacted",
-        date: "2026-01-05",
-      },
-    ],
-    notes: [
-      {
-        id: 1,
-        content: "Prefers modern minimalist designs",
-        createdBy: "AR",
-        createdAt: "2026-01-15",
-      },
-      {
-        id: 2,
-        content: "Budget flexible, values quality",
-        createdBy: "PK",
-        createdAt: "2026-01-10",
-      },
-    ],
-    assignedProjects: [
-      {
-        id: "p1",
-        name: "Villa Renovation - HSR Layout",
-        status: "active",
-        progress: 65,
-      },
-      {
-        id: "p2",
-        name: "Modern Home - Whitefield",
-        status: "active",
-        progress: 30,
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "Priya Kumar",
-    initials: "PK",
-    email: "priya@email.com",
-    phone: "+91 98765 43211",
-    location: "Whitefield",
-    address: "456, Brigade Road, Whitefield, Bangalore - 560066",
-    projects: 1,
-    totalValue: 4200000,
-    status: "active",
-    rating: 4.8,
-    lastContact: "1 week ago",
-    occupation: "Entrepreneur",
-    clientRanking: "niche",
-    communicationPreference: "email",
-  },
-  {
-    id: 3,
-    name: "Amit Patel",
-    initials: "AP",
-    email: "amit@email.com",
-    phone: "+91 98765 43212",
-    location: "Indiranagar",
-    projects: 3,
-    totalValue: 6500000,
-    status: "completed",
-    rating: 4.9,
-    lastContact: "3 days ago",
-  },
-  {
-    id: 4,
-    name: "Sneha Reddy",
-    initials: "SR",
-    email: "sneha@email.com",
-    phone: "+91 98765 43213",
-    location: "Koramangala",
-    projects: 1,
-    totalValue: 2900000,
-    status: "active",
-    rating: 4.7,
-    lastContact: "5 days ago",
-  },
-];
 
 const statusColors = {
   active: {
@@ -517,7 +380,7 @@ export const CustomerDetails: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Contacts state
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [, setContacts] = useState<Contact[]>([]);
 
   // API referrals state
   const [apiReferrals, setApiReferrals] = useState<any[]>([]);
@@ -592,10 +455,6 @@ export const CustomerDetails: React.FC = () => {
   const [loadingKyc, setLoadingKyc] = useState(false);
   const [kycUploading, setKycUploading] = useState<string | null>(null);
   const [kycDeleting, setKycDeleting] = useState<string | null>(null);
-  const [kycActionLoading, setKycActionLoading] = useState<{
-    id: string;
-    action: "view" | "download";
-  } | null>(null);
   const [bankDetails, setBankDetails] = useState("");
   const [bankDetailsEditing, setBankDetailsEditing] = useState(false);
   const [bankDetailsSaving, setBankDetailsSaving] = useState(false);
@@ -1094,11 +953,6 @@ export const CustomerDetails: React.FC = () => {
     };
     fetchKyc();
   }, [activeTab, customerId, customerData?.bankDetails]);
-
-  const triggerKycUpload = (docType: string) => {
-    setKycUploadTarget(docType);
-    kycFileInputRef.current?.click();
-  };
 
   const handleKycFileChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -1679,16 +1533,6 @@ export const CustomerDetails: React.FC = () => {
       // TODO: Upload to server and save photoUrl when backend supports it
     };
     reader.readAsDataURL(file);
-  };
-
-  // Handle remove photo
-  const handleRemovePhoto = async () => {
-    if (!customer) return;
-    // Note: The backend API doesn't support photoUrl field yet
-    // So we just update local state for now
-    setCustomerData((prev) => (prev ? { ...prev, photoUrl: undefined } : prev));
-    toast.success("Photo removed successfully!");
-    // TODO: Update backend when photoUrl field is supported
   };
 
   // Handle delete customer

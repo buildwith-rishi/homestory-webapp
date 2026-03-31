@@ -6,15 +6,8 @@ import {
   RefreshCw,
   Calendar,
   BarChart3,
-  CheckCircle2,
-  Clock,
-  Circle,
-  Ban,
-  AlertTriangle,
   Plus,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   LayoutGrid,
   Settings,
   Layers,
@@ -32,7 +25,6 @@ import type {
   TaskMatrix,
   MatrixTask,
   MatrixDayWiseItem,
-  MatrixCategory,
   MatrixStats,
   ProjectStageData,
   UpdateTaskStatusRequest,
@@ -52,42 +44,6 @@ interface StageMatrixViewProps {
   stage: ProjectStageData;
   onBack: () => void;
 }
-
-const taskStatusConfig: Record<
-  string,
-  { icon: React.ReactNode; bg: string; text: string; label: string }
-> = {
-  PENDING: {
-    icon: <Circle className="w-3.5 h-3.5" />,
-    bg: "bg-gray-100",
-    text: "text-gray-600",
-    label: "Pending",
-  },
-  IN_PROGRESS: {
-    icon: <Clock className="w-3.5 h-3.5" />,
-    bg: "bg-blue-100",
-    text: "text-blue-700",
-    label: "In Progress",
-  },
-  COMPLETED: {
-    icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-    bg: "bg-green-100",
-    text: "text-green-700",
-    label: "Completed",
-  },
-  CANCELLED: {
-    icon: <Ban className="w-3.5 h-3.5" />,
-    bg: "bg-red-50",
-    text: "text-red-500",
-    label: "Cancelled",
-  },
-  OVERDUE: {
-    icon: <AlertTriangle className="w-3.5 h-3.5" />,
-    bg: "bg-amber-100",
-    text: "text-amber-700",
-    label: "Overdue",
-  },
-};
 
 const parseDate = (d: string) => {
   // Handle ISO strings like "2026-02-11T00:00:00.000Z" and plain "2026-02-11"
@@ -500,7 +456,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
         <div className="flex flex-col items-center justify-center py-16">
           <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
           <p className="text-sm text-red-600 mb-3">{error}</p>
-          <Button variant="outline" size="sm" onClick={fetchMatrix}>
+          <Button variant="outline" size="sm" onClick={() => void fetchMatrix()}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Retry
           </Button>
@@ -568,7 +524,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchMatrix}
+            onClick={() => void fetchMatrix()}
             disabled={loading}
             className="text-gray-500"
           >

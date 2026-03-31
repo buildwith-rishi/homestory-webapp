@@ -28,7 +28,6 @@ import {
 } from "@lexical/rich-text";
 import { $setBlocksType } from "@lexical/selection";
 import { $getNearestNodeOfType } from "@lexical/utils";
-import { TOGGLE_LINK_COMMAND, $isLinkNode } from "@lexical/link";
 import {
   Bold,
   Italic,
@@ -42,7 +41,6 @@ import {
   ListOrdered,
   Link2,
   Image as ImageIcon,
-  Minus,
   Quote,
   Undo2,
   Redo2,
@@ -210,17 +208,6 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
   const formatAlignment = (alignment: ElementFormatType) => {
     editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, alignment);
-  };
-
-  const insertDivider = () => {
-    editor.update(() => {
-      const selection = $getSelection();
-      if (!$isRangeSelection(selection)) return;
-      const node = selection.anchor.getNode();
-      const parent = node.getTopLevelElementOrThrow();
-      const hr = $createParagraphNode();
-      parent.insertAfter(hr);
-    });
   };
 
   const copyHtml = () => {

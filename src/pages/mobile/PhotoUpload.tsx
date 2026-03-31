@@ -94,8 +94,11 @@ export function PhotoUpload() {
   );
 
   const selectedProjectData = projects.find((p) => p.id === selectedProject);
-  const requirements = selectedProjectData
-    ? photoRequirements[selectedProjectData.stage]
+  const selectedProjectStage = selectedProjectData?.stage as
+    | ProjectStage
+    | undefined;
+  const requirements: PhotoRequirement[] = selectedProjectStage
+    ? photoRequirements[selectedProjectStage] || []
     : [];
 
   const handleProjectChange = (projectId: string) => {

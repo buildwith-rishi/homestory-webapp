@@ -6,12 +6,10 @@ import {
   Circle,
   Ban,
   AlertTriangle,
-  Filter,
   Eye,
   Paperclip,
   Plus,
   Calendar,
-  Mail,
   Send,
   Bell,
   User,
@@ -19,11 +17,10 @@ import {
   X,
   Pencil,
 } from "lucide-react";
-import { Card, Button } from "../../ui";
+import { Button } from "../../ui";
 import type { MatrixTask, MatrixCategory, AdminUser } from "../../../types";
 import {
   getMatrixDayTasks,
-  getCategoryTasks,
   getProjectById,
   uploadTaskAttachment,
   updateMatrixTask,

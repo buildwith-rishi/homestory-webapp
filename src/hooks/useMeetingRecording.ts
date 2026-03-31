@@ -34,7 +34,6 @@ import {
 } from "../services/meetingApi";
 import {
   transcribeAudio as voiceTranscribe,
-  blobToBase64 as voiceBlobToBase64,
 } from "../services/voiceApi";
 import type { Meeting } from "../types";
 

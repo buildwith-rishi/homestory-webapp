@@ -8,7 +8,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { EmailTemplate } from "../../types";
-import toast from "react-hot-toast";
 import { SectionLoader } from "../ui";
 
 const CATEGORY_EMOJI: Record<string, string> = {

@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, useSpring } from 'framer-motion';
-import gsap from 'gsap';
 
 const CustomCursor: React.FC = () => {
   const [cursorText, setCursorText] = useState('');

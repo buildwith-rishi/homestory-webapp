@@ -23,7 +23,7 @@ interface EmailTemplateState {
   clearError: () => void;
 }
 
-export const useEmailTemplateStore = create<EmailTemplateState>((set, get) => ({
+export const useEmailTemplateStore = create<EmailTemplateState>((set) => ({
   templates: [],
   currentTemplate: null,
   isLoading: false,

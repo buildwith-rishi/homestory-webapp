@@ -82,12 +82,6 @@ const STATUS_OPTIONS = [
   },
 ];
 
-const PRIORITY_STYLES: Record<string, string> = {
-  HIGH: "bg-red-100 text-red-700",
-  MEDIUM: "bg-yellow-100 text-yellow-700",
-  LOW: "bg-green-100 text-green-700",
-};
-
 const TASK_TYPES = [
   "Follow-Up",
   "Lead",
@@ -433,7 +427,7 @@ export function BDRTasks() {
     }
     setIsSavingNewTask(true);
     try {
-      const created = await createBDRTask({
+      await createBDRTask({
         title: newTask.title.trim(),
         description: newTask.description.trim() || undefined,
         taskType: newTask.taskType.toUpperCase().replace(/[\s-]/g, "_"),

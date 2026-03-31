@@ -1,8 +1,8 @@
 // Example integration for Leads page
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { LeadDetailModal } from "../../components/leads";
-import { Lead, LeadReference } from "../../types";
+import { Lead } from "../../types";
 
 // In your Leads component:
 export const LeadsPageExample = () => {

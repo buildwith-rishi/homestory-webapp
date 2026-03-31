@@ -148,7 +148,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
         description: meetingData.description,
         entityType,
         entityId: entityId || (undefined as any), // Some APIs accept empty/missing entityId
-        scheduledAt: meetingData.scheduledDate,
+        scheduledAt: meetingData.scheduledDate || new Date().toISOString(),
         duration: meetingData.duration,
         location: meetingData.location,
         attendees: meetingData.attendees,

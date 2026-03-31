@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 export interface LogoProps {
   variant?: "full" | "mark" | "type";
@@ -57,9 +57,9 @@ const Logo: React.FC<LogoProps> = ({
     return (
       <motion.div
         className={`inline-flex items-center justify-center ${className}`}
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={animated ? { opacity: 0, scale: 0.9 } : false}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
+        transition={{ duration: animated ? 0.4 : 0, ease: "easeOut" }}
       >
         <img
           src="/logo2.png"
@@ -79,16 +79,16 @@ const Logo: React.FC<LogoProps> = ({
   return (
     <motion.div
       className={`inline-flex items-center gap-2 ${className}`}
-      initial={{ opacity: 0 }}
+      initial={animated ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: animated ? 0.3 : 0 }}
     >
       <motion.img
         src="/logo2.png"
         alt="Good Homestory Icon"
-        initial={{ opacity: 0, rotate: -10 }}
+        initial={animated ? { opacity: 0, rotate: -10 } : false}
         animate={{ opacity: 1, rotate: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
+        transition={{ duration: animated ? 0.5 : 0, ease: "easeOut" }}
         style={{
           width: iconSize,
           height: iconSize,

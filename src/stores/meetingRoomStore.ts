@@ -130,7 +130,7 @@ export const useMeetingRoomStore = create<MeetingRoomState>((set, get) => ({
     try {
       const meeting = await meetingAPI.getMeetingById(meetingId);
 
-      const participants = meeting.participants
+      const participants: MeetingRoomState["participants"] = meeting.participants
         ? meeting.participants.map((p) => ({
             id: p.id,
             name: p.name,

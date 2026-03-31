@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrendingUp, Users, DollarSign, Target, BarChart3, PieChart } from 'lucide-react';
 import { Card } from '../../components/ui';
-import { AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AreaChart, Area, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const campaignData = [
   { month: 'Jan', roi: 145, leads: 32, spend: 45000 },

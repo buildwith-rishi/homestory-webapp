@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Maximize2, X, Share2, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
-import { Card, Badge, Button, Modal } from '../ui';
+import { Maximize2, X, Share2, RotateCw } from 'lucide-react';
+import { Badge, Button } from '../ui';
 import 'pannellum/build/pannellum.css';
 
 interface TourProject {

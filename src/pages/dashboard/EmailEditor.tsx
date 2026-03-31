@@ -39,48 +39,6 @@ import EmailEditorCore, {
   EmailEditorCoreRef,
 } from "../../components/email/EmailEditorCore";
 
-// ── Constants ─────────────────────────────────────────────────────
-const FONT_SIZES = [
-  "12px",
-  "14px",
-  "16px",
-  "18px",
-  "20px",
-  "24px",
-  "28px",
-  "32px",
-];
-
-const PRESET_COLORS = [
-  "#000000",
-  "#374151",
-  "#6b7280",
-  "#ef4444",
-  "#f97316",
-  "#f59e0b",
-  "#22c55e",
-  "#3b82f6",
-  "#6366f1",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
-];
-
-const HIGHLIGHT_COLORS = [
-  "transparent",
-  "#fef9c3",
-  "#fce7f3",
-  "#dbeafe",
-  "#d1fae5",
-  "#fde68a",
-  "#e0e7ff",
-  "#fecaca",
-  "#ccfbf1",
-  "#f3e8ff",
-  "#cffafe",
-  "#fef3c7",
-];
-
 const CATEGORY_EMOJI: Record<string, string> = {
   ONBOARDING: "\u{1f44b}",
   PROJECT_UPDATE: "\u{1f3d7}\ufe0f",

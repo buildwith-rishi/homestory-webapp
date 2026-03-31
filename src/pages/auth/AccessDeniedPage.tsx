@@ -1,14 +1,11 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ShieldX, Home, ArrowLeft, Lock } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { ROLES, getRoleDisplayName } from "../../config/rbac";
 
 export function AccessDeniedPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { roleId, user } = useAuth();
-
-  const from = (location.state as { from?: string })?.from ?? "this page";
   const roleName = roleId ? getRoleDisplayName(roleId) : "your role";
   const roleMeta = roleId ? ROLES[roleId] : null;
 

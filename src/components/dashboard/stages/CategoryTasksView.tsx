@@ -8,8 +8,6 @@ import {
   AlertTriangle,
   Paperclip,
   Eye,
-  ArrowLeft,
-  BarChart3,
   Filter,
   User,
 } from "lucide-react";

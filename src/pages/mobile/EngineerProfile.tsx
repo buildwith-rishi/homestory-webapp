@@ -7,8 +7,6 @@ import {
   Calendar,
   LogOut,
   Bell,
-  Moon,
-  Sun,
   Loader2,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
@@ -22,7 +20,6 @@ import { LogoutConfirmModal } from "../../components/ui";
 export function EngineerProfile() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // Site engineer profile from API

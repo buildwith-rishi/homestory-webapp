@@ -17,7 +17,6 @@ import {
   EyeOff,
   ArrowLeft,
   Layers,
-  Hash,
   Info,
 } from "lucide-react";
 import { Button, Card } from "../../ui";
@@ -436,7 +435,6 @@ const TemplateSection: React.FC<{
   title,
   badgeColor,
   templates,
-  allTemplates,
   actionLoading,
   onEdit,
   onDelete,

@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo } from "react";
 import { X, Target, ArrowRight, Star, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { formatDistanceToNow, parseISO } from "date-fns";
 import { Card, Badge, Button } from "../../ui";
 import { WidgetProps } from "./index";
 import { listLeads, Lead } from "../../../services/leadApi";
@@ -52,16 +51,6 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
     if (score >= 90) return "bg-emerald-100 text-emerald-700";
     if (score >= 80) return "bg-orange-100 text-orange-700";
     return "bg-yellow-100 text-yellow-700";
-  };
-
-  const getLastContact = (lead: Lead): string => {
-    const dateStr = lead.lastContactedAt || lead.lastContact || lead.updatedAt;
-    if (!dateStr) return "Unknown";
-    try {
-      return formatDistanceToNow(parseISO(dateStr), { addSuffix: true });
-    } catch {
-      return "Unknown";
-    }
   };
 
   return (

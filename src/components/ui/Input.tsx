@@ -9,7 +9,12 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   suffixIcon?: React.ReactNode;
 }
 
-const Input = forwardRef<HTMLInputElement, InputProps>(
+type SafeInputProps = Omit<
+  InputProps,
+  "onAnimationStart" | "onAnimationEnd"
+>;
+
+const Input = forwardRef<HTMLInputElement, SafeInputProps>(
   (
     {
       label,
@@ -52,7 +57,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               {prefixIcon}
             </div>
           )}
-          <motion.input
+          <input
             ref={ref}
             id={inputId}
             className={`${inputBaseStyles} ${inputBorderStyles} ${inputWithIconStyles}`}

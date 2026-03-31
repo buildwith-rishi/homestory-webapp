@@ -19,6 +19,7 @@ export interface KanbanTask {
   priority?: "high" | "medium" | "low";
   completed?: boolean;
   assignedTo?: string;
+  dueDate?: string;
   startDate?: string;
   endDate?: string;
   metadata?: Record<string, unknown>;

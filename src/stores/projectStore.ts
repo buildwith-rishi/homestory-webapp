@@ -49,7 +49,7 @@ interface ProjectState {
   fetchProjectById: (id: string) => Promise<void>;
   fetchProjectStages: (projectId: string) => Promise<void>;
   fetchProjectPayments: (projectId: string) => Promise<void>;
-  fetchProjectTasks: (projectId: string) => Promise<void>;
+  fetchProjectTasks: (projectId: string, retryCount?: number) => Promise<void>;
   fetchAvailableStages: (projectId: string) => Promise<void>;
   updateProjectStage: (
     projectId: string,
@@ -91,12 +91,16 @@ interface ProjectState {
   pauseStatus: PauseStatusResponse | null;
 
   // Task Management
-  createTask: (data: CreateTaskRequest) => Promise<Task>;
-  updateTask: (taskId: string, data: UpdateTaskRequest) => Promise<Task>;
-  deleteTask: (taskId: string) => Promise<void>;
-  completeTask: (taskId: string) => Promise<Task>;
-  fetchUpcomingTasks: () => Promise<void>;
-  fetchAllTasks: () => Promise<void>;
+  createTask: (data: CreateTaskRequest, retryCount?: number) => Promise<Task>;
+  updateTask: (
+    taskId: string,
+    data: UpdateTaskRequest,
+    retryCount?: number,
+  ) => Promise<Task>;
+  deleteTask: (taskId: string, retryCount?: number) => Promise<void>;
+  completeTask: (taskId: string, retryCount?: number) => Promise<Task>;
+  fetchUpcomingTasks: (retryCount?: number) => Promise<void>;
+  fetchAllTasks: (retryCount?: number) => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({

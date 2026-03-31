@@ -24,7 +24,7 @@ import {
 import { Card, Button, Badge, SectionLoader } from "../../components/ui";
 import toast from "react-hot-toast";
 import AccountAPI, { Account, AccountType } from "../../services/accountApi";
-import { getAccountTypeLabel, getAllAccountTypes } from "../../utils/accountHelpers";
+import { getAccountTypeLabel } from "../../utils/accountHelpers";
 
 // Add/Edit Account Modal Component
 const AccountModal: React.FC<{

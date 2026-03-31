@@ -12,9 +12,6 @@ import {
   AlertTriangle,
   Package,
   Shield,
-  Calendar as CalendarIcon,
-  Loader2,
-  RefreshCw,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { IssueCategory, IssueSeverity } from "../../types";

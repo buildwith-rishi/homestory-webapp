@@ -38,7 +38,6 @@ import { Card, Button, Badge, Progress } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuth } from "../../contexts/AuthContext";
-import { ROLES } from "../../config/rbac";
 import { getProjectStages, getAllPayments } from "../../services/projectApi";
 import { listMeetings } from "../../services/meetingApi";
 import { listLeads } from "../../services/leadApi";
@@ -80,9 +79,6 @@ export const DashboardOverview: React.FC = () => {
   const [tasksDueToday, setTasksDueToday] = useState<number>(0);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number>(0);
-
-  // Role-specific context
-  const roleMeta = roleId ? ROLES[roleId] : null;
 
   useEffect(() => {
     // Use the shared store fetch (same call as the Projects page)

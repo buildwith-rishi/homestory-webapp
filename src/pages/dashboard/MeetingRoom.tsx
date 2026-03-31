@@ -27,7 +27,7 @@ import {
 import { useMeetingRoomStore } from "../../stores/meetingRoomStore";
 import { useMeetingRecording } from "../../hooks/useMeetingRecording";
 import Logo from "../../components/shared/Logo";
-import { PageLoader, Spinner } from "../../components/ui";
+import { PageLoader } from "../../components/ui";
 
 // Speaker colors matching the website theme
 const speakerColors = [
@@ -81,7 +81,7 @@ export const MeetingRoom: React.FC = () => {
   const meetingIdFromState = (location.state as { meetingId?: string })
     ?.meetingId;
 
-  const [activeTab, setActiveTab] = useState<"transcript" | "notes">("notes");
+  const [activeTab] = useState<"transcript" | "notes">("notes");
   const [newNote, setNewNote] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState("");
@@ -260,13 +260,6 @@ export const MeetingRoom: React.FC = () => {
     if (newNote.trim()) {
       await addNote(newNote.trim());
       setNewNote("");
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleAddNote();
     }
   };
 

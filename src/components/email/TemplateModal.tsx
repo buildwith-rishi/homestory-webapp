@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Modal } from "../../components/ui";
-import { FileText, Plus, Trash2, Code, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Code, AlertCircle } from "lucide-react";
 import { EmailTemplateVariable } from "../../types";
 
 interface TemplateFormData {

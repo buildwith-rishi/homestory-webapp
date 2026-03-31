@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useInstagramStore } from '../../stores/instagramStore';
-import { InstagramPostType, InstagramPostStatus } from '../../types';
+import { InstagramPostType } from '../../types';
 
 export function ContentCalendar() {
-  const { posts, fetchPosts, calendarView, selectedDate, setCalendarView, setSelectedDate } =
+  const { posts, fetchPosts, calendarView, setCalendarView, setSelectedDate } =
     useInstagramStore();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 

@@ -326,6 +326,9 @@ export function EngineerTasks() {
     .filter((t) => t.dueDate === selectedStr)
     .map((t) => ({
       ...t,
+      dueDate: t.dueDate || selectedStr,
+      taskType: t.taskType || "GENERAL",
+      priority: t.priority || "MEDIUM",
       completed: t.status === "COMPLETED",
     }));
   const storeForDate = (allTasks || []).filter(

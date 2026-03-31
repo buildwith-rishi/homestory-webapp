@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { X, Plus, Loader2, Layers } from "lucide-react";
-import { Button, Card } from "../../ui";
+import { Button } from "../../ui";
 import { useProjectStore } from "../../../stores/projectStore";
 import type { StageTemplate } from "../../../types";
 import toast from "react-hot-toast";

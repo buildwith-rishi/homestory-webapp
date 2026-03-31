@@ -29,7 +29,7 @@ import {
   Loader2,
   ExternalLink,
 } from "lucide-react";
-import { Button, Card, SectionLoader, Spinner } from "../../components/ui";
+import { Button, Card, SectionLoader } from "../../components/ui";
 import { useMeetingStore } from "../../stores/meetingStore";
 
 // Setup date-fns localizer
@@ -78,6 +78,16 @@ const statusConfig = {
     bg: "bg-gray-50",
     text: "text-gray-700",
   },
+};
+
+const normalizeCalendarStatus = (
+  value?: string,
+): CalendarMeeting["status"] => {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized === "completed") return "completed";
+  if (normalized === "in_progress") return "in_progress";
+  if (normalized === "cancelled") return "cancelled";
+  return "scheduled";
 };
 
 export interface CalendarMeeting {
@@ -799,7 +809,7 @@ export const MeetingsCalendarPage: React.FC = () => {
         client: displaySubtitle,
         start,
         end,
-        status: meeting.status,
+        status: normalizeCalendarStatus(meeting.status),
         type: "consultation" as const,
         location: meeting.location,
         attendees: meeting.attendees || [],
@@ -841,7 +851,7 @@ export const MeetingsCalendarPage: React.FC = () => {
           (meeting.end.getTime() - meeting.start.getTime()) / 60000,
         ),
         location: meeting.location,
-        attendees: meeting.attendees,
+        attendees: meeting.attendees || [],
         status: meeting.status,
         // These fields help the store determine entityType
         // If no specific entity, the store will use defaults
@@ -875,7 +885,7 @@ export const MeetingsCalendarPage: React.FC = () => {
           (meeting.end.getTime() - meeting.start.getTime()) / 60000,
         ),
         location: meeting.location,
-        attendees: meeting.attendees,
+        attendees: meeting.attendees || [],
         status: meeting.status,
       };
 

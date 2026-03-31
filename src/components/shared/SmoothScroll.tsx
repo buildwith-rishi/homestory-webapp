@@ -13,7 +13,6 @@ const SmoothScroll: React.FC<SmoothScrollProps> = ({ children }) => {
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
-      smoothTouch: false,
       touchMultiplier: 2,
     });
 

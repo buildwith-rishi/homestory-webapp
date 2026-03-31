@@ -10,7 +10,6 @@ import LeadAPI, {
   Lead as APILead,
   LeadStatus,
   LeadAssignee,
-  LeadAssigneesResponse,
 } from "../services/leadApi";
 
 // API status values from GET /api/leads/statuses
@@ -200,60 +199,71 @@ export const useLeadStore = create<LeadState>((set, get) => ({
   updateLead: async (id: string, updates: Partial<Lead>) => {
     try {
       // Forward all supported API fields
+      const apiCompatibleUpdates = updates as Partial<APILead>;
       const apiUpdates: Partial<APILead> = {};
-      if (updates.name !== undefined) apiUpdates.name = updates.name;
-      if (updates.email !== undefined) apiUpdates.email = updates.email;
-      if (updates.phone !== undefined) apiUpdates.phone = updates.phone;
-      if (updates.status !== undefined) apiUpdates.status = updates.status;
-      if (updates.notes !== undefined) apiUpdates.notes = updates.notes;
-      if (updates.source !== undefined) apiUpdates.source = updates.source;
+      if (apiCompatibleUpdates.name !== undefined)
+        apiUpdates.name = apiCompatibleUpdates.name;
+      if (apiCompatibleUpdates.email !== undefined)
+        apiUpdates.email = apiCompatibleUpdates.email;
+      if (apiCompatibleUpdates.phone !== undefined)
+        apiUpdates.phone = apiCompatibleUpdates.phone;
+      if (apiCompatibleUpdates.status !== undefined)
+        apiUpdates.status = apiCompatibleUpdates.status;
+      if (apiCompatibleUpdates.notes !== undefined)
+        apiUpdates.notes = apiCompatibleUpdates.notes;
+      if (apiCompatibleUpdates.source !== undefined)
+        apiUpdates.source = apiCompatibleUpdates.source;
       if ("assignedToId" in updates)
         apiUpdates.assignedToId = updates.assignedToId;
-      if (updates.companyName !== undefined)
-        apiUpdates.companyName = updates.companyName;
-      if (updates.householdOrCompany !== undefined)
-        apiUpdates.householdOrCompany = updates.householdOrCompany;
-      if (updates.score !== undefined) apiUpdates.score = updates.score;
-      if (updates.serviceInterest !== undefined)
-        apiUpdates.serviceInterest = updates.serviceInterest;
-      if (updates.propertyType !== undefined)
-        apiUpdates.propertyType = updates.propertyType;
-      if (updates.area !== undefined) apiUpdates.area = updates.area;
-      if (updates.city !== undefined) apiUpdates.city = updates.city;
-      if (updates.location !== undefined)
-        apiUpdates.location = updates.location;
-      if (updates.message !== undefined) apiUpdates.message = updates.message;
-      if (updates.requirements !== undefined)
-        apiUpdates.requirements = updates.requirements;
-      if (updates.projectType !== undefined)
-        apiUpdates.projectType = updates.projectType;
-      if (updates.homeType !== undefined)
-        apiUpdates.homeType = updates.homeType;
-      if (updates.projectStage !== undefined)
-        apiUpdates.projectStage = updates.projectStage;
-      if (updates.startTimeline !== undefined)
-        apiUpdates.startTimeline = updates.startTimeline;
-      if (updates.budgetComfort !== undefined)
-        apiUpdates.budgetComfort = updates.budgetComfort;
-      if (updates.projectScope !== undefined)
-        apiUpdates.projectScope = updates.projectScope;
-      if (updates.floorPlanUrl !== undefined)
-        apiUpdates.floorPlanUrl = updates.floorPlanUrl;
-      if (updates.wantsExperienceCenterVisit !== undefined)
+      if (apiCompatibleUpdates.companyName !== undefined)
+        apiUpdates.companyName = apiCompatibleUpdates.companyName;
+      if (apiCompatibleUpdates.householdOrCompany !== undefined)
+        apiUpdates.householdOrCompany = apiCompatibleUpdates.householdOrCompany;
+      if (apiCompatibleUpdates.score !== undefined)
+        apiUpdates.score = apiCompatibleUpdates.score;
+      if (apiCompatibleUpdates.serviceInterest !== undefined)
+        apiUpdates.serviceInterest = apiCompatibleUpdates.serviceInterest;
+      if (apiCompatibleUpdates.propertyType !== undefined)
+        apiUpdates.propertyType = apiCompatibleUpdates.propertyType;
+      if (apiCompatibleUpdates.area !== undefined)
+        apiUpdates.area = apiCompatibleUpdates.area;
+      if (apiCompatibleUpdates.city !== undefined)
+        apiUpdates.city = apiCompatibleUpdates.city;
+      if (apiCompatibleUpdates.location !== undefined)
+        apiUpdates.location = apiCompatibleUpdates.location;
+      if (apiCompatibleUpdates.message !== undefined)
+        apiUpdates.message = apiCompatibleUpdates.message;
+      if (apiCompatibleUpdates.requirements !== undefined)
+        apiUpdates.requirements = apiCompatibleUpdates.requirements;
+      if (apiCompatibleUpdates.projectType !== undefined)
+        apiUpdates.projectType = apiCompatibleUpdates.projectType;
+      if (apiCompatibleUpdates.homeType !== undefined)
+        apiUpdates.homeType = apiCompatibleUpdates.homeType;
+      if (apiCompatibleUpdates.projectStage !== undefined)
+        apiUpdates.projectStage = apiCompatibleUpdates.projectStage;
+      if (apiCompatibleUpdates.startTimeline !== undefined)
+        apiUpdates.startTimeline = apiCompatibleUpdates.startTimeline;
+      if (apiCompatibleUpdates.budgetComfort !== undefined)
+        apiUpdates.budgetComfort = apiCompatibleUpdates.budgetComfort;
+      if (apiCompatibleUpdates.projectScope !== undefined)
+        apiUpdates.projectScope = apiCompatibleUpdates.projectScope;
+      if (apiCompatibleUpdates.floorPlanUrl !== undefined)
+        apiUpdates.floorPlanUrl = apiCompatibleUpdates.floorPlanUrl;
+      if (apiCompatibleUpdates.wantsExperienceCenterVisit !== undefined)
         apiUpdates.wantsExperienceCenterVisit =
-          updates.wantsExperienceCenterVisit;
-      if (updates.canWhatsApp !== undefined)
-        apiUpdates.canWhatsApp = updates.canWhatsApp;
-      if (updates.referrerName !== undefined)
-        apiUpdates.referrerName = updates.referrerName;
-      if (updates.referrerPhone !== undefined)
-        apiUpdates.referrerPhone = updates.referrerPhone;
-      if (updates.referrerProjectNumber !== undefined)
-        apiUpdates.referrerProjectNumber = updates.referrerProjectNumber;
-      if (updates.agentAgencyName !== undefined)
-        apiUpdates.agentAgencyName = updates.agentAgencyName;
-      if (updates.agentAgencyDetails !== undefined)
-        apiUpdates.agentAgencyDetails = updates.agentAgencyDetails;
+          apiCompatibleUpdates.wantsExperienceCenterVisit;
+      if (apiCompatibleUpdates.canWhatsApp !== undefined)
+        apiUpdates.canWhatsApp = apiCompatibleUpdates.canWhatsApp;
+      if (apiCompatibleUpdates.referrerName !== undefined)
+        apiUpdates.referrerName = apiCompatibleUpdates.referrerName;
+      if (apiCompatibleUpdates.referrerPhone !== undefined)
+        apiUpdates.referrerPhone = apiCompatibleUpdates.referrerPhone;
+      if (apiCompatibleUpdates.referrerProjectNumber !== undefined)
+        apiUpdates.referrerProjectNumber = apiCompatibleUpdates.referrerProjectNumber;
+      if (apiCompatibleUpdates.agentAgencyName !== undefined)
+        apiUpdates.agentAgencyName = apiCompatibleUpdates.agentAgencyName;
+      if (apiCompatibleUpdates.agentAgencyDetails !== undefined)
+        apiUpdates.agentAgencyDetails = apiCompatibleUpdates.agentAgencyDetails;
 
       console.log("Updating lead via API:", id, apiUpdates);
       const updatedApiLead = await LeadAPI.updateLead(id, apiUpdates);

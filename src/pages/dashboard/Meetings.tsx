@@ -6,15 +6,12 @@ import {
   Clock,
   Users,
   Video,
-  Phone,
   MapPin,
   FileText,
   Search,
   X,
   CheckCircle2,
   ChevronDown,
-  ChevronUp,
-  MessageSquare,
   Loader2,
   AlertCircle,
   Plus,
@@ -24,15 +21,12 @@ import {
   UserCircle,
   User,
   Upload,
-  Eye,
-  Download,
 } from "lucide-react";
 import {
   Card,
   Button,
   Badge,
   SectionLoader,
-  Spinner,
   Modal,
 } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
@@ -45,10 +39,7 @@ import { listLeads } from "../../services/leadApi";
 import { listProjects } from "../../services/projectApi";
 import * as meetingAPI from "../../services/meetingApi";
 import {
-  uploadAttachment,
   listAttachments,
-  getAttachment,
-  type Attachment,
 } from "../../services/attachmentApi";
 import type { Lead, Project } from "../../types";
 import toast from "react-hot-toast";
@@ -207,18 +198,9 @@ export const MeetingsPage: React.FC = () => {
   // MOM (Minutes of Meeting) state
   const [showMomModal, setShowMomModal] = useState(false);
   const [momMeetingId, setMomMeetingId] = useState<string | null>(null);
-  const [momMeetingTitle, setMomMeetingTitle] = useState<string>("");
   const [momFile, setMomFile] = useState<File | null>(null);
   const [momFileError, setMomFileError] = useState<string | null>(null);
-  const [momNotes, setMomNotes] = useState("");
   const [isUploadingMom, setIsUploadingMom] = useState(false);
-  const [momAttachments, setMomAttachments] = useState<Attachment[]>([]);
-  const [isFetchingMomAttachments, setIsFetchingMomAttachments] =
-    useState(false);
-  const [momViewingIds, setMomViewingIds] = useState<Set<string>>(new Set());
-  const [momDownloadingIds, setMomDownloadingIds] = useState<Set<string>>(
-    new Set(),
-  );
   const momFileInputRef = useRef<HTMLInputElement>(null);
 
   // MOM import-transcript fields
@@ -469,6 +451,8 @@ export const MeetingsPage: React.FC = () => {
         linkedEntityName = displayTitle;
       }
 
+      const meetingRecord = meeting as unknown as Record<string, unknown>;
+
       return {
         id: meeting.id,
         projectId: meeting.projectId || meeting.entityId,
@@ -485,15 +469,12 @@ export const MeetingsPage: React.FC = () => {
         }),
         duration: meeting.duration ? `${meeting.duration} mins` : "30 mins",
         status: mapStatus(meeting.status),
-        type: mapType(
-          (meeting as Record<string, unknown>).type as string | undefined,
-        ),
+        type: mapType(meetingRecord.type as string | undefined),
         location: meeting.location,
         transcribed:
           !!meeting.transcription && meeting.transcription.length > 0,
-        actionItems: (meeting as Record<string, unknown>).actionItems
-          ? ((meeting as Record<string, unknown>).actionItems as string[])
-              .length
+        actionItems: meetingRecord.actionItems
+          ? (meetingRecord.actionItems as string[]).length
           : 0,
         attendees: meeting.attendees || [],
       };
@@ -570,25 +551,13 @@ export const MeetingsPage: React.FC = () => {
     }
   };
 
-  const handleOpenCalendar = () => {
-    navigate("/dashboard/meetings/calendar");
-  };
-
-  const handleOpenMom = async (meetingId: string, meetingTitle: string) => {
+  const handleOpenMom = async (meetingId: string) => {
     setMomMeetingId(meetingId);
-    setMomMeetingTitle(meetingTitle);
     setMomFile(null);
-    setMomNotes("");
     setShowMomModal(true);
-    setIsFetchingMomAttachments(true);
     try {
-      const attachments = await listAttachments("MEETING", meetingId);
-      // Filter client-side in case the API returns all meeting attachments
-      setMomAttachments(attachments.filter((a) => a.entityId === meetingId));
+      await listAttachments("MEETING", meetingId);
     } catch {
-      setMomAttachments([]);
-    } finally {
-      setIsFetchingMomAttachments(false);
     }
   };
 
@@ -626,21 +595,7 @@ export const MeetingsPage: React.FC = () => {
     setMomParticipants("");
     setMomFile(null);
     setMomFileError(null);
-    setMomNotes("");
     if (momFileInputRef.current) momFileInputRef.current.value = "";
-  };
-
-  const fetchMomAttachments = async (meetingId: string) => {
-    setIsFetchingMomAttachments(true);
-    try {
-      const atts = await listAttachments("MEETING", meetingId);
-      // Filter client-side in case the API returns all meeting attachments
-      setMomAttachments(atts.filter((a) => a.entityId === meetingId));
-    } catch {
-      setMomAttachments([]);
-    } finally {
-      setIsFetchingMomAttachments(false);
-    }
   };
 
   const handleUploadMom = async () => {
@@ -694,7 +649,6 @@ export const MeetingsPage: React.FC = () => {
       setMomParticipants("");
       setMomFile(null);
       setMomFileError(null);
-      setMomNotes("");
       if (momFileInputRef.current) momFileInputRef.current.value = "";
       // Close modal and refresh meetings
       setShowMomModal(false);
@@ -708,23 +662,6 @@ export const MeetingsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadAttachment = async (url: string, fileName: string) => {
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(objectUrl);
-    } catch {
-      window.open(url, "_blank");
-    }
-  };
-
   useEffect(() => {
     const fetchMomEntities = async () => {
       if (!showMomModal) return;
@@ -733,62 +670,6 @@ export const MeetingsPage: React.FC = () => {
 
     void fetchMomEntities();
   }, [showMomModal, fetchLiveEntities]);
-
-  // View a MOM attachment — fetch fresh signed downloadUrl first
-  const handleViewMomAtt = async (att: Attachment) => {
-    setMomViewingIds((prev) => new Set(prev).add(att.id));
-    try {
-      const fresh = await getAttachment(att.id);
-      const url = fresh.downloadUrl || fresh.fileUrl || fresh.storageUrl;
-      if (url) {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
-    } catch {
-      // fallback to cached URL
-      const url = att.downloadUrl || att.fileUrl || att.storageUrl;
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
-    } finally {
-      setMomViewingIds((prev) => {
-        const n = new Set(prev);
-        n.delete(att.id);
-        return n;
-      });
-    }
-  };
-
-  // Download a MOM attachment — fetch fresh signed downloadUrl first
-  const handleDownloadMomAtt = async (att: Attachment) => {
-    setMomDownloadingIds((prev) => new Set(prev).add(att.id));
-    try {
-      const fresh = await getAttachment(att.id);
-      const url = fresh.downloadUrl || fresh.fileUrl || fresh.storageUrl;
-      if (!url) return;
-      try {
-        const res = await fetch(url);
-        const blob = await res.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = objectUrl;
-        a.download = att.fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(objectUrl);
-      } catch {
-        window.open(url, "_blank");
-      }
-    } catch {
-      // fallback to cached URL
-      const url = att.downloadUrl || att.fileUrl || att.storageUrl;
-      if (url) window.open(url, "_blank");
-    } finally {
-      setMomDownloadingIds((prev) => {
-        const n = new Set(prev);
-        n.delete(att.id);
-        return n;
-      });
-    }
-  };
 
   const handleStartScheduledMeeting = async (
     e: React.MouseEvent,
@@ -848,21 +729,6 @@ export const MeetingsPage: React.FC = () => {
       console.error("Error scheduling meeting:", error);
       // Error is shown by store's error state
     }
-  };
-
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const formatTime = (date: Date) => {
-    return new Date(date).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   // Apply project and search filters
@@ -937,10 +803,7 @@ export const MeetingsPage: React.FC = () => {
             onClick={() => {
               // Open MOM for the first meeting or a generic modal without a pre-selected meeting
               setMomMeetingId(null);
-              setMomMeetingTitle("All Meetings");
               setMomFile(null);
-              setMomNotes("");
-              setMomAttachments([]);
               setShowMomModal(true);
             }}
           >
@@ -1199,7 +1062,7 @@ export const MeetingsPage: React.FC = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleOpenMom(meeting.id.toString(), meeting.title);
+                        handleOpenMom(meeting.id.toString());
                       }}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold rounded-lg border border-gray-200 transition-colors"
                     >
@@ -2245,10 +2108,8 @@ export const MeetingsPage: React.FC = () => {
           onClose={() => {
             if (!isDeleting) {
               setShowDeleteConfirm(false);
-              setMeetingToDelete(null);
             }
           }}
-          title="Confirm Deletion"
           size="sm"
           footer={
             <>

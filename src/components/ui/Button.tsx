@@ -1,9 +1,8 @@
 import React, { forwardRef } from "react";
-import { motion } from "framer-motion";
 import Spinner from "./Spinner";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "outline";
   size?: "sm" | "md" | "lg";
   loading?: boolean;
   leftIcon?: React.ReactNode;
@@ -11,7 +10,12 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   children: React.ReactNode;
 }
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+type SafeButtonProps = Omit<
+  ButtonProps,
+  "onAnimationStart" | "onAnimationEnd"
+>;
+
+const Button = forwardRef<HTMLButtonElement, SafeButtonProps>(
   (
     {
       variant = "primary",
@@ -34,6 +38,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         "bg-primary text-white hover:bg-[#C24F00] active:bg-[#A94400] disabled:bg-ash disabled:opacity-50",
       secondary:
         "bg-white text-secondary border border-secondary/70 hover:bg-secondary hover:text-white active:bg-[#1F0C00] disabled:border-ash disabled:text-ash disabled:opacity-50",
+      outline:
+        "bg-white text-secondary border border-secondary/70 hover:bg-secondary hover:text-white active:bg-[#1F0C00] disabled:border-ash disabled:text-ash disabled:opacity-50",
       ghost:
         "bg-transparent text-primary hover:bg-primary/10 active:bg-primary/20 disabled:text-ash disabled:opacity-50",
       danger:
@@ -49,11 +55,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const combinedClassName = `${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`;
 
     return (
-      <motion.button
+      <button
         ref={ref}
         className={combinedClassName}
         disabled={disabled || loading}
-        whileTap={!disabled && !loading ? { scale: 0.98 } : undefined}
         {...props}
       >
         {loading && (
@@ -69,7 +74,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {!loading && rightIcon && (
           <span className="flex items-center">{rightIcon}</span>
         )}
-      </motion.button>
+      </button>
     );
   },
 );

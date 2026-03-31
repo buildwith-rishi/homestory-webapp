@@ -190,10 +190,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     return users.find((u) => u.id === id)?.name ?? "";
   }, [task, users]);
 
-  // Assignee
-  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>("");
-  const [savingAssignee, setSavingAssignee] = useState(false);
-
   // Push single task to another day
   const [showPushPanel, setShowPushPanel] = useState(false);
   const [pushTargetDay, setPushTargetDay] = useState<number>(1);
@@ -584,7 +580,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     // 3. Set state
     if (taskData) {
       setTask(taskData);
-      setSelectedAssigneeId(taskData.assignedToId || "");
     } else {
       toast.error("Failed to load task details");
     }
