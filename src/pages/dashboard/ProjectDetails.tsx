@@ -41,6 +41,7 @@ import {
   Eye,
   UserCircle,
   ExternalLink,
+  ChevronDown,
 } from "lucide-react";
 import {
   Button,
@@ -83,6 +84,7 @@ import {
   Attachment,
   AttachmentType,
 } from "../../services/attachmentApi";
+import { adminAPI } from "../../services/api";
 
 
 // Helper function to format currency
@@ -115,6 +117,58 @@ const parseEmailList = (value: string): string[] =>
     .split(/[\s,;]+/)
     .map((email) => email.trim())
     .filter(Boolean);
+
+interface CcUserOption {
+  id: string;
+  name: string;
+  email: string;
+}
+
+const normalizeCcUserOptions = (response: unknown): CcUserOption[] => {
+  let usersList: Array<Record<string, unknown>> = [];
+
+  if (Array.isArray(response)) {
+    usersList = response as Array<Record<string, unknown>>;
+  } else if (response && typeof response === "object") {
+    const responseObj = response as Record<string, unknown>;
+    if (Array.isArray(responseObj.users)) {
+      usersList = responseObj.users as Array<Record<string, unknown>>;
+    } else if (
+      responseObj.data &&
+      typeof responseObj.data === "object" &&
+      Array.isArray((responseObj.data as Record<string, unknown>).users)
+    ) {
+      usersList = (responseObj.data as Record<string, unknown>)
+        .users as Array<Record<string, unknown>>;
+    } else if (Array.isArray(responseObj.data)) {
+      usersList = responseObj.data as Array<Record<string, unknown>>;
+    }
+  }
+
+  const dedupedByEmail = new Map<string, CcUserOption>();
+
+  usersList.forEach((user) => {
+    const emailRaw = String(user.email || "").trim();
+    if (!emailRaw || !EMAIL_REGEX.test(emailRaw)) return;
+
+    const isActive = user.isActive !== false;
+    const isBanned = user.isBanned === true;
+    if (!isActive || isBanned) return;
+
+    const normalizedEmail = emailRaw.toLowerCase();
+    if (dedupedByEmail.has(normalizedEmail)) return;
+
+    dedupedByEmail.set(normalizedEmail, {
+      id: String(user.id || normalizedEmail),
+      name: String(user.name || "").trim(),
+      email: normalizedEmail,
+    });
+  });
+
+  return Array.from(dedupedByEmail.values()).sort((a, b) =>
+    a.email.localeCompare(b.email),
+  );
+};
 
 const sanitizeNumericInput = (value: string): string => {
   const cleaned = value.replace(/[^\d.]/g, "");
@@ -398,6 +452,11 @@ export const ProjectDetails: React.FC = () => {
     useState(false);
   const [invoiceSentSuccessMessage, setInvoiceSentSuccessMessage] =
     useState("");
+  const [availableCcUsers, setAvailableCcUsers] = useState<CcUserOption[]>([]);
+  const [loadingCcUsers, setLoadingCcUsers] = useState(false);
+  const [showCcDropdown, setShowCcDropdown] = useState(false);
+  const [ccEmailSearch, setCcEmailSearch] = useState("");
+  const ccDropdownRef = useRef<HTMLDivElement | null>(null);
   const [sendInvoiceForm, setSendInvoiceForm] = useState({
     toEmail: "",
     ccEmails: "",
@@ -414,6 +473,21 @@ export const ProjectDetails: React.FC = () => {
       fileBase64: string;
     }>,
   });
+
+  const selectedCcEmails = useMemo(
+    () => Array.from(new Set(parseEmailList(sendInvoiceForm.ccEmails).map((e) => e.toLowerCase()))),
+    [sendInvoiceForm.ccEmails],
+  );
+
+  const filteredCcUsers = useMemo(() => {
+    const query = ccEmailSearch.trim().toLowerCase();
+    if (!query) return availableCcUsers;
+    return availableCcUsers.filter(
+      (user) =>
+        user.email.includes(query) ||
+        user.name.toLowerCase().includes(query),
+    );
+  }, [availableCcUsers, ccEmailSearch]);
 
   // Upload Document modal state
   const [showUploadDocModal, setShowUploadDocModal] = useState(false);
@@ -1014,6 +1088,78 @@ export const ProjectDetails: React.FC = () => {
     }));
     setShowSendInvoiceModal(true);
   };
+
+  const toggleCcEmail = (email: string) => {
+    const normalizedEmail = email.toLowerCase();
+    setSendInvoiceForm((prev) => {
+      const current = Array.from(
+        new Set(parseEmailList(prev.ccEmails).map((value) => value.toLowerCase())),
+      );
+      const exists = current.includes(normalizedEmail);
+      const next = exists
+        ? current.filter((value) => value !== normalizedEmail)
+        : [...current, normalizedEmail];
+      return {
+        ...prev,
+        ccEmails: next.join(", "),
+      };
+    });
+  };
+
+  const removeCcEmail = (email: string) => {
+    setSendInvoiceForm((prev) => {
+      const next = parseEmailList(prev.ccEmails)
+        .map((value) => value.toLowerCase())
+        .filter((value) => value !== email.toLowerCase());
+      return {
+        ...prev,
+        ccEmails: Array.from(new Set(next)).join(", "),
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (!showSendInvoiceModal) {
+      setShowCcDropdown(false);
+      setCcEmailSearch("");
+      return;
+    }
+
+    if (availableCcUsers.length > 0 || loadingCcUsers) {
+      return;
+    }
+
+    const loadCcUsers = async () => {
+      setLoadingCcUsers(true);
+      try {
+        const response = await adminAPI.getAllUsers();
+        setAvailableCcUsers(normalizeCcUserOptions(response));
+      } catch (error) {
+        console.error("Failed to load CC email options:", error);
+        toast.error("Unable to load user emails for CC");
+      } finally {
+        setLoadingCcUsers(false);
+      }
+    };
+
+    void loadCcUsers();
+  }, [showSendInvoiceModal, availableCcUsers.length, loadingCcUsers]);
+
+  useEffect(() => {
+    if (!showCcDropdown) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!ccDropdownRef.current) return;
+      if (!ccDropdownRef.current.contains(event.target as Node)) {
+        setShowCcDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showCcDropdown]);
 
   const handleSendInvoiceFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -3811,21 +3957,111 @@ export const ProjectDetails: React.FC = () => {
                       (optional)
                     </span>
                   </label>
-                  <textarea
-                    value={sendInvoiceForm.ccEmails}
-                    onChange={(e) =>
-                      setSendInvoiceForm({
-                        ...sendInvoiceForm,
-                        ccEmails: e.target.value,
-                      })
-                    }
-                    rows={2}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none resize-none text-sm"
-                    placeholder="finance@example.com, owner@example.com"
-                  />
+                  <div className="relative" ref={ccDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowCcDropdown((prev) => !prev)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-left focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`text-sm ${
+                            selectedCcEmails.length > 0
+                              ? "text-gray-700"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          {selectedCcEmails.length > 0
+                            ? `${selectedCcEmails.length} email${
+                                selectedCcEmails.length > 1 ? "s" : ""
+                              } selected`
+                            : "Select emails from User Management"}
+                        </span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-400 transition-transform ${
+                            showCcDropdown ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
+
+                    {showCcDropdown && (
+                      <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-20">
+                        <div className="p-3 border-b border-gray-100">
+                          <input
+                            type="text"
+                            value={ccEmailSearch}
+                            onChange={(e) => setCcEmailSearch(e.target.value)}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none"
+                            placeholder="Search by name or email"
+                          />
+                        </div>
+
+                        <div className="max-h-56 overflow-y-auto p-2 space-y-1">
+                          {loadingCcUsers ? (
+                            <div className="px-3 py-2 text-xs text-gray-500">
+                              Loading user emails...
+                            </div>
+                          ) : filteredCcUsers.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-500">
+                              No user emails found
+                            </div>
+                          ) : (
+                            filteredCcUsers.map((user) => {
+                              const checked = selectedCcEmails.includes(user.email);
+                              return (
+                                <label
+                                  key={user.id}
+                                  className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleCcEmail(user.email)}
+                                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                                  />
+                                  <div className="min-w-0">
+                                    {user.name && (
+                                      <p className="text-xs font-medium text-gray-700 truncate">
+                                        {user.name}
+                                      </p>
+                                    )}
+                                    <p className="text-sm text-gray-600 truncate">
+                                      {user.email}
+                                    </p>
+                                  </div>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedCcEmails.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedCcEmails.map((email) => (
+                        <span
+                          key={email}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-50 text-green-700 text-xs"
+                        >
+                          {email}
+                          <button
+                            type="button"
+                            onClick={() => removeCcEmail(email)}
+                            className="text-green-700/80 hover:text-green-900"
+                            aria-label={`Remove ${email}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-xs text-gray-400 mt-1">
-                    Separate multiple emails with comma, semicolon, space, or
-                    new line.
+                    All active user emails from User Management are available in
+                    the dropdown.
                   </p>
                 </div>
                 <div>

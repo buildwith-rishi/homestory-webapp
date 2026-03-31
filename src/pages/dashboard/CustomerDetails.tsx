@@ -4003,24 +4003,21 @@ export const CustomerDetails: React.FC = () => {
                     </>
                   )}
 
-                  {/* Uploaded Documents & Attachments */}
-                  <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                    <div className="flex items-center gap-2 mb-5">
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                        <File className="w-4 h-4 text-gray-600" />
+                  {activeTab === "references" && (
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <File className="w-4 h-4 text-gray-600" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                          Uploaded References
+                        </h3>
+                        <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                          {leadAttachments.length} file
+                          {leadAttachments.length !== 1 ? "s" : ""}
+                        </span>
                       </div>
-                      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                        {activeTab === "references"
-                          ? "Uploaded References"
-                          : "Documents & Attachments"}
-                      </h3>
-                      <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                        {leadAttachments.length} file
-                        {leadAttachments.length !== 1 ? "s" : ""}
-                      </span>
-                    </div>
 
-                    {activeTab === "references" && (
                       <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                           Upload Reference File
@@ -4081,142 +4078,142 @@ export const CustomerDetails: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                    )}
 
-                    {leadAttachments.length === 0 ? (
-                      <div className="text-center py-8">
-                        <File className="w-10 h-10 text-gray-200 mx-auto mb-2" />
-                        <p className="text-gray-400 text-sm">
-                          No documents uploaded during the lead phase
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {leadAttachments.map((attachment) => {
-                          const isImage =
-                            attachment.fileType?.startsWith("image/");
-                          const isPdf =
-                            attachment.fileType === "application/pdf";
-                          const isViewLoading =
-                            attachmentLoading?.id === attachment.id &&
-                            attachmentLoading.action === "view";
-                          const isDownloadLoading =
-                            attachmentLoading?.id === attachment.id &&
-                            attachmentLoading.action === "download";
-                          const fileSizeKB = attachment.fileSize
-                            ? attachment.fileSize > 1024 * 1024
-                              ? `${(attachment.fileSize / (1024 * 1024)).toFixed(1)} MB`
-                              : `${(attachment.fileSize / 1024).toFixed(0)} KB`
-                            : null;
+                      {leadAttachments.length === 0 ? (
+                        <div className="text-center py-8">
+                          <File className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                          <p className="text-gray-400 text-sm">
+                            No documents uploaded during the lead phase
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {leadAttachments.map((attachment) => {
+                            const isImage =
+                              attachment.fileType?.startsWith("image/");
+                            const isPdf =
+                              attachment.fileType === "application/pdf";
+                            const isViewLoading =
+                              attachmentLoading?.id === attachment.id &&
+                              attachmentLoading.action === "view";
+                            const isDownloadLoading =
+                              attachmentLoading?.id === attachment.id &&
+                              attachmentLoading.action === "download";
+                            const fileSizeKB = attachment.fileSize
+                              ? attachment.fileSize > 1024 * 1024
+                                ? `${(attachment.fileSize / (1024 * 1024)).toFixed(1)} MB`
+                                : `${(attachment.fileSize / 1024).toFixed(0)} KB`
+                              : null;
 
-                          return (
-                            <div
-                              key={attachment.id}
-                              className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group"
-                            >
-                              {/* Icon */}
+                            return (
                               <div
-                                className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                  isImage
-                                    ? "bg-blue-100"
-                                    : isPdf
-                                      ? "bg-red-100"
-                                      : "bg-gray-200"
-                                }`}
+                                key={attachment.id}
+                                className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group"
                               >
-                                {isImage ? (
-                                  <Image className="w-5 h-5 text-blue-600" />
-                                ) : isPdf ? (
-                                  <FileText className="w-5 h-5 text-red-600" />
-                                ) : (
-                                  <File className="w-5 h-5 text-gray-600" />
-                                )}
-                              </div>
-
-                              {/* File info */}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-800 truncate">
-                                  {attachment.fileName}
-                                </p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs text-gray-400 capitalize">
-                                    {attachment.attachmentType
-                                      ?.replace(/_/g, " ")
-                                      .toLowerCase()}
-                                  </span>
-                                  {fileSizeKB && (
-                                    <>
-                                      <span className="text-gray-300">·</span>
-                                      <span className="text-xs text-gray-400">
-                                        {fileSizeKB}
-                                      </span>
-                                    </>
-                                  )}
-                                  {(attachment.uploadedAt ||
-                                    attachment.createdAt) && (
-                                    <>
-                                      <span className="text-gray-300">·</span>
-                                      <span className="text-xs text-gray-400">
-                                        {new Date(
-                                          attachment.uploadedAt ||
-                                            attachment.createdAt ||
-                                            "",
-                                        ).toLocaleDateString("en-IN", {
-                                          day: "2-digit",
-                                          month: "short",
-                                          year: "numeric",
-                                        })}
-                                      </span>
-                                    </>
+                                {/* Icon */}
+                                <div
+                                  className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                    isImage
+                                      ? "bg-blue-100"
+                                      : isPdf
+                                        ? "bg-red-100"
+                                        : "bg-gray-200"
+                                  }`}
+                                >
+                                  {isImage ? (
+                                    <Image className="w-5 h-5 text-blue-600" />
+                                  ) : isPdf ? (
+                                    <FileText className="w-5 h-5 text-red-600" />
+                                  ) : (
+                                    <File className="w-5 h-5 text-gray-600" />
                                   )}
                                 </div>
-                                {attachment.notes && (
-                                  <p className="text-xs text-gray-400 mt-0.5 truncate">
-                                    {attachment.notes}
-                                  </p>
-                                )}
-                              </div>
 
-                              {/* Actions */}
-                              <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() =>
-                                    handleAttachmentAction(attachment, "view")
-                                  }
-                                  disabled={!!attachmentLoading}
-                                  className="p-1.5 rounded-lg hover:bg-white text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
-                                  title="View"
-                                >
-                                  {isViewLoading ? (
-                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <ExternalLink className="w-4 h-4" />
+                                {/* File info */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-800 truncate">
+                                    {attachment.fileName}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-xs text-gray-400 capitalize">
+                                      {attachment.attachmentType
+                                        ?.replace(/_/g, " ")
+                                        .toLowerCase()}
+                                    </span>
+                                    {fileSizeKB && (
+                                      <>
+                                        <span className="text-gray-300">·</span>
+                                        <span className="text-xs text-gray-400">
+                                          {fileSizeKB}
+                                        </span>
+                                      </>
+                                    )}
+                                    {(attachment.uploadedAt ||
+                                      attachment.createdAt) && (
+                                      <>
+                                        <span className="text-gray-300">·</span>
+                                        <span className="text-xs text-gray-400">
+                                          {new Date(
+                                            attachment.uploadedAt ||
+                                              attachment.createdAt ||
+                                              "",
+                                          ).toLocaleDateString("en-IN", {
+                                            day: "2-digit",
+                                            month: "short",
+                                            year: "numeric",
+                                          })}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                  {attachment.notes && (
+                                    <p className="text-xs text-gray-400 mt-0.5 truncate">
+                                      {attachment.notes}
+                                    </p>
                                   )}
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleAttachmentAction(
-                                      attachment,
-                                      "download",
-                                    )
-                                  }
-                                  disabled={!!attachmentLoading}
-                                  className="p-1.5 rounded-lg hover:bg-white text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
-                                  title="Download"
-                                >
-                                  {isDownloadLoading ? (
-                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <Download className="w-4 h-4" />
-                                  )}
-                                </button>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() =>
+                                      handleAttachmentAction(attachment, "view")
+                                    }
+                                    disabled={!!attachmentLoading}
+                                    className="p-1.5 rounded-lg hover:bg-white text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                    title="View"
+                                  >
+                                    {isViewLoading ? (
+                                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <ExternalLink className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleAttachmentAction(
+                                        attachment,
+                                        "download",
+                                      )
+                                    }
+                                    disabled={!!attachmentLoading}
+                                    className="p-1.5 rounded-lg hover:bg-white text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                    title="Download"
+                                  >
+                                    {isDownloadLoading ? (
+                                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <Download className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
