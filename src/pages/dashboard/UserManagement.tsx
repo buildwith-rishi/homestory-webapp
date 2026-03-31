@@ -692,9 +692,13 @@ export const UserManagement: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {activeView === "roles" ? "Role Management" : "User Management"}
+          </h1>
           <p className="text-gray-600 mt-1">
-            Manage system users and permissions
+            {activeView === "roles"
+              ? "Manage user roles and their permissions"
+              : "Manage system users and permissions"}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1029,11 +1033,6 @@ export const UserManagement: React.FC = () => {
 
       {activeView === "roles" && (
         <Card className="p-5 border border-gray-100 space-y-5">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Role Management</h2>
-            <p className="text-sm text-gray-600 mt-1">Manage user roles and their permissions</p>
-          </div>
-
           {loadingRoles ? (
             <div className="p-10 text-center">
               <div className="animate-spin rounded-full h-10 w-10 border-2 border-gray-200 border-t-gray-900 mx-auto" />

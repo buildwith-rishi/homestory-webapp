@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { LazyLeadCard } from "./LeadCard";
@@ -1537,6 +1537,49 @@ export const LeadsPage: React.FC = () => {
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   const [isBulkDelete, setIsBulkDelete] = useState(false);
 
+  const bdrUsersById = useMemo(
+    () => new Map(bdrUsers.map((user) => [user.id, user])),
+    [bdrUsers],
+  );
+
+  const hydrateLeadAssignee = useCallback(
+    (lead: Lead): Lead => {
+      const assignedId = lead.assignedTo?.id || lead.assignedToId || null;
+      if (!assignedId) {
+        return {
+          ...lead,
+          assignedTo: null,
+          assignedToId: null,
+        };
+      }
+
+      if (lead.assignedTo?.name) {
+        return {
+          ...lead,
+          assignedToId: lead.assignedToId || assignedId,
+        };
+      }
+
+      const matchedUser = bdrUsersById.get(assignedId);
+      if (!matchedUser) {
+        return {
+          ...lead,
+          assignedToId: assignedId,
+        };
+      }
+
+      return {
+        ...lead,
+        assignedToId: assignedId,
+        assignedTo: {
+          id: matchedUser.id,
+          name: matchedUser.name,
+        },
+      };
+    },
+    [bdrUsersById],
+  );
+
   // Load kanban activity log
   useEffect(() => {
     setKanbanLog(getActivityLog());
@@ -1559,6 +1602,12 @@ export const LeadsPage: React.FC = () => {
     };
     fetchBDRs();
   }, []);
+
+  useEffect(() => {
+    if (bdrUsers.length === 0) return;
+    setLeads((prev) => prev.map(hydrateLeadAssignee));
+    setUnassignedLeads((prev) => prev.map(hydrateLeadAssignee));
+  }, [bdrUsers, hydrateLeadAssignee]);
 
   // Fetch initial data
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
@@ -1629,7 +1678,7 @@ export const LeadsPage: React.FC = () => {
 
       console.log("API Response:", { leadsData, sourcesData, statusesData });
 
-      setLeads(leadsData.leads || []);
+      setLeads((leadsData.leads || []).map(hydrateLeadAssignee));
       setSources(Array.isArray(sourcesData) ? sourcesData : []);
       setStatuses(Array.isArray(statusesData) ? statusesData : []);
     } catch (error) {
@@ -1879,7 +1928,7 @@ export const LeadsPage: React.FC = () => {
       const offset = loadMore ? (unassignedPage + 1) * limit : 0;
       try {
         const response = await LeadAPI.getUnassignedLeads({ limit, offset });
-        const newLeads = response.leads || [];
+        const newLeads = (response.leads || []).map(hydrateLeadAssignee);
         if (loadMore) {
           setUnassignedLeads((prev) => [...prev, ...newLeads]);
           setUnassignedPage((p) => p + 1);
@@ -1915,21 +1964,80 @@ export const LeadsPage: React.FC = () => {
   const handleAssignBDR = async (leadId: string, userId: string | null) => {
     setIsAssigning(true);
     try {
+      const chosenUser = userId ? bdrUsersById.get(userId) : null;
       if (userId) {
-        await LeadAPI.assignLead(leadId, { assigneeUserId: userId });
-        const user = bdrUsers.find((u) => u.id === userId);
-        toast.success(`Lead assigned to ${user?.name || "user"}`);
+        const response = await LeadAPI.assignLead(leadId, {
+          assigneeUserId: userId,
+        });
+
+        const nextLead = response.lead
+          ? hydrateLeadAssignee(response.lead)
+          : null;
+
+        setLeads((prev) =>
+          prev.map((lead) =>
+            lead.id === leadId
+              ? {
+                  ...lead,
+                  ...(nextLead || {}),
+                  assignedToId: nextLead?.assignedToId || userId,
+                  assignedTo: nextLead?.assignedTo ||
+                    (chosenUser
+                      ? { id: chosenUser.id, name: chosenUser.name }
+                      : lead.assignedTo),
+                }
+              : lead,
+          ),
+        );
+
+        setSelectedLead((prev) => {
+          if (!prev || prev.id !== leadId) return prev;
+          return {
+            ...prev,
+            ...(nextLead || {}),
+            assignedToId: nextLead?.assignedToId || userId,
+            assignedTo: nextLead?.assignedTo ||
+              (chosenUser
+                ? { id: chosenUser.id, name: chosenUser.name }
+                : prev.assignedTo),
+          };
+        });
+
+        toast.success(`Lead assigned to ${chosenUser?.name || "user"}`);
       } else {
         // Unassign - assign to empty
         await LeadAPI.assignLead(leadId, { assigneeUserId: "" });
+
+        setLeads((prev) =>
+          prev.map((lead) =>
+            lead.id === leadId
+              ? {
+                  ...lead,
+                  assignedToId: null,
+                  assignedTo: null,
+                }
+              : lead,
+          ),
+        );
+
+        setSelectedLead((prev) => {
+          if (!prev || prev.id !== leadId) return prev;
+          return {
+            ...prev,
+            assignedToId: null,
+            assignedTo: null,
+          };
+        });
+
         toast.success("Lead unassigned");
       }
       setBdrDropdownOpen(null);
       setBdrDropdownPos(null);
-      fetchData();
-      if (selectedStage === "__unassigned__") fetchUnassignedLeads();
-      // Sync Zustand store so KanbanView stays in sync
-      useLeadStore.getState().fetchLeads();
+      if (selectedStage === "__unassigned__") {
+        setUnassignedLeads((prev) =>
+          prev.filter((lead) => lead.id !== leadId),
+        );
+      }
     } catch (error) {
       const msg =
         error instanceof Error ? error.message : "Failed to assign lead";
@@ -1952,16 +2060,31 @@ export const LeadsPage: React.FC = () => {
     setIsAssigning(true);
     try {
       await LeadAPI.bulkAssignLeads({ leadIds, assigneeUserId: userId });
+
+      setLeads((prev) =>
+        prev.map((lead) =>
+          lead.id && selectedLeadIds.has(lead.id)
+            ? {
+                ...lead,
+                assignedToId: userId,
+                assignedTo: user
+                  ? { id: user.id, name: user.name }
+                  : lead.assignedTo,
+              }
+            : lead,
+        ),
+      );
+
+      setUnassignedLeads((prev) =>
+        prev.filter((lead) => !lead.id || !selectedLeadIds.has(lead.id)),
+      );
+
       toast.success(
         `${leadIds.length} lead(s) assigned to ${user?.name || "user"}`,
       );
       setSelectedLeadIds(new Set());
       setBulkBdrDropdownOpen(false);
       setBulkBdrDropdownPos(null);
-      fetchData();
-      if (selectedStage === "__unassigned__") fetchUnassignedLeads();
-      // Sync Zustand store so KanbanView stays in sync
-      useLeadStore.getState().fetchLeads();
     } catch (error) {
       const msg =
         error instanceof Error ? error.message : "Failed to bulk assign leads";
@@ -2998,7 +3121,8 @@ const handleBulkDelete = () => {
             const activeLead = displayLeads.find(
               (l) => l.id === bdrDropdownOpen,
             );
-            const currentBdrId = activeLead?.assignedTo?.id ?? null;
+            const currentBdrId =
+              activeLead?.assignedTo?.id ?? activeLead?.assignedToId ?? null;
             const filteredBdrUsers = bdrSearch.trim()
               ? bdrUsers.filter((u) =>
                   u.name.toLowerCase().includes(bdrSearch.toLowerCase()),

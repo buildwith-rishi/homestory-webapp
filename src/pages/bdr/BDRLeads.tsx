@@ -9,6 +9,7 @@ import {
   ChevronRight,
   AlertCircle,
   Plus,
+  Pencil,
   X,
   ArrowRight,
   Check,
@@ -438,6 +439,18 @@ export function BDRLeads() {
                               lead.priority.slice(1).toLowerCase()}
                           </span>
                         )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(lead);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-700"
+                          aria-label={`Edit ${lead.name || "lead"}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Edit
+                        </button>
                       </div>
                     </div>
 

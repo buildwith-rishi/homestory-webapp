@@ -300,6 +300,13 @@ export function BDRTasks() {
 
   const handleSaveStatus = async () => {
     if (!selectedTask) return;
+    const needsCompletionPhoto =
+      editStatus === "COMPLETED" && !workPhoto && !selectedTask.completionPhoto;
+    if (needsCompletionPhoto) {
+      toast.error("Please add a completion photo before saving.");
+      return;
+    }
+
     setIsSavingStatus(true);
     try {
       let updated: BDRTask;
@@ -341,45 +348,6 @@ export function BDRTasks() {
     toast.success("Photo captured!");
     // Reset input so same file can be re-selected
     e.target.value = "";
-  };
-
-  const handleToggleTask = async (taskId: string, shouldComplete: boolean) => {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-
-    const optimisticStatus: BDRTask["status"] = shouldComplete
-      ? "COMPLETED"
-      : "TODO";
-    // optimistic UI update
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? { ...t, completed: shouldComplete, status: optimisticStatus }
-          : t,
-      ),
-    );
-    try {
-      let updated: BDRTask;
-      if (task.taskType === "Project Task") {
-        const res = await updateSiteEngineerTaskStatus(taskId, {
-          status: shouldComplete ? "COMPLETED" : "TODO",
-        });
-        updated = mapMatrixTask(res);
-      } else {
-        const res = await updateBDRTask(taskId, {
-          status: toAPIStatus(optimisticStatus),
-        });
-        updated = mapAPITask(res);
-      }
-
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? updated : t)),
-      );
-      toast.success(shouldComplete ? "Task completed!" : "Task reopened");
-    } catch (err) {
-      await loadTasks(); // revert to server state
-      toast.error(err instanceof Error ? err.message : "Failed to update task");
-    }
   };
 
   // ── Add Task handlers ──
@@ -712,17 +680,6 @@ export function BDRTasks() {
                     className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${PRIORITY_BORDER[task.priority] ?? "border-l-gray-200"} p-4 shadow-sm hover:shadow-md active:scale-[0.99] transition-all cursor-pointer`}
                   >
                     <div className="flex items-start gap-3">
-                      {/* Checkbox */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleTask(task.id, !task.completed);
-                        }}
-                        className="mt-0.5 flex-shrink-0 active:scale-90 transition-transform"
-                      >
-                        <div className="w-6 h-6 rounded-lg border-2 border-gray-200 hover:border-orange-400 hover:bg-orange-50 flex items-center justify-center transition-all" />
-                      </button>
-
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 leading-snug">
@@ -794,17 +751,6 @@ export function BDRTasks() {
                     className="bg-white rounded-2xl border border-gray-100 border-l-4 border-l-emerald-300 p-4 opacity-60 hover:opacity-100 transition-all cursor-pointer"
                   >
                     <div className="flex items-start gap-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleTask(task.id, false);
-                        }}
-                        className="mt-0.5 flex-shrink-0 active:scale-90 transition-transform"
-                      >
-                        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 border-2 border-emerald-500 flex items-center justify-center shadow-sm">
-                          <Check className="w-3.5 h-3.5 text-white" />
-                        </div>
-                      </button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-400 line-through leading-snug">
                           {task.title}
@@ -1022,7 +968,12 @@ export function BDRTasks() {
                   </button>
                   <button
                     onClick={handleSaveStatus}
-                    disabled={isSavingStatus}
+                    disabled={
+                      isSavingStatus ||
+                      (editStatus === "COMPLETED" &&
+                        !workPhoto &&
+                        !selectedTask.completionPhoto)
+                    }
                     className="flex-1 py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-60 shadow-md shadow-orange-200"
                   >
                     {isSavingStatus ? (
