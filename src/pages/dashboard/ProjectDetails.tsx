@@ -333,6 +333,7 @@ export const ProjectDetails: React.FC = () => {
     error,
     pauseStatus,
     fetchProjectById,
+    fetchProjects,
     fetchProjectStages,
     fetchProjectPayments,
     updateProjectPayment,
@@ -1749,7 +1750,7 @@ export const ProjectDetails: React.FC = () => {
 
       toast.success("Project updated successfully!");
       setShowEditModal(false);
-      fetchProjectById(projectId);
+      await Promise.all([fetchProjectById(projectId), fetchProjects()]);
     } catch {
       toast.error("Failed to update project");
     } finally {

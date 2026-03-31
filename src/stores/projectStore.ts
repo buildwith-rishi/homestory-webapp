@@ -532,6 +532,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const errorMessage =
         error instanceof Error ? error.message : "Failed to update project";
       set({ isLoading: false, error: errorMessage });
+      throw error;
     }
   },
 
