@@ -72,10 +72,6 @@ import {
   createActivity,
 } from "../../services/activitiesApi";
 import {
-  getAllTeamMembers,
-  TeamMember,
-} from "../../services/teamApi";
-import {
   getAttachment,
   listAttachments,
   uploadAttachment,
@@ -123,6 +119,77 @@ interface CcUserOption {
   name: string;
   email: string;
 }
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  isActive: boolean;
+  isBanned: boolean;
+}
+
+const normalizeProjectAssignableUsers = (response: unknown): TeamMember[] => {
+  let usersList: Array<Record<string, unknown>> = [];
+
+  if (Array.isArray(response)) {
+    usersList = response as Array<Record<string, unknown>>;
+  } else if (response && typeof response === "object") {
+    const responseObj = response as Record<string, unknown>;
+    if (Array.isArray(responseObj.users)) {
+      usersList = responseObj.users as Array<Record<string, unknown>>;
+    } else if (
+      responseObj.data &&
+      typeof responseObj.data === "object" &&
+      Array.isArray((responseObj.data as Record<string, unknown>).users)
+    ) {
+      usersList = (responseObj.data as Record<string, unknown>)
+        .users as Array<Record<string, unknown>>;
+    } else if (Array.isArray(responseObj.data)) {
+      usersList = responseObj.data as Array<Record<string, unknown>>;
+    }
+  }
+
+  const usersById = new Map<string, TeamMember>();
+
+  usersList.forEach((user) => {
+    const id = String(user.id || "").trim();
+    const name = String(user.name || "").trim();
+    if (!id || !name) return;
+
+    const isActive = user.isActive !== false;
+    const isBanned = user.isBanned === true;
+    if (!isActive || isBanned) return;
+
+    const roleFromApi =
+      user.role ||
+      (user.credential as { roleKey?: string; name?: string } | undefined)
+        ?.roleKey ||
+      (user.credential as { roleKey?: string; name?: string } | undefined)
+        ?.name ||
+      "";
+
+    const roleTitleFromApi =
+      (user.roleTitle as string | undefined) ||
+      (user.userRoleTitle as string | undefined) ||
+      (user.title as string | undefined);
+
+    usersById.set(id, {
+      id,
+      name,
+      email: String(user.email || "").trim(),
+      phone: String(user.phone || user.phoneNumber || "").trim(),
+      role: String(roleTitleFromApi || roleFromApi).trim() || "Other",
+      isActive,
+      isBanned,
+    });
+  });
+
+  return Array.from(usersById.values()).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+};
 
 const normalizeCcUserOptions = (response: unknown): CcUserOption[] => {
   let usersList: Array<Record<string, unknown>> = [];
@@ -560,6 +627,9 @@ export const ProjectDetails: React.FC = () => {
   });
   const [showWorkAttachmentsModal, setShowWorkAttachmentsModal] =
     useState(false);
+  const [removingTeamMemberKey, setRemovingTeamMemberKey] = useState<
+    string | null
+  >(null);
 
   // Edit project modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -610,6 +680,13 @@ export const ProjectDetails: React.FC = () => {
   });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [teamMembersList, setTeamMembersList] = useState<TeamMember[]>([]);
+
+  const loadAssignableUsers = async (): Promise<TeamMember[]> => {
+    const response = await adminAPI.getAllUsers();
+    const normalizedUsers = normalizeProjectAssignableUsers(response);
+    setTeamMembersList(normalizedUsers);
+    return normalizedUsers;
+  };
 
   const uniqueRoles = useMemo(() => {
     const roles = new Set<string>();
@@ -688,9 +765,9 @@ export const ProjectDetails: React.FC = () => {
 
   useEffect(() => {
     if (showEditModal) {
-      getAllTeamMembers()
-        .then((data) => setTeamMembersList(data))
-        .catch((err) => console.error("Failed to load team members", err));
+      loadAssignableUsers().catch((err) =>
+        console.error("Failed to load users for team assignment", err),
+      );
     }
   }, [showEditModal]);
 
@@ -1490,6 +1567,11 @@ export const ProjectDetails: React.FC = () => {
   const handleOpenEdit = () => {
     if (!enforceProjectEditAccess()) return;
     if (!currentProject) return;
+    const initialDesignTeam = (currentProject.designTeam || []).filter(Boolean);
+    const initialExecutionTeam = (currentProject.executionTeam || []).filter(
+      Boolean,
+    );
+
     setDesignTeamRoleFilter("");
     setExecutionTeamRoleFilter("");
     setDesignTeamSearchQuery("");
@@ -1522,10 +1604,14 @@ export const ProjectDetails: React.FC = () => {
             .split("T")[0]
         : "",
       specialRequirements: currentProject.specialRequirements || "",
-      designTeam: (currentProject.designTeam || []).join(", "),
-      executionTeam: (currentProject.executionTeam || []).join(", "),
-      assignedDesignerId: currentProject.assignedDesignerId || "",
-      assignedPMId: currentProject.assignedPMId || "",
+      designTeam: initialDesignTeam.join(", "),
+      executionTeam: initialExecutionTeam.join(", "),
+      assignedDesignerId:
+        currentProject.assignedDesignerId ||
+        (currentProject as any).assignedDesigner?.id ||
+        "",
+      assignedPMId:
+        currentProject.assignedPMId || (currentProject as any).assignedPM?.id || "",
       designPackage: currentProject.designPackage || "",
       design3DStatus: currentProject.design3DStatus || "",
       moodBoardShared: currentProject.moodBoardShared || false,
@@ -1567,6 +1653,40 @@ export const ProjectDetails: React.FC = () => {
         editForm.designValue,
         editForm.executionValue,
       );
+      const nextDesignTeam = parseTeamMembers(editForm.designTeam);
+      const nextExecutionTeam = parseTeamMembers(editForm.executionTeam);
+      const teamMemberByName = new Map(
+        teamMembersList.map((member) => [member.name, member]),
+      );
+      const currentAssignedDesignerName =
+        teamMembersList.find((member) => member.id === editForm.assignedDesignerId)
+          ?.name || null;
+      const currentAssignedExecutionName =
+        teamMembersList.find((member) => member.id === editForm.assignedPMId)
+          ?.name || null;
+
+      const nextAssignedDesignerId =
+        nextDesignTeam.length === 0
+          ? null
+          : editForm.assignedDesignerId &&
+              currentAssignedDesignerName &&
+              nextDesignTeam.includes(currentAssignedDesignerName)
+            ? editForm.assignedDesignerId
+            : teamMemberByName.get(nextDesignTeam[0])?.id ||
+              editForm.assignedDesignerId ||
+              null;
+
+      const nextAssignedPMId =
+        nextExecutionTeam.length === 0
+          ? null
+          : editForm.assignedPMId &&
+              currentAssignedExecutionName &&
+              nextExecutionTeam.includes(currentAssignedExecutionName)
+            ? editForm.assignedPMId
+            : teamMemberByName.get(nextExecutionTeam[0])?.id ||
+              editForm.assignedPMId ||
+              null;
+
       const updates: UpdateProjectRequest = {};
       if (editForm.projectName) updates.projectName = editForm.projectName;
       if (editForm.leadId) updates.leadId = editForm.leadId;
@@ -1604,20 +1724,10 @@ export const ProjectDetails: React.FC = () => {
         ).toISOString();
       if (editForm.specialRequirements)
         updates.specialRequirements = editForm.specialRequirements;
-      if (editForm.designTeam.trim())
-        updates.designTeam = editForm.designTeam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      if (editForm.executionTeam.trim())
-        updates.executionTeam = editForm.executionTeam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      if (editForm.assignedDesignerId !== undefined)
-        updates.assignedDesignerId = editForm.assignedDesignerId || null;
-      if (editForm.assignedPMId !== undefined)
-        updates.assignedPMId = editForm.assignedPMId || null;
+      updates.designTeam = nextDesignTeam;
+      updates.executionTeam = nextExecutionTeam;
+      updates.assignedDesignerId = nextAssignedDesignerId;
+      updates.assignedPMId = nextAssignedPMId;
       if (editForm.designPackage)
         updates.designPackage = editForm.designPackage;
       if (editForm.design3DStatus)
@@ -1642,7 +1752,8 @@ export const ProjectDetails: React.FC = () => {
       if (editForm.remarks) updates.remarks = editForm.remarks;
       if (editForm.status) updates.status = editForm.status as any;
 
-      await updateProject(projectId, updates);
+      const updatedProject = await updateProject(projectId, updates);
+      setCurrentProject(updatedProject);
 
       // Optimistically merge values into currentProject for immediate UI update
       if (currentProject) {
@@ -1696,21 +1807,10 @@ export const ProjectDetails: React.FC = () => {
           ...(editForm.specialRequirements && {
             specialRequirements: editForm.specialRequirements,
           }),
-          ...(editForm.designTeam.trim() && {
-            designTeam: editForm.designTeam
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean),
-          }),
-          ...(editForm.executionTeam.trim() && {
-            executionTeam: editForm.executionTeam
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean),
-          }),
-          assignedDesignerId:
-            editForm.assignedDesignerId || currentProject.assignedDesignerId,
-          assignedPMId: editForm.assignedPMId || currentProject.assignedPMId,
+          designTeam: nextDesignTeam,
+          executionTeam: nextExecutionTeam,
+          assignedDesignerId: nextAssignedDesignerId,
+          assignedPMId: nextAssignedPMId,
           ...(editForm.designPackage && {
             designPackage: editForm.designPackage,
           }),
@@ -1750,11 +1850,86 @@ export const ProjectDetails: React.FC = () => {
 
       toast.success("Project updated successfully!");
       setShowEditModal(false);
-      await Promise.all([fetchProjectById(projectId), fetchProjects()]);
+      await fetchProjects();
     } catch {
       toast.error("Failed to update project");
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  const handleRemoveAssignedTeamMember = async (
+    teamType: "design" | "execution",
+    memberName: string,
+  ) => {
+    if (!enforceProjectEditAccess()) return;
+    if (!projectId || !currentProject) return;
+
+    const memberKey = `${teamType}:${memberName}`;
+    setRemovingTeamMemberKey(memberKey);
+
+    try {
+      let members = teamMembersList;
+      if (!members.length) {
+        members = await loadAssignableUsers();
+      }
+
+      const nextDesignTeam =
+        teamType === "design"
+          ? (currentProject.designTeam || [])
+              .filter(Boolean)
+              .filter((name) => name !== memberName)
+          : (currentProject.designTeam || []).filter(Boolean);
+
+      const nextExecutionTeam =
+        teamType === "execution"
+          ? (currentProject.executionTeam || [])
+              .filter(Boolean)
+              .filter((name) => name !== memberName)
+          : (currentProject.executionTeam || []).filter(Boolean);
+
+      const byName = new Map(members.map((member) => [member.name, member.id]));
+
+      const currentAssignedDesignerId =
+        currentProject.assignedDesignerId ||
+        (currentProject as any).assignedDesigner?.id ||
+        null;
+      const currentAssignedPMId =
+        currentProject.assignedPMId || (currentProject as any).assignedPM?.id || null;
+      const currentAssignedDesignerName =
+        (currentProject as any).assignedDesigner?.name || null;
+      const currentAssignedPMName = (currentProject as any).assignedPM?.name || null;
+
+      const nextAssignedDesignerId =
+        nextDesignTeam.length === 0
+          ? null
+          : currentAssignedDesignerName &&
+              nextDesignTeam.includes(currentAssignedDesignerName)
+            ? currentAssignedDesignerId
+            : byName.get(nextDesignTeam[0]) || null;
+
+      const nextAssignedPMId =
+        nextExecutionTeam.length === 0
+          ? null
+          : currentAssignedPMName && nextExecutionTeam.includes(currentAssignedPMName)
+            ? currentAssignedPMId
+            : byName.get(nextExecutionTeam[0]) || null;
+
+      const updates: UpdateProjectRequest = {
+        designTeam: nextDesignTeam,
+        executionTeam: nextExecutionTeam,
+        assignedDesignerId: nextAssignedDesignerId,
+        assignedPMId: nextAssignedPMId,
+      };
+
+      const updatedProject = await updateProject(projectId, updates);
+      setCurrentProject(updatedProject);
+      await fetchProjects();
+      toast.success(`${memberName} removed from ${teamType} team`);
+    } catch {
+      toast.error("Failed to remove team member");
+    } finally {
+      setRemovingTeamMemberKey(null);
     }
   };
 
@@ -2132,6 +2307,10 @@ export const ProjectDetails: React.FC = () => {
   const projectName = project.projectName || project.name || "Untitled Project";
   const statusDisplay = getStatusDisplay(project);
   const paymentTotals = calculatePaymentTotals();
+  const visibleDesignTeamMembers = (project.designTeam || []).filter(Boolean);
+  const visibleExecutionTeamMembers = (project.executionTeam || []).filter(
+    Boolean,
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50/40 via-white to-orange-50/20">
@@ -2526,31 +2705,40 @@ export const ProjectDetails: React.FC = () => {
                   Assigned Teams
                 </h2>
                 <div className="space-y-3">
-                  {(project.designTeam || [])
-                    .filter(Boolean)
-                    .map((member, idx) => (
+                  {visibleDesignTeamMembers.map((member, idx) => (
                       <TeamMemberItem
                         key={`design-${idx}`}
                         name={member}
                         role="Design Team"
                         badge="Design"
+                        onRemove={
+                          canEditProject
+                            ? () => handleRemoveAssignedTeamMember("design", member)
+                            : undefined
+                        }
+                        isRemoving={removingTeamMemberKey === `design:${member}`}
                       />
                     ))}
 
                   {/* Execution Team members (string array) */}
-                  {(project.executionTeam || [])
-                    .filter(Boolean)
-                    .map((member, idx) => (
+                  {visibleExecutionTeamMembers.map((member, idx) => (
                       <TeamMemberItem
                         key={`exec-${idx}`}
                         name={member}
                         role="Execution Team"
                         badge="Execution"
+                        onRemove={
+                          canEditProject
+                            ? () =>
+                                handleRemoveAssignedTeamMember("execution", member)
+                            : undefined
+                        }
+                        isRemoving={removingTeamMemberKey === `execution:${member}`}
                       />
                     ))}
 
-                  {!(project.designTeam || []).filter(Boolean).length &&
-                    !(project.executionTeam || []).filter(Boolean).length && (
+                  {!visibleDesignTeamMembers.length &&
+                    !visibleExecutionTeamMembers.length && (
                       <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-xl">
                         <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                         <p className="text-sm text-gray-500">
@@ -5946,7 +6134,9 @@ const TeamMemberItem: React.FC<{
   email?: string;
   phone?: string;
   badge?: string;
-}> = ({ name, role, email, phone, badge }) => (
+  onRemove?: () => void;
+  isRemoving?: boolean;
+}> = ({ name, role, email, phone, badge, onRemove, isRemoving = false }) => (
   <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-gray-50 via-white to-orange-50/20 rounded-xl border border-gray-100">
     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold shadow-md flex-shrink-0">
       {name
@@ -5976,14 +6166,31 @@ const TeamMemberItem: React.FC<{
         </a>
       )}
     </div>
-    {email && (
-      <a
-        href={`mailto:${email}`}
-        className="w-10 h-10 rounded-lg bg-white border border-orange-200 flex items-center justify-center text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all flex-shrink-0"
-        title={email}
-      >
-        <Mail className="w-4 h-4" />
-      </a>
-    )}
+    <div className="flex items-center gap-2 flex-shrink-0">
+      {email && (
+        <a
+          href={`mailto:${email}`}
+          className="w-10 h-10 rounded-lg bg-white border border-orange-200 flex items-center justify-center text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all"
+          title={email}
+        >
+          <Mail className="w-4 h-4" />
+        </a>
+      )}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={isRemoving}
+          className="w-10 h-10 rounded-lg bg-white border border-red-200 flex items-center justify-center text-red-600 hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          title="Remove team member"
+        >
+          {isRemoving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <X className="w-4 h-4" />
+          )}
+        </button>
+      )}
+    </div>
   </div>
 );

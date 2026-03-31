@@ -75,7 +75,7 @@ interface ProjectState {
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
   addProject: (project: CreateProjectRequest) => Promise<Project>;
-  updateProject: (id: string, updates: UpdateProjectRequest) => Promise<void>;
+  updateProject: (id: string, updates: UpdateProjectRequest) => Promise<Project>;
   setFilters: (filters: ProjectFilters) => void;
   clearError: () => void;
   mergePaymentUpdate: (payment: ProjectPayment) => void;
@@ -528,6 +528,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             : state.currentProject,
         isLoading: false,
       }));
+      return updatedProject;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to update project";
