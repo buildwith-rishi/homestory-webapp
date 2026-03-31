@@ -259,6 +259,8 @@ const AddCustomerModal: React.FC<{
     type: defaultCustomerType as string,
     email: "",
     phone: "",
+    secondaryEmail: "",
+    secondaryPhone: "",
     companyName: "",
     propertyType: "",
     projectType: "",
@@ -300,6 +302,20 @@ const AddCustomerModal: React.FC<{
       newErrors.phone = "Phone is required";
     } else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone)) {
       newErrors.phone = "Invalid phone format";
+    }
+
+    if (
+      formData.secondaryEmail.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.secondaryEmail)
+    ) {
+      newErrors.secondaryEmail = "Invalid secondary email format";
+    }
+
+    if (
+      formData.secondaryPhone.trim() &&
+      !/^\+?[\d\s-]{10,}$/.test(formData.secondaryPhone)
+    ) {
+      newErrors.secondaryPhone = "Invalid secondary phone format";
     }
 
     if (!formData.propertyType) newErrors.propertyType = "Property type is required";
@@ -381,6 +397,12 @@ const AddCustomerModal: React.FC<{
         type: formData.type,
         email: formData.email.trim() || undefined,
         phone: formData.phone.trim() || undefined,
+        secondaryEmails: formData.secondaryEmail.trim()
+          ? [formData.secondaryEmail.trim()]
+          : [],
+        secondaryPhones: formData.secondaryPhone.trim()
+          ? [formData.secondaryPhone.trim()]
+          : [],
         uiIntake: {
           companyName: formData.companyName.trim() || undefined,
           propertyType: formData.propertyType || undefined,
@@ -405,6 +427,8 @@ const AddCustomerModal: React.FC<{
         type: defaultCustomerType,
         email: "",
         phone: "",
+        secondaryEmail: "",
+        secondaryPhone: "",
         companyName: "",
         propertyType: "",
         projectType: "",
@@ -449,6 +473,8 @@ const AddCustomerModal: React.FC<{
         type: defaultCustomerType,
         email: "",
         phone: "",
+        secondaryEmail: "",
+        secondaryPhone: "",
         companyName: "",
         propertyType: "",
         projectType: "",
@@ -638,6 +664,60 @@ const AddCustomerModal: React.FC<{
             <p className="text-xs text-gray-500">
               Used to check for duplicate customers
             </p>
+          </div>
+
+          {/* Secondary Email */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              Secondary Email <span className="text-xs text-gray-500">(Optional)</span>
+            </label>
+            <input
+              type="email"
+              value={formData.secondaryEmail}
+              onChange={(e) =>
+                setFormData({ ...formData, secondaryEmail: e.target.value })
+              }
+              placeholder="alternate@example.com"
+              disabled={isCreating}
+              className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.secondaryEmail
+                  ? "border-red-300 bg-red-50/50 focus:border-red-400"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}
+            />
+            {errors.secondaryEmail && (
+              <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{errors.secondaryEmail}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Secondary Phone */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              Secondary Phone <span className="text-xs text-gray-500">(Optional)</span>
+            </label>
+            <input
+              type="tel"
+              value={formData.secondaryPhone}
+              onChange={(e) =>
+                setFormData({ ...formData, secondaryPhone: e.target.value })
+              }
+              placeholder="+91 90000 00000"
+              disabled={isCreating}
+              className={`w-full px-4 py-3.5 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.secondaryPhone
+                  ? "border-red-300 bg-red-50/50 focus:border-red-400"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}
+            />
+            {errors.secondaryPhone && (
+              <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{errors.secondaryPhone}</span>
+              </div>
+            )}
           </div>
 
           {/* Intake fields */}
@@ -1160,6 +1240,28 @@ const ViewCustomerModal: React.FC<{
                   <p className="text-gray-900 font-medium">{customer.phone}</p>
                 </div>
               </div>
+              {(customer.secondaryEmails || []).map((secondaryEmail, index) => (
+                <div className="flex items-start gap-3" key={`secondary-email-${index}`}>
+                  <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Secondary Email {index + 1}
+                    </p>
+                    <p className="text-gray-900 font-medium">{secondaryEmail}</p>
+                  </div>
+                </div>
+              ))}
+              {(customer.secondaryPhones || []).map((secondaryPhone, index) => (
+                <div className="flex items-start gap-3" key={`secondary-phone-${index}`}>
+                  <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Secondary Phone {index + 1}
+                    </p>
+                    <p className="text-gray-900 font-medium">{secondaryPhone}</p>
+                  </div>
+                </div>
+              ))}
               {customer.alternatePhone && (
                 <div className="flex items-start gap-3">
                   <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
@@ -2596,10 +2698,27 @@ export const Customers: React.FC = () => {
 
   // Ref for debounce timer
   const searchDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const inFlightCustomersRequestRef = React.useRef<Promise<void> | null>(null);
+  const inFlightCustomersRequestKeyRef = React.useRef<string | null>(null);
+  const contactsCacheRef = React.useRef<{
+    loaded: boolean;
+    byLeadId: Map<string, Contact[]>;
+    byAccountId: Map<string, Contact[]>;
+  }>({
+    loaded: false,
+    byLeadId: new Map(),
+    byAccountId: new Map(),
+  });
+  const projectsAggCacheRef = React.useRef<{
+    loaded: boolean;
+    byAccountId: Map<string, { projectCount: number; totalValue: number }>;
+  }>({
+    loaded: false,
+    byAccountId: new Map(),
+  });
 
-  // Fetch customers and customer types from API on mount
+  // Fetch customer types once on mount.
   useEffect(() => {
-    fetchCustomers();
     fetchCustomerTypes();
   }, []);
 
@@ -2617,111 +2736,136 @@ export const Customers: React.FC = () => {
     }
   };
 
-  const fetchCustomers = async (searchTerm?: string) => {
-    const isInitialLoad = searchTerm === undefined;
+  const fetchCustomers = useCallback(async (searchTerm?: string) => {
+    const normalizedSearch = searchTerm?.trim() || "";
+    const requestKey = normalizedSearch.toLowerCase() || "__all__";
 
-    if (isInitialLoad) {
-      setLoading(true);
-    } else {
-      setIsSearching(true);
+    if (
+      inFlightCustomersRequestRef.current &&
+      inFlightCustomersRequestKeyRef.current === requestKey
+    ) {
+      await inFlightCustomersRequestRef.current;
+      return;
     }
 
-    try {
-      const params = searchTerm
-        ? { search: searchTerm, includeContacts: true, limit: 1000 }
-        : { includeContacts: true, limit: 1000 };
-      const response = await CustomerAPI.listCustomers(params);
+    const isInitialLoad = normalizedSearch.length === 0;
 
-      // Fetch all contacts with a high limit to cover all customers,
-      // then map them by leadId -> customer via convertedFromLeadId
-      let contactsByLeadId: Map<string, any[]> = new Map();
-      let contactsByAccountId: Map<string, any[]> = new Map();
-      const projectAggByAccountId = new Map<
-        string,
-        { projectCount: number; totalValue: number }
-      >();
+    const loadPromise = (async () => {
+      if (isInitialLoad) {
+        setLoading(true);
+      } else {
+        setIsSearching(true);
+      }
 
       try {
-        const contactsData = await ContactAPI.listContacts({ limit: 1000 });
-        const allContacts = contactsData.contacts || [];
-        console.log(
-          `All contacts fetched: ${allContacts.length} (total in DB: ${contactsData.total})`,
-          allContacts,
+        const params = normalizedSearch
+          ? { search: normalizedSearch, includeContacts: true, limit: 1000 }
+          : { includeContacts: true, limit: 1000 };
+        const response = await CustomerAPI.listCustomers(params);
+
+        // Load support datasets only once per page session.
+        if (!contactsCacheRef.current.loaded) {
+          try {
+            const contactsData = await ContactAPI.listContacts({ limit: 1000 });
+            const allContacts = contactsData.contacts || [];
+            const byLeadId = new Map<string, Contact[]>();
+            const byAccountId = new Map<string, Contact[]>();
+
+            allContacts.forEach((contact) => {
+              const contactWithKeys = contact as Contact & {
+                leadId?: string;
+                accountId?: string;
+              };
+
+              if (contactWithKeys.leadId) {
+                const existing = byLeadId.get(contactWithKeys.leadId) || [];
+                existing.push(contact);
+                byLeadId.set(contactWithKeys.leadId, existing);
+              }
+
+              if (contactWithKeys.accountId) {
+                const existing = byAccountId.get(contactWithKeys.accountId) || [];
+                existing.push(contact);
+                byAccountId.set(contactWithKeys.accountId, existing);
+              }
+            });
+
+            contactsCacheRef.current = {
+              loaded: true,
+              byLeadId,
+              byAccountId,
+            };
+          } catch (err) {
+            console.warn("Could not fetch contacts separately:", err);
+          }
+        }
+
+        if (!projectsAggCacheRef.current.loaded) {
+          try {
+            const projectsResponse = await listProjects({ limit: 5000 });
+            const byAccountId = new Map<
+              string,
+              { projectCount: number; totalValue: number }
+            >();
+
+            (projectsResponse.projects || []).forEach((project) => {
+              const accountId = project.accountId || project.account?.id;
+              if (!accountId) return;
+
+              const existing = byAccountId.get(accountId) || {
+                projectCount: 0,
+                totalValue: 0,
+              };
+
+              existing.projectCount += 1;
+              existing.totalValue += toCurrencyNumber(project.totalValue);
+
+              byAccountId.set(accountId, existing);
+            });
+
+            projectsAggCacheRef.current = {
+              loaded: true,
+              byAccountId,
+            };
+          } catch (err) {
+            console.warn("Could not fetch project totals separately:", err);
+          }
+        }
+
+        const contactsByLeadId = contactsCacheRef.current.byLeadId;
+        const contactsByAccountId = contactsCacheRef.current.byAccountId;
+        const projectAggByAccountId = projectsAggCacheRef.current.byAccountId;
+
+        // Map API customers to UI Customer format
+        const activeCustomersOnly = (response.customers || []).filter(
+          (apiCustomer: APICustomer & {
+            isActive?: boolean;
+            isDeleted?: boolean;
+            deletedAt?: string | null;
+          }) => {
+            const status = (apiCustomer.status || "").toLowerCase();
+            // Deactivated / soft-deleted customers should not be shown in the dashboard list.
+            if (apiCustomer.isActive === false) return false;
+            if (apiCustomer.isDeleted === true) return false;
+            if (apiCustomer.deletedAt) return false;
+            if (
+              status === "inactive" ||
+              status === "deactivated" ||
+              status === "deleted"
+            )
+              return false;
+            return true;
+          },
         );
 
-        allContacts.forEach((contact: any) => {
-          // Index by leadId
-          if (contact.leadId) {
-            if (!contactsByLeadId.has(contact.leadId)) {
-              contactsByLeadId.set(contact.leadId, []);
-            }
-            contactsByLeadId.get(contact.leadId)!.push(contact);
-          }
-          // Index by accountId as fallback
-          if (contact.accountId) {
-            if (!contactsByAccountId.has(contact.accountId)) {
-              contactsByAccountId.set(contact.accountId, []);
-            }
-            contactsByAccountId.get(contact.accountId)!.push(contact);
-          }
-        });
-
-        console.log("Contacts indexed by leadId:", contactsByLeadId);
-        console.log("Contacts indexed by accountId:", contactsByAccountId);
-      } catch (err) {
-        console.warn("Could not fetch contacts separately:", err);
-      }
-
-      try {
-        const projectsResponse = await listProjects({ limit: 5000 });
-        (projectsResponse.projects || []).forEach((project) => {
-          const accountId = project.accountId || project.account?.id;
-          if (!accountId) return;
-
-          const existing = projectAggByAccountId.get(accountId) || {
-            projectCount: 0,
-            totalValue: 0,
-          };
-
-          existing.projectCount += 1;
-          existing.totalValue += toCurrencyNumber(project.totalValue);
-
-          projectAggByAccountId.set(accountId, existing);
-        });
-      } catch (err) {
-        console.warn("Could not fetch project totals separately:", err);
-      }
-
-      // Map API customers to UI Customer format
-      const activeCustomersOnly = (response.customers || []).filter(
-        (apiCustomer: APICustomer & {
-          isActive?: boolean;
-          isDeleted?: boolean;
-          deletedAt?: string | null;
-        }) => {
-          const status = (apiCustomer.status || "").toLowerCase();
-          // Deactivated / soft-deleted customers should not be shown in the dashboard list.
-          if (apiCustomer.isActive === false) return false;
-          if (apiCustomer.isDeleted === true) return false;
-          if (apiCustomer.deletedAt) return false;
-          if (
-            status === "inactive" ||
-            status === "deactivated" ||
-            status === "deleted"
-          )
-            return false;
-          return true;
-        },
-      );
-
-      const mappedCustomers: Customer[] = activeCustomersOnly.map(
-        (apiCustomer) => {
-          const initials = apiCustomer.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2);
+        const mappedCustomers: Customer[] = activeCustomersOnly.map(
+          (apiCustomer) => {
+            const initials = apiCustomer.name
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .toUpperCase()
+              .slice(0, 2);
 
           // Extract contact info from available sources
           // 1. contacts included in list response (if backend supports includeContacts)
@@ -2751,112 +2895,115 @@ export const Customers: React.FC = () => {
             0,
           );
 
-          console.log(`Customer ${apiCustomer.name}:`, {
-            id: apiCustomer.id,
-            convertedFromLeadId: apiCustomer.convertedFromLeadId,
-            embeddedContacts: embeddedContacts.length,
-            contactsFromLead: contactsFromLead.length,
-            contactsFromAccount: contactsFromAccount.length,
-            resolvedContacts: contacts.length,
-            primaryContact,
-          });
-
-          // Get email from contacts first, then fall back to lead info
-          let customerEmail = "No email";
-          if (apiCustomer.email) {
-            customerEmail = apiCustomer.email;
-          } else if (primaryContact?.email) {
-            customerEmail = primaryContact.email;
-          } else {
-            const contactWithEmail = contacts.find((c: any) => c.email);
-            if (contactWithEmail?.email) {
-              customerEmail = contactWithEmail.email;
-            } else if (leadInfo?.email) {
-              customerEmail = leadInfo.email;
+            // Get email from contacts first, then fall back to lead info
+            let customerEmail = "No email";
+            if (apiCustomer.email) {
+              customerEmail = apiCustomer.email;
+            } else if (primaryContact?.email) {
+              customerEmail = primaryContact.email;
+            } else {
+              const contactWithEmail = contacts.find((c: any) => c.email);
+              if (contactWithEmail?.email) {
+                customerEmail = contactWithEmail.email;
+              } else if (leadInfo?.email) {
+                customerEmail = leadInfo.email;
+              }
             }
-          }
 
-          // Get phone from contacts first, then fall back to lead info
-          let customerPhone = "No phone";
-          if (apiCustomer.phone) {
-            customerPhone = apiCustomer.phone;
-          } else if (primaryContact?.phone) {
-            customerPhone = primaryContact.phone;
-          } else {
-            const contactWithPhone = contacts.find((c: any) => c.phone);
-            if (contactWithPhone?.phone) {
-              customerPhone = contactWithPhone.phone;
-            } else if (leadInfo?.phone) {
-              customerPhone = leadInfo.phone;
+            // Get phone from contacts first, then fall back to lead info
+            let customerPhone = "No phone";
+            if (apiCustomer.phone) {
+              customerPhone = apiCustomer.phone;
+            } else if (primaryContact?.phone) {
+              customerPhone = primaryContact.phone;
+            } else {
+              const contactWithPhone = contacts.find((c: any) => c.phone);
+              if (contactWithPhone?.phone) {
+                customerPhone = contactWithPhone.phone;
+              } else if (leadInfo?.phone) {
+                customerPhone = leadInfo.phone;
+              }
             }
-          }
 
-          return {
-            id: apiCustomer.id, // Keep UUID as string
-            customerNumber: apiCustomer.customerNumber || undefined,
-            name: apiCustomer.name,
-            initials,
-            email: customerEmail,
-            phone: customerPhone,
-            secondaryEmails: apiCustomer.secondaryEmails || [],
-            secondaryPhones: apiCustomer.secondaryPhones || [],
-            location:
-              apiCustomer.billingCity ||
-              apiCustomer.shippingCity ||
-              apiCustomer.billingAddress ||
-              apiCustomer.shippingAddress ||
-              "N/A",
-            projects:
-              projectAgg?.projectCount ||
-              apiCustomer._count?.projects ||
-              apiCustomer.projects?.length ||
-              0,
-            totalValue: projectAgg?.totalValue || embeddedProjectValue,
-            status:
-              (apiCustomer.status?.toLowerCase() as
-                | "active"
-                | "completed"
-                | "inactive"
-                | "churned") || "active",
-            rating: 0,
-            lastContact: apiCustomer.updatedAt
-              ? new Date(apiCustomer.updatedAt).toLocaleDateString()
-              : "N/A",
-            type: apiCustomer.type,
-            photoUrl: undefined,
-            alternatePhone: undefined,
-            address:
-              apiCustomer.billingAddress ||
-              apiCustomer.shippingAddress ||
-              undefined,
-            familyMembers: [],
-            importantDates: [],
-            referrals: [],
-            clientRanking: undefined,
-            communicationPreference: undefined,
-            notes: [],
-            occupation: undefined,
-            companyName: undefined,
-            createdAt: apiCustomer.createdAt,
-            updatedAt: apiCustomer.updatedAt,
-          };
-        },
-      );
+            return {
+              id: apiCustomer.id, // Keep UUID as string
+              customerNumber: apiCustomer.customerNumber || undefined,
+              name: apiCustomer.name,
+              initials,
+              email: customerEmail,
+              phone: customerPhone,
+              secondaryEmails: apiCustomer.secondaryEmails || [],
+              secondaryPhones: apiCustomer.secondaryPhones || [],
+              location:
+                apiCustomer.billingCity ||
+                apiCustomer.shippingCity ||
+                apiCustomer.billingAddress ||
+                apiCustomer.shippingAddress ||
+                "N/A",
+              projects:
+                projectAgg?.projectCount ||
+                apiCustomer._count?.projects ||
+                apiCustomer.projects?.length ||
+                0,
+              totalValue: projectAgg?.totalValue || embeddedProjectValue,
+              status:
+                (apiCustomer.status?.toLowerCase() as
+                  | "active"
+                  | "completed"
+                  | "inactive"
+                  | "churned") || "active",
+              rating: 0,
+              lastContact: apiCustomer.updatedAt
+                ? new Date(apiCustomer.updatedAt).toLocaleDateString()
+                : "N/A",
+              type: apiCustomer.type,
+              photoUrl: undefined,
+              alternatePhone: undefined,
+              address:
+                apiCustomer.billingAddress ||
+                apiCustomer.shippingAddress ||
+                undefined,
+              familyMembers: [],
+              importantDates: [],
+              referrals: [],
+              clientRanking: undefined,
+              communicationPreference: undefined,
+              notes: [],
+              occupation: undefined,
+              companyName: undefined,
+              createdAt: apiCustomer.createdAt,
+              updatedAt: apiCustomer.updatedAt,
+            };
+          },
+        );
 
-      setCustomers(mappedCustomers);
-    } catch (error) {
-      console.error("Error fetching customers:", error);
-      toast.error("Failed to load customers");
-      // Fall back to mock data if API fails
-      setCustomers(mockCustomers);
+        setCustomers(mappedCustomers);
+      } catch (error) {
+        console.error("Error fetching customers:", error);
+        toast.error("Failed to load customers");
+        // Fall back to mock data if API fails
+        setCustomers(mockCustomers);
+      } finally {
+        if (isInitialLoad) {
+          setLoading(false);
+        } else {
+          setIsSearching(false);
+        }
+      }
+    })();
+
+    inFlightCustomersRequestRef.current = loadPromise;
+    inFlightCustomersRequestKeyRef.current = requestKey;
+
+    try {
+      await loadPromise;
     } finally {
-      if (isInitialLoad) {
-        setLoading(false);
-      } else {
-        setIsSearching(false);
+      if (inFlightCustomersRequestRef.current === loadPromise) {
+        inFlightCustomersRequestRef.current = null;
+        inFlightCustomersRequestKeyRef.current = null;
       }
     }
-  };
+  }, []);
 
   // Debounced search function
   const debouncedSearch = React.useCallback((searchTerm: string) => {
@@ -2869,7 +3016,7 @@ export const Customers: React.FC = () => {
     searchDebounceTimerRef.current = setTimeout(() => {
       fetchCustomers(searchTerm);
     }, 500); // 500ms debounce
-  }, []);
+  }, [fetchCustomers]);
 
   // Effect to handle search query changes
   React.useEffect(() => {
@@ -2886,7 +3033,7 @@ export const Customers: React.FC = () => {
         clearTimeout(searchDebounceTimerRef.current);
       }
     };
-  }, [searchQuery]);
+  }, [searchQuery, debouncedSearch, fetchCustomers]);
 
   const handleAddCustomer = async (customerData: any) => {
     setIsCreatingCustomer(true);
@@ -3354,10 +3501,26 @@ export const Customers: React.FC = () => {
                       {customer.email || "No email"}
                     </span>
                   </div>
+                  {(customer.secondaryEmails || []).length > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Mail className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="truncate">
+                        Secondary: {(customer.secondaryEmails || []).join(", ")}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Phone className="w-4 h-4 text-gray-400" />
                     <span>{customer.phone || "No phone"}</span>
                   </div>
+                  {(customer.secondaryPhones || []).length > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Phone className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="truncate">
+                        Secondary: {(customer.secondaryPhones || []).join(", ")}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4 pt-4 border-t border-gray-200">

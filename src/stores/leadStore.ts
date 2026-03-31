@@ -12,6 +12,8 @@ import LeadAPI, {
   LeadAssignee,
 } from "../services/leadApi";
 
+let fetchLeadsInFlight: Promise<void> | null = null;
+
 // API status values from GET /api/leads/statuses
 export type APILeadStatus =
   | "NEW"
@@ -132,6 +134,12 @@ export const useLeadStore = create<LeadState>((set, get) => ({
   },
 
   fetchLeads: async () => {
+    if (fetchLeadsInFlight) {
+      await fetchLeadsInFlight;
+      return;
+    }
+
+    const fetchPromise = (async () => {
     set({ isLoading: true });
     try {
       const response = await LeadAPI.listLeads({ limit: 1000 });
@@ -160,6 +168,16 @@ export const useLeadStore = create<LeadState>((set, get) => ({
     } catch (error) {
       console.error("Failed to fetch leads:", error);
       set({ leads: [], isLoading: false });
+    }
+    })();
+
+    fetchLeadsInFlight = fetchPromise;
+    try {
+      await fetchPromise;
+    } finally {
+      if (fetchLeadsInFlight === fetchPromise) {
+        fetchLeadsInFlight = null;
+      }
     }
   },
 

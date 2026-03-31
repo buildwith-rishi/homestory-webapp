@@ -38,12 +38,12 @@ import { Card, Button, Badge, Progress } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuth } from "../../contexts/AuthContext";
-import { getProjectStages, getAllPayments } from "../../services/projectApi";
+import { getAllPayments } from "../../services/projectApi";
 import { listMeetings } from "../../services/meetingApi";
 import { listLeads } from "../../services/leadApi";
 import { getUpcomingTasks } from "../../services/tasksApi";
 import { useProjectStore } from "../../stores/projectStore";
-import type { ProjectStageData, Meeting } from "../../types";
+import type { Meeting } from "../../types";
 
 export const DashboardOverview: React.FC = () => {
   const { selectedProject } = useProjectFilter();
@@ -70,9 +70,6 @@ export const DashboardOverview: React.FC = () => {
   const [pipelineTypeFilter, setPipelineTypeFilter] = useState<string>("all");
   const [projectCategoryFilter, setProjectCategoryFilter] =
     useState<string>("all");
-  const [projectStagesMap, setProjectStagesMap] = useState<
-    Record<string, ProjectStageData[]>
-  >({});
   const [showAllDeadlines, setShowAllDeadlines] = useState(false);
   const [todaysMeetings, setTodaysMeetings] = useState<Meeting[]>([]);
   const [meetingsLoading, setMeetingsLoading] = useState(false);
@@ -88,36 +85,6 @@ export const DashboardOverview: React.FC = () => {
     // Use the shared store fetch (same call as the Projects page)
     fetchProjectsFromStore();
   }, [fetchProjectsFromStore]);
-
-  // Fetch stages for all projects in parallel (for the deadlines section)
-  useEffect(() => {
-    if (projects.length === 0) return;
-    const fetchStages = async () => {
-      try {
-        const stageResults = await Promise.allSettled(
-          projects.map((p) =>
-            getProjectStages(p.id).then((res) => ({
-              projectId: p.id,
-              // @ts-ignore
-              stages: (Array.isArray(res)
-                ? res
-                : (res as any)?.stages || []) as ProjectStageData[],
-            })),
-          ),
-        );
-        const stagesMap: Record<string, ProjectStageData[]> = {};
-        stageResults.forEach((result) => {
-          if (result.status === "fulfilled") {
-            stagesMap[result.value.projectId] = result.value.stages;
-          }
-        });
-        setProjectStagesMap(stagesMap);
-      } catch (error) {
-        console.error("Failed to fetch project stages", error);
-      }
-    };
-    fetchStages();
-  }, [projects]);
 
   // Pipeline type filter options for deadline filtering
   const pipelineTypeFilterOptions = [
@@ -262,42 +229,6 @@ export const DashboardOverview: React.FC = () => {
           deadlineLabel = "Handover Deadline";
         }
 
-        // 2. Fallback: derive from stages — use the current active/ongoing stage first,
-        //    then the earliest pending stage that has a tentativeEndDate
-        if (!deadlineDate) {
-          const stages = projectStagesMap[project.id] || [];
-          // Find current ongoing stage
-          const ongoingStage = stages.find(
-            (s) =>
-              (s.status === "ONGOING" ||
-                s.status === "IN_PROGRESS" ||
-                s.status === "CURRENT") &&
-              s.tentativeEndDate,
-          );
-          // Find earliest pending stage with a tentative date
-          const pendingStages = stages
-            .filter(
-              (s) =>
-                (s.status === "PENDING" || s.status === "NOT_STARTED") &&
-                s.tentativeEndDate,
-            )
-            .sort((a, b) => {
-              const da = a.tentativeEndDate
-                ? new Date(a.tentativeEndDate).getTime()
-                : Infinity;
-              const db = b.tentativeEndDate
-                ? new Date(b.tentativeEndDate).getTime()
-                : Infinity;
-              return da - db;
-            });
-
-          const targetStage = ongoingStage || pendingStages[0];
-          if (targetStage?.tentativeEndDate) {
-            deadlineDate = parseISO(targetStage.tentativeEndDate);
-            deadlineLabel = targetStage.stageName || "Stage";
-          }
-        }
-
         if (deadlineDate) {
           daysLeft = differenceInDays(deadlineDate, new Date());
           deadlineStr = deadlineDate.toLocaleDateString("en-US", {
@@ -338,7 +269,7 @@ export const DashboardOverview: React.FC = () => {
         };
       })
       .sort((a, b) => a.daysLeft - b.daysLeft);
-  }, [projects, projectStagesMap]);
+  }, [projects]);
 
   // Filter deadlines based on selection
   const filteredDeadlines = useMemo(() => {

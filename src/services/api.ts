@@ -332,14 +332,58 @@ export const leadsAPI = {
 };
 
 // Admin API - User Management
+const adminRequestInFlight = new Map<string, Promise<unknown>>();
+
+async function withAdminInFlightDedup<T>(
+  requestKey: string,
+  requestFactory: () => Promise<T>,
+): Promise<T> {
+  const existing = adminRequestInFlight.get(requestKey) as Promise<T> | undefined;
+  if (existing) {
+    return existing;
+  }
+
+  const requestPromise = requestFactory();
+  adminRequestInFlight.set(requestKey, requestPromise as Promise<unknown>);
+
+  try {
+    return await requestPromise;
+  } finally {
+    if (adminRequestInFlight.get(requestKey) === requestPromise) {
+      adminRequestInFlight.delete(requestKey);
+    }
+  }
+}
+
 export const adminAPI = {
   // Get all users
   getAllUsers: async () => {
-    return fetchAPI("/api/users?limit=1000", { method: "GET" });
+    return withAdminInFlightDedup("admin:getAllUsers:limit=1000", () =>
+      fetchAPI("/api/users?limit=1000", { method: "GET" }),
+    );
   },
 
   // Get only BDR users (filtered server-side with role param, falls back to client filter)
   getBDRUsers: async (): Promise<{ id: string; name: string; email: string; role: string; isActive: boolean; isBanned: boolean }[]> => {
+    const globalWithCache = globalThis as typeof globalThis & {
+      __ghs_bdr_users_cache__?: {
+        data: { id: string; name: string; email: string; role: string; isActive: boolean; isBanned: boolean }[];
+        expiresAt: number;
+      };
+      __ghs_bdr_users_in_flight__?: Promise<{ id: string; name: string; email: string; role: string; isActive: boolean; isBanned: boolean }[]>;
+    };
+
+    const now = Date.now();
+    const cached = globalWithCache.__ghs_bdr_users_cache__;
+    if (cached && cached.expiresAt > now) {
+      return cached.data;
+    }
+
+    if (globalWithCache.__ghs_bdr_users_in_flight__) {
+      return globalWithCache.__ghs_bdr_users_in_flight__;
+    }
+
+    const request = (async () => {
     const response = await fetchAPI<{ users?: unknown[]; [key: string]: unknown } | unknown[]>(
       "/api/users?limit=1000&role=BDR",
       { method: "GET" }
@@ -348,7 +392,7 @@ export const adminAPI = {
       ? response
       : (response as { users?: unknown[] })?.users ?? [];
     // Normalize role to uppercase and filter strictly for BDR
-    return (raw as Record<string, unknown>[])
+    const normalized = (raw as Record<string, unknown>[])
       .filter((u) => u && u.id)
       .map((u) => ({
         id: String(u.id),
@@ -359,6 +403,23 @@ export const adminAPI = {
         isBanned: u.isBanned === true,
       }))
       .filter((u) => u.role === "BDR" && !u.isBanned && u.isActive);
+
+    globalWithCache.__ghs_bdr_users_cache__ = {
+      data: normalized,
+      expiresAt: Date.now() + 60 * 1000,
+    };
+
+    return normalized;
+    })();
+
+    globalWithCache.__ghs_bdr_users_in_flight__ = request;
+    try {
+      return await request;
+    } finally {
+      if (globalWithCache.__ghs_bdr_users_in_flight__ === request) {
+        delete globalWithCache.__ghs_bdr_users_in_flight__;
+      }
+    }
   },
 
   // Get user by ID
@@ -434,17 +495,23 @@ export const adminAPI = {
 
   // Get all role titles for user creation and display
   getRoleTitles: async () => {
-    return fetchAPI("/api/users/role-titles", { method: "GET" });
+    return withAdminInFlightDedup("admin:getRoleTitles", () =>
+      fetchAPI("/api/users/role-titles", { method: "GET" }),
+    );
   },
 
   // Get all departments for update-user form
   getDepartments: async () => {
-    return fetchAPI("/api/departments", { method: "GET" });
+    return withAdminInFlightDedup("admin:getDepartments", () =>
+      fetchAPI("/api/departments", { method: "GET" }),
+    );
   },
 
   // Get all credentials for update-user form
   getCredentials: async () => {
-    return fetchAPI("/api/credentials", { method: "GET" });
+    return withAdminInFlightDedup("admin:getCredentials", () =>
+      fetchAPI("/api/credentials", { method: "GET" }),
+    );
   },
 };
 

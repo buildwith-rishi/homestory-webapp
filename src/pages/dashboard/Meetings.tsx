@@ -1819,7 +1819,7 @@ export const MeetingsPage: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-900 mb-1.5">
-                        Project ID
+                        Project Name
                       </label>
                       <div className="relative">
                         <input
@@ -1885,7 +1885,7 @@ export const MeetingsPage: React.FC = () => {
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">
-                      Lead ID
+                      Lead Name
                     </label>
                     <div className="relative">
                       <input

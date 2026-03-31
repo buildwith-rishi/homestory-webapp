@@ -24,6 +24,16 @@ import type {
   ListProjectsParams,
 } from "../services/projectApi";
 
+const fetchProjectsInFlight = new Map<string, Promise<void>>();
+
+const getProjectsRequestKey = (params?: ListProjectsParams): string => {
+  if (!params) return "__default__";
+  const sortedEntries = Object.entries(params).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return JSON.stringify(sortedEntries);
+};
+
 interface ProjectState {
   // State
   projects: Project[];
@@ -125,6 +135,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   pauseStatus: null,
 
   fetchProjects: async (params?: ListProjectsParams) => {
+    const requestKey = getProjectsRequestKey(params);
+    const existingRequest = fetchProjectsInFlight.get(requestKey);
+    if (existingRequest) {
+      await existingRequest;
+      return;
+    }
+
+    const fetchPromise = (async () => {
     set({ isLoading: true, error: null });
     try {
       // Use a high limit by default so all projects are loaded
@@ -149,6 +167,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const errorMessage =
         error instanceof Error ? error.message : "Failed to fetch projects";
       set({ isLoading: false, error: errorMessage });
+    }
+    })();
+
+    fetchProjectsInFlight.set(requestKey, fetchPromise);
+    try {
+      await fetchPromise;
+    } finally {
+      if (fetchProjectsInFlight.get(requestKey) === fetchPromise) {
+        fetchProjectsInFlight.delete(requestKey);
+      }
     }
   },
 
