@@ -272,6 +272,18 @@ export const MeetingsPage: React.FC = () => {
     );
   }, [momLeadOptions, momLeadSearch]);
 
+  const isMomProjectLocked = Boolean(momLeadId);
+  const isMomLeadLocked = Boolean(momProjectId);
+
+  useEffect(() => {
+    if (isMomProjectLocked) {
+      setShowMomProjectDropdown(false);
+    }
+    if (isMomLeadLocked) {
+      setShowMomLeadDropdown(false);
+    }
+  }, [isMomProjectLocked, isMomLeadLocked]);
+
   const fetchLiveEntities = useCallback(async () => {
     setLoadingEntities(true);
     try {
@@ -1825,20 +1837,24 @@ export const MeetingsPage: React.FC = () => {
                         <input
                           type="text"
                           value={momProjectSearch}
-                          onFocus={() => setShowMomProjectDropdown(true)}
+                          disabled={isMomProjectLocked}
+                          onFocus={() => {
+                            if (!isMomProjectLocked) setShowMomProjectDropdown(true);
+                          }}
                           onBlur={() =>
                             setTimeout(() => setShowMomProjectDropdown(false), 120)
                           }
                           onChange={(e) => {
+                            if (isMomProjectLocked) return;
                             setMomProjectSearch(e.target.value);
                             setMomProjectId("");
                             setShowMomProjectDropdown(true);
                           }}
                           placeholder="Search project (optional)"
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10"
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                         />
                         <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                        {showMomProjectDropdown && (
+                        {showMomProjectDropdown && !isMomProjectLocked && (
                           <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
                             <button
                               type="button"
@@ -1870,6 +1886,8 @@ export const MeetingsPage: React.FC = () => {
                                     e.preventDefault();
                                     setMomProjectId(project.id);
                                     setMomProjectSearch(project.label);
+                                    setMomLeadId("");
+                                    setMomLeadSearch("");
                                     setShowMomProjectDropdown(false);
                                   }}
                                 >
@@ -1891,20 +1909,24 @@ export const MeetingsPage: React.FC = () => {
                       <input
                         type="text"
                         value={momLeadSearch}
-                        onFocus={() => setShowMomLeadDropdown(true)}
+                        disabled={isMomLeadLocked}
+                        onFocus={() => {
+                          if (!isMomLeadLocked) setShowMomLeadDropdown(true);
+                        }}
                         onBlur={() =>
                           setTimeout(() => setShowMomLeadDropdown(false), 120)
                         }
                         onChange={(e) => {
+                          if (isMomLeadLocked) return;
                           setMomLeadSearch(e.target.value);
                           setMomLeadId("");
                           setShowMomLeadDropdown(true);
                         }}
                         placeholder="Search lead (optional)"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                       />
                       <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                      {showMomLeadDropdown && (
+                      {showMomLeadDropdown && !isMomLeadLocked && (
                         <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
                           <button
                             type="button"
@@ -1936,6 +1958,8 @@ export const MeetingsPage: React.FC = () => {
                                   e.preventDefault();
                                   setMomLeadId(lead.id);
                                   setMomLeadSearch(lead.label);
+                                  setMomProjectId("");
+                                  setMomProjectSearch("");
                                   setShowMomLeadDropdown(false);
                                 }}
                               >

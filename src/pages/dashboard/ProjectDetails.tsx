@@ -1658,6 +1658,18 @@ export const ProjectDetails: React.FC = () => {
       const teamMemberByName = new Map(
         teamMembersList.map((member) => [member.name, member]),
       );
+      const resolveMemberIdByName = (name: string): string | null => {
+        const directMatch = teamMemberByName.get(name);
+        if (directMatch?.id) return directMatch.id;
+
+        const normalizedTarget = name.trim().toLowerCase();
+        if (!normalizedTarget) return null;
+
+        const fallbackMatch = teamMembersList.find(
+          (member) => member.name.trim().toLowerCase() === normalizedTarget,
+        );
+        return fallbackMatch?.id || null;
+      };
       const currentAssignedDesignerName =
         teamMembersList.find((member) => member.id === editForm.assignedDesignerId)
           ?.name || null;
@@ -1672,9 +1684,7 @@ export const ProjectDetails: React.FC = () => {
               currentAssignedDesignerName &&
               nextDesignTeam.includes(currentAssignedDesignerName)
             ? editForm.assignedDesignerId
-            : teamMemberByName.get(nextDesignTeam[0])?.id ||
-              editForm.assignedDesignerId ||
-              null;
+            : resolveMemberIdByName(nextDesignTeam[0]);
 
       const nextAssignedPMId =
         nextExecutionTeam.length === 0
@@ -1683,9 +1693,7 @@ export const ProjectDetails: React.FC = () => {
               currentAssignedExecutionName &&
               nextExecutionTeam.includes(currentAssignedExecutionName)
             ? editForm.assignedPMId
-            : teamMemberByName.get(nextExecutionTeam[0])?.id ||
-              editForm.assignedPMId ||
-              null;
+            : resolveMemberIdByName(nextExecutionTeam[0]);
 
       const updates: UpdateProjectRequest = {};
       if (editForm.projectName) updates.projectName = editForm.projectName;
