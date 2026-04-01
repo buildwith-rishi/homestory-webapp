@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Tag,
   Home,
+  Trash2,
 } from "lucide-react";
 import {
   Card,
@@ -21,6 +22,7 @@ import {
   Badge,
   Progress,
   SectionLoader,
+  Modal,
 } from "../../components/ui";
 import { NewProjectModal } from "../../components/dashboard/NewProjectModal.tsx";
 import { useAuth } from "../../contexts/AuthContext";
@@ -29,7 +31,7 @@ import { hasPermission, RoleId } from "../../config/rbac";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useProjectStore } from "../../stores/projectStore";
 import type { Project, CreateProjectRequest } from "../../types";
-import { listProjects } from "../../services/projectApi";
+import { deleteProject as deleteProjectApi, listProjects } from "../../services/projectApi";
 import toast from "react-hot-toast";
 
 // --- Helper functions ---
@@ -318,12 +320,15 @@ export const ProjectsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
 
   const { projects, isLoading, error, fetchProjects, addProject, clearError } =
     useProjectStore();
 
   const { selectedProject } = useProjectFilter();
   const canCreateProject = hasPermission(roleId as RoleId, "projects.create");
+  const canDeleteProject = hasPermission(roleId as RoleId, "projects.delete");
 
   // Initial data fetch
   useEffect(() => {
@@ -456,6 +461,28 @@ export const ProjectsPage: React.FC = () => {
 
   const handleViewDetails = (project: Project) => {
     navigate(`/dashboard/projects/${project.id}`);
+  };
+
+  const handleRequestDeleteProject = (project: Project) => {
+    setProjectToDelete(project);
+  };
+
+  const handleConfirmDeleteProject = async () => {
+    if (!projectToDelete) return;
+
+    setIsDeletingProject(true);
+    try {
+      await deleteProjectApi(projectToDelete.id);
+      toast.success("Project deleted successfully!");
+      setProjectToDelete(null);
+      await fetchProjects();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete project";
+      toast.error(message);
+    } finally {
+      setIsDeletingProject(false);
+    }
   };
 
   // --- Loading State ---
@@ -675,6 +702,19 @@ export const ProjectsPage: React.FC = () => {
                     )}
                     <p className="text-sm text-gray-600 mt-1">{clientName}</p>
                   </div>
+                  {canDeleteProject && (
+                    <button
+                      type="button"
+                      className="w-8 h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRequestDeleteProject(project);
+                      }}
+                      aria-label={`Delete ${displayName}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 mb-4">
@@ -941,17 +981,33 @@ export const ProjectsPage: React.FC = () => {
                       {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="rounded-lg hover:bg-orange-50 hover:text-orange-600 text-xs px-3 py-1.5 h-auto"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewDetails(project);
-                            }}
-                          >
-                            View
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="rounded-lg hover:bg-orange-50 hover:text-orange-600 text-xs px-3 py-1.5 h-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewDetails(project);
+                              }}
+                            >
+                              View
+                            </Button>
+                            {canDeleteProject && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="rounded-lg hover:bg-red-50 hover:text-red-600 text-xs px-2 py-1.5 h-auto"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRequestDeleteProject(project);
+                                }}
+                                aria-label={`Delete ${displayName}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -990,6 +1046,43 @@ export const ProjectsPage: React.FC = () => {
           <p className="text-gray-600">Try adjusting your search or filters</p>
         </div>
       )}
+
+      <Modal
+        isOpen={projectToDelete !== null}
+        onClose={() => {
+          if (!isDeletingProject) setProjectToDelete(null);
+        }}
+        title="Delete Project"
+        size="sm"
+      >
+        <div className="p-5">
+          <p className="text-sm text-gray-700">
+            Are you sure you want to delete
+            {" "}
+            <span className="font-semibold text-gray-900">
+              {projectToDelete?.projectName || projectToDelete?.name || "this project"}
+            </span>
+            ? This action cannot be undone.
+          </p>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setProjectToDelete(null)}
+              disabled={isDeletingProject}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmDeleteProject}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isDeletingProject}
+            >
+              {isDeletingProject ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* New Project Modal */}
       {canCreateProject && (
