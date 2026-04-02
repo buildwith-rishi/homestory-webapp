@@ -24,6 +24,7 @@ import {
   getProjectById,
   uploadTaskAttachment,
   updateMatrixTask,
+  updateMatrixDayTitle,
 } from "../../../services/projectApi";
 import { adminAPI } from "../../../services/api";
 import { getAllTeamMembers, TeamMember } from "../../../services/teamApi";
@@ -158,6 +159,9 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const [isEditingDayDate, setIsEditingDayDate] = useState(false);
   const [dayDateInput, setDayDateInput] = useState("");
   const [isUpdatingDayDate, setIsUpdatingDayDate] = useState(false);
+  const [savedDayDateOverride, setSavedDayDateOverride] = useState<string | null>(
+    null,
+  );
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [completionDialog, setCompletionDialog] = useState<{
@@ -247,6 +251,8 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     const fromTask = tasks.find((t) => !!t.taskDate)?.taskDate;
     const dateOnly = toDateOnly(fromTask);
     if (dateOnly) return dateOnly;
+    const fromSavedOverride = toDateOnly(savedDayDateOverride);
+    if (fromSavedOverride) return fromSavedOverride;
     return computeDefaultDayDateInput();
   };
 
@@ -264,6 +270,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   const dayDisplayDate = (() => {
     const fromTask = tasks.find((t) => !!t.taskDate)?.taskDate;
     if (fromTask) return formatDisplayDate(fromTask);
+    if (savedDayDateOverride) return formatDisplayDate(savedDayDateOverride);
     return getDateForDay(startDate, dayNumber);
   })();
 
@@ -277,24 +284,25 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       toast.error("Please choose a valid date.");
       return;
     }
-    if (tasks.length === 0) {
-      toast.error("No tasks found for this day to update date.");
-      return;
-    }
 
     setIsUpdatingDayDate(true);
     try {
       const isoDate = `${dayDateInput}T00:00:00.000Z`;
-      await Promise.all(
-        tasks.map((task) =>
-          updateMatrixTask(task.id, {
-            dayNumber,
-            taskDate: isoDate,
-            startDate: task.startDate || startDate || undefined,
-          }),
-        ),
-      );
+      await updateMatrixDayTitle(matrixId, dayNumber, undefined, isoDate);
 
+      if (tasks.length > 0) {
+        await Promise.all(
+          tasks.map((task) =>
+            updateMatrixTask(task.id, {
+              dayNumber,
+              taskDate: isoDate,
+              startDate: task.startDate || startDate || undefined,
+            }),
+          ),
+        );
+      }
+
+      setSavedDayDateOverride(isoDate);
       toast.success("Day date updated successfully");
       setIsEditingDayDate(false);
       if (!initialTasks) {

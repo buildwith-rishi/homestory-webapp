@@ -245,18 +245,23 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     if (!refreshInBackground) setLoading(true);
     setError(null);
     try {
-      // Try with stageCode first (backend expects stageCode, not UUID)
+      // Prefer a single stage identifier to avoid duplicate fetches.
       let data: TaskMatrix | null = null;
+      const primaryStageId = stage.id || stage.stageCode;
+      const fallbackStageId =
+        stage.id && stage.stageCode && stage.id !== stage.stageCode
+          ? (primaryStageId === stage.id ? stage.stageCode : stage.id)
+          : null;
 
-      if (stage.stageCode) {
-        console.log("[StageMatrixView] trying stageCode:", stage.stageCode);
-        data = await getMatrixByStage(projectId, stage.stageCode);
+      if (primaryStageId) {
+        console.log("[StageMatrixView] fetching with stage identifier:", primaryStageId);
+        data = await getMatrixByStage(projectId, primaryStageId);
       }
 
-      // Fallback: try stage.id (UUID) if stageCode didn't work
-      if (!data && stage.id && stage.id !== stage.stageCode) {
-        console.log("[StageMatrixView] falling back to stage.id:", stage.id);
-        data = await getMatrixByStage(projectId, stage.id);
+      // Fallback once if a secondary identifier exists.
+      if (!data && fallbackStageId) {
+        console.log("[StageMatrixView] falling back to stage identifier:", fallbackStageId);
+        data = await getMatrixByStage(projectId, fallbackStageId);
       }
 
       // null means no matrix exists yet (404) — show create prompt

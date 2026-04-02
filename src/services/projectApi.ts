@@ -1871,50 +1871,70 @@ export async function createTaskMatrix(
  * GET /api/projects/:projectId/stages/:stageId/matrix
  * Returns null if no matrix exists (404)
  */
+const pendingMatrixByStageRequests = new Map<string, Promise<TaskMatrix | null>>();
+
 export async function getMatrixByStage(
   projectId: string,
   stageId: string,
 ): Promise<TaskMatrix | null> {
-  try {
-    const url = `${API_BASE_URL}/api/projects/${projectId}/stages/${stageId}/matrix?_t=${new Date().getTime()}`;
-    console.log("[getMatrixByStage] GET", url);
-    const response = await fetch(url, {
-      method: "GET",
-      headers: getAuthHeaders(),
-    });
-    console.log("[getMatrixByStage] status:", response.status);
-    // 404 means no matrix exists yet — return null instead of throwing
-    if (response.status === 404) {
-      return null;
-    }
-    const result = await handleResponse<any>(response);
-    const baseMatrix = (result?.matrix || result) as TaskMatrix;
-    return {
-      ...baseMatrix,
-      categories: result?.categories || baseMatrix.categories,
-      dayTasks: result?.dayTasks || baseMatrix.dayTasks,
-      matrixDayWise: result?.matrixDayWise || baseMatrix.matrixDayWise,
-      project: result?.project || baseMatrix.project,
-      projectStage: result?.projectStage || baseMatrix.projectStage,
-    };
-  } catch (error) {
-    console.error("Error fetching matrix by stage:", error);
-    throw error;
+  const requestKey = `${projectId}:${stageId}`;
+  const inFlightRequest = pendingMatrixByStageRequests.get(requestKey);
+  if (inFlightRequest) {
+    return inFlightRequest;
   }
+
+  const requestPromise = (async () => {
+    try {
+      const url = `${API_BASE_URL}/api/projects/${projectId}/stages/${stageId}/matrix?_t=${new Date().getTime()}`;
+      console.log("[getMatrixByStage] GET", url);
+      const response = await fetch(url, {
+        method: "GET",
+        headers: getAuthHeaders(),
+      });
+      console.log("[getMatrixByStage] status:", response.status);
+      // 404 means no matrix exists yet — return null instead of throwing
+      if (response.status === 404) {
+        return null;
+      }
+      const result = await handleResponse<any>(response);
+      const baseMatrix = (result?.matrix || result) as TaskMatrix;
+      return {
+        ...baseMatrix,
+        categories: result?.categories || baseMatrix.categories,
+        dayTasks: result?.dayTasks || baseMatrix.dayTasks,
+        matrixDayWise: result?.matrixDayWise || baseMatrix.matrixDayWise,
+        project: result?.project || baseMatrix.project,
+        projectStage: result?.projectStage || baseMatrix.projectStage,
+      };
+    } catch (error) {
+      console.error("Error fetching matrix by stage:", error);
+      throw error;
+    } finally {
+      pendingMatrixByStageRequests.delete(requestKey);
+    }
+  })();
+
+  pendingMatrixByStageRequests.set(requestKey, requestPromise);
+  return requestPromise;
 }
 
 export async function updateMatrixDayTitle(
   matrixId: string,
   dayNumber: number,
-  title: string,
+  title?: string,
+  date?: string,
 ): Promise<{ success: boolean; message?: string }> {
   try {
+    const body: { title?: string; date?: string } = {};
+    if (typeof title === "string") body.title = title;
+    if (typeof date === "string") body.date = date;
+
     const response = await fetch(
       `${API_BASE_URL}/api/matrices/${matrixId}/day/${dayNumber}/title`,
       {
         method: "PUT",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ title }),
+        body: JSON.stringify(body),
       }
     );
 
