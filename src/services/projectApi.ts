@@ -2002,6 +2002,69 @@ export async function deleteMatrix(
 }
 
 /**
+ * Delete matrix day
+ * DELETE /api/matrices/:matrixId/day/:dayNumber
+ */
+export async function deleteMatrixDay(
+  matrixId: string,
+  dayNumber: number,
+  reason?: string,
+): Promise<{ message?: string; success?: boolean }> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/matrices/${matrixId}/day/${dayNumber}`,
+      {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ reason: reason?.trim() || "Day no longer needed" }),
+      },
+    );
+    return handleResponse<{ message?: string; success?: boolean }>(response);
+  } catch (error) {
+    console.error("Error deleting matrix day:", error);
+    throw error;
+  }
+}
+
+export interface InsertMatrixDayRequest {
+  insertAfterDay?: number;
+  insertBeforeDay?: number;
+  reason?: string;
+}
+
+/**
+ * Insert a day before/after an existing day
+ * POST /api/matrices/:matrixId/insert-day
+ */
+export async function insertMatrixDay(
+  matrixId: string,
+  data: InsertMatrixDayRequest,
+): Promise<{ message?: string; success?: boolean }> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/matrices/${matrixId}/insert-day`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          ...(data.insertAfterDay !== undefined
+            ? { insertAfterDay: data.insertAfterDay }
+            : {}),
+          ...(data.insertBeforeDay !== undefined
+            ? { insertBeforeDay: data.insertBeforeDay }
+            : {}),
+          reason: data.reason?.trim() || "Need additional day",
+        }),
+      },
+    );
+    return handleResponse<{ message?: string; success?: boolean }>(response);
+  } catch (error) {
+    console.error("Error inserting matrix day:", error);
+    throw error;
+  }
+}
+
+/**
  * List all matrices for a project
  * GET /api/projects/:projectId/matrices
  */

@@ -8,11 +8,19 @@ import toast from "react-hot-toast";
 interface AddDayModalProps {
   matrixId: string;
   currentTotalDays: number;
-  startDate: string;
+  startDate: string | null;
   stageName: string;
   onClose: () => void;
   onSuccess: () => void;
 }
+
+const parseDate = (value?: string | null) => {
+  if (typeof value !== "string") return new Date(NaN);
+  const trimmed = value.trim();
+  if (!trimmed) return new Date(NaN);
+  const dateOnly = trimmed.includes("T") ? trimmed.split("T")[0] : trimmed;
+  return new Date(dateOnly + "T00:00:00");
+};
 
 export const AddDayModal: React.FC<AddDayModalProps> = ({
   matrixId,
@@ -28,10 +36,8 @@ export const AddDayModal: React.FC<AddDayModalProps> = ({
   const newTotal = currentTotalDays + daysToAdd;
 
   const getDateForDay = (dayNum: number): string => {
-    const dateOnly = startDate.includes("T")
-      ? startDate.split("T")[0]
-      : startDate;
-    const d = new Date(dateOnly + "T00:00:00");
+    const d = parseDate(startDate);
+    if (isNaN(d.getTime())) return "—";
     d.setDate(d.getDate() + (dayNum - 1));
     return d.toLocaleDateString("en-IN", {
       weekday: "short",

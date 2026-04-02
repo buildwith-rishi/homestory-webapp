@@ -34,6 +34,8 @@ import {
   getMatrixByStage,
   getMatrixStats,
   deleteMatrix,
+  deleteMatrixDay,
+  insertMatrixDay,
   updateMatrixTaskStatus,
   markMatrixHoliday,
   updateMatrixDayTitle,
@@ -47,13 +49,16 @@ interface StageMatrixViewProps {
   onBack: () => void;
 }
 
-const parseDate = (d: string) => {
+const parseDate = (d?: string | null) => {
+  if (typeof d !== "string" || !d.trim()) {
+    return new Date(NaN);
+  }
   // Handle ISO strings like "2026-02-11T00:00:00.000Z" and plain "2026-02-11"
   const dateOnly = d.includes("T") ? d.split("T")[0] : d;
   return new Date(dateOnly + "T00:00:00");
 };
 
-const formatDate = (d: string) => {
+const formatDate = (d?: string | null) => {
   const date = parseDate(d);
   if (isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-IN", {
@@ -62,7 +67,7 @@ const formatDate = (d: string) => {
   });
 };
 
-const formatDayLabelDate = (d: string) => {
+const formatDayLabelDate = (d?: string | null) => {
   const date = parseDate(d);
   if (isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-IN", {
@@ -72,7 +77,8 @@ const formatDayLabelDate = (d: string) => {
   });
 };
 
-const getFallbackDateForDay = (startDate: string, dayNumber: number) => {
+const getFallbackDateForDay = (startDate?: string | null, dayNumber?: number) => {
+  if (typeof dayNumber !== "number") return "—";
   const d = parseDate(startDate);
   if (isNaN(d.getTime())) return "—";
   d.setDate(d.getDate() + dayNumber - 1);
@@ -83,8 +89,8 @@ const getFallbackDateForDay = (startDate: string, dayNumber: number) => {
   });
 };
 
-const toUtcStartOfDayIso = (rawDate: string): string | null => {
-  if (!rawDate) return null;
+const toUtcStartOfDayIso = (rawDate?: string | null): string | null => {
+  if (typeof rawDate !== "string" || !rawDate.trim()) return null;
   const dateOnly = rawDate.includes("T") ? rawDate.split("T")[0] : rawDate;
   const [year, month, day] = dateOnly.split("-").map(Number);
   if (!year || !month || !day) return null;
@@ -92,8 +98,8 @@ const toUtcStartOfDayIso = (rawDate: string): string | null => {
 };
 
 const getIsoDateForDay = (
-  dayDate: string,
-  matrixStartDate: string,
+  dayDate: string | null | undefined,
+  matrixStartDate: string | null | undefined,
   dayNumber: number,
 ): string | null => {
   const direct = toUtcStartOfDayIso(dayDate);
@@ -137,12 +143,13 @@ const getHolidayDayNumbersFromMatrix = (matrix: TaskMatrix): Set<number> => {
       return;
     }
 
-    if (!holiday.date) return;
+    if (!holiday.date || typeof holiday.date !== "string") return;
     const holidayDateOnly = holiday.date.includes("T")
       ? holiday.date.split("T")[0]
       : holiday.date;
 
     const mappedDay = (matrix.matrixDayWise || []).find((entry) => {
+      if (typeof entry.date !== "string") return false;
       const entryDateOnly = entry.date.includes("T")
         ? entry.date.split("T")[0]
         : entry.date;
@@ -157,7 +164,7 @@ const getHolidayDayNumbersFromMatrix = (matrix: TaskMatrix): Set<number> => {
   return holidayDayNumbers;
 };
 
-const toDateInputValue = (isoDate: string): string => {
+const toDateInputValue = (isoDate?: string | null): string => {
   const parsed = toUtcStartOfDayIso(isoDate);
   return parsed ? parsed.split("T")[0] : "";
 };
@@ -188,6 +195,12 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const [markingHolidayDay, setMarkingHolidayDay] = useState<number | null>(
     null,
   );
+  const [deletingDayNumber, setDeletingDayNumber] = useState<number | null>(
+    null,
+  );
+  const [insertingDayNumber, setInsertingDayNumber] = useState<number | null>(
+    null,
+  );
   const [holidayDayNumbers, setHolidayDayNumbers] = useState<Set<number>>(
     new Set(),
   );
@@ -195,6 +208,15 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     dayEntry: MatrixDayWiseItem;
     date: string;
     includeSundays: boolean;
+    reason: string;
+  } | null>(null);
+  const [deleteDayDraft, setDeleteDayDraft] = useState<{
+    dayNumber: number;
+    reason: string;
+  } | null>(null);
+  const [insertDayDraft, setInsertDayDraft] = useState<{
+    dayNumber: number;
+    mode: "before" | "after";
     reason: string;
   } | null>(null);
   const holidayCount = matrix ? getHolidayDayNumbersFromMatrix(matrix).size : 0;
@@ -308,6 +330,77 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
       toast.error(
         err instanceof Error ? err.message : "Failed to delete matrix",
       );
+    }
+  };
+
+  const handleDeleteDay = async (dayNumber: number) => {
+    if (!matrix) return;
+    setDeleteDayDraft({
+      dayNumber,
+      reason: "Day no longer needed",
+    });
+  };
+
+  const handleDeleteDaySubmit = async () => {
+    if (!matrix || !deleteDayDraft) return;
+
+    const { dayNumber } = deleteDayDraft;
+    const reason = deleteDayDraft.reason.trim() || "Day no longer needed";
+
+    setDeletingDayNumber(dayNumber);
+    try {
+      await deleteMatrixDay(matrix.id, dayNumber, reason);
+      toast.success(`Day ${dayNumber} deleted`);
+      setDeleteDayDraft(null);
+
+      if (selectedDay === dayNumber) {
+        setSelectedDay(null);
+      }
+
+      await fetchMatrix(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete day");
+    } finally {
+      setDeletingDayNumber(null);
+    }
+  };
+
+  const handleOpenInsertDay = (dayNumber: number, mode: "before" | "after") => {
+    setInsertDayDraft({
+      dayNumber,
+      mode,
+      reason:
+        mode === "after"
+          ? `Need buffer after day ${dayNumber}`
+          : `Need to add day before day ${dayNumber}`,
+    });
+  };
+
+  const handleInsertDaySubmit = async () => {
+    if (!matrix || !insertDayDraft) return;
+
+    const { dayNumber, mode } = insertDayDraft;
+    const reason = insertDayDraft.reason.trim() || "Need additional day";
+
+    setInsertingDayNumber(dayNumber);
+    try {
+      await insertMatrixDay(matrix.id, {
+        ...(mode === "after"
+          ? { insertAfterDay: dayNumber }
+          : { insertBeforeDay: dayNumber }),
+        reason,
+      });
+      toast.success(
+        mode === "after"
+          ? `Day inserted after day ${dayNumber}`
+          : `Day inserted before day ${dayNumber}`,
+      );
+      setInsertDayDraft(null);
+      await fetchMatrix(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to insert day");
+    } finally {
+      setInsertingDayNumber(null);
     }
   };
 
@@ -731,6 +824,8 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             ).length;
             const isSelected = selectedDay === dayNum;
             const holidayBusy = markingHolidayDay === dayNum;
+            const deleteBusy = deletingDayNumber === dayNum;
+            const insertBusy = insertingDayNumber === dayNum;
 
             return (
               <Card
@@ -775,30 +870,38 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                             placeholder={`Day ${displayDayNumber}`}
                           />
                         ) : (
-                          <p
-                            className="text-sm font-semibold text-gray-900 flex-1 truncate cursor-pointer hover:text-orange-600 transition-colors group-hover:underline decoration-dashed decoration-gray-300 underline-offset-[3px]"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingDayNumber(dayNum);
-                            }}
-                            title={dayEntry.title || `Day ${displayDayNumber}`}
-                          >
-                            {dayEntry.title || `Day ${displayDayNumber}`}
-                          </p>
-                        )}
-                        
-                        {!editingDayNumber && (
-                           <button
-                             type="button"
-                             onClick={(e) => {
-                               e.stopPropagation();
-                               setEditingDayNumber(dayNum);
-                             }}
-                             className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-orange-600 transition-colors ml-2"
-                             title="Edit day title"
-                           >
-                             <Pencil className="w-3 h-3" />
-                           </button>
+                          <div className="flex items-center justify-between gap-2 flex-1 min-w-0">
+                            <p
+                              className="text-sm font-semibold text-gray-900 flex-1 truncate cursor-pointer hover:text-orange-600 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingDayNumber(dayNum);
+                              }}
+                              title={dayEntry.title || `Day ${displayDayNumber}`}
+                            >
+                              {dayEntry.title || `Day ${displayDayNumber}`}
+                            </p>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingDayNumber(dayNum);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEditingDayNumber(dayNum);
+                                }
+                              }}
+                              className="p-0.5 rounded text-gray-400 hover:text-orange-600 transition-colors"
+                              title="Edit day title"
+                              aria-label={`Edit title for day ${displayDayNumber}`}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </span>
+                          </div>
                         )}
                       </div>
                       <p className="text-[11px] text-gray-400 mt-0.5">
@@ -810,6 +913,52 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={insertBusy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenInsertDay(dayNum, "before");
+                      }}
+                      className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 disabled:opacity-60 transition-colors"
+                      title={`Insert day before ${dayNum}`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Before</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={insertBusy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenInsertDay(dayNum, "after");
+                      }}
+                      className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 disabled:opacity-60 transition-colors"
+                      title={`Insert day after ${dayNum}`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">After</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={deleteBusy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDeleteDay(dayNum);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-60 transition-colors"
+                      title={`Delete day ${dayNum}`}
+                    >
+                      {deleteBusy ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                      <span className="hidden sm:inline">Delete Day</span>
+                    </button>
+
                     <label
                       className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer"
                       onClick={(e) => e.stopPropagation()}
@@ -999,6 +1148,175 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                   </>
                 ) : (
                   "Mark Holiday"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteDayDraft && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() =>
+              deletingDayNumber === deleteDayDraft.dayNumber
+                ? undefined
+                : setDeleteDayDraft(null)
+            }
+          />
+          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-semibold text-gray-900">
+                Delete Day {deleteDayDraft.dayNumber}
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                This will remove all tasks mapped to this day. This cannot be undone.
+              </p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Reason
+                </label>
+                <input
+                  type="text"
+                  value={deleteDayDraft.reason}
+                  onChange={(e) =>
+                    setDeleteDayDraft((prev) =>
+                      prev ? { ...prev, reason: e.target.value } : prev,
+                    )
+                  }
+                  placeholder="Day no longer needed"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                />
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteDayDraft(null)}
+                disabled={deletingDayNumber === deleteDayDraft.dayNumber}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleDeleteDaySubmit}
+                disabled={deletingDayNumber === deleteDayDraft.dayNumber}
+                className="bg-red-500 hover:bg-red-600 text-white"
+              >
+                {deletingDayNumber === deleteDayDraft.dayNumber ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Day"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {insertDayDraft && (
+        <div className="fixed inset-0 z-[76] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() =>
+              insertingDayNumber === insertDayDraft.dayNumber
+                ? undefined
+                : setInsertDayDraft(null)
+            }
+          />
+          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-semibold text-gray-900">
+                {insertDayDraft.mode === "after" ? "Insert Day After" : "Insert Day Before"} Day {insertDayDraft.dayNumber}
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                A new day will be inserted and day numbering will shift accordingly.
+              </p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setInsertDayDraft((prev) =>
+                      prev ? { ...prev, mode: "before" } : prev,
+                    )
+                  }
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    insertDayDraft.mode === "before"
+                      ? "border-blue-400 bg-blue-50 text-blue-700"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  Before
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setInsertDayDraft((prev) =>
+                      prev ? { ...prev, mode: "after" } : prev,
+                    )
+                  }
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    insertDayDraft.mode === "after"
+                      ? "border-blue-400 bg-blue-50 text-blue-700"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  After
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Reason
+                </label>
+                <input
+                  type="text"
+                  value={insertDayDraft.reason}
+                  onChange={(e) =>
+                    setInsertDayDraft((prev) =>
+                      prev ? { ...prev, reason: e.target.value } : prev,
+                    )
+                  }
+                  placeholder="Need additional day"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInsertDayDraft(null)}
+                disabled={insertingDayNumber === insertDayDraft.dayNumber}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleInsertDaySubmit}
+                disabled={insertingDayNumber === insertDayDraft.dayNumber}
+                className="bg-blue-500 hover:bg-blue-600 text-white"
+              >
+                {insertingDayNumber === insertDayDraft.dayNumber ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    Inserting...
+                  </>
+                ) : (
+                  "Insert Day"
                 )}
               </Button>
             </div>

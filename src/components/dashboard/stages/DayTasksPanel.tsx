@@ -38,7 +38,7 @@ interface DayTasksPanelProps {
   projectId: string;
   projectName?: string;
   dayNumber: number;
-  startDate: string;
+  startDate: string | null;
   categories: MatrixCategory[];
   onTaskClick: (taskId: string, task?: MatrixTask) => void;
   onStatusChange: (
@@ -88,12 +88,20 @@ const taskStatusConfig: Record<
   },
 };
 
-const parseDate = (d: string) => {
-  const dateOnly = d.includes("T") ? d.split("T")[0] : d;
+const toDateOnly = (value?: string | null): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.includes("T") ? trimmed.split("T")[0] : trimmed;
+};
+
+const parseDate = (d?: string | null) => {
+  const dateOnly = toDateOnly(d);
+  if (!dateOnly) return new Date(NaN);
   return new Date(dateOnly + "T00:00:00");
 };
 
-const getDateForDay = (startDate: string, dayNumber: number) => {
+const getDateForDay = (startDate: string | null, dayNumber: number) => {
   // Handle ISO strings like "2026-02-11T00:00:00.000Z" and plain "2026-02-11"
   const d = parseDate(startDate);
   if (isNaN(d.getTime())) return "—";
@@ -237,14 +245,12 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
 
   const getCurrentDayDateInput = () => {
     const fromTask = tasks.find((t) => !!t.taskDate)?.taskDate;
-    if (fromTask) {
-      const dateOnly = fromTask.includes("T") ? fromTask.split("T")[0] : fromTask;
-      return dateOnly;
-    }
+    const dateOnly = toDateOnly(fromTask);
+    if (dateOnly) return dateOnly;
     return computeDefaultDayDateInput();
   };
 
-  const formatDisplayDate = (isoDate: string) => {
+  const formatDisplayDate = (isoDate?: string | null) => {
     const d = parseDate(isoDate);
     if (isNaN(d.getTime())) return "—";
     return d.toLocaleDateString("en-IN", {
@@ -1350,7 +1356,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
         <NewTaskModal
           matrixId={matrixId}
           dayNumber={dayNumber}
-          startDate={startDate}
+          startDate={startDate || ""}
           dayDate={getCurrentDayDateInput()}
           categories={categories}
           onClose={() => setShowNewTaskModal(false)}

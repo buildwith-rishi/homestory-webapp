@@ -9,12 +9,29 @@ import toast from "react-hot-toast";
 interface EditMatrixModalProps {
   matrixId: string;
   currentTotalDays: number;
-  currentStartDate: string;
+  currentStartDate: string | null;
   currentIncludeSundays?: boolean;
   stageName: string;
   onClose: () => void;
   onSuccess: () => void;
 }
+
+const toDateOnly = (value?: string | null): string => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.includes("T") ? trimmed.split("T")[0] : trimmed;
+};
+
+const formatDateOnly = (value: string): string => {
+  const parsed = new Date(value + "T00:00:00");
+  if (isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
 
 export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
   matrixId,
@@ -25,16 +42,16 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const currentStartDateOnly = toDateOnly(currentStartDate);
+
   const [totalDays, setTotalDays] = useState(currentTotalDays);
-  const [startDate, setStartDate] = useState(
-    currentStartDate ? currentStartDate.split("T")[0] : "",
-  );
+  const [startDate, setStartDate] = useState(currentStartDateOnly);
   const [includeSundays, setIncludeSundays] = useState(currentIncludeSundays);
   const [saving, setSaving] = useState(false);
 
   const hasChanges =
     totalDays !== currentTotalDays ||
-    startDate !== (currentStartDate ? currentStartDate.split("T")[0] : "") ||
+    startDate !== currentStartDateOnly ||
     includeSundays !== currentIncludeSundays;
 
   const handleSave = async () => {
@@ -43,10 +60,7 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
     try {
       const data: UpdateMatrixRequest = {};
       if (totalDays !== currentTotalDays) data.totalDays = totalDays;
-      if (
-        startDate !== (currentStartDate ? currentStartDate.split("T")[0] : "")
-      )
-        data.startDate = startDate;
+      if (startDate !== currentStartDateOnly) data.startDate = startDate;
       if (includeSundays !== currentIncludeSundays)
         data.includeSundays = includeSundays;
 
@@ -140,8 +154,7 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50"
             />
             {startDate &&
-              startDate !==
-                (currentStartDate ? currentStartDate.split("T")[0] : "") && (
+              startDate !== currentStartDateOnly && (
                 <p className="text-xs text-amber-600 mt-1">
                   Changing the start date will shift all day dates accordingly.
                 </p>
@@ -177,31 +190,10 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
                     • Total days: {currentTotalDays} → {totalDays}
                   </li>
                 )}
-                {startDate !==
-                  (currentStartDate ? currentStartDate.split("T")[0] : "") && (
+                {startDate !== currentStartDateOnly && (
                   <li>
-                    • Start date:{" "}
-                    {currentStartDate
-                      ? new Date(
-                          (currentStartDate.includes("T")
-                            ? currentStartDate.split("T")[0]
-                            : currentStartDate) + "T00:00:00",
-                        ).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "—"}{" "}
-                    →{" "}
-                    {new Date(
-                      (startDate.includes("T")
-                        ? startDate.split("T")[0]
-                        : startDate) + "T00:00:00",
-                    ).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    • Start date: {formatDateOnly(currentStartDateOnly)} →{" "}
+                    {formatDateOnly(startDate)}
                   </li>
                 )}
                 {includeSundays !== currentIncludeSundays && (

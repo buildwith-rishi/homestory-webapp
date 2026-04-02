@@ -76,6 +76,67 @@ const formatRole = (role: string): string =>
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+const normalizeAssignableUsers = (response: unknown): AdminUser[] => {
+  let usersList: Array<Record<string, unknown>> = [];
+
+  if (Array.isArray(response)) {
+    usersList = response as Array<Record<string, unknown>>;
+  } else if (response && typeof response === "object") {
+    if ("users" in response && Array.isArray(response.users)) {
+      usersList = response.users as Array<Record<string, unknown>>;
+    } else if (
+      "data" in response &&
+      response.data &&
+      typeof response.data === "object" &&
+      "users" in response.data &&
+      Array.isArray(
+        (response.data as { users: Array<Record<string, unknown>> }).users,
+      )
+    ) {
+      usersList = (response.data as { users: Array<Record<string, unknown>> })
+        .users;
+    } else if ("data" in response && Array.isArray(response.data)) {
+      usersList = response.data as Array<Record<string, unknown>>;
+    }
+  }
+
+  const normalized = usersList
+    .map((user) => {
+      const roleFromApi =
+        user.role ||
+        (user.credential as { roleKey?: string; name?: string } | undefined)
+          ?.roleKey ||
+        (user.credential as { roleKey?: string; name?: string } | undefined)
+          ?.name ||
+        "";
+
+      const role = String(roleFromApi).trim().toUpperCase();
+
+      return {
+        ...user,
+        id: String(user.id || ""),
+        name: String(user.name || ""),
+        email: String(user.email || ""),
+        role: role as AdminUser["role"],
+      } as AdminUser;
+    })
+    .filter(
+      (u) =>
+        Boolean(u.id) &&
+        Boolean(u.name) &&
+        Boolean(u.role) &&
+        u.isActive !== false &&
+        !u.isBanned,
+    );
+
+  const seen = new Set<string>();
+  return normalized.filter((u) => {
+    if (seen.has(u.id)) return false;
+    seen.add(u.id);
+    return true;
+  });
+};
+
 export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   matrixId,
   dayNumber,
@@ -92,6 +153,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     : toDateInputValue(getTaskDate(startDate, dayNumber));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
 
@@ -116,21 +178,37 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const normalizedStartDate = normalizeStartDate(selectedStartDate);
 
   useEffect(() => {
-    adminAPI
-      .getAllUsers()
-      .then((res: unknown) => {
-        if (
-          res &&
-          typeof res === "object" &&
-          "users" in res &&
-          Array.isArray((res as { users: AdminUser[] }).users)
-        ) {
-          setUsers((res as { users: AdminUser[] }).users);
-        } else if (Array.isArray(res)) {
-          setUsers(res as AdminUser[]);
-        }
-      })
-      .catch(() => {});
+    let mounted = true;
+
+    const fetchUsers = async () => {
+      setUsersLoading(true);
+      try {
+        const res = await adminAPI.getAllUsers();
+        if (!mounted) return;
+        setUsers(normalizeAssignableUsers(res));
+      } catch {
+        if (!mounted) return;
+        setUsers([]);
+      } finally {
+        if (mounted) setUsersLoading(false);
+      }
+    };
+
+    fetchUsers();
+
+    // Refresh list when the tab regains focus so newly-created users appear quickly.
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void fetchUsers();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      mounted = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   // Close member picker on outside click
@@ -202,7 +280,8 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     const q = assigneeSearch.toLowerCase();
     return byRole.filter(
       (u) =>
-        u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
+        (u.name || "").toLowerCase().includes(q) ||
+        (u.email || "").toLowerCase().includes(q),
     );
   }, [users, openAssigneeFor, categoryRoles, assigneeSearch]);
 
@@ -459,8 +538,10 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                               }`}
                             >
                               <option value="">
-                                {users.length === 0
+                                {usersLoading
                                   ? "Loading roles..."
+                                  : users.length === 0
+                                    ? "No active roles available"
                                   : "Select a role..."}
                               </option>
                               {uniqueRoles.map((role) => {
