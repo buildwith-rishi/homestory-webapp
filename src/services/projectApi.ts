@@ -1903,6 +1903,37 @@ export async function getMatrixByStage(
   }
 }
 
+export async function updateMatrixDayTitle(
+  matrixId: string,
+  dayNumber: number,
+  title: string,
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/matrices/${matrixId}/day/${dayNumber}/title`,
+      {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ title }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        `Failed to update matrix day title. Route: /api/matrices/${matrixId}/day/${dayNumber}/title. Code: ${response.status}`,
+        errorText,
+      );
+      throw new Error(`Failed to update day title: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error updating matrix day title:", error);
+    throw error;
+  }
+}
+
 /**
  * Get matrix by ID
  * GET /api/matrices/:matrixId

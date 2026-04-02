@@ -1608,6 +1608,7 @@ export interface TaskAttachment {
 export interface MatrixDayWiseItem {
   dayNumber: number;
   date: string;
+  title?: string;
   tasks: MatrixTask[];
   isHoliday?: boolean;
   holidayReason?: string | null;
@@ -1640,6 +1641,10 @@ export interface CreateMatrixRequest {
   totalDays: number;
   startDate: string;
   includeSundays?: boolean;
+  dayTitles?: {
+    dayNumber: number;
+    title: string;
+  }[];
   categories: {
     name: string;
     orderIndex: number;

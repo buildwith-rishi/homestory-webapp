@@ -173,12 +173,14 @@ export const UserManagement: React.FC = () => {
   });
   const [editForm, setEditForm] = useState<{
     name: string;
+    email: string;
     roleTitle: string;
     departmentId: string;
     credentialId: string;
     phone: string;
   }>({
     name: "",
+    email: "",
     roleTitle: "",
     departmentId: "",
     credentialId: "",
@@ -581,6 +583,8 @@ export const UserManagement: React.FC = () => {
       setActionLoading(true);
       await adminAPI.updateUser(selectedUser.id, {
         name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone?.trim() || undefined,
         roleTitle: editForm.roleTitle,
         departmentId: editForm.departmentId,
         credentialId: editForm.credentialId,
@@ -955,6 +959,7 @@ export const UserManagement: React.FC = () => {
                             setSelectedUser(user);
                             setEditForm({
                               name: user.name,
+                              email: user.email,
                               roleTitle: fallbackRoleTitle,
                               departmentId:
                                 user.departmentId ||
@@ -1176,6 +1181,22 @@ export const UserManagement: React.FC = () => {
                 setCreateForm({ ...createForm, email: e.target.value })
               }
               placeholder="email@example.com"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Phone
+            </label>
+            <input
+              type="tel"
+              value={createForm.phone || ""}
+              onChange={(e) => {
+                setPhoneErrorUser(null);
+                setCreateForm({ ...createForm, phone: e.target.value });
+              }}
+              placeholder="9876543210"
               className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
             />
           </div>
@@ -1472,6 +1493,37 @@ export const UserManagement: React.FC = () => {
                 setEditForm({ ...editForm, name: e.target.value })
               }
               placeholder="Full Name"
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              required
+              value={editForm.email}
+              onChange={(e) =>
+                setEditForm({ ...editForm, email: e.target.value })
+              }
+              placeholder="email@example.com"
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Phone
+            </label>
+            <input
+              type="tel"
+              value={editForm.phone}
+              onChange={(e) =>
+                setEditForm({ ...editForm, phone: e.target.value })
+              }
+              placeholder="9876543210"
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
             />
           </div>

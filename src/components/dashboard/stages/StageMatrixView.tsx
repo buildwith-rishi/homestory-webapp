@@ -12,6 +12,7 @@ import {
   Settings,
   Layers,
   Tag,
+  Pencil,
 } from "lucide-react";
 import { Button, Card } from "../../ui";
 import { CreateMatrixModal } from "./CreateMatrixModal";
@@ -35,6 +36,7 @@ import {
   deleteMatrix,
   updateMatrixTaskStatus,
   markMatrixHoliday,
+  updateMatrixDayTitle,
 } from "../../../services/projectApi";
 import toast from "react-hot-toast";
 
@@ -196,6 +198,20 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     reason: string;
   } | null>(null);
   const holidayCount = matrix ? getHolidayDayNumbersFromMatrix(matrix).size : 0;
+
+  const [editingDayNumber, setEditingDayNumber] = useState<number | null>(null);
+
+  const handleUpdateDayTitle = async (dayNumber: number, title: string) => {
+    if (!matrix) return;
+    try {
+      await updateMatrixDayTitle(matrix.id, dayNumber, title);
+      toast.success(`Day ${dayNumber} title updated`);
+      fetchMatrix(true); // Refresh immediately to see changes
+    } catch (err) {
+      console.error("Failed to update day title:", err);
+      toast.error("Failed to update day title");
+    }
+  };
 
   const handleAddDaySuccess = () => {
     setShowAddDayModal(false);
@@ -732,11 +748,60 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                     <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">
                       {displayDayNumber}
                     </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-gray-900">
-                        Day {displayDayNumber}
-                      </p>
-                      <p className="text-[11px] text-gray-400">
+                    <div className="text-left w-full relative">
+                      <div className="flex items-center justify-between w-full h-5">
+                        {editingDayNumber === dayNum ? (
+                          <input
+                            type="text"
+                            autoFocus
+                            defaultValue={dayEntry.title || ""}
+                            onBlur={(e) => {
+                              setEditingDayNumber(null);
+                              if (e.target.value !== (dayEntry.title || "")) {
+                                handleUpdateDayTitle(dayNum, e.target.value);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                setEditingDayNumber(null);
+                                if (e.currentTarget.value !== (dayEntry.title || "")) {
+                                  handleUpdateDayTitle(dayNum, e.currentTarget.value);
+                                }
+                              } else if (e.key === "Escape") {
+                                setEditingDayNumber(null);
+                              }
+                            }}
+                            className="text-sm font-semibold text-gray-900 bg-white border border-gray-300 rounded px-1.5 py-0.5 outline-none focus:ring-2 focus:ring-orange-500 max-w-[120px]"
+                            placeholder={`Day ${displayDayNumber}`}
+                          />
+                        ) : (
+                          <p
+                            className="text-sm font-semibold text-gray-900 flex-1 truncate cursor-pointer hover:text-orange-600 transition-colors group-hover:underline decoration-dashed decoration-gray-300 underline-offset-[3px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingDayNumber(dayNum);
+                            }}
+                            title={dayEntry.title || `Day ${displayDayNumber}`}
+                          >
+                            {dayEntry.title || `Day ${displayDayNumber}`}
+                          </p>
+                        )}
+                        
+                        {!editingDayNumber && (
+                           <button
+                             type="button"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setEditingDayNumber(dayNum);
+                             }}
+                             className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-orange-600 transition-colors ml-2"
+                             title="Edit day title"
+                           >
+                             <Pencil className="w-3 h-3" />
+                           </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
                         {dayEntry.date
                           ? formatDayLabelDate(dayEntry.date)
                           : getFallbackDateForDay(matrix.startDate, dayNum)}

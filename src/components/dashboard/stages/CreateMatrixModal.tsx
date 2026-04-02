@@ -60,6 +60,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [dayTitles, setDayTitles] = useState<Record<number, string>>({ 1: "" });
 
   // Inline tasks — assignedTo stores the TeamMember id
   const [tasks, setTasks] = useState<
@@ -74,6 +75,17 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
 
   const parsedTotalDays = Number.parseInt(totalDaysInput, 10);
   const totalDays = Number.isNaN(parsedTotalDays) ? 0 : parsedTotalDays;
+
+  useEffect(() => {
+    if (totalDays < 1) return;
+    setDayTitles((prev) => {
+      const next: Record<number, string> = {};
+      for (let day = 1; day <= totalDays; day += 1) {
+        next[day] = prev[day] || "";
+      }
+      return next;
+    });
+  }, [totalDays]);
 
   const normalizeTotalDaysInput = () => {
     const parsed = Number.parseInt(totalDaysInput, 10);
@@ -173,6 +185,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
     setTasks((prev) => prev.filter((_, i) => i !== idx));
 
   // Compute task date from startDate + (dayNumber - 1), optionally skipping Sundays
+  // and return YYYY-MM-DD to match matrix create API date fields.
   const getTaskDate = (dayNum: number): string => {
     // Parse startDate (YYYY-MM-DD) into components
     const [y, m, d] = startDate.split("-").map(Number);
@@ -181,7 +194,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
 
     if (includeSundays) {
       date.setUTCDate(date.getUTCDate() + (dayNum - 1));
-      return date.toISOString();
+      return date.toISOString().split("T")[0];
     }
 
     let validDaysCount = 1;
@@ -193,7 +206,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
       }
     }
 
-    return date.toISOString();
+    return date.toISOString().split("T")[0];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -213,7 +226,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
     const validTasks = tasks
       .filter((t) => t.title.trim())
       .map((t) => {
-        // API expects full ISO-8601 DateTime strings
+        // API expects date fields as YYYY-MM-DD
         const taskIso = getTaskDate(t.dayNumber);
         const task: NonNullable<CreateMatrixRequest["tasks"]>[number] = {
           dayNumber: t.dayNumber,
@@ -249,12 +262,23 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
       JSON.stringify(validTasks, null, 2),
     );
 
+    const normalizedDayTitles: NonNullable<CreateMatrixRequest["dayTitles"]> =
+      Array.from({ length: totalDays }, (_, idx) => {
+        const dayNumber = idx + 1;
+        const title = (dayTitles[dayNumber] || `Day ${dayNumber}`).trim();
+        return {
+          dayNumber,
+          title: title || `Day ${dayNumber}`,
+        };
+      });
+
     setSaving(true);
     try {
       const data: CreateMatrixRequest = {
         totalDays,
         startDate,
         includeSundays,
+        dayTitles: normalizedDayTitles,
         categories: validCategories,
         tasks: validTasks,
       };
@@ -496,6 +520,37 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
             </p>
           </div>
 
+          {/* Day Titles */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Day Titles
+            </label>
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+              {Array.from({ length: Math.max(totalDays, 1) }, (_, idx) => {
+                const dayNumber = idx + 1;
+                return (
+                  <div key={dayNumber} className="flex items-center gap-2">
+                    <span className="w-12 text-xs font-medium text-gray-500">
+                      Day {dayNumber}
+                    </span>
+                    <input
+                      type="text"
+                      value={dayTitles[dayNumber] || ""}
+                      onChange={(e) =>
+                        setDayTitles((prev) => ({
+                          ...prev,
+                          [dayNumber]: e.target.value,
+                        }))
+                      }
+                      placeholder={`Day ${dayNumber}`}
+                      className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Initial Tasks */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -561,6 +616,22 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                     />
                     {/* Assign team member — UUID sent to both assignedToUserId & assignedToMemberId */}
                     <div className="flex items-center gap-2">
+                      <select
+                        value={task.dayNumber}
+                        onChange={(e) =>
+                          updateTask(idx, "dayNumber", Number(e.target.value))
+                        }
+                        className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
+                      >
+                        {Array.from({ length: Math.max(totalDays, 1) }, (_, dayIdx) => {
+                          const dayNumber = dayIdx + 1;
+                          return (
+                            <option key={dayNumber} value={dayNumber}>
+                              Day {dayNumber}
+                            </option>
+                          );
+                        })}
+                      </select>
                       <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       <select
                         value={task.assignedTo || ""}

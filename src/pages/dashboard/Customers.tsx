@@ -96,6 +96,17 @@ interface Customer {
   notes?: Note[];
   occupation?: string;
   companyName?: string;
+  propertyType?: string;
+  projectType?: string;
+  area?: string;
+  city?: string;
+  projectStage?: string;
+  startTimeline?: string;
+  budgetComfort?: string;
+  projectScope?: string;
+  floorPlan?: string;
+  messageNotes?: string;
+  requirements?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1418,6 +1429,116 @@ const ViewCustomerModal: React.FC<{
               </div>
             </div>
           </div>
+
+          {/* Project Intake Details */}
+          {(customer.propertyType ||
+            customer.projectType ||
+            customer.area ||
+            customer.city ||
+            customer.projectStage ||
+            customer.startTimeline ||
+            customer.budgetComfort ||
+            customer.projectScope ||
+            customer.floorPlan ||
+            customer.messageNotes ||
+            customer.requirements) && (
+            <div className="bg-gradient-to-br from-amber-50 to-orange-100/40 rounded-2xl p-6 border border-amber-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-amber-500" />
+                Project Intake Details
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {customer.propertyType && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Property Type
+                    </p>
+                    <p className="text-gray-900 font-medium">{customer.propertyType}</p>
+                  </div>
+                )}
+                {customer.projectType && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Project Type
+                    </p>
+                    <p className="text-gray-900 font-medium">{customer.projectType}</p>
+                  </div>
+                )}
+                {customer.area && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">Area</p>
+                    <p className="text-gray-900 font-medium">{customer.area}</p>
+                  </div>
+                )}
+                {customer.city && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">City</p>
+                    <p className="text-gray-900 font-medium">{customer.city}</p>
+                  </div>
+                )}
+                {customer.projectStage && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Project Stage
+                    </p>
+                    <p className="text-gray-900 font-medium">{customer.projectStage}</p>
+                  </div>
+                )}
+                {customer.startTimeline && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Start Timeline
+                    </p>
+                    <p className="text-gray-900 font-medium">{customer.startTimeline}</p>
+                  </div>
+                )}
+                {customer.budgetComfort && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Budget Comfort
+                    </p>
+                    <p className="text-gray-900 font-medium">{customer.budgetComfort}</p>
+                  </div>
+                )}
+                {customer.projectScope && (
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Project Scope
+                    </p>
+                    <p className="text-gray-900 font-medium">{customer.projectScope}</p>
+                  </div>
+                )}
+                {customer.floorPlan && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Floor Plan
+                    </p>
+                    <p className="text-gray-900 font-medium break-all">{customer.floorPlan}</p>
+                  </div>
+                )}
+                {customer.messageNotes && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Message / Notes
+                    </p>
+                    <p className="text-gray-900 font-medium whitespace-pre-wrap">
+                      {customer.messageNotes}
+                    </p>
+                  </div>
+                )}
+                {customer.requirements && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-500 uppercase font-semibold">
+                      Requirements
+                    </p>
+                    <p className="text-gray-900 font-medium whitespace-pre-wrap">
+                      {customer.requirements}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Client Ranking & Communication */}
           {(customer.clientRanking || customer.communicationPreference) && (
@@ -2894,6 +3015,9 @@ export const Customers: React.FC = () => {
               sum + toCurrencyNumber(project?.totalValue),
             0,
           );
+          const intake =
+            ((apiCustomer as any).uiIntake as Record<string, unknown> | undefined) ||
+            {};
 
             // Get email from contacts first, then fall back to lead info
             let customerEmail = "No email";
@@ -2970,7 +3094,62 @@ export const Customers: React.FC = () => {
               communicationPreference: undefined,
               notes: [],
               occupation: undefined,
-              companyName: undefined,
+              companyName:
+                (apiCustomer as any).companyName ||
+                (typeof intake.companyName === "string"
+                  ? intake.companyName
+                  : undefined),
+              propertyType:
+                (apiCustomer as any).propertyType ||
+                (typeof intake.propertyType === "string"
+                  ? intake.propertyType
+                  : undefined),
+              projectType:
+                (apiCustomer as any).projectType ||
+                (typeof intake.projectType === "string"
+                  ? intake.projectType
+                  : undefined),
+              area:
+                (apiCustomer as any).area ||
+                (typeof intake.area === "string" ? intake.area : undefined),
+              city:
+                (apiCustomer as any).city ||
+                (typeof intake.city === "string" ? intake.city : undefined),
+              projectStage:
+                (apiCustomer as any).projectStage ||
+                (typeof intake.projectStage === "string"
+                  ? intake.projectStage
+                  : undefined),
+              startTimeline:
+                (apiCustomer as any).startTimeline ||
+                (typeof intake.startTimeline === "string"
+                  ? intake.startTimeline
+                  : undefined),
+              budgetComfort:
+                (apiCustomer as any).budgetComfort ||
+                (typeof intake.budgetComfort === "string"
+                  ? intake.budgetComfort
+                  : undefined),
+              projectScope:
+                (apiCustomer as any).projectScope ||
+                (typeof intake.projectScope === "string"
+                  ? intake.projectScope
+                  : undefined),
+              floorPlan:
+                (apiCustomer as any).floorPlan ||
+                (typeof intake.floorPlan === "string"
+                  ? intake.floorPlan
+                  : undefined),
+              messageNotes:
+                (apiCustomer as any).messageNotes ||
+                (typeof intake.messageNotes === "string"
+                  ? intake.messageNotes
+                  : undefined),
+              requirements:
+                (apiCustomer as any).requirements ||
+                (typeof intake.requirements === "string"
+                  ? intake.requirements
+                  : undefined),
               createdAt: apiCustomer.createdAt,
               updatedAt: apiCustomer.updatedAt,
             };
@@ -3038,6 +3217,11 @@ export const Customers: React.FC = () => {
   const handleAddCustomer = async (customerData: any) => {
     setIsCreatingCustomer(true);
     try {
+      const intake = customerData.uiIntake || {};
+      const mergedNotes = [intake.messageNotes, intake.requirements]
+        .filter((entry: unknown) => typeof entry === "string" && entry.trim())
+        .join("\n\n");
+
       const createPayload = {
         name: customerData.name,
         type: customerData.type,
@@ -3045,6 +3229,20 @@ export const Customers: React.FC = () => {
         phone: customerData.phone,
         secondaryEmails: customerData.secondaryEmails,
         secondaryPhones: customerData.secondaryPhones,
+        companyName: intake.companyName,
+        propertyType: intake.propertyType,
+        projectType: intake.projectType,
+        area: intake.area,
+        city: intake.city,
+        projectStage: intake.projectStage,
+        startTimeline: intake.startTimeline,
+        budgetComfort: intake.budgetComfort,
+        projectScope: intake.projectScope,
+        floorPlan: intake.floorPlan,
+        messageNotes: intake.messageNotes,
+        requirements: intake.requirements,
+        notes: mergedNotes || undefined,
+        uiIntake: intake,
       };
 
       // Call the backend API to create customer
