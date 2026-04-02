@@ -41,6 +41,7 @@ import {
   updateMatrixDayTitle,
 } from "../../../services/projectApi";
 import toast from "react-hot-toast";
+import { createPortal } from "react-dom";
 
 interface StageMatrixViewProps {
   projectId: string;
@@ -1059,13 +1060,14 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
         />
       )}
 
-      {holidayDraft && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setHolidayDraft(null)}
-          />
-          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
+      {holidayDraft &&
+        createPortal(
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setHolidayDraft(null)}
+            />
+            <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-base font-semibold text-gray-900">
                 Mark Day {holidayDraft.dayEntry.dayNumber} as Holiday
@@ -1151,21 +1153,23 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                 )}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
 
-      {deleteDayDraft && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() =>
-              deletingDayNumber === deleteDayDraft.dayNumber
-                ? undefined
-                : setDeleteDayDraft(null)
-            }
-          />
-          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
+      {deleteDayDraft &&
+        createPortal(
+          <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() =>
+                deletingDayNumber === deleteDayDraft.dayNumber
+                  ? undefined
+                  : setDeleteDayDraft(null)
+              }
+            />
+            <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-base font-semibold text-gray-900">
                 Delete Day {deleteDayDraft.dayNumber}
@@ -1219,21 +1223,23 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                 )}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
 
-      {insertDayDraft && (
-        <div className="fixed inset-0 z-[76] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() =>
-              insertingDayNumber === insertDayDraft.dayNumber
-                ? undefined
-                : setInsertDayDraft(null)
-            }
-          />
-          <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
+      {insertDayDraft &&
+        createPortal(
+          <div className="fixed inset-0 z-[76] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() =>
+                insertingDayNumber === insertDayDraft.dayNumber
+                  ? undefined
+                  : setInsertDayDraft(null)
+              }
+            />
+            <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-base font-semibold text-gray-900">
                 {insertDayDraft.mode === "after" ? "Insert Day After" : "Insert Day Before"} Day {insertDayDraft.dayNumber}
@@ -1320,9 +1326,10 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                 )}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Add Day Modal */}
       {showAddDayModal && matrix && (
