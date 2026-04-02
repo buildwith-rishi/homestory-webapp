@@ -41,7 +41,8 @@ import * as meetingAPI from "../../services/meetingApi";
 import {
   listAttachments,
 } from "../../services/attachmentApi";
-import type { Lead, Project } from "../../types";
+import { adminAPI } from "../../services/api";
+import type { Lead, Project, AdminUser } from "../../types";
 import toast from "react-hot-toast";
 
 type MeetingDisplayStatus =
@@ -74,6 +75,51 @@ interface MeetingDisplay {
   actionItems?: number;
   attendees?: string[];
 }
+
+const APPROVED_MEETING_ROLE_OPTIONS = [
+  "Accounts / Finance",
+  "Admin",
+  "Business Development Representative",
+  "Designer",
+  "Human Resources",
+  "Lead Designer",
+  "Lead Project Manager",
+  "Project Manager",
+  "Site Engineer",
+  "Super Admin",
+] as const;
+
+const normalizeRoleKey = (value: string): string =>
+  value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+const APPROVED_ROLE_ALIASES: Record<string, (typeof APPROVED_MEETING_ROLE_OPTIONS)[number]> = {
+  ACCOUNTS: "Accounts / Finance",
+  ACCOUNTS_FINANCE: "Accounts / Finance",
+  FINANCE: "Accounts / Finance",
+  ADMIN: "Admin",
+  BDR: "Business Development Representative",
+  BUSINESS_DEVELOPMENT_REPRESENTATIVE: "Business Development Representative",
+  DESIGNER: "Designer",
+  HR: "Human Resources",
+  HUMAN_RESOURCES: "Human Resources",
+  LEAD_DESIGNER: "Lead Designer",
+  DESIGN_HEAD: "Lead Designer",
+  LEAD_PROJECT_MANAGER: "Lead Project Manager",
+  PROJECT_MANAGER: "Project Manager",
+  SITE_ENGINEER: "Site Engineer",
+  SUPER_ADMIN: "Super Admin",
+};
+
+const toApprovedRoleLabel = (value?: string | null): string | null => {
+  if (typeof value !== "string") return null;
+  const key = normalizeRoleKey(value);
+  if (!key) return null;
+  return APPROVED_ROLE_ALIASES[key] || null;
+};
 
 const statusColors = {
   scheduled: {
@@ -217,7 +263,23 @@ export const MeetingsPage: React.FC = () => {
   const [showMomLeadDropdown, setShowMomLeadDropdown] = useState(false);
   const [momScheduledAt, setMomScheduledAt] = useState("");
   const [momTranscriptText, setMomTranscriptText] = useState("");
-  const [momParticipants, setMomParticipants] = useState("");
+  const [momUsersFromManagement, setMomUsersFromManagement] = useState<
+    AdminUser[]
+  >([]);
+  const [momRoleOptions, setMomRoleOptions] = useState<string[]>([]);
+  const [momSelectedRole, setMomSelectedRole] = useState("");
+  const [momSelectedUserId, setMomSelectedUserId] = useState("");
+  const [momSelectedParticipants, setMomSelectedParticipants] = useState<
+    AdminUser[]
+  >([]);
+  const [loadingMomUserManagement, setLoadingMomUserManagement] =
+    useState(false);
+
+  const getUserRoleLabel = useCallback(
+    (user: AdminUser): string | null =>
+      toApprovedRoleLabel(user.roleTitle) || toApprovedRoleLabel(user.role),
+    [],
+  );
 
   // New state for lead/project selection
   const [selectedMeetingType, setSelectedMeetingType] = useState<
@@ -274,6 +336,112 @@ export const MeetingsPage: React.FC = () => {
 
   const isMomProjectLocked = Boolean(momLeadId);
   const isMomLeadLocked = Boolean(momProjectId);
+
+  const normalizeUsersResponse = useCallback((response: unknown): AdminUser[] => {
+    let usersList: Array<Record<string, unknown>> = [];
+
+    if (Array.isArray(response)) {
+      usersList = response as Array<Record<string, unknown>>;
+    } else if (response && typeof response === "object") {
+      const obj = response as Record<string, unknown>;
+      if (Array.isArray(obj.users)) {
+        usersList = obj.users as Array<Record<string, unknown>>;
+      } else if (Array.isArray(obj.data)) {
+        usersList = obj.data as Array<Record<string, unknown>>;
+      } else if (
+        obj.data &&
+        typeof obj.data === "object" &&
+        Array.isArray((obj.data as Record<string, unknown>).users)
+      ) {
+        usersList = (obj.data as Record<string, unknown>).users as Array<
+          Record<string, unknown>
+        >;
+      }
+    }
+
+    const normalized = usersList
+      .filter((user) => user && user.id)
+      .map((user) => {
+        const roleFromApi =
+          user.role ||
+          (user.credential as { roleKey?: string; name?: string } | undefined)
+            ?.roleKey ||
+          (user.credential as { roleKey?: string; name?: string } | undefined)
+            ?.name ||
+          "BDR";
+
+        const roleTitleFromApi =
+          (user.roleTitle as string | undefined) ||
+          (user.userRoleTitle as string | undefined) ||
+          (user.title as string | undefined);
+
+        return {
+          ...user,
+          id: String(user.id),
+          name: String(user.name || ""),
+          email: String(user.email || ""),
+          role: String(roleFromApi).toUpperCase() as AdminUser["role"],
+          roleTitle: roleTitleFromApi,
+          isActive: user.isActive !== false,
+          isBanned: user.isBanned === true,
+          createdAt: String(user.createdAt || ""),
+          updatedAt: String(user.updatedAt || ""),
+        } as AdminUser;
+      })
+      .filter((user) => user.isActive !== false && !user.isBanned);
+
+    return uniqueById(normalized);
+  }, []);
+
+  const fetchMomUserManagementData = useCallback(async () => {
+    setLoadingMomUserManagement(true);
+    try {
+      const usersResponse = await adminAPI.getAllUsers();
+
+      const users = normalizeUsersResponse(usersResponse);
+
+      setMomUsersFromManagement(users);
+      setMomRoleOptions([...APPROVED_MEETING_ROLE_OPTIONS]);
+    } catch (error) {
+      console.error("Failed to load user management data for MOM:", error);
+      setMomUsersFromManagement([]);
+      setMomRoleOptions([]);
+    } finally {
+      setLoadingMomUserManagement(false);
+    }
+  }, [normalizeUsersResponse]);
+
+  const momUsersForSelectedRole = useMemo(() => {
+    if (!momSelectedRole) return [];
+
+    return momUsersFromManagement
+      .filter((user) => getUserRoleLabel(user) === momSelectedRole)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [getUserRoleLabel, momSelectedRole, momUsersFromManagement]);
+
+  const handleAddMomParticipant = () => {
+    if (!momSelectedRole || !momSelectedUserId) return;
+
+    const selectedUser = momUsersForSelectedRole.find(
+      (user) => user.id === momSelectedUserId,
+    );
+    if (!selectedUser) return;
+
+    setMomSelectedParticipants((prev) => {
+      if (prev.some((participant) => participant.id === selectedUser.id)) {
+        return prev;
+      }
+      return [...prev, selectedUser];
+    });
+
+    setMomSelectedUserId("");
+  };
+
+  const handleRemoveMomParticipant = (userId: string) => {
+    setMomSelectedParticipants((prev) =>
+      prev.filter((participant) => participant.id !== userId),
+    );
+  };
 
   useEffect(() => {
     if (isMomProjectLocked) {
@@ -604,7 +772,11 @@ export const MeetingsPage: React.FC = () => {
     setShowMomLeadDropdown(false);
     setMomScheduledAt("");
     setMomTranscriptText("");
-    setMomParticipants("");
+    setMomSelectedRole("");
+    setMomSelectedUserId("");
+    setMomSelectedParticipants([]);
+    setMomUsersFromManagement([]);
+    setMomRoleOptions([]);
     setMomFile(null);
     setMomFileError(null);
     if (momFileInputRef.current) momFileInputRef.current.value = "";
@@ -616,14 +788,20 @@ export const MeetingsPage: React.FC = () => {
     if (!momScheduledAt) return;
     setIsUploadingMom(true);
     try {
-      // Convert comma-separated participants to JSON array
+      // Convert selected user-management participants to API JSON
       let participantsJson: string | undefined;
-      if (momParticipants.trim()) {
-        const names = momParticipants
-          .split(",")
-          .map((n) => n.trim())
-          .filter(Boolean);
-        participantsJson = JSON.stringify(names.map((name) => ({ name })));
+      if (momSelectedParticipants.length > 0) {
+        participantsJson = JSON.stringify(
+          momSelectedParticipants.map((participant) => ({
+            name: participant.name,
+            role:
+              String(participant.roleTitle || "").trim() ||
+              String(participant.role || "").trim() ||
+              undefined,
+            email: participant.email || undefined,
+            userId: participant.id,
+          })),
+        );
       }
 
       const selectedEntityType = momProjectId
@@ -658,7 +836,11 @@ export const MeetingsPage: React.FC = () => {
       setShowMomLeadDropdown(false);
       setMomScheduledAt("");
       setMomTranscriptText("");
-      setMomParticipants("");
+      setMomSelectedRole("");
+      setMomSelectedUserId("");
+      setMomSelectedParticipants([]);
+      setMomUsersFromManagement([]);
+      setMomRoleOptions([]);
       setMomFile(null);
       setMomFileError(null);
       if (momFileInputRef.current) momFileInputRef.current.value = "";
@@ -677,11 +859,24 @@ export const MeetingsPage: React.FC = () => {
   useEffect(() => {
     const fetchMomEntities = async () => {
       if (!showMomModal) return;
-      await fetchLiveEntities();
+      await Promise.all([fetchLiveEntities(), fetchMomUserManagementData()]);
     };
 
     void fetchMomEntities();
-  }, [showMomModal, fetchLiveEntities]);
+  }, [showMomModal, fetchLiveEntities, fetchMomUserManagementData]);
+
+  useEffect(() => {
+    if (!momSelectedRole) {
+      setMomSelectedUserId("");
+      return;
+    }
+
+    const roleStillExists = momRoleOptions.includes(momSelectedRole);
+    if (!roleStillExists) {
+      setMomSelectedRole("");
+      setMomSelectedUserId("");
+    }
+  }, [momRoleOptions, momSelectedRole]);
 
   const handleStartScheduledMeeting = async (
     e: React.MouseEvent,
@@ -2079,16 +2274,87 @@ export const MeetingsPage: React.FC = () => {
                     <label className="block text-sm font-semibold text-gray-900 mb-1.5">
                       Participants{" "}
                       <span className="text-xs font-normal text-gray-400">
-                        (optional — comma-separated names)
+                        (optional — select role then user)
                       </span>
                     </label>
-                    <input
-                      type="text"
-                      value={momParticipants}
-                      onChange={(e) => setMomParticipants(e.target.value)}
-                      placeholder="e.g. John Doe, Jane Smith"
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2">
+                      <select
+                        value={momSelectedRole}
+                        onChange={(e) => setMomSelectedRole(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      >
+                        <option value="">
+                          {loadingMomUserManagement
+                            ? "Loading roles..."
+                            : "Select role"}
+                        </option>
+                        {momRoleOptions.map((roleOption) => (
+                          <option key={roleOption} value={roleOption}>
+                            {roleOption}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={momSelectedUserId}
+                        onChange={(e) => setMomSelectedUserId(e.target.value)}
+                        disabled={!momSelectedRole || loadingMomUserManagement}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {!momSelectedRole
+                            ? "Select role first"
+                            : loadingMomUserManagement
+                              ? "Loading users..."
+                              : "Select user"}
+                        </option>
+                        {momUsersForSelectedRole.map((userOption) => (
+                          <option key={userOption.id} value={userOption.id}>
+                            {userOption.name}
+                            {userOption.email ? ` (${userOption.email})` : ""}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={handleAddMomParticipant}
+                        disabled={!momSelectedRole || !momSelectedUserId}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+
+                    {momSelectedParticipants.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {momSelectedParticipants.map((participant) => (
+                          <span
+                            key={participant.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs border border-indigo-200"
+                          >
+                            <span>
+                              {participant.name}
+                              {participant.roleTitle || participant.role
+                                ? ` (${participant.roleTitle || participant.role})`
+                                : ""}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveMomParticipant(participant.id)}
+                              className="text-indigo-500 hover:text-indigo-700"
+                              aria-label={`Remove ${participant.name}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-gray-400">
+                        No participants selected.
+                      </p>
+                    )}
                   </div>
 
                   {/* Submit Button */}

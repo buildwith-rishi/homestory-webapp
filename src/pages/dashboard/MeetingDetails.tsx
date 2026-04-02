@@ -39,16 +39,17 @@ import {
   SectionLoader,
 } from "../../components/ui";
 import * as meetingAPI from "../../services/meetingApi";
+import { adminAPI } from "../../services/api";
 import { getLeadById } from "../../services/leadApi";
 import { getProjectById } from "../../services/projectApi";
 import { sendEmail } from "../../services/emailSendApi";
-import { getAllTeamMembers, type TeamMember } from "../../services/teamApi";
 import type {
   Meeting,
   MeetingNote,
   Participant,
   TranscriptionSegment,
   LeadReference,
+  AdminUser,
 } from "../../types";
 import { LeadReferencesManager } from "../../components/leads";
 import { useMeetingStore } from "../../stores/meetingStore";
@@ -101,6 +102,51 @@ const statusColors: Record<
   },
 };
 
+const APPROVED_MEETING_ROLE_OPTIONS = [
+  "Accounts / Finance",
+  "Admin",
+  "Business Development Representative",
+  "Designer",
+  "Human Resources",
+  "Lead Designer",
+  "Lead Project Manager",
+  "Project Manager",
+  "Site Engineer",
+  "Super Admin",
+] as const;
+
+const normalizeRoleKey = (value: string): string =>
+  value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+const APPROVED_ROLE_ALIASES: Record<string, (typeof APPROVED_MEETING_ROLE_OPTIONS)[number]> = {
+  ACCOUNTS: "Accounts / Finance",
+  ACCOUNTS_FINANCE: "Accounts / Finance",
+  FINANCE: "Accounts / Finance",
+  ADMIN: "Admin",
+  BDR: "Business Development Representative",
+  BUSINESS_DEVELOPMENT_REPRESENTATIVE: "Business Development Representative",
+  DESIGNER: "Designer",
+  HR: "Human Resources",
+  HUMAN_RESOURCES: "Human Resources",
+  LEAD_DESIGNER: "Lead Designer",
+  DESIGN_HEAD: "Lead Designer",
+  LEAD_PROJECT_MANAGER: "Lead Project Manager",
+  PROJECT_MANAGER: "Project Manager",
+  SITE_ENGINEER: "Site Engineer",
+  SUPER_ADMIN: "Super Admin",
+};
+
+const toApprovedRoleLabel = (value?: string | null): string | null => {
+  if (typeof value !== "string") return null;
+  const key = normalizeRoleKey(value);
+  if (!key) return null;
+  return APPROVED_ROLE_ALIASES[key] || null;
+};
+
 // Participant Form Modal
 const ParticipantModal: React.FC<{
   isOpen: boolean;
@@ -117,63 +163,121 @@ const ParticipantModal: React.FC<{
   const [participantType, setParticipantType] = useState<"team" | "external">(
     "team",
   );
-  // Team member state
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  // Team member state from User Management
+  const [teamMembers, setTeamMembers] = useState<AdminUser[]>([]);
+  const [roleOptions, setRoleOptions] = useState<string[]>([]);
+  const [selectedRole, setSelectedRole] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [teamLoading, setTeamLoading] = useState(false);
-  const [selectedTeamMember, setSelectedTeamMember] =
-    useState<TeamMember | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // External participant state
   const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
 
-  // Fetch team members when modal opens
+  const getUserRoleLabel = useCallback(
+    (user: AdminUser): string | null =>
+      toApprovedRoleLabel(user.roleTitle) || toApprovedRoleLabel(user.role),
+    [],
+  );
+
+  const normalizeUsersResponse = useCallback((response: unknown): AdminUser[] => {
+    let usersList: Array<Record<string, unknown>> = [];
+
+    if (Array.isArray(response)) {
+      usersList = response as Array<Record<string, unknown>>;
+    } else if (response && typeof response === "object") {
+      const obj = response as Record<string, unknown>;
+      if (Array.isArray(obj.users)) {
+        usersList = obj.users as Array<Record<string, unknown>>;
+      } else if (Array.isArray(obj.data)) {
+        usersList = obj.data as Array<Record<string, unknown>>;
+      } else if (
+        obj.data &&
+        typeof obj.data === "object" &&
+        Array.isArray((obj.data as Record<string, unknown>).users)
+      ) {
+        usersList = (obj.data as Record<string, unknown>).users as Array<
+          Record<string, unknown>
+        >;
+      }
+    }
+
+    return usersList
+      .filter((user) => user && user.id)
+      .map((user) => {
+        const roleFromApi =
+          user.role ||
+          (user.credential as { roleKey?: string; name?: string } | undefined)
+            ?.roleKey ||
+          (user.credential as { roleKey?: string; name?: string } | undefined)
+            ?.name ||
+          "BDR";
+
+        const roleTitleFromApi =
+          (user.roleTitle as string | undefined) ||
+          (user.userRoleTitle as string | undefined) ||
+          (user.title as string | undefined);
+
+        return {
+          ...user,
+          id: String(user.id),
+          name: String(user.name || ""),
+          email: String(user.email || ""),
+          role: String(roleFromApi).toUpperCase() as AdminUser["role"],
+          roleTitle: roleTitleFromApi,
+          phone: user.phone ? String(user.phone) : undefined,
+          isActive: user.isActive !== false,
+          isBanned: user.isBanned === true,
+          createdAt: String(user.createdAt || ""),
+          updatedAt: String(user.updatedAt || ""),
+        } as AdminUser;
+      })
+      .filter((user) => user.isActive !== false && !user.isBanned)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, []);
+
+  // Fetch role + users from User Management when modal opens
   useEffect(() => {
     if (!isOpen) return;
     setTeamLoading(true);
-    getAllTeamMembers()
-      .then((members) => {
-        const normalized = [...members].sort((a, b) =>
-          (a.name || "").localeCompare(b.name || ""),
-        );
-        setTeamMembers(normalized);
+    adminAPI
+      .getAllUsers()
+      .then((usersResponse) => {
+        const users = normalizeUsersResponse(usersResponse);
+        setTeamMembers(users);
+        setRoleOptions([...APPROVED_MEETING_ROLE_OPTIONS]);
       })
       .catch(console.error)
       .finally(() => setTeamLoading(false));
-  }, [isOpen]);
+  }, [isOpen, normalizeUsersResponse]);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node) &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  const roleUsers = useMemo(() => {
+    if (!selectedRole) return [];
+    return teamMembers.filter(
+      (user) => getUserRoleLabel(user) === selectedRole,
+    );
+  }, [getUserRoleLabel, selectedRole, teamMembers]);
 
-  const filteredMembers = teamMembers.filter(
-    (m) =>
-      (m.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (m.email || "").toLowerCase().includes(searchQuery.toLowerCase()),
+  const filteredMembers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return roleUsers;
+    return roleUsers.filter(
+      (user) =>
+        (user.name || "").toLowerCase().includes(query) ||
+        (user.email || "").toLowerCase().includes(query),
+    );
+  }, [roleUsers, searchQuery]);
+
+  const selectedTeamMember = useMemo(
+    () => teamMembers.find((member) => member.id === selectedUserId) || null,
+    [selectedUserId, teamMembers],
   );
 
   const resetForm = () => {
     setParticipantType("team");
-    setSelectedTeamMember(null);
-    setDropdownOpen(false);
-    setDropdownRect(null);
+    setSelectedRole("");
+    setSelectedUserId("");
     setSearchQuery("");
     setFormData({ name: "", email: "", phone: "" });
     setErrors({});
@@ -181,7 +285,7 @@ const ParticipantModal: React.FC<{
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (participantType === "team" && !selectedTeamMember) {
+    if (participantType === "team" && !selectedUserId) {
       newErrors.userId = "Please select a team member";
     }
     if (participantType === "external" && !formData.name.trim()) {
@@ -194,8 +298,8 @@ const ParticipantModal: React.FC<{
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    if (participantType === "team" && selectedTeamMember) {
-      await onSubmit({ userId: selectedTeamMember.id });
+    if (participantType === "team" && selectedUserId) {
+      await onSubmit({ userId: selectedUserId });
     } else {
       await onSubmit({
         name: formData.name.trim(),
@@ -279,120 +383,82 @@ const ParticipantModal: React.FC<{
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Select Team Member *
+                  Select Role *
                 </label>
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    ref={triggerRef}
-                    type="button"
-                    onClick={() => {
-                      if (triggerRef.current) {
-                        setDropdownRect(
-                          triggerRef.current.getBoundingClientRect(),
-                        );
-                      }
-                      setDropdownOpen(!dropdownOpen);
+                <div className="relative">
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => {
+                      setSelectedRole(e.target.value);
+                      setSelectedUserId("");
+                      setSearchQuery("");
+                      setErrors({});
                     }}
-                    className={`w-full flex items-center justify-between px-4 py-3 border rounded-xl bg-white text-left focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
+                    className={`w-full appearance-none px-4 py-3 border rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
                       errors.userId
                         ? "border-red-300"
                         : "border-gray-300 hover:border-gray-400"
                     }`}
                   >
-                    {selectedTeamMember ? (
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
-                          <User className="w-3.5 h-3.5 text-orange-600" />
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium text-gray-900">
-                            {selectedTeamMember.name}
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            {selectedTeamMember.role ||
-                              selectedTeamMember.email}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <span
-                        className={`text-sm ${teamLoading ? "text-gray-400" : "text-gray-500"}`}
-                      >
-                        {teamLoading
+                    <option value="">
+                      {teamLoading ? "Loading roles..." : "Choose a role..."}
+                    </option>
+                    {roleOptions.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Select Team Member *
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedUserId}
+                    onChange={(e) => {
+                      setSelectedUserId(e.target.value);
+                      setErrors({});
+                    }}
+                    disabled={!selectedRole || teamLoading}
+                    className={`w-full appearance-none px-4 py-3 border rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed ${
+                      errors.userId
+                        ? "border-red-300"
+                        : "border-gray-300 hover:border-gray-400"
+                    }`}
+                  >
+                    <option value="">
+                      {!selectedRole
+                        ? "Select role first"
+                        : teamLoading
                           ? "Loading team members..."
                           : "Choose a team member..."}
-                      </span>
-                    )}
-                    <ChevronDown
-                      className={`w-4 h-4 text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-
-                  {dropdownOpen &&
-                    dropdownRect &&
-                    createPortal(
-                      <div
-                        style={{
-                          position: "fixed",
-                          top: dropdownRect.bottom + 4,
-                          left: dropdownRect.left,
-                          width: dropdownRect.width,
-                          zIndex: 9999,
-                        }}
-                        className="bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden"
-                      >
-                        <div className="p-2 border-b border-gray-100">
-                          <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                              type="text"
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              placeholder="Search team members..."
-                              className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400"
-                              autoFocus
-                            />
-                          </div>
-                        </div>
-                        <div className="max-h-52 overflow-y-auto">
-                          {filteredMembers.length === 0 ? (
-                            <p className="text-sm text-gray-500 text-center py-4">
-                              No team members found
-                            </p>
-                          ) : (
-                            filteredMembers.map((member) => (
-                              <button
-                                key={member.id}
-                                type="button"
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
-                                  setSelectedTeamMember(member);
-                                  setDropdownOpen(false);
-                                  setSearchQuery("");
-                                  setErrors({});
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-orange-50 text-left transition-colors"
-                              >
-                                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                                  <User className="w-4 h-4 text-orange-600" />
-                                </div>
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {member.name}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {member.email}
-                                    {member.role ? ` · ${member.role}` : ""}
-                                  </div>
-                                </div>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </div>,
-                      document.body,
-                    )}
+                    </option>
+                    {filteredMembers.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name}
+                        {member.email ? ` (${member.email})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
+                {selectedRole && (
+                  <div className="mt-2 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search users in selected role..."
+                      className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    />
+                  </div>
+                )}
                 {errors.userId && (
                   <p className="mt-1 text-sm text-red-600">{errors.userId}</p>
                 )}
