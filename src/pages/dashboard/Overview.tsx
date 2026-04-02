@@ -81,6 +81,34 @@ export const DashboardOverview: React.FC = () => {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number>(0);
 
+  const normalizeEnumValue = (value?: string | null): string =>
+    typeof value === "string" ? value.trim().toUpperCase() : "";
+
+  const normalizePipelineType = (
+    value?: string | null,
+  ): "DESIGN_ONLY" | "DESIGN_AND_EXECUTION" | null => {
+    const normalized = normalizeEnumValue(value);
+    if (normalized === "DESIGN_ONLY" || normalized === "ARCHITECTURE") {
+      return "DESIGN_ONLY";
+    }
+    if (
+      normalized === "DESIGN_AND_EXECUTION" ||
+      normalized === "INTERIORS"
+    ) {
+      return "DESIGN_AND_EXECUTION";
+    }
+    return null;
+  };
+
+  const normalizeProjectCategory = (
+    value?: string | null,
+  ): "RESIDENTIAL" | "COMMERCIAL" | "OTHER" => {
+    const normalized = normalizeEnumValue(value);
+    if (normalized === "RESIDENTIAL") return "RESIDENTIAL";
+    if (normalized === "COMMERCIAL") return "COMMERCIAL";
+    return "OTHER";
+  };
+
   useEffect(() => {
     // Use the shared store fetch (same call as the Projects page)
     fetchProjectsFromStore();
@@ -93,8 +121,8 @@ export const DashboardOverview: React.FC = () => {
     { value: "DESIGN_AND_EXECUTION", label: "Interiors" },
   ];
 
-  // Sub-category options shown when Architecture or Interiors is selected
-  const projectCategoryOptions = [
+  // Core sub-category options shown when Architecture or Interiors is selected
+  const baseProjectCategoryOptions = [
     { value: "all", label: "All" },
     { value: "RESIDENTIAL", label: "Residential" },
     { value: "COMMERCIAL", label: "Commercial" },
@@ -264,39 +292,62 @@ export const DashboardOverview: React.FC = () => {
           status,
           stage: formattedStage,
           pipelineType: project.pipelineType,
-          projectCategory: project.projectCategory,
+          projectCategory:
+            project.projectCategory ||
+            (project as { projectType?: string | null }).projectType ||
+            "",
+          normalizedPipelineType: normalizePipelineType(project.pipelineType),
+          normalizedProjectCategory: normalizeProjectCategory(
+            project.projectCategory ||
+              (project as { projectType?: string | null }).projectType,
+          ),
           progress: 50, // Default progress as it's not in Project type
         };
       })
       .sort((a, b) => a.daysLeft - b.daysLeft);
   }, [projects]);
 
+  const deadlinesForSelection = useMemo(() => {
+    if (!selectedProject) return allDeadlines;
+    return allDeadlines.filter((d) => d.id === selectedProject.id);
+  }, [allDeadlines, selectedProject]);
+
+  const pipelineScopedDeadlines = useMemo(() => {
+    if (pipelineTypeFilter === "all") return deadlinesForSelection;
+    return deadlinesForSelection.filter(
+      (d) => d.normalizedPipelineType === pipelineTypeFilter,
+    );
+  }, [deadlinesForSelection, pipelineTypeFilter]);
+
+  const projectCategoryOptions = useMemo(() => {
+    const hasOtherCategory = pipelineScopedDeadlines.some(
+      (d) => d.normalizedProjectCategory === "OTHER",
+    );
+    if (!hasOtherCategory) return baseProjectCategoryOptions;
+    return [...baseProjectCategoryOptions, { value: "OTHER", label: "Other" }];
+  }, [pipelineScopedDeadlines]);
+
   // Filter deadlines based on selection
   const filteredDeadlines = useMemo(() => {
-    let filtered = allDeadlines;
-
-    // Filter by selected project if any
-    if (selectedProject) {
-      filtered = filtered.filter((d) => d.id === selectedProject.id);
-    }
+    let filtered = deadlinesForSelection;
 
     // Filter by pipeline type
     if (pipelineTypeFilter !== "all") {
-      filtered = filtered.filter((d) => d.pipelineType === pipelineTypeFilter);
+      filtered = filtered.filter(
+        (d) => d.normalizedPipelineType === pipelineTypeFilter,
+      );
     }
 
     // Filter by project category (Residential / Commercial)
     if (projectCategoryFilter !== "all") {
       filtered = filtered.filter(
-        (d) =>
-          (d as any).projectCategory?.toUpperCase() === projectCategoryFilter,
+        (d) => d.normalizedProjectCategory === projectCategoryFilter,
       );
     }
 
     return filtered;
   }, [
-    allDeadlines,
-    selectedProject,
+    deadlinesForSelection,
     pipelineTypeFilter,
     projectCategoryFilter,
   ]);
@@ -714,9 +765,9 @@ export const DashboardOverview: React.FC = () => {
                     {pipelineTypeFilterOptions.map((option) => {
                       const count =
                         option.value === "all"
-                          ? allDeadlines.length
-                          : allDeadlines.filter(
-                              (d) => d.pipelineType === option.value,
+                          ? deadlinesForSelection.length
+                          : deadlinesForSelection.filter(
+                              (d) => d.normalizedPipelineType === option.value,
                             ).length;
                       const isActive = pipelineTypeFilter === option.value;
 
@@ -761,18 +812,11 @@ export const DashboardOverview: React.FC = () => {
                         :
                       </span>
                       {projectCategoryOptions.map((cat) => {
-                        const baseFiltered = allDeadlines.filter(
-                          (d) => d.pipelineType === pipelineTypeFilter,
-                        );
                         const catCount =
                           cat.value === "all"
-                            ? baseFiltered.length
-                            : baseFiltered.filter(
-                                (d) =>
-                                  (
-                                    d as any
-                                  ).projectCategory?.toUpperCase() ===
-                                  cat.value,
+                            ? pipelineScopedDeadlines.length
+                            : pipelineScopedDeadlines.filter(
+                                (d) => d.normalizedProjectCategory === cat.value,
                               ).length;
                         const isCatActive =
                           projectCategoryFilter === cat.value;
