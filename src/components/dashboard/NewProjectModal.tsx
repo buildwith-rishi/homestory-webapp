@@ -23,6 +23,7 @@ import {
   ProjectCategory,
   ScopeType,
 } from "../../types";
+
 import type { Customer } from "../../types/customer";
 import { getCustomerById, listCustomers } from "../../services/customerApi";
 import { listProjects } from "../../services/projectApi";
@@ -239,6 +240,13 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>(
     {},
   );
+  const todayDateOnly = useMemo(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [autoPopulate, setAutoPopulate] = useState(false);
 
@@ -496,6 +504,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     }
     if (!formData.tentativeHandoverDate) {
       nextErrors.tentativeHandoverDate = "Tentative handover date is required";
+    } else if (formData.tentativeHandoverDate < todayDateOnly) {
+      nextErrors.tentativeHandoverDate =
+        "Tentative handover date cannot be in the past";
     }
 
     setErrors(nextErrors);
@@ -937,6 +948,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                   type="date"
                   value={formData.tentativeHandoverDate}
                   onChange={(e) => handleChange("tentativeHandoverDate", e.target.value)}
+                  min={todayDateOnly}
                   className={errors.tentativeHandoverDate ? "border-red-500 ring-2 ring-red-100" : ""}
                 />
                 {errors.tentativeHandoverDate && (
