@@ -25,6 +25,7 @@ import {
   IndianRupee,
   Ruler,
   ArrowRight,
+  Download,
   Check,
   X,
   Image as ImageIcon,
@@ -497,6 +498,42 @@ const LeadDetails: React.FC = () => {
   const secondaryPhones = (lead?.secondaryPhones || [])
     .map((phone) => (phone || "").trim())
     .filter(Boolean);
+
+  const normalizeUrl = (value: unknown): string => {
+    if (typeof value !== "string") return "";
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "undefined" || trimmed === "null") return "";
+    return trimmed;
+  };
+
+  const leadFloorPlanUrl = normalizeUrl(lead?.floorPlanUrl);
+  const attachmentFloorPlanUrl = normalizeUrl(
+    references.find((reference) => {
+      const rawTags = Array.isArray(reference.tags) ? reference.tags : [];
+      const normalizedTags = rawTags
+        .map((tag) => (tag || "").toString().trim().toLowerCase())
+        .filter(Boolean);
+      const attachmentType = (reference as any).attachmentType
+        ?.toString()
+        .trim()
+        .toLowerCase();
+      const title = (reference.title || "").toLowerCase();
+      const description = (reference.description || "").toLowerCase();
+
+      return (
+        normalizedTags.includes("floor_plan") ||
+        normalizedTags.includes("floor plan") ||
+        attachmentType === "floor_plan" ||
+        title.includes("floor") ||
+        title.includes("plan") ||
+        description.includes("floor") ||
+        description.includes("plan")
+      );
+    })?.url,
+  );
+  const floorPlanUrl = leadFloorPlanUrl || attachmentFloorPlanUrl;
+  const isFloorPlanImage =
+    /\.(png|jpe?g|gif|webp|bmp|svg|avif)(\?|$)/i.test(floorPlanUrl);
 
   if (loading) {
     return <PageLoader message="Loading lead details..." />;
@@ -1156,7 +1193,47 @@ const LeadDetails: React.FC = () => {
               </div>
             )}
 
-            {/* Floor Plan URL - Show either from Lead Details or Attachments API - REMOVED from UI */}
+            {/* Floor Plan URL - Show either from Lead Details or Attachments API */}
+            {floorPlanUrl && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-indigo-500" />
+                    <h3 className="font-semibold text-gray-900 text-sm">
+                      Floor Plan
+                    </h3>
+                  </div>
+                  <a
+                    href={floorPlanUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    aria-label="Download floor plan"
+                    title="Download floor plan"
+                    className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                </div>
+                <div className="p-4 space-y-3">
+                  {isFloorPlanImage && (
+                    <a
+                      href={floorPlanUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-lg border border-gray-200 overflow-hidden hover:border-indigo-300 transition-colors"
+                    >
+                      <img
+                        src={floorPlanUrl}
+                        alt="Floor plan"
+                        className="w-full h-56 object-cover bg-gray-50"
+                        loading="lazy"
+                      />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
 
 
             {/* Referral & Agent - Only show if data exists */}
