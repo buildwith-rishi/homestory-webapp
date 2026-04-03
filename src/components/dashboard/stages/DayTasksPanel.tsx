@@ -244,6 +244,20 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     return getDateForDay(startDate, dayNumber);
   })();
 
+  const getCurrentDayDateInput = (): string => {
+    const fromTask = toDateOnly(tasks.find((t) => !!t.taskDate)?.taskDate);
+    if (fromTask) return fromTask;
+
+    const base = parseDate(startDate);
+    if (isNaN(base.getTime())) return "";
+
+    base.setDate(base.getDate() + dayNumber - 1);
+    const year = base.getFullYear();
+    const month = String(base.getMonth() + 1).padStart(2, "0");
+    const day = String(base.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   useEffect(() => {
     if (initialTasks) {
       setTasks(initialTasks);
