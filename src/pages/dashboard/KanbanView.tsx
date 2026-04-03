@@ -416,62 +416,93 @@ const KanbanView: React.FC = () => {
   // Projects Kanban Data
   const [projectsKanbanData, setProjectsKanbanData] = useState<KanbanData>({
     columns: {
-      enquiry: { id: "enquiry", title: "Enquiry", taskIds: [], color: "gray" },
-      design_signup: {
-        id: "design_signup",
-        title: "Design Signup",
+      contract_onboarding: {
+        id: "contract_onboarding",
+        title: "Contract & Onboarding",
+        taskIds: [],
+        color: "gray",
+      },
+      client_consultation: {
+        id: "client_consultation",
+        title: "Client Consultation & Requirement Detailing",
         taskIds: [],
         color: "blue",
       },
-      design: { id: "design", title: "Design", taskIds: [], color: "purple" },
-      first_presentation: {
-        id: "first_presentation",
-        title: "First Presentation",
+      site_validation: {
+        id: "site_validation",
+        title: "Site Validation & Data Collection",
         taskIds: [],
-        color: "indigo",
+        color: "cyan",
       },
-      final_design: {
-        id: "final_design",
-        title: "Final Design",
+      design_development: {
+        id: "design_development",
+        title: "Design Development",
         taskIds: [],
-        color: "violet",
+        color: "purple",
       },
-      costing: {
-        id: "costing",
-        title: "Costing",
+      costing_estimation: {
+        id: "costing_estimation",
+        title: "Costing / Estimation",
         taskIds: [],
         color: "amber",
       },
-      execution: {
-        id: "execution",
-        title: "Execution",
+      material_finalization: {
+        id: "material_finalization",
+        title: "Material & Drawings Finalization",
+        taskIds: [],
+        color: "indigo",
+      },
+      design_handover: {
+        id: "design_handover",
+        title: "Design Handover to Execution",
+        taskIds: [],
+        color: "violet",
+      },
+      execution_all_site_activities: {
+        id: "execution_all_site_activities",
+        title: "Execution (All Site Activities)",
         taskIds: [],
         color: "orange",
       },
-      handover: {
-        id: "handover",
-        title: "Handover",
+      cleaning_setup: {
+        id: "cleaning_setup",
+        title: "Cleaning & Setup",
+        taskIds: [],
+        color: "yellow",
+      },
+      decor_styling: {
+        id: "decor_styling",
+        title: "Decor & Styling",
+        taskIds: [],
+        color: "pink",
+      },
+      testing_qc: {
+        id: "testing_qc",
+        title: "Testing, QC & Snagging",
+        taskIds: [],
+        color: "red",
+      },
+      handover_closure: {
+        id: "handover_closure",
+        title: "Handover & Closure",
         taskIds: [],
         color: "green",
-      },
-      testimonial: {
-        id: "testimonial",
-        title: "Testimonial",
-        taskIds: [],
-        color: "teal",
       },
     },
     tasks: {},
     columnOrder: [
-      "enquiry",
-      "design_signup",
-      "design",
-      "first_presentation",
-      "final_design",
-      "costing",
-      "execution",
-      "handover",
-      "testimonial",
+      "contract_onboarding",
+      "client_consultation",
+      "site_validation",
+      "design_development",
+      "costing_estimation",
+      "material_finalization",
+      "design_handover",
+      "execution_all_site_activities",
+      "cleaning_setup",
+      "decor_styling",
+      "testing_qc",
+      "handover_closure",
     ],
   });
 
@@ -641,20 +672,32 @@ const KanbanView: React.FC = () => {
 
   // Helper: Map project stage to column
   const mapProjectStageToColumn = (stageCode?: string | null): string => {
-    if (!stageCode) return "enquiry";
+    if (!stageCode) return "contract_onboarding";
 
     const mapping: Record<string, string> = {
-      ENQUIRY: "enquiry",
-      DESIGN_SIGNUP: "design_signup",
-      DESIGN: "design",
-      FIRST_PRESENTATION: "first_presentation",
-      FINAL_DESIGN: "final_design",
-      COSTING: "costing",
-      EXECUTION: "execution",
-      HANDOVER: "handover",
-      TESTIMONIAL: "testimonial",
+      CONTRACT_ONBOARDING: "contract_onboarding",
+      CLIENT_CONSULTATION: "client_consultation",
+      SITE_VALIDATION: "site_validation",
+      DESIGN_DEVELOPMENT: "design_development",
+      COSTING_ESTIMATION: "costing_estimation",
+      MATERIAL_FINALIZATION: "material_finalization",
+      DESIGN_HANDOVER: "design_handover",
+      EXECUTION: "execution_all_site_activities",
+      CLEANING_SETUP: "cleaning_setup",
+      DECOR_STYLING: "decor_styling",
+      TESTING_QC: "testing_qc",
+      HANDOVER_CLOSURE: "handover_closure",
+      // Legacy stage mappings for backward compatibility
+      ENQUIRY: "contract_onboarding",
+      DESIGN_SIGNUP: "client_consultation",
+      DESIGN: "design_development",
+      FIRST_PRESENTATION: "site_validation",
+      FINAL_DESIGN: "material_finalization",
+      COSTING: "costing_estimation",
+      HANDOVER: "handover_closure",
+      TESTIMONIAL: "handover_closure",
     };
-    return mapping[stageCode] || "enquiry";
+    return mapping[stageCode] || "contract_onboarding";
   };
 
   // Handle lead card click
@@ -879,15 +922,18 @@ const KanbanView: React.FC = () => {
   const handleProjectColumnChange = useCallback(
     async (taskId: string, _fromCol: string, toCol: string) => {
       const columnToStage: Record<string, string> = {
-        enquiry: "ENQUIRY",
-        design_signup: "DESIGN_SIGNUP",
-        design: "DESIGN",
-        first_presentation: "FIRST_PRESENTATION",
-        final_design: "FINAL_DESIGN",
-        costing: "COSTING",
-        execution: "EXECUTION",
-        handover: "HANDOVER",
-        testimonial: "TESTIMONIAL",
+        contract_onboarding: "CONTRACT_ONBOARDING",
+        client_consultation: "CLIENT_CONSULTATION",
+        site_validation: "SITE_VALIDATION",
+        design_development: "DESIGN_DEVELOPMENT",
+        costing_estimation: "COSTING_ESTIMATION",
+        material_finalization: "MATERIAL_FINALIZATION",
+        design_handover: "DESIGN_HANDOVER",
+        execution_all_site_activities: "EXECUTION",
+        cleaning_setup: "CLEANING_SETUP",
+        decor_styling: "DECOR_STYLING",
+        testing_qc: "TESTING_QC",
+        handover_closure: "HANDOVER_CLOSURE",
       };
 
       const newStageCode = columnToStage[toCol];

@@ -2002,6 +2002,39 @@ export async function updateMatrix(
   }
 }
 
+export interface InitializeStageDatesRequest {
+  startDate: string;
+  includeSundays?: boolean;
+}
+
+/**
+ * Initialize day dates for a project stage
+ * POST /api/projects/:projectId/stages/:stageId/initialize-dates
+ */
+export async function initializeProjectStageDates(
+  projectId: string,
+  stageId: string,
+  data: InitializeStageDatesRequest,
+): Promise<unknown> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/projects/${projectId}/stages/${stageId}/initialize-dates`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          startDate: data.startDate,
+          includeSundays: data.includeSundays ?? false,
+        }),
+      },
+    );
+    return handleResponse<unknown>(response);
+  } catch (error) {
+    console.error("Error initializing project stage dates:", error);
+    throw error;
+  }
+}
+
 /**
  * Delete matrix
  * DELETE /api/matrices/:matrixId

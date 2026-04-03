@@ -44,72 +44,93 @@ const ProjectsKanban: React.FC = () => {
 
   const [kanbanData, setKanbanData] = useState<KanbanData>({
     columns: {
-      "col-enquiry": {
-        id: "col-enquiry",
-        title: "Enquiry",
+      "col-contract-onboarding": {
+        id: "col-contract-onboarding",
+        title: "Contract & Onboarding",
         taskIds: [],
         color: "#6B7280",
       },
-      "col-design-signup": {
-        id: "col-design-signup",
-        title: "Design Signup",
+      "col-client-consultation": {
+        id: "col-client-consultation",
+        title: "Client Consultation & Requirement Detailing",
         taskIds: [],
         color: "#3B82F6",
       },
-      "col-design": {
-        id: "col-design",
-        title: "Design",
+      "col-site-validation": {
+        id: "col-site-validation",
+        title: "Site Validation & Data Collection",
+        taskIds: [],
+        color: "#06B6D4",
+      },
+      "col-design-development": {
+        id: "col-design-development",
+        title: "Design Development",
         taskIds: [],
         color: "#8B5CF6",
       },
-      "col-first-presentation": {
-        id: "col-first-presentation",
-        title: "First Presentation",
+      "col-costing-estimation": {
+        id: "col-costing-estimation",
+        title: "Costing / Estimation",
         taskIds: [],
         color: "#F59E0B",
       },
-      "col-final-design": {
-        id: "col-final-design",
-        title: "Final Design",
+      "col-material-finalization": {
+        id: "col-material-finalization",
+        title: "Material & Drawings Finalization",
         taskIds: [],
         color: "#6366F1",
       },
-      "col-costing": {
-        id: "col-costing",
-        title: "Costing",
+      "col-design-handover": {
+        id: "col-design-handover",
+        title: "Design Handover to Execution",
+        taskIds: [],
+        color: "#A855F7",
+      },
+      "col-execution-all-site-activities": {
+        id: "col-execution-all-site-activities",
+        title: "Execution (All Site Activities)",
+        taskIds: [],
+        color: "#F97316",
+      },
+      "col-cleaning-setup": {
+        id: "col-cleaning-setup",
+        title: "Cleaning & Setup",
+        taskIds: [],
+        color: "#EAB308",
+      },
+      "col-decor-styling": {
+        id: "col-decor-styling",
+        title: "Decor & Styling",
         taskIds: [],
         color: "#EC4899",
       },
-      "col-execution": {
-        id: "col-execution",
-        title: "Execution",
+      "col-testing-qc": {
+        id: "col-testing-qc",
+        title: "Testing, QC & Snagging",
         taskIds: [],
         color: "#EF4444",
       },
-      "col-handover": {
-        id: "col-handover",
-        title: "Handover",
+      "col-handover-closure": {
+        id: "col-handover-closure",
+        title: "Handover & Closure",
         taskIds: [],
         color: "#059669",
-      },
-      "col-testimonial": {
-        id: "col-testimonial",
-        title: "Testimonial",
-        taskIds: [],
-        color: "#10B981",
       },
     },
     tasks: {},
     columnOrder: [
-      "col-enquiry",
-      "col-design-signup",
-      "col-design",
-      "col-first-presentation",
-      "col-final-design",
-      "col-costing",
-      "col-execution",
-      "col-handover",
-      "col-testimonial",
+      "col-contract-onboarding",
+      "col-client-consultation",
+      "col-site-validation",
+      "col-design-development",
+      "col-costing-estimation",
+      "col-material-finalization",
+      "col-design-handover",
+      "col-execution-all-site-activities",
+      "col-cleaning-setup",
+      "col-decor-styling",
+      "col-testing-qc",
+      "col-handover-closure",
     ],
   });
 
@@ -122,15 +143,18 @@ const ProjectsKanban: React.FC = () => {
       // Convert projects to kanban tasks
       const tasks: Record<string, KanbanTask> = {};
       const columnTaskIds: Record<string, string[]> = {
-        "col-enquiry": [],
-        "col-design-signup": [],
-        "col-design": [],
-        "col-first-presentation": [],
-        "col-final-design": [],
-        "col-costing": [],
-        "col-execution": [],
-        "col-handover": [],
-        "col-testimonial": [],
+        "col-contract-onboarding": [],
+        "col-client-consultation": [],
+        "col-site-validation": [],
+        "col-design-development": [],
+        "col-costing-estimation": [],
+        "col-material-finalization": [],
+        "col-design-handover": [],
+        "col-execution-all-site-activities": [],
+        "col-cleaning-setup": [],
+        "col-decor-styling": [],
+        "col-testing-qc": [],
+        "col-handover-closure": [],
       };
 
       projects.forEach((project) => {
@@ -143,18 +167,30 @@ const ProjectsKanban: React.FC = () => {
 
         // Map project stage to column
         const stageToColumn: Record<string, string> = {
-          ENQUIRY: "col-enquiry",
-          DESIGN_SIGNUP: "col-design-signup",
-          DESIGN: "col-design",
-          FIRST_PRESENTATION: "col-first-presentation",
-          FINAL_DESIGN: "col-final-design",
-          COSTING: "col-costing",
-          EXECUTION: "col-execution",
-          HANDOVER: "col-handover",
-          TESTIMONIAL: "col-testimonial",
+          CONTRACT_ONBOARDING: "col-contract-onboarding",
+          CLIENT_CONSULTATION: "col-client-consultation",
+          SITE_VALIDATION: "col-site-validation",
+          DESIGN_DEVELOPMENT: "col-design-development",
+          COSTING_ESTIMATION: "col-costing-estimation",
+          MATERIAL_FINALIZATION: "col-material-finalization",
+          DESIGN_HANDOVER: "col-design-handover",
+          EXECUTION: "col-execution-all-site-activities",
+          CLEANING_SETUP: "col-cleaning-setup",
+          DECOR_STYLING: "col-decor-styling",
+          TESTING_QC: "col-testing-qc",
+          HANDOVER_CLOSURE: "col-handover-closure",
+          // Legacy stage mappings
+          ENQUIRY: "col-contract-onboarding",
+          DESIGN_SIGNUP: "col-client-consultation",
+          DESIGN: "col-design-development",
+          FIRST_PRESENTATION: "col-site-validation",
+          FINAL_DESIGN: "col-material-finalization",
+          COSTING: "col-costing-estimation",
+          HANDOVER: "col-handover-closure",
+          TESTIMONIAL: "col-handover-closure",
         };
 
-        const currentStage = project.currentStageCode || "ENQUIRY";
+        const currentStage = project.currentStageCode || "CONTRACT_ONBOARDING";
         const columnId = stageToColumn[currentStage];
         if (columnId && columnTaskIds[columnId]) {
           columnTaskIds[columnId].push(taskId);
@@ -187,15 +223,18 @@ const ProjectsKanban: React.FC = () => {
 
   // Map column IDs back to stage codes
   const columnToStage: Record<string, string> = {
-    "col-enquiry": "ENQUIRY",
-    "col-design-signup": "DESIGN_SIGNUP",
-    "col-design": "DESIGN",
-    "col-first-presentation": "FIRST_PRESENTATION",
-    "col-final-design": "FINAL_DESIGN",
-    "col-costing": "COSTING",
-    "col-execution": "EXECUTION",
-    "col-handover": "HANDOVER",
-    "col-testimonial": "TESTIMONIAL",
+    "col-contract-onboarding": "CONTRACT_ONBOARDING",
+    "col-client-consultation": "CLIENT_CONSULTATION",
+    "col-site-validation": "SITE_VALIDATION",
+    "col-design-development": "DESIGN_DEVELOPMENT",
+    "col-costing-estimation": "COSTING_ESTIMATION",
+    "col-material-finalization": "MATERIAL_FINALIZATION",
+    "col-design-handover": "DESIGN_HANDOVER",
+    "col-execution-all-site-activities": "EXECUTION",
+    "col-cleaning-setup": "CLEANING_SETUP",
+    "col-decor-styling": "DECOR_STYLING",
+    "col-testing-qc": "TESTING_QC",
+    "col-handover-closure": "HANDOVER_CLOSURE",
   };
 
   const handleDataChange = (newData: KanbanData) => {

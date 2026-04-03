@@ -39,6 +39,7 @@ import {
   updateMatrixTaskStatus,
   markMatrixHoliday,
   updateMatrixDayTitle,
+  initializeProjectStageDates,
 } from "../../../services/projectApi";
 import toast from "react-hot-toast";
 import { createPortal } from "react-dom";
@@ -170,6 +171,19 @@ const toDateInputValue = (isoDate?: string | null): string => {
   return parsed ? parsed.split("T")[0] : "";
 };
 
+const STAGE_CODES_WITH_INITIALIZE_DATES = new Set<string>([
+  "DESIGN_DEVELOPMENT",
+  "MATERIAL_FINALIZATION",
+  "MATERIAL_DRAWINGS_FINALIZATION",
+  "EXECUTION",
+  "EXECUTION_ALL_SITE_ACTIVITIES",
+]);
+
+const supportsInitializeDates = (stageCode?: string | null): boolean => {
+  if (typeof stageCode !== "string") return false;
+  return STAGE_CODES_WITH_INITIALIZE_DATES.has(stageCode.trim().toUpperCase());
+};
+
 export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   projectId,
   projectName = "",
@@ -223,6 +237,20 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const holidayCount = matrix ? getHolidayDayNumbersFromMatrix(matrix).size : 0;
 
   const [editingDayNumber, setEditingDayNumber] = useState<number | null>(null);
+  const [showInitializeDatesModal, setShowInitializeDatesModal] =
+    useState(false);
+  const [initializingDates, setInitializingDates] = useState(false);
+  const [initializeDatesDraft, setInitializeDatesDraft] = useState<{
+    startDate: string;
+    includeSundays: boolean;
+  }>({
+    startDate:
+      toDateInputValue(stage.startDate) ||
+      new Date().toISOString().split("T")[0],
+    includeSundays: false,
+  });
+
+  const canInitializeDates = supportsInitializeDates(stage.stageCode);
 
   const handleUpdateDayTitle = async (dayNumber: number, title: string) => {
     if (!matrix) return;
@@ -436,6 +464,46 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   const handleCreateSuccess = () => {
     setShowCreateModal(false);
     fetchMatrix();
+  };
+
+  const openInitializeDatesModal = () => {
+    setInitializeDatesDraft({
+      startDate:
+        toDateInputValue(matrix?.startDate) ||
+        toDateInputValue(stage.startDate) ||
+        new Date().toISOString().split("T")[0],
+      includeSundays: matrix?.includeSundays ?? false,
+    });
+    setShowInitializeDatesModal(true);
+  };
+
+  const handleInitializeDatesSubmit = async () => {
+    if (!initializeDatesDraft.startDate) {
+      toast.error("Please select a start date");
+      return;
+    }
+
+    if (!stage.id) {
+      toast.error("Stage identifier missing. Unable to initialize dates.");
+      return;
+    }
+
+    setInitializingDates(true);
+    try {
+      await initializeProjectStageDates(projectId, stage.id, {
+        startDate: initializeDatesDraft.startDate,
+        includeSundays: initializeDatesDraft.includeSundays,
+      });
+      toast.success("Day dates initialized successfully");
+      setShowInitializeDatesModal(false);
+      await fetchMatrix(true);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to initialize day dates",
+      );
+    } finally {
+      setInitializingDates(false);
+    }
   };
 
   const openHolidayModal = (dayEntry: MatrixDayWiseItem) => {
@@ -666,11 +734,19 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowEditModal(true)}
+            onClick={() => {
+              if (canInitializeDates) {
+                openInitializeDatesModal();
+                return;
+              }
+              setShowEditModal(true);
+            }}
             className="text-gray-600 border-gray-300 hover:bg-gray-50"
           >
             <Settings className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Settings</span>
+            <span className="hidden sm:inline">
+              {canInitializeDates ? "Initialize Dates" : "Settings"}
+            </span>
           </Button>
           <Button
             variant="outline"
@@ -1331,6 +1407,93 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                 )}
               </Button>
             </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {showInitializeDatesModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[77] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() =>
+                initializingDates ? undefined : setShowInitializeDatesModal(false)
+              }
+            />
+            <div className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h3 className="text-base font-semibold text-gray-900">
+                  Initialize Dates by Stage
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {stage.stageName} ({stage.stageCode})
+                </p>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={initializeDatesDraft.startDate}
+                    onChange={(e) =>
+                      setInitializeDatesDraft((prev) => ({
+                        ...prev,
+                        startDate: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={initializeDatesDraft.includeSundays}
+                    onChange={(e) =>
+                      setInitializeDatesDraft((prev) => ({
+                        ...prev,
+                        includeSundays: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                  />
+                  Include Sundays
+                </label>
+
+                <p className="text-xs text-gray-500">
+                  Sundays are {initializeDatesDraft.includeSundays ? "included" : "excluded"} in the day date calculation.
+                </p>
+              </div>
+
+              <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowInitializeDatesModal(false)}
+                  disabled={initializingDates}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleInitializeDatesSubmit}
+                  disabled={initializingDates || !initializeDatesDraft.startDate}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {initializingDates ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      Initializing...
+                    </>
+                  ) : (
+                    "Initialize Dates"
+                  )}
+                </Button>
+              </div>
             </div>
           </div>,
           document.body,
