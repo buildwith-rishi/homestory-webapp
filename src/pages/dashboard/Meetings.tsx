@@ -78,7 +78,6 @@ interface MeetingDisplay {
 
 const APPROVED_MEETING_ROLE_OPTIONS = [
   "Accounts / Finance",
-  "Admin",
   "Business Development Representative",
   "Designer",
   "Human Resources",
@@ -86,7 +85,6 @@ const APPROVED_MEETING_ROLE_OPTIONS = [
   "Lead Project Manager",
   "Project Manager",
   "Site Engineer",
-  "Super Admin",
 ] as const;
 
 const normalizeRoleKey = (value: string): string =>
@@ -100,7 +98,6 @@ const APPROVED_ROLE_ALIASES: Record<string, (typeof APPROVED_MEETING_ROLE_OPTION
   ACCOUNTS: "Accounts / Finance",
   ACCOUNTS_FINANCE: "Accounts / Finance",
   FINANCE: "Accounts / Finance",
-  ADMIN: "Admin",
   BDR: "Business Development Representative",
   BUSINESS_DEVELOPMENT_REPRESENTATIVE: "Business Development Representative",
   DESIGNER: "Designer",
@@ -111,7 +108,6 @@ const APPROVED_ROLE_ALIASES: Record<string, (typeof APPROVED_MEETING_ROLE_OPTION
   LEAD_PROJECT_MANAGER: "Lead Project Manager",
   PROJECT_MANAGER: "Project Manager",
   SITE_ENGINEER: "Site Engineer",
-  SUPER_ADMIN: "Super Admin",
 };
 
 const toApprovedRoleLabel = (value?: string | null): string | null => {
