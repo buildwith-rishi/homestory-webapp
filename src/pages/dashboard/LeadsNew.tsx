@@ -400,6 +400,14 @@ export const LeadModal: React.FC<{
       newErrors.budgetComfort = "Budget comfort is required";
     if (!formData.projectScope?.trim())
       newErrors.projectScope = "Project scope is required";
+    if (
+      formData.area !== null &&
+      formData.area !== undefined &&
+      String(formData.area) !== "" &&
+      Number(formData.area) <= 0
+    ) {
+      newErrors.area = "Area must be greater than 0";
+    }
 
     const hasInvalidSecondaryEmail = (formData.secondaryEmails || [])
       .map((email) => email.trim())
@@ -495,9 +503,8 @@ export const LeadModal: React.FC<{
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // New lead flow UX:
-    // On Basic Info tab, primary action should be "Next" and must not trigger validations yet.
-    if (!lead && activeTab === "basic") {
+    // On Basic Info tab, primary action should be "Next" and must not submit yet.
+    if (activeTab === "basic") {
       setErrors({});
       setActiveTab("property");
       return;
@@ -1013,14 +1020,42 @@ export const LeadModal: React.FC<{
                   </label>
                   <input
                     type="number"
-                    min={0}
+                    min={1}
                     value={formData.area ?? ""}
-                    onChange={(e) =>
-                      f("area", e.target.value === "" ? null : Number(e.target.value))
-                    }
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        f("area", null);
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.area;
+                          return next;
+                        });
+                        return;
+                      }
+
+                      const parsed = Number(raw);
+                      if (Number.isNaN(parsed)) return;
+
+                      f("area", parsed);
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        if (parsed <= 0) {
+                          next.area = "Area must be greater than 0";
+                        } else {
+                          delete next.area;
+                        }
+                        return next;
+                      });
+                    }}
                     placeholder="e.g., 1500"
-                    className={inputClass()}
+                    className={inputClass(errors.area)}
                   />
+                  {errors.area && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.area}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1268,7 +1303,7 @@ export const LeadModal: React.FC<{
                 </>
               ) : (
                 <>
-                  {!lead && activeTab === "basic" ? (
+                  {activeTab === "basic" ? (
                     <>
                       <ArrowRight className="w-4 h-4" />
                       Next
