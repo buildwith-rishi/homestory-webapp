@@ -382,6 +382,7 @@ export const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { roleId, user } = useAuth();
+  const todayDateOnly = new Date().toISOString().split("T")[0];
   
   // Permissions
   const canCreatePayment = hasPermission(roleId as RoleId, "payments.create");
@@ -1647,6 +1648,15 @@ export const ProjectDetails: React.FC = () => {
   const handleSaveEdit = async () => {
     if (!enforceProjectEditAccess()) return;
     if (!projectId) return;
+
+    if (
+      editForm.tentativeHandoverDate &&
+      editForm.tentativeHandoverDate < todayDateOnly
+    ) {
+      toast.error("Tentative handover date cannot be in the past");
+      return;
+    }
+
     setIsSavingEdit(true);
     try {
       const derivedTotalValue = calculateTotalValue(
@@ -5277,6 +5287,7 @@ export const ProjectDetails: React.FC = () => {
                     <input
                       type="date"
                       value={editForm.tentativeHandoverDate}
+                      min={todayDateOnly}
                       onChange={(e) =>
                         setEditForm({
                           ...editForm,

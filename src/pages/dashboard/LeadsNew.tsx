@@ -1019,8 +1019,9 @@ export const LeadModal: React.FC<{
                     Area
                   </label>
                   <input
-                    type="number"
-                    min={1}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={formData.area ?? ""}
                     onChange={(e) => {
                       const raw = e.target.value;
@@ -1035,7 +1036,7 @@ export const LeadModal: React.FC<{
                       }
 
                       const parsed = Number(raw);
-                      if (Number.isNaN(parsed)) return;
+                      if (!/^\d+$/.test(raw) || Number.isNaN(parsed)) return;
 
                       f("area", parsed);
                       setErrors((prev) => {
