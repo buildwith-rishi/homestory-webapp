@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { useAuthStore } from "../stores/authStore";
 import { User, UserRole } from "../types";
 import {
@@ -45,7 +46,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setUser(null);
     }
-  }, [setUser]);
+
+    let isHandlingExpiry = false;
+
+    const handleSessionExpired = () => {
+      if (isHandlingExpiry) return;
+      isHandlingExpiry = true;
+      
+      logout().then(() => {
+        toast.error("Session has expired, please login again", { id: "session-expired" });
+        navigate("/login");
+        setTimeout(() => {
+          isHandlingExpiry = false;
+        }, 3000);
+      });
+    };
+
+    window.addEventListener("sessionExpired", handleSessionExpired);
+    return () => {
+      window.removeEventListener("sessionExpired", handleSessionExpired);
+    };
+  }, [setUser, logout, navigate]);
 
   // Get normalised RoleId
   const roleId: RoleId | null = user

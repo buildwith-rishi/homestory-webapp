@@ -1217,27 +1217,6 @@ const KanbanView: React.FC = () => {
             </div>
           )}
         </div>
-        {(project.pipelineType ||
-          project.projectCategory ||
-          project.scopeType) && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {project.pipelineType && (
-              <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-md bg-blue-50 text-blue-600 border border-blue-200/50">
-                {project.pipelineType}
-              </span>
-            )}
-            {project.projectCategory && (
-              <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-md bg-purple-50 text-purple-600 border border-purple-200/50">
-                {project.projectCategory}
-              </span>
-            )}
-            {project.scopeType && (
-              <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-md bg-orange-50 text-orange-600 border border-orange-200/50">
-                {project.scopeType}
-              </span>
-            )}
-          </div>
-        )}
         {task.assignedTo && (
           <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">

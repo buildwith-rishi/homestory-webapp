@@ -138,7 +138,11 @@ const getAccessLevelPillClasses = (accessLevel?: string): string => {
 
 export const UserManagement: React.FC = () => {
   const { roleId } = useAuth();
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  type UserListItem = AdminUser & {
+    credentialName?: string;
+  };
+
+  const [users, setUsers] = useState<UserListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleTitles, setRoleTitles] = useState<ApiRoleTitle[]>([]);
   const [departments, setDepartments] = useState<ApiDepartment[]>([]);
@@ -244,26 +248,60 @@ export const UserManagement: React.FC = () => {
 
       // Normalize role and roleTitle from varying backend response shapes.
       const normalizedUsers = usersList.map((user) => {
+        const credentialFromApi = user.credential as
+          | { id?: string; roleKey?: string; name?: string }
+          | undefined;
+
+        const roleTitleObject =
+          user.roleTitle && typeof user.roleTitle === "object"
+            ? (user.roleTitle as Record<string, unknown>)
+            : undefined;
+
+        const userRoleTitleObject =
+          user.userRoleTitle && typeof user.userRoleTitle === "object"
+            ? (user.userRoleTitle as Record<string, unknown>)
+            : undefined;
+
         const roleFromApi =
           user.role ||
-          (user.credential as { roleKey?: string; name?: string } | undefined)
-            ?.roleKey ||
-          (user.credential as { roleKey?: string; name?: string } | undefined)
-            ?.name ||
+          credentialFromApi?.roleKey ||
+          credentialFromApi?.name ||
           "BDR";
 
         const roleTitleFromApi =
           (user.roleTitle as string | undefined) ||
           (user.userRoleTitle as string | undefined) ||
+          (user.user_role_title as string | undefined) ||
+          (user.role_title as string | undefined) ||
+          (roleTitleObject?.roleTitle as string | undefined) ||
+          (roleTitleObject?.title as string | undefined) ||
+          (roleTitleObject?.name as string | undefined) ||
+          (userRoleTitleObject?.roleTitle as string | undefined) ||
+          (userRoleTitleObject?.title as string | undefined) ||
+          (userRoleTitleObject?.name as string | undefined) ||
           (user.title as string | undefined);
 
         return {
           ...user,
           role: String(roleFromApi).toUpperCase() as AdminUser["role"],
           roleTitle: roleTitleFromApi,
-          departmentId: user.departmentId as string | undefined,
-          credentialId: user.credentialId as string | undefined,
-        } as AdminUser;
+          departmentId:
+            (user.departmentId as string | undefined) ||
+            (user.department_id as string | undefined) ||
+            ((user.department as { id?: string } | undefined)?.id as
+              | string
+              | undefined),
+          credentialId:
+            (user.credentialId as string | undefined) ||
+            (user.credential_id as string | undefined) ||
+            (user.userCredentialId as string | undefined) ||
+            credentialFromApi?.id,
+          credentialName:
+            (user.credentialName as string | undefined) ||
+            (user.credentialTitle as string | undefined) ||
+            (user.credential_name as string | undefined) ||
+            credentialFromApi?.name,
+        } as UserListItem;
       });
 
       // Deactivated users should not be visible in User Management UI.
@@ -422,13 +460,76 @@ export const UserManagement: React.FC = () => {
     );
   };
 
-  const getUserRoleLabel = (user: AdminUser) => {
-    if (user.roleTitle && user.roleTitle.trim()) {
-      return user.roleTitle;
+  const getUserRoleLabel = (user: UserListItem) => {
+    // Return role_title if available directly on priority
+    const directRoleTitle = String(user.roleTitle || "").trim();
+    if (directRoleTitle && directRoleTitle !== "undefined" && directRoleTitle !== "null" && directRoleTitle !== "[object Object]") {
+      return directRoleTitle;
     }
+
+    if (user.credentialId) {
+      const titleByCredential = roleTitles.find(
+        (item) => item.credentialId === user.credentialId,
+      );
+      const matchedRoleTitle = String(titleByCredential?.roleTitle || "").trim();
+      if (matchedRoleTitle && matchedRoleTitle !== "undefined" && matchedRoleTitle !== "null") {
+        return matchedRoleTitle;
+      }
+    }
+
     if (user.role) {
       return getRoleDisplayName(user.role as RoleId);
     }
+
+    return "N/A";
+  };
+
+  const getUserCredentialLabel = (user: UserListItem) => {
+    // 1. Role explicit check
+    if (user.role) {
+      const displayName = getRoleDisplayName(user.role as RoleId);
+      if (displayName && displayName !== "Unknown Role") {
+        return displayName;
+      }
+    }
+
+    // 2. Direct credential name from the API user object
+    const directCredentialName = String(user.credentialName || "").trim();
+    if (directCredentialName && directCredentialName !== "undefined" && directCredentialName !== "null") {
+      return directCredentialName;
+    }
+
+    // 3. Fallback based on Role Title mapping
+    const roleTitleConfig = roleTitles.find((item) => {
+      const normalizedUserRoleTitle = String(user.roleTitle || "").trim();
+      if (normalizedUserRoleTitle && item.roleTitle === normalizedUserRoleTitle) {
+        return true;
+      }
+
+      if (user.credentialId && item.credentialId === user.credentialId) {
+        return true;
+      }
+
+      return false;
+    });
+
+    const roleTitleCredentialName = String(
+      roleTitleConfig?.credential?.name || "",
+    ).trim();
+    if (roleTitleCredentialName && roleTitleCredentialName !== "undefined" && roleTitleCredentialName !== "null") {
+      return roleTitleCredentialName;
+    }
+
+    const credentialId = user.credentialId || roleTitleConfig?.credentialId;
+    if (credentialId) {
+      const credentialName = String(
+        credentials.find((item) => item.id === credentialId)?.name || "",
+      ).trim();
+      if (credentialName && credentialName !== "undefined" && credentialName !== "null") {
+        return credentialName;
+      }
+    }
+
     return "N/A";
   };
 
@@ -483,15 +584,37 @@ export const UserManagement: React.FC = () => {
         JSON.parse(localStorage.getItem("user") || "{}").role,
       );
 
-      await adminAPI.createUser({
+      const createResponse = await adminAPI.createUser({
         name: createForm.name,
         email: createForm.email,
         password: createForm.password,
         roleTitle: createForm.roleTitle,
         phone: createForm.phone?.trim() || undefined,
       });
+
+      const newUserCreated = (createResponse as any)?.user || (createResponse as any)?.data?.user || (createResponse as any);
+
       setShowCreateModal(false);
       setShowCreatePassword(false);
+      
+      if (newUserCreated && newUserCreated.id) {
+        // Optimistically update the UI with exact API response. This guarantees 'roleTitle'
+        // rendering before GET /api/users caches or syncs the DB.
+        setUsers((prev) => [
+          {
+            ...newUserCreated,
+            role: String(newUserCreated.role || "BDR").toUpperCase(),
+            roleTitle: newUserCreated.roleTitle || createForm.roleTitle,
+            credentialId: newUserCreated.credentialId,
+          } as UserListItem,
+          ...prev.filter((u) => u.id !== newUserCreated.id),
+        ]);
+        alert("User created successfully!");
+      } else {
+        await loadUsers();
+        alert("User created successfully!");
+      }
+      
       setCreateForm({
         name: "",
         email: "",
@@ -499,9 +622,7 @@ export const UserManagement: React.FC = () => {
         roleTitle: roleTitles[0]?.roleTitle || "",
         phone: "",
       });
-      await loadUsers();
-      // Success notification
-      alert("User created successfully!");
+
     } catch (error) {
       console.error("Failed to create user:", error);
 
@@ -879,6 +1000,9 @@ export const UserManagement: React.FC = () => {
                     Role
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Credentials
+                  </th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Contact
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -918,6 +1042,11 @@ export const UserManagement: React.FC = () => {
                         className={`${getRoleBadgeColor(user.role)} px-3 py-1`}
                       >
                         {getUserRoleLabel(user)}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Badge className="bg-slate-100 text-slate-700 px-3 py-1">
+                        {getUserCredentialLabel(user)}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
