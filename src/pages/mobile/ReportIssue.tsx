@@ -196,7 +196,7 @@ export function ReportIssue() {
                   value={sev.value}
                   checked={severity === sev.value}
                   onChange={(e) => setSeverity(e.target.value as IssueSeverity)}
-                  className="w-4 h-4 text-orange-500 focus:ring-orange-500"
+                  className="w-4 h-4 text-orange-500 focus:ring-orange-500" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                 />
                 <div className="flex items-center gap-2 flex-1">
                   <div className={`w-3 h-3 rounded-full ${sev.color}`}></div>

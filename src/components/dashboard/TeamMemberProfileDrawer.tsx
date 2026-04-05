@@ -247,7 +247,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                               }))
                             }
                             className="w-full bg-white/20 border border-white/30 rounded-lg px-3 py-1.5 text-white placeholder-white/60 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-white/60 mb-1"
-                            placeholder="Full name"
+                            placeholder="Full name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                           />
                         ) : (
                           <h2 className="text-xl font-bold truncate">
@@ -356,7 +356,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                                 }))
                               }
                               className="w-full text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                              placeholder="+91 98765 43210"
+                              placeholder="+91 98765 43210" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                             />
                           ) : (
                             <a
@@ -395,7 +395,7 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                                 }))
                               }
                               className="w-full text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              placeholder="name@example.com"
+                              placeholder="name@example.com" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                             />
                           ) : (
                             <a

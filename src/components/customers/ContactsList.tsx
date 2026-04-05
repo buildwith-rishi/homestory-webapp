@@ -99,7 +99,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
               placeholder="Search contacts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
             />
           </div>
         )}

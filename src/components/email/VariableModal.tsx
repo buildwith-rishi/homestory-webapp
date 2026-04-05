@@ -75,7 +75,7 @@ const VariableModal: React.FC<VariableModalProps> = ({
                   setValues({ ...values, [variable.name]: e.target.value })
                 }
                 placeholder={`Enter ${variable.name}...`}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
               />
             </div>
           ))}

@@ -1761,7 +1761,7 @@ export const CustomerDetails: React.FC = () => {
                             }))
                           }
                           className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
-                          placeholder="Customer name"
+                          placeholder="Customer name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -2324,7 +2324,7 @@ export const CustomerDetails: React.FC = () => {
                               }))
                             }
                             placeholder="Primary email"
-                            className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
+                            className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                           />
                         </div>
                       </div>
@@ -2350,7 +2350,7 @@ export const CustomerDetails: React.FC = () => {
                               }))
                             }
                             placeholder="Primary phone"
-                            className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
+                            className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                           />
                         </div>
                       </div>
@@ -2413,7 +2413,7 @@ export const CustomerDetails: React.FC = () => {
                                   }));
                                 }
                               }}
-                              className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
+                              className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                             />
                           </div>
                           <button
@@ -2494,7 +2494,7 @@ export const CustomerDetails: React.FC = () => {
                                   }));
                                 }
                               }}
-                              className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400"
+                              className="flex-1 text-sm bg-transparent outline-none placeholder-gray-400" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                             />
                           </div>
                           <button
@@ -4257,7 +4257,7 @@ export const CustomerDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      placeholder="First name"
+                      placeholder="First name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                   <div>
@@ -4274,7 +4274,7 @@ export const CustomerDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      placeholder="Last name"
+                      placeholder="Last name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                 </div>
@@ -4334,7 +4334,7 @@ export const CustomerDetails: React.FC = () => {
                         setFamilyForm({ ...familyForm, phone: e.target.value })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      placeholder="+91..."
+                      placeholder="+91..." onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                   <div>
@@ -4505,7 +4505,7 @@ export const CustomerDetails: React.FC = () => {
                         reminderDays: parseInt(e.target.value) || 0,
                       })
                     }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Days before the date to send a reminder

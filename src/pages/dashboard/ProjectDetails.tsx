@@ -3700,7 +3700,7 @@ export const ProjectDetails: React.FC = () => {
                         });
                       }}
                       className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.percentage ? "border-red-400" : "border-gray-200"}`}
-                      placeholder="50"
+                      placeholder="50" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                     />
                     {paymentFormErrors.percentage && (
                       <p className="text-red-500 text-xs mt-1">{paymentFormErrors.percentage}</p>
@@ -3741,7 +3741,7 @@ export const ProjectDetails: React.FC = () => {
                         });
                       }}
                       className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.expectedAmount ? "border-red-400" : "border-gray-200"}`}
-                      placeholder="50000"
+                      placeholder="50000" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                     />
                     {paymentFormErrors.expectedAmount && (
                       <p className="text-red-500 text-xs mt-1">{paymentFormErrors.expectedAmount}</p>
@@ -3785,7 +3785,7 @@ export const ProjectDetails: React.FC = () => {
                         });
                       }}
                       className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.taxPercentage ? "border-red-400" : "border-gray-200"}`}
-                      placeholder="18"
+                      placeholder="18" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                     />
                     {paymentFormErrors.taxPercentage && (
                       <p className="text-red-500 text-xs mt-1">{paymentFormErrors.taxPercentage}</p>
@@ -3821,7 +3821,7 @@ export const ProjectDetails: React.FC = () => {
                       });
                     }}
                     className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.invoiceAmount ? "border-red-400" : "border-gray-200"}`}
-                    placeholder="Auto-filled from expected amount + tax"
+                    placeholder="Auto-filled from expected amount + tax" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                   />
                   {paymentFormErrors.invoiceAmount && (
                     <p className="text-red-500 text-xs mt-1">{paymentFormErrors.invoiceAmount}</p>
@@ -3990,7 +3990,7 @@ export const ProjectDetails: React.FC = () => {
                       })
                     }
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
-                    placeholder="e.g. 59000"
+                    placeholder="e.g. 59000" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                   />
                 </div>
 
@@ -4153,7 +4153,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                      placeholder="Client Name"
+                      placeholder="Client Name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                 </div>
@@ -4200,7 +4200,7 @@ export const ProjectDetails: React.FC = () => {
                             value={ccEmailSearch}
                             onChange={(e) => setCcEmailSearch(e.target.value)}
                             className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none"
-                            placeholder="Search by name or email"
+                            placeholder="Search by name or email" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                           />
                         </div>
 
@@ -4347,7 +4347,7 @@ export const ProjectDetails: React.FC = () => {
                           })
                         }
                         className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                        placeholder="GoodHomeStory Interiors Pvt Ltd"
+                        placeholder="GoodHomeStory Interiors Pvt Ltd" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -4365,7 +4365,7 @@ export const ProjectDetails: React.FC = () => {
                             })
                           }
                           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                          placeholder="1234567890"
+                          placeholder="1234567890" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                         />
                       </div>
                       <div>
@@ -4401,7 +4401,7 @@ export const ProjectDetails: React.FC = () => {
                             })
                           }
                           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                          placeholder="HDFC Bank"
+                          placeholder="HDFC Bank" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                         />
                       </div>
                       <div>
@@ -5180,7 +5180,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none text-sm"
-                      placeholder="Client Name"
+                      placeholder="Client Name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                 </div>
@@ -5275,7 +5275,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none text-sm"
-                      placeholder="e.g., Villa Interior Design"
+                      placeholder="e.g., Villa Interior Design" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
 
@@ -5346,7 +5346,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      placeholder="Site supervisor name"
+                      placeholder="Site supervisor name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                   <div>
@@ -5363,7 +5363,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      placeholder="+91 98765 43210"
+                      placeholder="+91 98765 43210" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                 </div>
@@ -5939,7 +5939,7 @@ export const ProjectDetails: React.FC = () => {
                       })
                     }
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                    placeholder="Number of days to pause"
+                    placeholder="Number of days to pause" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                   />
                 </div>
 

@@ -156,7 +156,7 @@ export function DailySiteReport() {
                 value={workProgress}
                 onChange={(e) => setWorkProgress(e.target.value)}
                 placeholder="0-100"
-                className="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
               />
             </div>
             <div>
@@ -169,7 +169,7 @@ export function DailySiteReport() {
                 value={manpowerCount}
                 onChange={(e) => setManpowerCount(e.target.value)}
                 placeholder="No. of workers"
-                className="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
               />
             </div>
           </div>

@@ -190,7 +190,7 @@ export const StageTemplateModal: React.FC<StageTemplateModalProps> = ({
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
               placeholder="e.g. Design Review"
-              required
+              required onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
             />
           </div>
 
@@ -251,7 +251,7 @@ export const StageTemplateModal: React.FC<StageTemplateModalProps> = ({
                   min={1}
                   value={orderIndex}
                   onChange={(e) => setOrderIndex(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                 />
               </div>
               <div>

@@ -949,7 +949,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                               }
                             }}
                             className="text-sm font-semibold text-gray-900 bg-white border border-gray-300 rounded px-1.5 py-0.5 outline-none focus:ring-2 focus:ring-orange-500 max-w-[120px]"
-                            placeholder={`Day ${displayDayNumber}`}
+                            placeholder={`Day ${displayDayNumber}`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                           />
                         ) : (
                           <div className="flex items-center justify-between gap-2 flex-1 min-w-0">

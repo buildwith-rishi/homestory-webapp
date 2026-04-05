@@ -97,9 +97,13 @@ const AccountModal: React.FC<{
     const newErrors: Record<string, string> = {};
 
     if (!formData.name?.trim()) newErrors.name = "Account name is required";
+    const numericPhone = formData.phone?.replace(/\\D/g, "") || "";
     if (!formData.phone?.trim()) newErrors.phone = "Phone number is required";
-    else if (formData.phone && !/^\+?[\d\s-]{10,}$/.test(formData.phone))
-      newErrors.phone = "Invalid phone format";
+    else if (numericPhone.length !== 10)
+      newErrors.phone = "Phone number must be exactly 10 digits";
+    else if (numericPhone.startsWith("0"))
+      newErrors.phone = "Phone number cannot start with 0";
+
     if (!formData.type?.trim()) {
       newErrors.type = "Account type is required";
     } else if (!['HOUSEHOLD', 'COMPANY'].includes(formData.type)) {
@@ -197,7 +201,7 @@ const AccountModal: React.FC<{
                   placeholder="e.g., Sharma Family Estate"
                   className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
                     errors.name ? "border-red-300 bg-red-50" : "border-gray-300"
-                  }`}
+                  }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                 />
                 {errors.name && (
                   <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
@@ -299,15 +303,16 @@ const AccountModal: React.FC<{
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const sanitized = e.target.value.replace(/[^0-9+]/g, "");
+                    setFormData({ ...formData, phone: sanitized });
+                  }}
                   placeholder="+91 98765 43210"
                   className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
                     errors.phone
                       ? "border-red-300 bg-red-50"
                       : "border-gray-300"
-                  }`}
+                  }`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                 />
                 {errors.phone && (
                   <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
@@ -332,7 +337,7 @@ const AccountModal: React.FC<{
                     errors.email
                       ? "border-red-300 bg-red-50"
                       : "border-gray-300"
-                  }`}
+                  }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                 />
                 {errors.email && (
                   <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
@@ -643,7 +648,7 @@ export function AccountsPage() {
               placeholder="Search accounts by name, email, or phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
             />
           </div>
           <div className="flex items-center gap-2">

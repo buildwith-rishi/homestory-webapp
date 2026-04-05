@@ -143,7 +143,7 @@ export const SettingsPage: React.FC = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                    <Input type="tel" defaultValue="+91 98765 43210" className="rounded-xl" />
+                    <Input type="tel" defaultValue="+91 98765 43210" className="rounded-xl" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }} />
                   </div>
 
                   <div>

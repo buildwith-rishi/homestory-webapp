@@ -366,7 +366,7 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
                           onChange={(e) => setMemberSearch(e.target.value)}
                           placeholder="Search by name or role..."
                           className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
-                          autoFocus
+                          autoFocus onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                         />
                       </div>
                     </div>

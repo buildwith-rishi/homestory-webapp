@@ -290,7 +290,7 @@ export const EditStageModal: React.FC<EditStageModalProps> = ({
               className={`w-full px-4 py-3 rounded-xl border ${
                 errors.budget ? "border-red-300 bg-red-50" : "border-gray-200"
               } focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors`}
-              placeholder="Enter budget amount"
+              placeholder="Enter budget amount" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
             />
             {errors.budget && (
               <p className="text-red-600 text-xs mt-1 flex items-center gap-1">

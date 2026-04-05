@@ -2042,7 +2042,7 @@ export const MeetingsPage: React.FC = () => {
                             setShowMomProjectDropdown(true);
                           }}
                           placeholder="Search project (optional)"
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                         />
                         <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
                         {showMomProjectDropdown && !isMomProjectLocked && (
@@ -2114,7 +2114,7 @@ export const MeetingsPage: React.FC = () => {
                           setShowMomLeadDropdown(true);
                         }}
                         placeholder="Search lead (optional)"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                       />
                       <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
                       {showMomLeadDropdown && !isMomLeadLocked && (

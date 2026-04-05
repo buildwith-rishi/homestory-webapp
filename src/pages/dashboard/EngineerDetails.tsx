@@ -1094,7 +1094,7 @@ export const EngineerDetails: React.FC = () => {
                   setEditForm((p) => ({ ...p, name: e.target.value }))
                 }
                 className="w-full bg-white/20 border border-white/40 rounded-xl px-4 py-2 text-2xl font-bold text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/60 mb-2"
-                placeholder="Full name"
+                placeholder="Full name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
               />
             ) : (
               <h1 className="text-3xl font-bold truncate">{member.name}</h1>
@@ -1215,7 +1215,7 @@ export const EngineerDetails: React.FC = () => {
                       setEditForm((p) => ({ ...p, phone: e.target.value }))
                     }
                     className="w-full text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 98765 43210" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                   />
                 ) : (
                   <div className="flex items-center gap-3">
@@ -1252,7 +1252,7 @@ export const EngineerDetails: React.FC = () => {
                       setEditForm((p) => ({ ...p, email: e.target.value }))
                     }
                     className="w-full text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    placeholder="name@example.com"
+                    placeholder="name@example.com" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                   />
                 ) : (
                   <div className="flex items-center gap-3">

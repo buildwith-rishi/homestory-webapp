@@ -349,7 +349,7 @@ export function BDRLeads() {
             placeholder="Search leads by name, phone, city…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 shadow-sm"
+            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 shadow-sm" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
           />
           {search && (
             <button
@@ -644,7 +644,7 @@ export function BDRLeads() {
                       setForm((f) => ({ ...f, name: e.target.value }))
                     }
                     className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
-                    required
+                    required onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                   />
                 </div>
 
@@ -677,7 +677,7 @@ export function BDRLeads() {
                         setForm((f) => ({ ...f, phone: e.target.value }))
                       }
                       className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
-                      required
+                      required onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                 </div>
@@ -770,7 +770,7 @@ export function BDRLeads() {
                             }))
                           }
                           placeholder="+91 98765 43210"
-                          className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                          className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                         />
                         <button
                           type="button"
@@ -804,7 +804,7 @@ export function BDRLeads() {
                       onChange={(e) =>
                         setForm((f) => ({ ...f, companyName: e.target.value }))
                       }
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
 
@@ -934,7 +934,7 @@ export function BDRLeads() {
                       onChange={(e) =>
                         setForm((f) => ({ ...f, area: e.target.value }))
                       }
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
 

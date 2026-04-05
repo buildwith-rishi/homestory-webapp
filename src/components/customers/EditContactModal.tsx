@@ -203,7 +203,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                   errors.firstName
                     ? "border-red-300 bg-red-50/50"
                     : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
+                }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
               />
               {errors.firstName && (
                 <div className="flex items-center gap-2 text-xs text-red-600">
@@ -228,7 +228,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                   errors.lastName
                     ? "border-red-300 bg-red-50/50"
                     : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
+                }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
               />
               {errors.lastName && (
                 <div className="flex items-center gap-2 text-xs text-red-600">
@@ -259,7 +259,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                   errors.phone
                     ? "border-red-300 bg-red-50/50"
                     : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
+                }`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
               />
             </div>
             {errors.phone && (

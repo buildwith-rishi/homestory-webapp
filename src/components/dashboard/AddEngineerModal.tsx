@@ -66,7 +66,16 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
   >({});
 
   const handleInputChange = (field: keyof NewEngineer, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    let sanitizedValue = value;
+    if (field === "name") {
+      sanitizedValue = value.replace(/[0-9]/g, "");
+    } else if (field === "phone") {
+      sanitizedValue = value.replace(/[^0-9+]/g, ""); // Allow only numbers and plus to prevent negative numbers
+    } else if (field === "email") {
+      sanitizedValue = value.replace(/\s/g, "");
+    }
+
+    setFormData((prev) => ({ ...prev, [field]: sanitizedValue }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -78,10 +87,14 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
     if (!formData.name.trim()) newErrors.name = "Name is required";
     if (!formData.role) newErrors.role = "Role is required";
     if (!formData.department) newErrors.department = "Department is required";
+    
+    const numericPhone = formData.phone.replace(/\\D/g, "");
     if (!formData.phone.trim()) {
       newErrors.phone = "Phone number is required";
-    } else if (!/^[+]?[\d\s\-()]+$/.test(formData.phone)) {
-      newErrors.phone = "Invalid phone number format";
+    } else if (numericPhone.length !== 10) {
+      newErrors.phone = "Phone number must be exactly 10 digits";
+    } else if (numericPhone.startsWith("0")) {
+      newErrors.phone = "Phone number cannot start with 0";
     }
 
     if (!formData.email.trim()) {
@@ -203,7 +216,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                       onChange={(e) =>
                         handleInputChange("name", e.target.value)
                       }
-                      className={`rounded-xl ${errors.name ? "border-red-500 focus:ring-red-500" : ""}`}
+                      className={`rounded-xl ${errors.name ? "border-red-500 focus:ring-red-500" : ""}`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                     {errors.name && (
                       <p className="text-red-500 text-xs mt-1">{errors.name}</p>
@@ -250,7 +263,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                         onChange={(e) =>
                           handleInputChange("phone", e.target.value)
                         }
-                        className={`pl-10 rounded-xl ${errors.phone ? "border-red-500 focus:ring-red-500" : ""}`}
+                        className={`pl-10 rounded-xl ${errors.phone ? "border-red-500 focus:ring-red-500" : ""}`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                       />
                     </div>
                     {errors.phone && (

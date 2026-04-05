@@ -121,7 +121,7 @@ export const EditMatrixModal: React.FC<EditMatrixModalProps> = ({
               onChange={(e) =>
                 setTotalDays(Math.max(1, parseInt(e.target.value) || 1))
               }
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/50" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
             />
             <p className="text-xs text-gray-400 mt-1">
               Current: {currentTotalDays} days.

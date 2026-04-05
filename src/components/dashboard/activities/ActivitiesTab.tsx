@@ -831,7 +831,7 @@ export const ActivitiesTab: React.FC<ActivitiesTabProps> = ({ projectId }) => {
                       }))
                     }
                     placeholder="e.g. 30"
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                   />
                 </div>
               )}

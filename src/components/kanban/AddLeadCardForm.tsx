@@ -579,7 +579,7 @@ export const AddLeadCardForm: React.FC<AddLeadCardFormProps> = ({
               e.preventDefault();
               handleSubmit();
             }
-          }}
+          }} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
         />
         <button
           type="button"

@@ -817,7 +817,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             onChange={(e) =>
                               setEditDayNumber(Number(e.target.value))
                             }
-                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                           />
                         </div>
                         <div>
@@ -1098,7 +1098,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                 setPushTargetDay(Number(e.target.value))
                               }
                               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
-                              placeholder="e.g. 4"
+                              placeholder="e.g. 4" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                             />
                             {pushTargetDay === task.dayNumber && (
                               <p className="text-xs text-red-500 mt-1">
@@ -1194,7 +1194,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                               onChange={(e) =>
                                 setBulkFromDay(Number(e.target.value))
                               }
-                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400/50" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                             />
                           </div>
                           <div>
@@ -1208,7 +1208,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                               onChange={(e) =>
                                 setBulkToDay(Number(e.target.value))
                               }
-                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400/50" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                             />
                           </div>
                         </div>

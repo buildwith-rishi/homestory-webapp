@@ -193,7 +193,7 @@ const QuickAddWidget: React.FC<WidgetProps> = ({ onRemove }) => {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                className="text-sm"
+                className="text-sm" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
               />
 
               {activeType !== "meeting" && (
@@ -214,7 +214,7 @@ const QuickAddWidget: React.FC<WidgetProps> = ({ onRemove }) => {
                     onChange={(e) =>
                       setFormData({ ...formData, phone: e.target.value })
                     }
-                    className="text-sm"
+                    className="text-sm" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                   />
                 </>
               )}

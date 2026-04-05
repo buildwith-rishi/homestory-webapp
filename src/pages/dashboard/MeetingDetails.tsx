@@ -504,7 +504,7 @@ const ParticipantModal: React.FC<{
                       errors.name
                         ? "border-red-300"
                         : "border-gray-300 hover:border-gray-400"
-                    }`}
+                    }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                   />
                 </div>
                 {errors.name && (
@@ -547,7 +547,7 @@ const ParticipantModal: React.FC<{
                       setFormData({ ...formData, phone: e.target.value })
                     }
                     placeholder="+919876543210"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-400 transition-colors"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 hover:border-gray-400 transition-colors" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                   />
                 </div>
               </div>
@@ -664,7 +664,7 @@ const SpeakerMapModal: React.FC<{
                     setSpeakerMap({ ...speakerMap, [speaker]: e.target.value })
                   }
                   placeholder="Enter name"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                 />
               </div>
             ))

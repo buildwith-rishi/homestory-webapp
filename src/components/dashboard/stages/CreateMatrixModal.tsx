@@ -405,7 +405,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                 onChange={(e) => setTotalDaysInput(e.target.value)}
                 onBlur={normalizeTotalDaysInput}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                required
+                required onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
               />
               <p className="text-[10px] text-gray-400 mt-1">
                 Recommended: Create 1 day at a time
@@ -463,7 +463,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                         updateCategory(idx, "name", e.target.value)
                       }
                       className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                      placeholder={`Category ${idx + 1}`}
+                      placeholder={`Category ${idx + 1}`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
                     />
                     {/* Order badge */}
                     <span className="text-[10px] text-gray-400 font-mono w-6 text-center">
@@ -543,7 +543,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
                         }))
                       }
                       placeholder={`Day ${dayNumber}`}
-                      className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                      className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
                     />
                   </div>
                 );
