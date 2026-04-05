@@ -100,8 +100,6 @@ export function BDRProfile() {
       label: "My Meetings",
       action: () => navigate("/bdr/meetings"),
     },
-    { icon: HelpCircle, label: "Help & Support", action: () => {} },
-    { icon: Shield, label: "Privacy Policy", action: () => {} },
   ];
 
   return (
