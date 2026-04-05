@@ -1,5 +1,7 @@
 // API Configuration
 // Always use backend base URL from environment so API calls never hit localhost.
+import { normalizeRole } from "../config/rbac";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
 
@@ -384,32 +386,119 @@ export const adminAPI = {
     }
 
     const request = (async () => {
-    const response = await fetchAPI<{ users?: unknown[]; [key: string]: unknown } | unknown[]>(
-      "/api/users?limit=1000&role=BDR",
-      { method: "GET" }
-    );
-    const raw = Array.isArray(response)
-      ? response
-      : (response as { users?: unknown[] })?.users ?? [];
-    // Normalize role to uppercase and filter strictly for BDR
-    const normalized = (raw as Record<string, unknown>[])
-      .filter((u) => u && u.id)
-      .map((u) => ({
-        id: String(u.id),
-        name: String(u.name || ""),
-        email: String(u.email || ""),
-        role: String(u.role || "").toUpperCase(),
-        isActive: u.isActive !== false,
-        isBanned: u.isBanned === true,
-      }))
-      .filter((u) => u.role === "BDR" && !u.isBanned && u.isActive);
+      type UsersResponse = { users?: unknown[]; data?: unknown; [key: string]: unknown } | unknown[];
 
-    globalWithCache.__ghs_bdr_users_cache__ = {
-      data: normalized,
-      expiresAt: Date.now() + 60 * 1000,
-    };
+      const parseUsersFromResponse = (payload: UsersResponse): Record<string, unknown>[] => {
+        if (Array.isArray(payload)) {
+          return payload as Record<string, unknown>[];
+        }
 
-    return normalized;
+        if (payload && typeof payload === "object") {
+          if (Array.isArray(payload.users)) {
+            return payload.users as Record<string, unknown>[];
+          }
+
+          const data = payload.data;
+          if (Array.isArray(data)) {
+            return data as Record<string, unknown>[];
+          }
+
+          if (data && typeof data === "object") {
+            const nested = data as { users?: unknown[]; data?: unknown };
+            if (Array.isArray(nested.users)) {
+              return nested.users as Record<string, unknown>[];
+            }
+            if (Array.isArray(nested.data)) {
+              return nested.data as Record<string, unknown>[];
+            }
+          }
+        }
+
+        return [];
+      };
+
+      const normalizeUsers = (rawUsers: Record<string, unknown>[]) => {
+        const seen = new Set<string>();
+
+        return rawUsers
+          .filter((u) => u && u.id)
+          .map((u) => {
+            const credential = u.credential as
+              | { roleKey?: string; name?: string }
+              | undefined;
+
+            const rawRole =
+              (u.role as string | undefined) ||
+              (u.roleTitle as string | undefined) ||
+              (u.userRoleTitle as string | undefined) ||
+              (u.role_title as string | undefined) ||
+              (u.user_role_title as string | undefined) ||
+              credential?.roleKey ||
+              credential?.name ||
+              "";
+
+            const normalizedRole = normalizeRole(rawRole || "BDR");
+            const id = String(u.id);
+            const name = String(
+              (u.name as string | undefined) ||
+                (u.fullName as string | undefined) ||
+                (u.full_name as string | undefined) ||
+                (u.email as string | undefined) ||
+                "",
+            ).trim();
+            const email = String(
+              (u.email as string | undefined) ||
+                (u.userEmail as string | undefined) ||
+                "",
+            ).trim();
+
+            return {
+              id,
+              name,
+              email,
+              role: normalizedRole,
+              isActive: u.isActive !== false,
+              isBanned: u.isBanned === true,
+            };
+          })
+          // Leads assignment supports BDR and Sales users.
+          .filter((u) => (u.role === "BDR" || u.role === "SALES") && !u.isBanned && u.isActive)
+          .filter((u) => {
+            if (seen.has(u.id)) return false;
+            seen.add(u.id);
+            return true;
+          });
+      };
+
+      let rawUsers: Record<string, unknown>[] = [];
+
+      try {
+        // Keep server-side filtering when supported for lower payloads.
+        const roleFilteredResponse = await fetchAPI<UsersResponse>(
+          "/api/users?limit=1000&role=BDR",
+          { method: "GET" },
+        );
+        rawUsers = parseUsersFromResponse(roleFilteredResponse);
+      } catch (error) {
+        console.warn("Role-filtered BDR user fetch failed, falling back:", error);
+      }
+
+      if (rawUsers.length === 0) {
+        const allUsersResponse = await fetchAPI<UsersResponse>(
+          "/api/users?limit=1000",
+          { method: "GET" },
+        );
+        rawUsers = parseUsersFromResponse(allUsersResponse);
+      }
+
+      const normalized = normalizeUsers(rawUsers);
+
+      globalWithCache.__ghs_bdr_users_cache__ = {
+        data: normalized,
+        expiresAt: Date.now() + (normalized.length > 0 ? 60 * 1000 : 10 * 1000),
+      };
+
+      return normalized;
     })();
 
     globalWithCache.__ghs_bdr_users_in_flight__ = request;
