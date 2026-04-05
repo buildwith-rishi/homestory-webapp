@@ -360,9 +360,24 @@ async function withAdminInFlightDedup<T>(
 export const adminAPI = {
   // Get all users
   getAllUsers: async () => {
-    return withAdminInFlightDedup("admin:getAllUsers:limit=1000", () =>
-      fetchAPI("/api/users?limit=1000", { method: "GET" }),
-    );
+    return withAdminInFlightDedup("admin:getAllUsers:limit=1000", async () => {
+      try {
+        // Admin endpoint includes full user-management fields like roleTitle.
+        return await fetchAPI("/api/admin/users?limit=1000", { method: "GET" });
+      } catch (error) {
+        // Backward compatibility fallback for environments still on legacy route.
+        if (
+          error instanceof ApiError &&
+          (error.status === 401 ||
+            error.status === 403 ||
+            error.status === 404 ||
+            error.status === 405)
+        ) {
+          return fetchAPI("/api/users?limit=1000", { method: "GET" });
+        }
+        throw error;
+      }
+    });
   },
 
   // Get only BDR users (filtered server-side with role param, falls back to client filter)

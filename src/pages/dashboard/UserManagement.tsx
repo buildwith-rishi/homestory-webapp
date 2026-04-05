@@ -136,6 +136,51 @@ const getAccessLevelPillClasses = (accessLevel?: string): string => {
   return "bg-gray-100 text-gray-700";
 };
 
+const toValidDisplayText = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  if (
+    !normalized ||
+    normalized === "undefined" ||
+    normalized === "null" ||
+    normalized === "[object Object]"
+  ) {
+    return undefined;
+  }
+  return normalized;
+};
+
+const extractRoleTitle = (user: Record<string, unknown>): string | undefined => {
+  const roleTitleObject =
+    user.roleTitle && typeof user.roleTitle === "object"
+      ? (user.roleTitle as Record<string, unknown>)
+      : undefined;
+
+  const userRoleTitleObject =
+    user.userRoleTitle && typeof user.userRoleTitle === "object"
+      ? (user.userRoleTitle as Record<string, unknown>)
+      : undefined;
+
+  return (
+    toValidDisplayText(user.roleTitle) ||
+    toValidDisplayText(user.userRoleTitle) ||
+    toValidDisplayText(user.user_role_title) ||
+    toValidDisplayText(user.role_title) ||
+    toValidDisplayText((user.roleTitleData as Record<string, unknown> | undefined)?.roleTitle) ||
+    toValidDisplayText((user.roleTitleData as Record<string, unknown> | undefined)?.title) ||
+    toValidDisplayText((user.roleTitleData as Record<string, unknown> | undefined)?.name) ||
+    toValidDisplayText(roleTitleObject?.roleTitle) ||
+    toValidDisplayText(roleTitleObject?.title) ||
+    toValidDisplayText(roleTitleObject?.name) ||
+    toValidDisplayText(userRoleTitleObject?.roleTitle) ||
+    toValidDisplayText(userRoleTitleObject?.title) ||
+    toValidDisplayText(userRoleTitleObject?.name) ||
+    toValidDisplayText(user.title) ||
+    // Frontend cache fallback if backend drops it entirely
+    (user.id ? localStorage.getItem(`ghs_role_title_${user.id}`) : undefined)
+  );
+};
+
 export const UserManagement: React.FC = () => {
   const { roleId } = useAuth();
   type UserListItem = AdminUser & {
@@ -252,34 +297,13 @@ export const UserManagement: React.FC = () => {
           | { id?: string; roleKey?: string; name?: string }
           | undefined;
 
-        const roleTitleObject =
-          user.roleTitle && typeof user.roleTitle === "object"
-            ? (user.roleTitle as Record<string, unknown>)
-            : undefined;
-
-        const userRoleTitleObject =
-          user.userRoleTitle && typeof user.userRoleTitle === "object"
-            ? (user.userRoleTitle as Record<string, unknown>)
-            : undefined;
-
         const roleFromApi =
           user.role ||
           credentialFromApi?.roleKey ||
           credentialFromApi?.name ||
           "BDR";
 
-        const roleTitleFromApi =
-          (user.roleTitle as string | undefined) ||
-          (user.userRoleTitle as string | undefined) ||
-          (user.user_role_title as string | undefined) ||
-          (user.role_title as string | undefined) ||
-          (roleTitleObject?.roleTitle as string | undefined) ||
-          (roleTitleObject?.title as string | undefined) ||
-          (roleTitleObject?.name as string | undefined) ||
-          (userRoleTitleObject?.roleTitle as string | undefined) ||
-          (userRoleTitleObject?.title as string | undefined) ||
-          (userRoleTitleObject?.name as string | undefined) ||
-          (user.title as string | undefined);
+        const roleTitleFromApi = extractRoleTitle(user);
 
         return {
           ...user,
@@ -295,7 +319,8 @@ export const UserManagement: React.FC = () => {
             (user.credentialId as string | undefined) ||
             (user.credential_id as string | undefined) ||
             (user.userCredentialId as string | undefined) ||
-            credentialFromApi?.id,
+            credentialFromApi?.id ||
+            localStorage.getItem(`ghs_credential_id_${user.id}`),
           credentialName:
             (user.credentialName as string | undefined) ||
             (user.credentialTitle as string | undefined) ||
@@ -598,13 +623,25 @@ export const UserManagement: React.FC = () => {
       setShowCreatePassword(false);
       
       if (newUserCreated && newUserCreated.id) {
+        // Cache the specific role and credential so it survives API re-fetches
+        // since the GET /api/users endpoint currently drops them.
+        if (createForm.roleTitle) {
+          localStorage.setItem(`ghs_role_title_${newUserCreated.id}`, createForm.roleTitle);
+        }
+        if (newUserCreated.credentialId) {
+          localStorage.setItem(`ghs_credential_id_${newUserCreated.id}`, newUserCreated.credentialId);
+        }
+
         // Optimistically update the UI with exact API response. This guarantees 'roleTitle'
         // rendering before GET /api/users caches or syncs the DB.
+        const normalizedCreatedRoleTitle = extractRoleTitle(
+          newUserCreated as Record<string, unknown>,
+        );
         setUsers((prev) => [
           {
             ...newUserCreated,
             role: String(newUserCreated.role || "BDR").toUpperCase(),
-            roleTitle: newUserCreated.roleTitle || createForm.roleTitle,
+            roleTitle: normalizedCreatedRoleTitle || createForm.roleTitle,
             credentialId: newUserCreated.credentialId,
           } as UserListItem,
           ...prev.filter((u) => u.id !== newUserCreated.id),
@@ -710,6 +747,15 @@ export const UserManagement: React.FC = () => {
         departmentId: editForm.departmentId,
         credentialId: editForm.credentialId,
       });
+
+      // Cache changes locally to survive API fetches that lack these fields
+      if (editForm.roleTitle) {
+        localStorage.setItem(`ghs_role_title_${selectedUser.id}`, editForm.roleTitle);
+      }
+      if (editForm.credentialId) {
+        localStorage.setItem(`ghs_credential_id_${selectedUser.id}`, editForm.credentialId);
+      }
+
       setShowEditModal(false);
       setSelectedUser(null);
       await loadUsers();
