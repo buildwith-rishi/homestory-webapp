@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Clock,
   MapPin,
@@ -22,6 +24,7 @@ import {
   Trash2,
   ListChecks,
   Sparkles,
+  Grid3X3,
   TrendingUp,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
@@ -104,6 +107,22 @@ const TASK_TYPE_ICONS: Record<string, typeof Briefcase> = {
   Other: Briefcase,
 };
 
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 // ── API ↔ UI mapping helpers ──────────────────────────────────────────────────
 /** Convert UI status ("TODO" / "IN_PROGRESS" / "COMPLETED") → API status string */
 const toAPIStatus = (s: string): string => {
@@ -180,12 +199,54 @@ function formatTime(time?: string) {
   return `${displayHour}:${minutes} ${ampm}`;
 }
 
+function getMondayWeek(anchor: Date): Date[] {
+  const dow = anchor.getDay();
+  const mon = new Date(anchor);
+  mon.setDate(anchor.getDate() - ((dow + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(mon);
+    d.setDate(mon.getDate() + i);
+    return d;
+  });
+}
+
+function toDateStr(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+
+function getMonthCalendar(year: number, month: number): (Date | null)[][] {
+  const first = new Date(year, month, 1);
+  const startOffset = (first.getDay() + 6) % 7; // 0=Mon … 6=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = Array(startOffset).fill(null);
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(new Date(year, month, d));
+  }
+
+  while (cells.length % 7 !== 0) {
+    cells.push(null);
+  }
+
+  const weeks: (Date | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+  return weeks;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export function BDRTasks() {
+  const today = new Date();
   const [tasks, setTasks] = useState<BDRTask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [tasksError, setTasksError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [weekAnchor, setWeekAnchor] = useState(today);
+  const [viewMode, setViewMode] = useState<"week" | "month">("week");
+  const [calMonth, setCalMonth] = useState(
+    () => new Date(today.getFullYear(), today.getMonth(), 1),
+  );
   const [showCompleted, setShowCompleted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -257,22 +318,10 @@ export function BDRTasks() {
     }
   }, [loadTasks]);
 
-  // ── Week navigation ──
-  const getWeekDates = () => {
-    const dates = [];
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay() + 1);
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + i);
-      dates.push(date);
-    }
-    return dates;
-  };
-
-  const weekDates = getWeekDates();
-  const selectedDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
+  // ── Calendar navigation ──
+  const weekDates = getMondayWeek(weekAnchor);
+  const selectedDateStr = toDateStr(selectedDate);
+  const todayStr = toDateStr(today);
 
   // ── Derived data ──
   const tasksForDate = tasks.filter((t) => t.dueDate === selectedDateStr);
@@ -511,68 +560,223 @@ export function BDRTasks() {
         </div>
       </div>
 
-      {/* ── Week Selector ─────────────────────────────────────────────────── */}
+      {/* ── Calendar Selector ─────────────────────────────────────────────── */}
       <div className="sticky top-16 bg-white border-b border-gray-100 z-20 shadow-sm">
-        <div className="grid grid-cols-7 gap-1.5 px-3 py-3">
-          {weekDates.map((date) => {
-            const toLocalDateStr = (d: Date) =>
-              `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-            const dateStr = toLocalDateStr(date);
-            const isSelected = dateStr === selectedDateStr;
-            const isToday = dateStr === toLocalDateStr(new Date());
-            const count = taskCountByDate[dateStr] ?? 0;
-            return (
-              <button
-                key={date.toISOString()}
-                onClick={() => setSelectedDate(date)}
-                className={`flex flex-col items-center justify-center w-full py-2.5 rounded-2xl transition-all active:scale-95 ${
-                  isSelected
-                    ? "bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-md"
-                    : isToday
-                      ? "bg-orange-50 text-orange-600 border-2 border-orange-300"
-                      : "bg-gray-50 text-gray-500 border border-gray-200"
-                }`}
-              >
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-wide leading-none ${
-                    isSelected
-                      ? "text-orange-100"
-                      : isToday
-                        ? "text-orange-500"
-                        : "text-gray-400"
-                  }`}
-                >
-                  {date
-                    .toLocaleDateString("en-US", { weekday: "short" })
-                    .slice(0, 2)}
-                </span>
-                <span
-                  className={`text-base font-extrabold mt-1 leading-none ${
-                    isSelected
-                      ? "text-white"
-                      : isToday
-                        ? "text-orange-600"
-                        : "text-gray-700"
-                  }`}
-                >
-                  {date.getDate()}
-                </span>
-                {/* Task dot indicator */}
-                <div className="mt-1.5 h-1.5 flex items-center justify-center">
-                  {count > 0 ? (
-                    <div
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        isSelected ? "bg-white/70" : "bg-orange-400"
-                      }`}
-                    />
-                  ) : (
-                    <div className="w-1.5 h-1.5" />
-                  )}
-                </div>
-              </button>
-            );
-          })}
+        <div className="flex items-center justify-between px-3 pt-3 pb-2">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            {viewMode === "month"
+              ? `${MONTHS[calMonth.getMonth()]} ${calMonth.getFullYear()}`
+              : `${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                if (viewMode === "month") {
+                  setCalMonth(
+                    new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1),
+                  );
+                } else {
+                  const d = new Date(weekAnchor);
+                  d.setDate(d.getDate() - 7);
+                  setWeekAnchor(d);
+                }
+              }}
+              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:scale-95 transition"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-600" />
+            </button>
+            <button
+              onClick={() => {
+                setWeekAnchor(new Date(today));
+                setSelectedDate(new Date(today));
+                setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+              }}
+              className="px-3 h-8 rounded-full bg-orange-50 text-orange-600 text-xs font-bold active:scale-95 transition border border-orange-200"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => {
+                if (viewMode === "month") {
+                  setCalMonth(
+                    new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1),
+                  );
+                } else {
+                  const d = new Date(weekAnchor);
+                  d.setDate(d.getDate() + 7);
+                  setWeekAnchor(d);
+                }
+              }}
+              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:scale-95 transition"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
         </div>
+
+        <div className="px-3 pb-2">
+          <div className="inline-flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+            <button
+              onClick={() => setViewMode("week")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === "week"
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-gray-400"
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              Week
+            </button>
+            <button
+              onClick={() => {
+                setCalMonth(
+                  new Date(
+                    selectedDate.getFullYear(),
+                    selectedDate.getMonth(),
+                    1,
+                  ),
+                );
+                setViewMode("month");
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === "month"
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-gray-400"
+              }`}
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+              Month
+            </button>
+          </div>
+        </div>
+
+        {viewMode === "week" && (
+          <div className="grid grid-cols-7 gap-1.5 px-3 pb-3">
+            {weekDates.map((date) => {
+              const dateStr = toDateStr(date);
+              const isSelected = dateStr === selectedDateStr;
+              const isToday = dateStr === todayStr;
+              const count = taskCountByDate[dateStr] ?? 0;
+              return (
+                <button
+                  key={date.toISOString()}
+                  onClick={() => setSelectedDate(new Date(date))}
+                  className={`flex flex-col items-center justify-center w-full py-2.5 rounded-2xl transition-all active:scale-95 ${
+                    isSelected
+                      ? "bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-md"
+                      : isToday
+                        ? "bg-orange-50 text-orange-600 border-2 border-orange-300"
+                        : "bg-gray-50 text-gray-500 border border-gray-200"
+                  }`}
+                >
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wide leading-none ${
+                      isSelected
+                        ? "text-orange-100"
+                        : isToday
+                          ? "text-orange-500"
+                          : "text-gray-400"
+                    }`}
+                  >
+                    {date
+                      .toLocaleDateString("en-US", { weekday: "short" })
+                      .slice(0, 2)}
+                  </span>
+                  <span
+                    className={`text-base font-extrabold mt-1 leading-none ${
+                      isSelected
+                        ? "text-white"
+                        : isToday
+                          ? "text-orange-600"
+                          : "text-gray-700"
+                    }`}
+                  >
+                    {date.getDate()}
+                  </span>
+                  <div className="mt-1.5 h-1.5 flex items-center justify-center">
+                    {count > 0 ? (
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          isSelected ? "bg-white/70" : "bg-orange-400"
+                        }`}
+                      />
+                    ) : (
+                      <div className="w-1.5 h-1.5" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {viewMode === "month" && (
+          <div className="px-3 pb-3">
+            <div className="grid grid-cols-7 mb-1">
+              {DAYS.map((d) => (
+                <div
+                  key={d}
+                  className="text-center text-[9px] font-bold text-gray-400 uppercase tracking-widest py-1"
+                >
+                  {d}
+                </div>
+              ))}
+            </div>
+            {getMonthCalendar(calMonth.getFullYear(), calMonth.getMonth()).map(
+              (week, wi) => (
+                <div key={wi} className="grid grid-cols-7">
+                  {week.map((date, di) => {
+                    if (!date)
+                      return <div key={`empty-${wi}-${di}`} className="py-1" />;
+                    const ds = toDateStr(date);
+                    const isSel = ds === selectedDateStr;
+                    const isTod = ds === todayStr;
+                    const count = taskCountByDate[ds] || 0;
+                    return (
+                      <button
+                        key={ds}
+                        onClick={() => {
+                          setSelectedDate(new Date(date));
+                          setWeekAnchor(new Date(date));
+                        }}
+                        className="flex flex-col items-center py-1 active:scale-95 transition-all select-none"
+                      >
+                        <span
+                          className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold transition-all ${
+                            isSel
+                              ? "text-white shadow-md"
+                              : isTod
+                                ? "text-orange-600 ring-2 ring-orange-400 ring-offset-1"
+                                : "text-gray-800 hover:bg-gray-100"
+                          }`}
+                          style={
+                            isSel
+                              ? {
+                                  background:
+                                    "linear-gradient(145deg,#f97316,#dc6a0f)",
+                                }
+                              : {}
+                          }
+                        >
+                          {date.getDate()}
+                        </span>
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                            count > 0
+                              ? isSel
+                                ? "bg-white/80"
+                                : "bg-orange-400"
+                              : "bg-transparent"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              ),
+            )}
+          </div>
+        )}
       </div>
 
       <div className="px-4 pt-4 space-y-4">
