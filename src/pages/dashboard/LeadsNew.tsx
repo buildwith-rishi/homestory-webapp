@@ -164,9 +164,22 @@ export const LeadModal: React.FC<{
 
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("");
 
+  const getUserRoleFilterValue = (user: AdminUser): string => {
+    const roleTitle = String(user.roleTitle || "").trim();
+    if (
+      roleTitle &&
+      roleTitle !== "undefined" &&
+      roleTitle !== "null" &&
+      roleTitle !== "[object Object]"
+    ) {
+      return roleTitle;
+    }
+    return String(user.role || "").trim();
+  };
+
   // Get unique roles from users list
   const userRoles = React.useMemo(() => {
-    return Array.from(new Set(users.map((u) => u.role)))
+    return Array.from(new Set(users.map((u) => getUserRoleFilterValue(u))))
       .filter(Boolean)
       .sort();
   }, [users]);
@@ -174,7 +187,7 @@ export const LeadModal: React.FC<{
   // Filter users based on selected role
   const filteredUsers = React.useMemo(() => {
     return selectedRoleFilter
-      ? users.filter((u) => u.role === selectedRoleFilter)
+      ? users.filter((u) => getUserRoleFilterValue(u) === selectedRoleFilter)
       : users;
   }, [selectedRoleFilter, users]);
 
@@ -315,7 +328,7 @@ export const LeadModal: React.FC<{
       if (lead.assignedToId) {
         const assignedUser = users.find((u) => u.id === lead.assignedToId);
         if (assignedUser) {
-          setSelectedRoleFilter(assignedUser.role);
+          setSelectedRoleFilter(getUserRoleFilterValue(assignedUser));
         }
       } else {
         setSelectedRoleFilter("");
@@ -933,7 +946,7 @@ export const LeadModal: React.FC<{
                     <option value="">All Roles</option>
                     {userRoles.map((role) => (
                       <option key={role} value={role}>
-                        {formatEnumValue(role)}
+                        {formatEnumValue(role) || role}
                       </option>
                     ))}
                   </select>
@@ -1537,6 +1550,9 @@ export const LeadsPage: React.FC = () => {
 
   // BDR Assignment State
   const [bdrUsers, setBdrUsers] = useState<AdminUser[]>([]);
+  const [leadAssignableUsers, setLeadAssignableUsers] = useState<AdminUser[]>(
+    [],
+  );
   const [bdrDropdownOpen, setBdrDropdownOpen] = useState<string | null>(null);
   const [bdrDropdownPos, setBdrDropdownPos] = useState<{
     top: number;
@@ -1637,6 +1653,137 @@ export const LeadsPage: React.FC = () => {
       }
     };
     fetchBDRs();
+  }, []);
+
+  // Fetch all active users so Add/Edit Lead role filter shows all roles from user management.
+  useEffect(() => {
+    const toValidDisplayText = (value: unknown): string => {
+      const text = String(value ?? "").trim();
+      if (
+        !text ||
+        text === "undefined" ||
+        text === "null" ||
+        text === "[object Object]"
+      ) {
+        return "";
+      }
+      return text;
+    };
+
+    const parseUsersFromResponse = (payload: unknown): Record<string, unknown>[] => {
+      if (Array.isArray(payload)) return payload as Record<string, unknown>[];
+      if (!payload || typeof payload !== "object") return [];
+
+      const responseObj = payload as {
+        users?: unknown[];
+        data?: unknown;
+      };
+
+      if (Array.isArray(responseObj.users)) {
+        return responseObj.users as Record<string, unknown>[];
+      }
+
+      if (Array.isArray(responseObj.data)) {
+        return responseObj.data as Record<string, unknown>[];
+      }
+
+      if (responseObj.data && typeof responseObj.data === "object") {
+        const nested = responseObj.data as { users?: unknown[]; data?: unknown };
+        if (Array.isArray(nested.users)) {
+          return nested.users as Record<string, unknown>[];
+        }
+        if (Array.isArray(nested.data)) {
+          return nested.data as Record<string, unknown>[];
+        }
+      }
+
+      return [];
+    };
+
+    const fetchLeadAssignableUsers = async () => {
+      try {
+        const response = await adminAPI.getAllUsers();
+        const usersFromApi = parseUsersFromResponse(response);
+
+        const normalizedUsers = usersFromApi
+          .filter((user) => user && user.id)
+          .map((user) => {
+            const roleTitleObject =
+              user.roleTitle && typeof user.roleTitle === "object"
+                ? (user.roleTitle as Record<string, unknown>)
+                : undefined;
+            const userRoleTitleObject =
+              user.userRoleTitle && typeof user.userRoleTitle === "object"
+                ? (user.userRoleTitle as Record<string, unknown>)
+                : undefined;
+            const credential =
+              user.credential && typeof user.credential === "object"
+                ? (user.credential as Record<string, unknown>)
+                : undefined;
+
+            const resolvedRoleTitle =
+              toValidDisplayText(user.roleTitle) ||
+              toValidDisplayText(user.userRoleTitle) ||
+              toValidDisplayText(
+                (user.roleTitleData as Record<string, unknown> | undefined)
+                  ?.roleTitle,
+              ) ||
+              toValidDisplayText(
+                (user.roleTitleData as Record<string, unknown> | undefined)
+                  ?.title,
+              ) ||
+              toValidDisplayText(
+                (user.roleTitleData as Record<string, unknown> | undefined)
+                  ?.name,
+              ) ||
+              toValidDisplayText(roleTitleObject?.roleTitle) ||
+              toValidDisplayText(roleTitleObject?.title) ||
+              toValidDisplayText(roleTitleObject?.name) ||
+              toValidDisplayText(userRoleTitleObject?.roleTitle) ||
+              toValidDisplayText(userRoleTitleObject?.title) ||
+              toValidDisplayText(userRoleTitleObject?.name);
+
+            const resolvedRole =
+              toValidDisplayText(user.role) ||
+              toValidDisplayText(user.roleKey) ||
+              toValidDisplayText(user.userRole) ||
+              toValidDisplayText(user.role_name) ||
+              toValidDisplayText(user.role_key) ||
+              toValidDisplayText(credential?.roleKey) ||
+              toValidDisplayText(credential?.name) ||
+              "BDR";
+
+            return {
+              id: String(user.id),
+              name:
+                toValidDisplayText(user.name) ||
+                toValidDisplayText(user.fullName) ||
+                toValidDisplayText(user.full_name) ||
+                toValidDisplayText(user.email),
+              email:
+                toValidDisplayText(user.email) ||
+                toValidDisplayText(user.userEmail),
+              role: resolvedRole,
+              roleTitle: resolvedRoleTitle || undefined,
+              isActive: user.isActive !== false,
+              isBanned: user.isBanned === true,
+            };
+          })
+          .filter((user) => user.id && user.name)
+          .filter((user) => user.isActive && !user.isBanned);
+
+        const dedupedUsers = Array.from(
+          new Map(normalizedUsers.map((user) => [user.id, user])).values(),
+        );
+
+        setLeadAssignableUsers(dedupedUsers as unknown as AdminUser[]);
+      } catch (error) {
+        console.error("Error fetching lead assignable users:", error);
+        setLeadAssignableUsers([]);
+      }
+    };
+
+    fetchLeadAssignableUsers();
   }, []);
 
   useEffect(() => {
@@ -3120,7 +3267,7 @@ const handleBulkDelete = () => {
         onSave={handleCreateLead}
         sources={sources}
         statuses={statuses}
-        users={bdrUsers}
+        users={leadAssignableUsers.length > 0 ? leadAssignableUsers : bdrUsers}
       />
 
       <LeadModal
@@ -3133,7 +3280,7 @@ const handleBulkDelete = () => {
         onSave={handleUpdateLead}
         sources={sources}
         statuses={statuses}
-        users={bdrUsers}
+        users={leadAssignableUsers.length > 0 ? leadAssignableUsers : bdrUsers}
       />
 
       <PhoneInputModal
