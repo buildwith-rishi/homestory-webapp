@@ -753,6 +753,7 @@ export const MeetingDetailsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [resolvedEntityName, setResolvedEntityName] = useState("");
 
   // Modal states
   const [showParticipantModal, setShowParticipantModal] = useState(false);
@@ -1332,6 +1333,76 @@ export const MeetingDetailsPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!meeting) {
+      setResolvedEntityName("");
+      return;
+    }
+
+    const fallbackFromTitle = meeting.title?.includes(" - ")
+      ? meeting.title.split(" - ").slice(1).join(" - ").trim()
+      : "";
+
+    const directName =
+      (meeting as Meeting & {
+        lead?: { name?: string | null };
+        project?: { projectName?: string | null; name?: string | null };
+      }).lead?.name ||
+      (meeting as Meeting & {
+        lead?: { name?: string | null };
+        project?: { projectName?: string | null; name?: string | null };
+      }).project?.projectName ||
+      (meeting as Meeting & {
+        lead?: { name?: string | null };
+        project?: { projectName?: string | null; name?: string | null };
+      }).project?.name ||
+      fallbackFromTitle;
+
+    setResolvedEntityName(directName || "");
+
+    const leadId =
+      meeting.leadId || (meeting.entityType === "LEAD" ? meeting.entityId : "");
+    const projectId =
+      meeting.projectId ||
+      (meeting.entityType === "PROJECT" ? meeting.entityId : "");
+
+    if (directName || (!leadId && !projectId)) return;
+
+    let cancelled = false;
+
+    const resolveName = async () => {
+      try {
+        if (leadId) {
+          const lead = await getLeadById(leadId);
+          const leadName = lead?.name || "";
+          if (!cancelled && leadName) {
+            setResolvedEntityName(leadName);
+          }
+          return;
+        }
+
+        if (projectId) {
+          const project = await getProjectById(projectId);
+          const projectName = project?.projectName || project?.name || "";
+          if (!cancelled && projectName) {
+            setResolvedEntityName(projectName);
+          }
+        }
+      } catch (resolveError) {
+        console.warn(
+          "Failed to resolve linked entity name for meeting details:",
+          resolveError,
+        );
+      }
+    };
+
+    void resolveName();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [meeting]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -1378,10 +1449,11 @@ export const MeetingDetailsPage: React.FC = () => {
 
   // Resolve linked entity (Lead or Project) for the header chip
   const entityLabel = (() => {
-    const m = meeting as any;
-    const nameFromTitle = meeting.title?.includes(" - ")
-      ? meeting.title.split(" - ").slice(1).join(" - ").trim()
-      : undefined;
+    const m = meeting as Meeting & {
+      lead?: { name?: string | null };
+      project?: { projectName?: string | null; name?: string | null };
+    };
+    const nameFromTitle = resolvedEntityName || undefined;
     if (meeting.leadId) {
       return {
         type: "Lead" as const,

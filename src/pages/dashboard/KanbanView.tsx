@@ -18,8 +18,6 @@ import {
   DollarSign,
   User,
   TrendingUp,
-  ChevronDown,
-  Check,
   UserPlus,
   Users,
   X,
@@ -122,19 +120,6 @@ const KanbanView: React.FC = () => {
 
   // BDR (Business Development Representatives) state
   const [bdrUsers, setBdrUsers] = useState<AdminUser[]>([]);
-  const [bdrDropdownOpen, setBdrDropdownOpen] = useState<string | null>(null);
-  const [bdrDropdownPos, setBdrDropdownPos] = useState<{
-    top: number;
-    left: number;
-    openUpward?: boolean;
-  } | null>(null);
-  const bdrButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-
-  // Multi-select for bulk assign
-  const [selectedKanbanLeads, setSelectedKanbanLeads] = useState<Set<string>>(
-    new Set(),
-  );
-  const [bulkAssignDropdownOpen, setBulkAssignDropdownOpen] = useState(false);
 
   // Assignee panel state
   const [assigneePanelOpen, setAssigneePanelOpen] = useState<string | null>(
@@ -148,9 +133,6 @@ const KanbanView: React.FC = () => {
   const [assigneesLoading, setAssigneesLoading] = useState(false);
   const [addAssigneeDropdown, setAddAssigneeDropdown] = useState(false);
   const assigneePanelRef = useRef<HTMLDivElement | null>(null);
-
-  // Assignment loading state
-  const [isAssigning, setIsAssigning] = useState(false);
 
   // Lead conversion modal state
   const [pendingConversion, setPendingConversion] = useState<{
@@ -176,85 +158,6 @@ const KanbanView: React.FC = () => {
     };
     fetchBDRs();
   }, []);
-
-  // BDR dropdown closes via backdrop click (in portal), no separate handler needed
-
-  // Handle BDR assignment via /assign API
-  const handleAssignBDR = useCallback(
-    async (leadId: string, bdrId: string | null) => {
-      setIsAssigning(true);
-      try {
-        await LeadAPI.assignLead(leadId, {
-          assigneeUserId: bdrId || "",
-        });
-        toast.success(bdrId ? "BDR assigned successfully" : "BDR unassigned");
-        setBdrDropdownOpen(null);
-        setBdrDropdownPos(null);
-        fetchLeads();
-      } catch (error) {
-        console.error("Failed to assign BDR:", error);
-        toast.error("Failed to assign BDR");
-      } finally {
-        setIsAssigning(false);
-      }
-    },
-    [fetchLeads],
-  );
-
-  const updateBdrDropdownPosition = useCallback((leadId: string) => {
-    const btn = bdrButtonRefs.current[leadId];
-    if (!btn) return false;
-
-    const rect = btn.getBoundingClientRect();
-    const dropdownHeight = 280;
-    const dropdownWidth = 208;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openUpward = spaceBelow < dropdownHeight + 8;
-    const left = Math.max(
-      8,
-      Math.min(rect.left, window.innerWidth - dropdownWidth - 8),
-    );
-
-    setBdrDropdownPos({
-      top: openUpward ? rect.top - 4 : rect.bottom + 4,
-      left,
-      openUpward,
-    });
-    return true;
-  }, []);
-
-  // Open BDR dropdown positioned relative to button
-  const openBdrDropdown = useCallback(
-    (leadId: string) => {
-      if (bdrDropdownOpen === leadId) {
-        setBdrDropdownOpen(null);
-        setBdrDropdownPos(null);
-        return;
-      }
-      updateBdrDropdownPosition(leadId);
-      setBdrDropdownOpen(leadId);
-    },
-    [bdrDropdownOpen, updateBdrDropdownPosition],
-  );
-
-  // Keep dropdown anchored to its button while scrolling/resizing.
-  useEffect(() => {
-    const syncPosition = () => {
-      if (!bdrDropdownOpen) return;
-      const anchored = updateBdrDropdownPosition(bdrDropdownOpen);
-      if (!anchored) {
-        setBdrDropdownOpen(null);
-        setBdrDropdownPos(null);
-      }
-    };
-
-    window.addEventListener("scroll", syncPosition, true);
-    window.addEventListener("resize", syncPosition);
-    return () => {
-      window.removeEventListener("scroll", syncPosition, true);
-      window.removeEventListener("resize", syncPosition);
-    };
-  }, [bdrDropdownOpen, updateBdrDropdownPosition]);
 
   // ─── Assignee Panel Handlers ──────────────────────────────────────────────
 
@@ -322,44 +225,6 @@ const KanbanView: React.FC = () => {
       }
     },
     [fetchLeads],
-  );
-
-  // ─── Bulk Selection Handlers ──────────────────────────────────────────────
-
-  const clearSelection = useCallback(() => {
-    setSelectedKanbanLeads(new Set());
-    setBulkAssignDropdownOpen(false);
-  }, []);
-
-  const handleBulkAssign = useCallback(
-    async (userId: string) => {
-      if (selectedKanbanLeads.size === 0) return;
-      const user = bdrUsers.find((u) => u.id === userId);
-      if (
-        !window.confirm(
-          `Assign ${selectedKanbanLeads.size} lead${selectedKanbanLeads.size > 1 ? "s" : ""} to ${user?.name || "user"}?`,
-        )
-      )
-        return;
-      setIsAssigning(true);
-      try {
-        await LeadAPI.bulkAssignLeads({
-          leadIds: [...selectedKanbanLeads],
-          assigneeUserId: userId,
-        });
-        toast.success(
-          `Assigned ${selectedKanbanLeads.size} lead${selectedKanbanLeads.size > 1 ? "s" : ""} successfully`,
-        );
-        clearSelection();
-        fetchLeads();
-      } catch (error) {
-        console.error("Failed to bulk assign:", error);
-        toast.error("Failed to bulk assign leads");
-      } finally {
-        setIsAssigning(false);
-      }
-    },
-    [selectedKanbanLeads, clearSelection, fetchLeads, bdrUsers],
   );
 
   // Leads Kanban Data - Using API statuses
@@ -1076,36 +941,8 @@ const KanbanView: React.FC = () => {
                 </div>
               )}
             </div>
-            {/* BDR Assignment Section */}
+            {/* View Assignees button */}
             <div className="pt-1 flex items-center gap-1.5">
-              <button
-                ref={(el) => {
-                  bdrButtonRefs.current[lead.id] = el;
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  openBdrDropdown(lead.id);
-                }}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-blue-50 transition-colors group"
-              >
-                <User
-                  size={10}
-                  className={
-                    lead.assignedTo ? "text-blue-500" : "text-gray-400"
-                  }
-                />
-                <span
-                  className={`text-[10px] font-medium ${lead.assignedTo ? "text-blue-600" : "text-gray-400 italic"}`}
-                >
-                  {lead.assignedTo?.name || "Assign BDR"}
-                </span>
-                <ChevronDown
-                  size={10}
-                  className={`transition-transform ${bdrDropdownOpen === lead.id ? "rotate-180" : ""} text-gray-400 group-hover:text-gray-600`}
-                />
-              </button>
-              {/* View Assignees button */}
               {lead.assignedTo && (
                 <button
                   onClick={(e) => {
@@ -1133,9 +970,7 @@ const KanbanView: React.FC = () => {
       );
     },
     [
-      bdrDropdownOpen,
       bdrUsers,
-      handleAssignBDR,
       openAssigneePanel,
     ],
   );
@@ -1241,107 +1076,8 @@ const KanbanView: React.FC = () => {
   const handleTaskClick =
     activeView === "leads" ? handleLeadClick : handleProjectClick;
 
-  // Find the currently opened lead for the BDR dropdown portal
-  const openLead = useMemo(() => {
-    if (!bdrDropdownOpen) return null;
-    return leads.find((l) => l.id === bdrDropdownOpen) || null;
-  }, [bdrDropdownOpen, leads]);
-
   return (
     <div className="h-full w-full flex flex-col bg-gray-50 overflow-hidden">
-      {/* BDR Dropdown Portal */}
-      {bdrDropdownOpen &&
-        bdrDropdownPos &&
-        openLead &&
-        createPortal(
-          <>
-            {/* Backdrop to close */}
-            <div
-              className="fixed inset-0"
-              style={{ zIndex: 99998 }}
-              onClick={() => {
-                setBdrDropdownOpen(null);
-                setBdrDropdownPos(null);
-              }}
-            />
-            {/* Dropdown */}
-            <div
-              className="absolute w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1"
-              style={{
-                zIndex: 99999,
-                top: bdrDropdownPos.top,
-                left: bdrDropdownPos.left,
-                maxHeight: "280px",
-                position: "fixed",
-                ...(bdrDropdownPos.openUpward
-                  ? { transform: "translateY(-100%)" }
-                  : null),
-              }}
-            >
-              <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50 rounded-t-lg">
-                Assign BDR
-              </div>
-              <div className="max-h-[230px] overflow-y-auto">
-                <button
-                  onClick={() => handleAssignBDR(openLead.id, null)}
-                  disabled={isAssigning}
-                  className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    !openLead.assignedTo
-                      ? "bg-blue-50 text-blue-600 font-medium"
-                      : "text-gray-600"
-                  }`}
-                >
-                  <span className="w-4 flex-shrink-0">
-                    {isAssigning ? (
-                      <Loader2
-                        size={12}
-                        className="animate-spin text-gray-400"
-                      />
-                    ) : !openLead.assignedTo ? (
-                      <Check size={12} className="text-blue-500" />
-                    ) : null}
-                  </span>
-                  <span>Unassigned</span>
-                </button>
-                {bdrUsers.map((bdr) => {
-                  const isSelected = openLead.assignedTo?.id === bdr.id;
-                  const roleLabel = bdr.role
-                    .replace(/_/g, " ")
-                    .replace(/\b\w/g, (c: string) => c.toUpperCase());
-                  return (
-                    <button
-                      key={bdr.id}
-                      onClick={() => handleAssignBDR(openLead.id, bdr.id)}
-                      disabled={isAssigning}
-                      className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                        isSelected
-                          ? "bg-blue-50 text-blue-600 font-medium"
-                          : "text-gray-700"
-                      }`}
-                    >
-                      <span className="w-4 flex-shrink-0">
-                        {isSelected ? (
-                          <Check size={12} className="text-blue-500" />
-                        ) : null}
-                      </span>
-                      <span className="truncate">{bdr.name}</span>
-                      <span className="text-[9px] text-gray-400 ml-auto flex-shrink-0">
-                        {roleLabel}
-                      </span>
-                    </button>
-                  );
-                })}
-                {bdrUsers.length === 0 && (
-                  <div className="px-3 py-2 text-[11px] text-gray-400 italic text-center">
-                    No users available
-                  </div>
-                )}
-              </div>
-            </div>
-          </>,
-          document.body,
-        )}
-
       {/* Assignee Management Panel Portal */}
       {assigneePanelOpen &&
         assigneePanelPos &&
@@ -1497,93 +1233,6 @@ const KanbanView: React.FC = () => {
           document.body,
         )}
 
-      {/* Bulk Assign Toolbar - bottom floating bar */}
-      {activeView === "leads" &&
-        selectedKanbanLeads.size > 0 &&
-        createPortal(
-          <div
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-2xl border border-gray-200 px-5 py-3 flex items-center gap-4"
-            style={{ zIndex: 99995 }}
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center">
-                <Users size={14} className="text-purple-600" />
-              </div>
-              <span className="text-sm font-semibold text-gray-800">
-                {selectedKanbanLeads.size} lead
-                {selectedKanbanLeads.size > 1 ? "s" : ""} selected
-              </span>
-            </div>
-            <div className="w-px h-6 bg-gray-200" />
-            <div className="relative">
-              <button
-                onClick={() => setBulkAssignDropdownOpen((v) => !v)}
-                disabled={isAssigning}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isAssigning ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <UserPlus size={14} />
-                )}
-                {isAssigning ? "Assigning..." : "Assign BDR"}
-                <ChevronDown
-                  size={12}
-                  className={`transition-transform ${bulkAssignDropdownOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              {bulkAssignDropdownOpen && (
-                <div className="absolute bottom-full mb-2 left-0 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1 max-h-[240px] overflow-y-auto">
-                  {bdrUsers.map((bdr) => {
-                    const roleLabel = bdr.role
-                      .replace(/_/g, " ")
-                      .replace(/\b\w/g, (c: string) => c.toUpperCase());
-                    return (
-                      <button
-                        key={bdr.id}
-                        onClick={() => handleBulkAssign(bdr.id)}
-                        disabled={isAssigning}
-                        className="w-full px-3 py-2 text-left text-[11px] hover:bg-purple-50 flex items-center gap-2 transition-colors text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
-                          style={{
-                            backgroundColor: `hsl(${(bdr.name.charCodeAt(0) * 37) % 360}, 55%, 50%)`,
-                          }}
-                        >
-                          {bdr.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .slice(0, 2)
-                            .toUpperCase()}
-                        </div>
-                        <span className="truncate">{bdr.name}</span>
-                        <span className="text-[9px] text-gray-400 ml-auto flex-shrink-0">
-                          {roleLabel}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  {bdrUsers.length === 0 && (
-                    <div className="px-3 py-2 text-[11px] text-gray-400 italic text-center">
-                      No users available
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={clearSelection}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X size={14} />
-              Clear
-            </button>
-          </div>,
-          document.body,
-        )}
-
       {/* Header */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -1601,7 +1250,6 @@ const KanbanView: React.FC = () => {
             <button
               onClick={() => {
                 setActiveView("leads");
-                setSelectedKanbanLeads(new Set());
               }}
               className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all ${
                 activeView === "leads"
@@ -1625,7 +1273,6 @@ const KanbanView: React.FC = () => {
             <button
               onClick={() => {
                 setActiveView("projects");
-                setSelectedKanbanLeads(new Set());
               }}
               className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all ${
                 activeView === "projects"
