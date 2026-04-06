@@ -7,7 +7,7 @@ export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
-  size?: "sm" | "md" | "lg" | "full";
+  size?: "sm" | "md" | "lg" | "full" | "auto";
   children: React.ReactNode;
   footer?: React.ReactNode;
   showCloseButton?: boolean;
@@ -46,10 +46,11 @@ const Modal: React.FC<ModalProps> = ({
   }, [isOpen, onClose]);
 
   const sizeStyles = {
-    sm: "max-w-md",
-    md: "max-w-[560px]",
-    lg: "max-w-[720px]",
-    full: "max-w-[90vw]",
+    sm: "max-w-md w-full",
+    md: "max-w-[560px] w-full",
+    lg: "max-w-[720px] w-full",
+    full: "max-w-[90vw] w-full",
+    auto: "w-auto max-w-none",
   };
 
   const modalContent = (
@@ -97,7 +98,7 @@ const Modal: React.FC<ModalProps> = ({
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
               onClick={(e) => e.stopPropagation()}
-              className={`${sizeStyles[size]} w-full bg-white rounded-lg shadow-2xl overflow-hidden`}
+              className={`${sizeStyles[size]} bg-white rounded-lg shadow-2xl overflow-hidden`}
               style={{ pointerEvents: "auto" }}
               role="dialog"
               aria-modal="true"

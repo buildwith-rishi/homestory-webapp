@@ -3298,13 +3298,6 @@ export const CustomerDetails: React.FC = () => {
                               <ExternalLink className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => handleKycAction(doc, "download")}
-                              className="p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-gray-600 transition-colors"
-                              title="Download"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-                            <button
                               onClick={() => handleKycDelete(doc)}
                               disabled={isDeleting}
                               className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"

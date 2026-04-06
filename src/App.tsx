@@ -366,7 +366,7 @@ function App() {
             path="/app/issues"
             element={
               <ProtectedRoute
-                allowedRoleIds={["SITE_ENGINEER", "SUPER_ADMIN", "ADMIN"]}
+                allowedRoleIds={["SUPER_ADMIN", "ADMIN"]}
               >
                 <MobileAppShell>
                   <EngineerIssues />
@@ -378,7 +378,7 @@ function App() {
             path="/app/issues/report"
             element={
               <ProtectedRoute
-                allowedRoleIds={["SITE_ENGINEER", "SUPER_ADMIN", "ADMIN"]}
+                allowedRoleIds={["SUPER_ADMIN", "ADMIN"]}
               >
                 <MobileAppShell>
                   <ReportIssue />

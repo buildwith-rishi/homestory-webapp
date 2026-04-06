@@ -561,8 +561,6 @@ export const ProjectsPage: React.FC = () => {
             <option value="ALL">All Categories</option>
             <option value="RESIDENTIAL">Residential</option>
             <option value="COMMERCIAL">Commercial</option>
-            <option value="HOSPITALITY">Hospitality</option>
-            <option value="HEALTHCARE">Healthcare</option>
           </select>
           <div className="flex gap-1 bg-white border border-gray-300 rounded-xl p-1">
             <button

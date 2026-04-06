@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Camera,
   CheckSquare,
-  AlertCircle,
   Wifi,
   WifiOff,
   Calendar,
@@ -18,11 +17,9 @@ import { useAuthStore } from "../../stores/authStore";
 import { Spinner } from "../../components/ui";
 import {
   getSiteEngineerTasks,
-  getSiteEngineerIssues,
   getSiteEngineerProfile,
   type SiteEngineerTask,
   type SiteEngineerProfile,
-  type SiteEngineerIssue,
 } from "../../services/siteEngineerApi";
 
 export function EngineerHome() {
@@ -46,23 +43,20 @@ export function EngineerHome() {
   // Site engineer API data
   const [seTasks, setSeTasks] = useState<SiteEngineerTask[]>([]);
   const [seProfile, setSeProfile] = useState<SiteEngineerProfile | null>(null);
-  const [seIssues, setSeIssues] = useState<SiteEngineerIssue[]>([]);
 
   // Handle retry for tasks
   const handleRetryTasks = async () => {
     setIsRefreshing(true);
     clearError();
     try {
-      const [, , tasks, profile, issues] = await Promise.all([
+      const [, , tasks, profile] = await Promise.all([
         fetchAllTasks(),
         fetchUpcomingTasks(),
         getSiteEngineerTasks(),
         getSiteEngineerProfile(),
-        getSiteEngineerIssues(),
       ]);
       setSeTasks(tasks);
       setSeProfile(profile);
-      setSeIssues(issues);
     } catch (err) {
       console.warn("Retry failed:", err);
     } finally {
@@ -81,15 +75,10 @@ export function EngineerHome() {
     fetchUpcomingTasks();
 
     // Load from site engineer APIs
-    Promise.all([
-      getSiteEngineerTasks(),
-      getSiteEngineerProfile(),
-      getSiteEngineerIssues(),
-    ])
-      .then(([tasks, profile, issues]) => {
+    Promise.all([getSiteEngineerTasks(), getSiteEngineerProfile()])
+      .then(([tasks, profile]) => {
         setSeTasks(tasks);
         setSeProfile(profile);
-        setSeIssues(issues);
       })
       .catch((err) => console.warn("Site engineer home API error:", err));
 
@@ -117,7 +106,6 @@ export function EngineerHome() {
 
   // Derived stats – come from real API data only
   const todayPhotos = seProfile?.stats?.totalPhotos ?? 0;
-  const openIssues = seIssues.filter((i) => i.status !== "RESOLVED").length;
 
   // Get upcoming tasks from SE API + store (next 7 days, limited to 5)
   const seUpcoming = seTasks
@@ -216,7 +204,7 @@ export function EngineerHome() {
         </div>
 
         {/* Today's Summary - Prominent Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-sm p-3.5 text-white">
             <div className="flex items-center gap-2 mb-1">
               <ListTodo className="w-4 h-4" />
@@ -231,13 +219,6 @@ export function EngineerHome() {
             <p className="text-2xl font-bold">{todayPhotos}</p>
             <p className="text-xs opacity-90 mt-0.5">Photos Today</p>
           </div>
-          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-sm p-3.5 text-white">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertCircle className="w-4 h-4" />
-            </div>
-            <p className="text-2xl font-bold">{openIssues}</p>
-            <p className="text-xs opacity-90 mt-0.5">Open Issues</p>
-          </div>
         </div>
 
         {/* Quick Actions - Large Touch Targets */}
@@ -246,7 +227,7 @@ export function EngineerHome() {
             <div className="w-1 h-4 bg-orange-500 rounded-full" />
             Quick Actions
           </h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => navigate("/app/tasks")}
               className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
@@ -256,17 +237,6 @@ export function EngineerHome() {
               </div>
               <span className="text-sm font-semibold text-gray-900">
                 View Tasks
-              </span>
-            </button>
-            <button
-              onClick={() => navigate("/app/issues")}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px]"
-            >
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-              </div>
-              <span className="text-sm font-semibold text-gray-900">
-                Report Issue
               </span>
             </button>
             <button
@@ -320,7 +290,7 @@ export function EngineerHome() {
           ) : tasksError ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <AlertCircle className="w-6 h-6 text-red-500" />
+                <RefreshCw className="w-6 h-6 text-red-500" />
               </div>
               <p className="text-sm font-medium text-gray-900">
                 Couldn't load tasks
