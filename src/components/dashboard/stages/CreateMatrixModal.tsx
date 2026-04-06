@@ -11,9 +11,13 @@ import {
 } from "lucide-react";
 import { Button } from "../../ui";
 import type { CreateMatrixRequest } from "../../../types";
-import type { TeamMember } from "../../../services/teamApi";
 import { createTaskMatrix } from "../../../services/projectApi";
-import { getAllTeamMembers } from "../../../services/teamApi";
+import { adminAPI } from "../../../services/api";
+import {
+  getRoleDisplayName,
+  normalizeRole,
+  type RoleId,
+} from "../../../config/rbac";
 
 interface CreateMatrixModalProps {
   projectId: string;
@@ -35,6 +39,85 @@ const DEFAULT_COLORS = [
   "#06b6d4",
   "#f97316",
 ];
+
+type ApiUserRecord = Record<string, unknown>;
+
+interface AssignableUser {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: RoleId;
+}
+
+const toNonEmptyString = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  if (
+    !normalized ||
+    normalized === "undefined" ||
+    normalized === "null" ||
+    normalized === "[object Object]"
+  ) {
+    return undefined;
+  }
+  return normalized;
+};
+
+const parseUsersFromResponse = (payload: unknown): ApiUserRecord[] => {
+  if (Array.isArray(payload)) {
+    return payload as ApiUserRecord[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const responseObj = payload as Record<string, unknown>;
+
+    if (Array.isArray(responseObj.users)) {
+      return responseObj.users as ApiUserRecord[];
+    }
+
+    const nestedData = responseObj.data;
+    if (Array.isArray(nestedData)) {
+      return nestedData as ApiUserRecord[];
+    }
+
+    if (nestedData && typeof nestedData === "object") {
+      const nestedObj = nestedData as Record<string, unknown>;
+      if (Array.isArray(nestedObj.users)) {
+        return nestedObj.users as ApiUserRecord[];
+      }
+      if (Array.isArray(nestedObj.data)) {
+        return nestedObj.data as ApiUserRecord[];
+      }
+    }
+  }
+
+  return [];
+};
+
+const extractUserRole = (user: ApiUserRecord): RoleId => {
+  const credential =
+    user.credential && typeof user.credential === "object"
+      ? (user.credential as Record<string, unknown>)
+      : undefined;
+
+  const roleCandidates: unknown[] = [
+    user.role,
+    user.roleTitle,
+    user.userRoleTitle,
+    user.role_title,
+    user.user_role_title,
+    credential?.roleKey,
+    credential?.name,
+  ];
+
+  for (const candidate of roleCandidates) {
+    const value = toNonEmptyString(candidate);
+    if (value) return normalizeRole(value);
+  }
+
+  return "BDR";
+};
 
 export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   projectId,
@@ -59,7 +142,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
   const [dayTitles, setDayTitles] = useState<Record<number, string>>({ 1: "" });
 
   // Inline tasks — assignedTo stores the TeamMember id
@@ -68,6 +151,7 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
       title: string;
       description: string;
       dayNumber: number;
+      assignedRole?: RoleId;
       assignedTo?: string;
     }[]
   >([]);
@@ -102,33 +186,54 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
 
   useEffect(() => {
     setMembersLoading(true);
-    getAllTeamMembers()
-      .then((members) => {
-        // Only show active team members to avoid FK constraint issues with deleted/inactive ones
-        const active = members.filter((m) => m.isActive !== false);
-        setTeamMembers(active);
-        console.log(
-          "[CreateMatrix] Loaded",
-          active.length,
-          "active team members",
-        );
+    adminAPI
+      .getAllUsers()
+      .then((response) => {
+        const users = parseUsersFromResponse(response);
+        const normalizedUsers = users
+          .map((user) => {
+            const id = String(
+              user.id || user._id || user.userId || user.user_id || "",
+            ).trim();
+            const name = String(
+              user.name ||
+                user.fullName ||
+                user.full_name ||
+                user.email ||
+                "",
+            ).trim();
+            const email = String(user.email || user.userEmail || "").trim();
+
+            return {
+              id,
+              userId: id,
+              name,
+              email,
+              role: extractUserRole(user),
+              isActive: user.isActive !== false,
+              isBanned: user.isBanned === true,
+            };
+          })
+          .filter((user) => user.id && user.name)
+          .filter((user) => user.isActive && !user.isBanned)
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        setAssignableUsers(normalizedUsers);
+        console.log("[CreateMatrix] Loaded", normalizedUsers.length, "active users");
       })
       .catch((err) => {
-        console.warn("[CreateMatrix] Failed to fetch team members:", err);
+        console.warn("[CreateMatrix] Failed to fetch users:", err);
+        setAssignableUsers([]);
       })
       .finally(() => setMembersLoading(false));
   }, []);
 
-  // Assignee options — each TeamMember carries both its own id (TeamMember PK)
-  // and userId (User table FK), which map to the two API fields respectively.
-  const assigneeOptions = useMemo(
+  const roleOptions = useMemo(
     () =>
-      teamMembers.map((m) => ({
-        value: m.id, // TeamMember PK → assignedToMemberId
-        userId: m.userId, // User FK → assignedToUserId
-        label: `${m.name}${m.role ? ` (${m.role})` : ""}${m.department ? ` - ${m.department}` : ""}`,
-      })),
-    [teamMembers],
+      Array.from(new Set(assignableUsers.map((user) => user.role))).sort((a, b) =>
+        getRoleDisplayName(a).localeCompare(getRoleDisplayName(b)),
+      ),
+    [assignableUsers],
   );
 
   const addCategory = () => {
@@ -164,12 +269,32 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
 
   const updateTask = (
     idx: number,
-    field: "title" | "description" | "dayNumber" | "assignedTo",
+    field: "title" | "description" | "dayNumber" | "assignedRole" | "assignedTo",
     value: string | number,
   ) => {
     setTasks((prev) =>
       prev.map((t, i) => {
         if (i !== idx) return t;
+        if (field === "assignedRole") {
+          const nextRole = (value as RoleId) || undefined;
+          const updated: typeof t & { assignedRole?: RoleId } = { ...t };
+
+          if (nextRole) {
+            updated.assignedRole = nextRole;
+          } else {
+            delete updated.assignedRole;
+          }
+
+          // If role changes, clear incompatible assignee so role -> user flow stays valid.
+          if (t.assignedTo) {
+            const selectedUser = assignableUsers.find((u) => u.id === t.assignedTo);
+            if (!nextRole || !selectedUser || selectedUser.role !== nextRole) {
+              delete updated.assignedTo;
+            }
+          }
+
+          return updated;
+        }
         // Convert empty string to undefined so we don't send empty FK values
         if (field === "assignedTo" && value === "") {
           const updated = { ...t };
@@ -235,18 +360,13 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
           taskDate: taskIso,
           startDate: taskIso,
         };
-        // assignedTo holds the TeamMember id.
-        // Look up the member to get BOTH ids for the API.
-        const selectedMemberId = t.assignedTo?.trim();
-        if (selectedMemberId) {
-          const member = teamMembers.find((m) => m.id === selectedMemberId);
-          if (member) {
-            // assignedToMemberId → TeamMember table PK
-            task.assignedToMemberId = member.id;
-            // assignedToUserId → User table FK stored on the TeamMember row
-            if (member.userId) {
-              task.assignedToUserId = member.userId;
-            }
+        // assignedTo stores the live user id from admin users API.
+        const selectedUserId = t.assignedTo?.trim();
+        if (selectedUserId) {
+          const selectedUser = assignableUsers.find((u) => u.id === selectedUserId);
+          if (selectedUser) {
+            task.assignedToMemberId = selectedUser.id;
+            task.assignedToUserId = selectedUser.userId;
           }
         }
         return task;
@@ -582,77 +702,105 @@ export const CreateMatrixModal: React.FC<CreateMatrixModalProps> = ({
               </button>
             ) : (
               <div className="space-y-2">
-                {tasks.map((task, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gray-50 rounded-lg p-3 space-y-2"
-                  >
-                    <div className="flex items-center gap-2">
+                {tasks.map((task, idx) => {
+                  const usersForRole = task.assignedRole
+                    ? assignableUsers.filter((u) => u.role === task.assignedRole)
+                    : [];
+
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-gray-50 rounded-lg p-3 space-y-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={task.title}
+                          onChange={(e) =>
+                            updateTask(idx, "title", e.target.value)
+                          }
+                          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                          placeholder="Task title..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeTask(idx)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                       <input
                         type="text"
-                        value={task.title}
+                        value={task.description}
                         onChange={(e) =>
-                          updateTask(idx, "title", e.target.value)
+                          updateTask(idx, "description", e.target.value)
                         }
-                        className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                        placeholder="Task title..."
+                        className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                        placeholder="Description (optional)..."
                       />
-                      <button
-                        type="button"
-                        onClick={() => removeTask(idx)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={task.description}
-                      onChange={(e) =>
-                        updateTask(idx, "description", e.target.value)
-                      }
-                      className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                      placeholder="Description (optional)..."
-                    />
-                    {/* Assign team member — UUID sent to both assignedToUserId & assignedToMemberId */}
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={task.dayNumber}
-                        onChange={(e) =>
-                          updateTask(idx, "dayNumber", Number(e.target.value))
-                        }
-                        className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
-                      >
-                        {Array.from({ length: Math.max(totalDays, 1) }, (_, dayIdx) => {
-                          const dayNumber = dayIdx + 1;
-                          return (
-                            <option key={dayNumber} value={dayNumber}>
-                              Day {dayNumber}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <select
-                        value={task.assignedTo || ""}
-                        onChange={(e) =>
-                          updateTask(idx, "assignedTo", e.target.value)
-                        }
-                        className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
-                        disabled={membersLoading}
-                      >
-                        <option value="">
-                          {membersLoading ? "Loading..." : "Assign team member"}
-                        </option>
-                        {assigneeOptions.map((a) => (
-                          <option key={a.value} value={a.value}>
-                            {a.label}
+                      {/* Select day, then role, then assignee from live users API */}
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={task.dayNumber}
+                          onChange={(e) =>
+                            updateTask(idx, "dayNumber", Number(e.target.value))
+                          }
+                          className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
+                        >
+                          {Array.from({ length: Math.max(totalDays, 1) }, (_, dayIdx) => {
+                            const dayNumber = dayIdx + 1;
+                            return (
+                              <option key={dayNumber} value={dayNumber}>
+                                Day {dayNumber}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <select
+                          value={task.assignedRole || ""}
+                          onChange={(e) =>
+                            updateTask(idx, "assignedRole", e.target.value)
+                          }
+                          className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
+                          disabled={membersLoading}
+                        >
+                          <option value="">
+                            {membersLoading ? "Loading roles..." : "Select role"}
                           </option>
-                        ))}
-                      </select>
+                          {roleOptions.map((role) => (
+                            <option key={role} value={role}>
+                              {getRoleDisplayName(role)}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={task.assignedTo || ""}
+                          onChange={(e) =>
+                            updateTask(idx, "assignedTo", e.target.value)
+                          }
+                          className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-700"
+                          disabled={membersLoading || !task.assignedRole}
+                        >
+                          <option value="">
+                            {membersLoading
+                              ? "Loading users..."
+                              : task.assignedRole
+                                ? "Assign team member"
+                                : "Select role first"}
+                          </option>
+                          {usersForRole.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}
+                              {user.email ? ` (${user.email})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

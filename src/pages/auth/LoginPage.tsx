@@ -85,8 +85,8 @@ const ROLE_CREDENTIALS = [
   },
   {
     role: "Site Engineer",
-    email: "ss@gmail.com",
-    password: "Password@2026#",
+    email: "ramesh@gmail.com",
+    password: "ramesh@123",
     badge: "bg-teal-100 text-teal-700",
     description: "Field execution",
   },
