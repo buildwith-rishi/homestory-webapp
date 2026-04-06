@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactDOM from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -44,7 +44,10 @@ import {
 import { Button, Badge, Card } from "../../components/ui";
 import toast from "react-hot-toast";
 import ContactAPI, { type Contact } from "../../services/contactApi";
-import LeadAPI, { type Lead as LeadOption } from "../../services/leadApi";
+import LeadAPI, {
+  type Lead as LeadOption,
+  type LeadNote as LeadApiNote,
+} from "../../services/leadApi";
 import { fetchAPI } from "../../services/api";
 import CustomerAPI, {
   Customer as APICustomer,
@@ -99,11 +102,50 @@ interface Referral {
 }
 
 interface Note {
-  id: number;
+  id: number | string;
   content: string;
   createdBy: string;
   createdAt: string;
 }
+
+const mapLeadNotesToCustomerNotes = (leadNotes: LeadApiNote[]): Note[] =>
+  leadNotes
+    .filter((note) => Boolean(note?.content?.trim()))
+    .map((note) => ({
+      id: note.id || `lead-note-${Math.random().toString(36).slice(2)}`,
+      content: note.content,
+      createdBy: note.createdByName || note.createdBy || "Lead Activity",
+      createdAt: note.createdAt || new Date().toISOString(),
+    }));
+
+const mergeCustomerNotes = (
+  customerNotes: Note[],
+  leadNotes: Note[],
+): Note[] => {
+  const merged = [...customerNotes, ...leadNotes];
+
+  // Avoid duplicate rows when backend stores the same text in customer and lead timelines.
+  const deduped = merged.filter((note, idx, arr) => {
+    const normalizedContent = note.content.trim().toLowerCase();
+    const normalizedDate = note.createdAt ? note.createdAt.slice(0, 16) : "";
+    return (
+      arr.findIndex((candidate) => {
+        const candidateContent = candidate.content.trim().toLowerCase();
+        const candidateDate = candidate.createdAt
+          ? candidate.createdAt.slice(0, 16)
+          : "";
+        return (
+          candidateContent === normalizedContent && candidateDate === normalizedDate
+        );
+      }) === idx
+    );
+  });
+
+  return deduped.sort(
+    (a, b) =>
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+  );
+};
 
 interface AssignedProject {
   id: string;
@@ -329,6 +371,288 @@ const getAdditionalLeadReferenceFields = (
     .map(([key, value]) => ({ key, value }));
 };
 
+type LeadReferenceEditForm = {
+  source: string;
+  status: string;
+  stage: string;
+  score: string;
+  priority: string;
+  message: string;
+  projectType: string;
+  propertyProjectType: string;
+  propertyType: string;
+  homeType: string;
+  bhkConfig: string;
+  area: string;
+  carpetArea: string;
+  city: string;
+  locality: string;
+  location: string;
+  projectStage: string;
+  projectScope: string;
+  budget: string;
+  budgetRange: string;
+  budgetComfort: string;
+  timeline: string;
+  startTimeline: string;
+  expectedStartDate: string;
+  moveinDate: string;
+  companyName: string;
+  householdOrCompany: string;
+  canWhatsApp: boolean;
+  wantsExperienceCenterVisit: boolean;
+  isPhoneVerified: boolean;
+  verificationAttempts: string;
+  budgetTier: string;
+};
+
+type LeadReferenceEditableField = keyof LeadReferenceEditForm;
+
+type SelectOption = {
+  value: string;
+  label: string;
+};
+
+const DEFAULT_LEAD_SOURCE_OPTIONS: SelectOption[] = [
+  { value: "WEBSITE", label: "Website" },
+  { value: "WHATSAPP", label: "WhatsApp" },
+  { value: "PHONE", label: "Phone" },
+  { value: "INSTAGRAM", label: "Instagram" },
+  { value: "FACEBOOK", label: "Facebook" },
+  { value: "YOUTUBE", label: "YouTube" },
+  { value: "REFERRAL", label: "Referral" },
+  { value: "WALK_IN", label: "Walk-in" },
+  { value: "EXHIBITION", label: "Exhibition" },
+  { value: "EXPO", label: "Expo" },
+  { value: "PAID_LEAD", label: "Paid Lead" },
+  { value: "CONTACT_FORM", label: "Contact Form" },
+  { value: "OTHER", label: "Other" },
+];
+
+const DEFAULT_LEAD_STATUS_OPTIONS: SelectOption[] = [
+  { value: "NEW", label: "New" },
+  { value: "WORKING", label: "Working" },
+  { value: "QUALIFIED", label: "Qualified" },
+  { value: "DISQUALIFIED", label: "Disqualified" },
+  { value: "UNQUALIFIED", label: "Unqualified" },
+  { value: "CONVERTED", label: "Converted" },
+];
+
+const LEAD_STAGE_OPTIONS: SelectOption[] = [
+  { value: "NEW", label: "New" },
+  { value: "CONTACTED", label: "Contacted" },
+  { value: "WORKING", label: "Working" },
+  { value: "QUALIFIED", label: "Qualified" },
+  { value: "CONVERTED", label: "Converted" },
+  { value: "DISQUALIFIED", label: "Disqualified" },
+  { value: "UNQUALIFIED", label: "Unqualified" },
+];
+
+const LEAD_FIELD_ENUM_OPTIONS: Partial<Record<LeadReferenceEditableField, SelectOption[]>> = {
+  propertyType: [
+    { value: "RESIDENTIAL", label: "Residential" },
+    { value: "COMMERCIAL", label: "Commercial" },
+    { value: "MIXED_USE", label: "Mixed Use" },
+    { value: "OTHERS", label: "Others" },
+  ],
+  projectType: [
+    { value: "APARTMENT", label: "Apartment" },
+    { value: "VILLA", label: "Villa" },
+    { value: "ROW_HOUSE", label: "Row House" },
+    { value: "PENTHOUSE", label: "Penthouse" },
+    { value: "DUPLEX", label: "Duplex" },
+    { value: "STUDIO", label: "Studio" },
+    { value: "OFFICE", label: "Office" },
+    { value: "RETAIL", label: "Retail" },
+    { value: "WAREHOUSE", label: "Warehouse" },
+    { value: "OTHER", label: "Other" },
+  ],
+  homeType: [
+    { value: "NOT_SURE", label: "Not Sure" },
+    { value: "ONE_BHK", label: "1 BHK" },
+    { value: "TWO_BHK", label: "2 BHK" },
+    { value: "THREE_BHK", label: "3 BHK" },
+    { value: "FOUR_BHK", label: "4 BHK" },
+    { value: "VILLA_ROW_HOUSE", label: "Villa / Row House" },
+    { value: "DUPLEX", label: "Duplex" },
+    { value: "TRIPLEX", label: "Triplex" },
+    { value: "PENTHOUSE", label: "Penthouse" },
+    { value: "OTHERS", label: "Others" },
+  ],
+  propertyProjectType: [
+    { value: "HIGHRISE", label: "High Rise" },
+    { value: "LOWRISE", label: "Low Rise" },
+    { value: "GATED_COMMUNITY", label: "Gated Community" },
+    { value: "VILLA", label: "Villa" },
+    { value: "TOWNHOUSE", label: "Townhouse" },
+    { value: "PLOTTED", label: "Plotted" },
+    { value: "OTHERS", label: "Others" },
+  ],
+  projectStage: [
+    { value: "NOT_SURE", label: "Not Sure" },
+    { value: "NEW_HOME_PENDING", label: "New Home - Pending Possession" },
+    { value: "NEW_HOME_RECEIVED", label: "New Home - Received" },
+    { value: "RENOVATION", label: "Renovation" },
+    { value: "COMMERCIAL_FITOUT", label: "Commercial Fitout" },
+  ],
+  startTimeline: [
+    { value: "NOT_SURE", label: "Not Sure" },
+    { value: "IMMEDIATELY", label: "Immediately" },
+    { value: "ONE_TO_THREE_MONTHS", label: "1-3 Months" },
+    { value: "THREE_TO_SIX_MONTHS", label: "3-6 Months" },
+    { value: "SIX_PLUS_MONTHS", label: "6+ Months" },
+  ],
+  budgetComfort: [
+    { value: "NOT_SURE", label: "Not Sure" },
+    { value: "VALUE", label: "Value" },
+    { value: "BALANCED", label: "Balanced" },
+    { value: "PREMIUM", label: "Premium" },
+    { value: "NEED_GUIDANCE", label: "Need Guidance" },
+  ],
+  projectScope: [
+    { value: "NOT_SURE", label: "Not Sure" },
+    { value: "TURNKEY", label: "Turnkey" },
+    { value: "DESIGN_ONLY", label: "Design Only" },
+    { value: "KITCHEN_WARDROBES", label: "Kitchen & Wardrobes" },
+    { value: "INTERIOR_DESIGN_ONLY", label: "Interior Design Only" },
+    { value: "INTERIOR_DESIGN_AND_BUILD", label: "Interior Design & Build" },
+    { value: "ARCHITECTURE_DESIGN_ONLY", label: "Architecture Design Only" },
+    { value: "RENOVATION", label: "Renovation" },
+    { value: "SPECIFIC_SPACE", label: "Specific Space" },
+    { value: "OTHERS", label: "Others" },
+  ],
+  householdOrCompany: [
+    { value: "RESIDENTIAL", label: "Residential" },
+    { value: "COMMERCIAL", label: "Commercial" },
+    { value: "OTHERS", label: "Others" },
+  ],
+  budgetTier: [
+    { value: "STANDARD", label: "Standard" },
+    { value: "LUXURY", label: "Luxury" },
+  ],
+};
+
+const LEAD_REFERENCE_EDIT_SOURCE_MAP: Record<LeadReferenceEditableField, string[]> = {
+  source: ["source"],
+  status: ["status"],
+  stage: ["stage"],
+  score: ["score"],
+  priority: ["priority"],
+  message: ["message", "requirements", "notes"],
+  projectType: ["projectType"],
+  propertyProjectType: ["propertyProjectType"],
+  propertyType: ["propertyType"],
+  homeType: ["homeType"],
+  bhkConfig: ["bhkConfig"],
+  area: ["area"],
+  carpetArea: ["carpetArea"],
+  city: ["city"],
+  locality: ["locality"],
+  location: ["location"],
+  projectStage: ["projectStage"],
+  projectScope: ["projectScope"],
+  budget: ["budget"],
+  budgetRange: ["budgetRange"],
+  budgetComfort: ["budgetComfort"],
+  timeline: ["timeline"],
+  startTimeline: ["startTimeline"],
+  expectedStartDate: ["expectedStartDate"],
+  moveinDate: ["moveinDate"],
+  companyName: ["companyName"],
+  householdOrCompany: ["householdOrCompany"],
+  canWhatsApp: ["canWhatsApp"],
+  wantsExperienceCenterVisit: ["wantsExperienceCenterVisit"],
+  isPhoneVerified: ["isPhoneVerified"],
+  verificationAttempts: ["verificationAttempts"],
+  budgetTier: ["budgetTier"],
+};
+
+const getEditableLeadReferenceFieldSet = (
+  lead: LeadOption | null,
+): Set<LeadReferenceEditableField> => {
+  const editableFields = new Set<LeadReferenceEditableField>();
+  if (!lead) return editableFields;
+
+  (Object.keys(LEAD_REFERENCE_EDIT_SOURCE_MAP) as LeadReferenceEditableField[]).forEach(
+    (field) => {
+      const sourceKeys = LEAD_REFERENCE_EDIT_SOURCE_MAP[field];
+      const hasValue = sourceKeys.some((key) =>
+        isLeadReferenceMeaningful(
+          (lead as unknown as Record<string, unknown>)[key],
+        ),
+      );
+
+      if (hasValue) {
+        editableFields.add(field);
+      }
+    },
+  );
+
+  return editableFields;
+};
+
+const toTextInputValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value);
+};
+
+const toDateInputValue = (value: string | null | undefined): string => {
+  if (!value) return "";
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) return "";
+  return parsedDate.toISOString().slice(0, 10);
+};
+
+const parseOptionalNumber = (
+  value: string,
+  label: string,
+): number | undefined => {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${label} must be a valid number`);
+  }
+  return parsed;
+};
+
+const createLeadReferenceEditForm = (
+  lead: LeadOption | null,
+): LeadReferenceEditForm => ({
+  source: toTextInputValue(lead?.source),
+  status: toTextInputValue(lead?.status),
+  stage: toTextInputValue(lead?.stage),
+  score: toTextInputValue(lead?.score),
+  priority: toTextInputValue(lead?.priority),
+  message: toTextInputValue(lead?.message || lead?.requirements || lead?.notes),
+  projectType: toTextInputValue(lead?.projectType),
+  propertyProjectType: toTextInputValue(lead?.propertyProjectType),
+  propertyType: toTextInputValue(lead?.propertyType),
+  homeType: toTextInputValue(lead?.homeType),
+  bhkConfig: toTextInputValue(lead?.bhkConfig),
+  area: toTextInputValue(lead?.area),
+  carpetArea: toTextInputValue(lead?.carpetArea),
+  city: toTextInputValue(lead?.city),
+  locality: toTextInputValue(lead?.locality),
+  location: toTextInputValue(lead?.location),
+  projectStage: toTextInputValue(lead?.projectStage),
+  projectScope: toTextInputValue(lead?.projectScope),
+  budget: toTextInputValue(lead?.budget),
+  budgetRange: toTextInputValue(lead?.budgetRange),
+  budgetComfort: toTextInputValue(lead?.budgetComfort),
+  timeline: toTextInputValue(lead?.timeline),
+  startTimeline: toTextInputValue(lead?.startTimeline),
+  expectedStartDate: toDateInputValue(lead?.expectedStartDate),
+  moveinDate: toDateInputValue(lead?.moveinDate),
+  companyName: toTextInputValue(lead?.companyName),
+  householdOrCompany: toTextInputValue(lead?.householdOrCompany),
+  canWhatsApp: Boolean(lead?.canWhatsApp),
+  wantsExperienceCenterVisit: Boolean(lead?.wantsExperienceCenterVisit),
+  isPhoneVerified: Boolean(lead?.isPhoneVerified),
+  verificationAttempts: toTextInputValue(lead?.verificationAttempts),
+  budgetTier: toTextInputValue(lead?.budgetTier),
+});
+
 const rankingColors = {
   vip: { bg: "bg-purple-100", text: "text-purple-700", icon: "👑" },
   niche: { bg: "bg-orange-100", text: "text-orange-700", icon: "⭐" },
@@ -433,6 +757,16 @@ export const CustomerDetails: React.FC = () => {
   const [leadReferenceData, setLeadReferenceData] = useState<LeadOption | null>(
     null,
   );
+  const [leadSourceOptions, setLeadSourceOptions] = useState<SelectOption[]>(
+    DEFAULT_LEAD_SOURCE_OPTIONS,
+  );
+  const [leadStatusOptions, setLeadStatusOptions] = useState<SelectOption[]>(
+    DEFAULT_LEAD_STATUS_OPTIONS,
+  );
+  const [leadReferenceEditing, setLeadReferenceEditing] = useState(false);
+  const [leadReferenceSaving, setLeadReferenceSaving] = useState(false);
+  const [leadReferenceEditForm, setLeadReferenceEditForm] =
+    useState<LeadReferenceEditForm>(createLeadReferenceEditForm(null));
   const [leadAttachments, setLeadAttachments] = useState<Attachment[]>([]);
   const [loadingLeadReferences, setLoadingLeadReferences] = useState(false);
   const leadReferenceUploadInputRef = useRef<HTMLInputElement>(null);
@@ -719,6 +1053,29 @@ export const CustomerDetails: React.FC = () => {
           (apiCustomer as any).lead?.id ||
           undefined;
 
+        const baseCustomerNotes: Note[] = apiCustomer.notes
+          ? [
+              {
+                id: 1,
+                content: apiCustomer.notes,
+                createdBy: "System",
+                createdAt: apiCustomer.createdAt || "",
+              },
+            ]
+          : [];
+
+        let leadNotes: Note[] = [];
+        if (resolvedLeadId) {
+          try {
+            const apiLeadNotes = await LeadAPI.getLeadNotes(resolvedLeadId);
+            leadNotes = mapLeadNotesToCustomerNotes(apiLeadNotes || []);
+          } catch (leadNotesError) {
+            console.warn("Failed to fetch converted lead notes:", leadNotesError);
+          }
+        }
+
+        const mergedNotes = mergeCustomerNotes(baseCustomerNotes, leadNotes);
+
         const mappedCustomer: Customer = {
           id: apiCustomer.id, // Keep UUID as string
           customerNumber: apiCustomer.customerNumber || undefined,
@@ -752,16 +1109,7 @@ export const CustomerDetails: React.FC = () => {
           referrals: [],
           clientRanking: undefined,
           communicationPreference: undefined,
-          notes: apiCustomer.notes
-            ? [
-                {
-                  id: 1,
-                  content: apiCustomer.notes,
-                  createdBy: "System",
-                  createdAt: apiCustomer.createdAt || "",
-                },
-              ]
-            : [],
+          notes: mergedNotes,
           occupation: undefined,
           companyName: undefined,
           assignedProjects: apiProjects,
@@ -824,11 +1172,41 @@ export const CustomerDetails: React.FC = () => {
   useEffect(() => {
     setLeadReferenceData(null);
     setLeadAttachments([]);
+    setLeadReferenceEditing(false);
+    setLeadReferenceEditForm(createLeadReferenceEditForm(null));
   }, [customerId]);
 
   // Load relationship types once on mount
   useEffect(() => {
     CustomerAPI.getFamilyRelationshipTypes().then(setRelationshipTypes);
+  }, []);
+
+  // Load lead source/status options for dropdown-driven editing.
+  useEffect(() => {
+    const fetchLeadOptions = async () => {
+      try {
+        const [sources, statuses] = await Promise.all([
+          LeadAPI.getLeadSources(),
+          LeadAPI.getLeadStatuses(),
+        ]);
+
+        if (Array.isArray(sources) && sources.length > 0) {
+          setLeadSourceOptions(
+            sources.map((item) => ({ value: item.value, label: item.label })),
+          );
+        }
+
+        if (Array.isArray(statuses) && statuses.length > 0) {
+          setLeadStatusOptions(
+            statuses.map((item) => ({ value: item.value, label: item.label })),
+          );
+        }
+      } catch (error) {
+        console.warn("Failed to load lead dropdown options:", error);
+      }
+    };
+
+    fetchLeadOptions();
   }, []);
 
   // Load customer types and statuses once on mount
@@ -1090,6 +1468,409 @@ export const CustomerDetails: React.FC = () => {
     leadReferenceData,
     loadingLeadReferences,
   ]);
+
+  useEffect(() => {
+    if (!leadReferenceEditing) return;
+    setLeadReferenceEditForm(createLeadReferenceEditForm(leadReferenceData));
+  }, [leadReferenceData, leadReferenceEditing]);
+
+  const editableLeadReferenceFields = useMemo(
+    () => getEditableLeadReferenceFieldSet(leadReferenceData),
+    [leadReferenceData],
+  );
+
+  const hasEditableLeadReferenceFields = editableLeadReferenceFields.size > 0;
+
+  const updateLeadReferenceEditField = (
+    field: LeadReferenceEditableField,
+    value: string | boolean,
+  ) => {
+    setLeadReferenceEditForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const renderLeadReferenceEditField = (field: LeadReferenceEditableField) => {
+    if (!editableLeadReferenceFields.has(field)) return null;
+
+    const commonInputClass =
+      "mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400";
+    const fieldValue = leadReferenceEditForm[field] as string | boolean;
+
+    const getSelectOptions = (targetField: LeadReferenceEditableField): SelectOption[] => {
+      const baseOptions =
+        targetField === "source"
+          ? leadSourceOptions
+          : targetField === "status"
+            ? leadStatusOptions
+            : targetField === "stage"
+              ? LEAD_STAGE_OPTIONS
+              : LEAD_FIELD_ENUM_OPTIONS[targetField] || [];
+
+      const normalized = new Map<string, SelectOption>();
+      baseOptions.forEach((option) => {
+        if (option.value) {
+          normalized.set(option.value, option);
+        }
+      });
+
+      const currentValue = String(fieldValue || "").trim();
+      if (currentValue && !normalized.has(currentValue)) {
+        normalized.set(currentValue, {
+          value: currentValue,
+          label: formatLeadReferenceLabel(currentValue),
+        });
+      }
+
+      return Array.from(normalized.values());
+    };
+
+    switch (field) {
+      case "priority":
+        return (
+          <div key={field}>
+            <label className="text-xs text-gray-500 font-medium">Priority</label>
+            <select
+              value={(fieldValue as string) || ""}
+              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              className={`${commonInputClass} bg-white`}
+            >
+              <option value="">Select priority</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+        );
+      case "source":
+      case "status":
+      case "stage":
+      case "projectType":
+      case "propertyProjectType":
+      case "propertyType":
+      case "homeType":
+      case "projectStage":
+      case "startTimeline":
+      case "budgetComfort":
+      case "projectScope":
+      case "householdOrCompany":
+      case "budgetTier": {
+        const options = getSelectOptions(field);
+        return (
+          <div key={field}>
+            <label className="text-xs text-gray-500 font-medium">
+              {field === "source"
+                ? "Source"
+                : field === "status"
+                  ? "Status"
+                  : field === "stage"
+                    ? "Stage"
+                    : field === "startTimeline"
+                      ? "Start Timeline"
+                      : formatLeadReferenceLabel(field)}
+            </label>
+            <select
+              value={(fieldValue as string) || ""}
+              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              className={`${commonInputClass} bg-white`}
+            >
+              <option value="">Select...</option>
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      }
+      case "score":
+      case "area":
+      case "carpetArea":
+      case "verificationAttempts":
+        return (
+          <div key={field}>
+            <label className="text-xs text-gray-500 font-medium">
+              {field === "score"
+                ? "Lead Score"
+                : field === "area"
+                  ? "Area (sq.ft)"
+                  : field === "carpetArea"
+                    ? "Carpet Area (sq.ft)"
+                    : "Verification Attempts"}
+            </label>
+            <input
+              type="number"
+              value={(fieldValue as string) || ""}
+              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              className={commonInputClass}
+            />
+          </div>
+        );
+      case "expectedStartDate":
+      case "moveinDate":
+        return (
+          <div key={field}>
+            <label className="text-xs text-gray-500 font-medium">
+              {field === "expectedStartDate" ? "Expected Start Date" : "Move-in Date"}
+            </label>
+            <input
+              type="date"
+              value={(fieldValue as string) || ""}
+              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              className={commonInputClass}
+            />
+          </div>
+        );
+      case "canWhatsApp":
+      case "wantsExperienceCenterVisit":
+      case "isPhoneVerified":
+        return (
+          <label
+            key={field}
+            className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700"
+          >
+            <input
+              type="checkbox"
+              checked={Boolean(fieldValue)}
+              onChange={(e) => updateLeadReferenceEditField(field, e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            {field === "canWhatsApp"
+              ? "Can WhatsApp"
+              : field === "wantsExperienceCenterVisit"
+                ? "Wants Experience Center Visit"
+                : "Is Phone Verified"}
+          </label>
+        );
+      default:
+        return (
+          <div key={field}>
+            <label className="text-xs text-gray-500 font-medium">
+              {field
+                .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+                .replace(/\b\w/g, (ch) => ch.toUpperCase())}
+            </label>
+            <input
+              type="text"
+              value={(fieldValue as string) || ""}
+              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              className={commonInputClass}
+            />
+          </div>
+        );
+    }
+  };
+
+  const handleStartLeadReferenceEdit = () => {
+    if (!hasEditableLeadReferenceFields) {
+      toast("No lead fields are available to edit");
+      return;
+    }
+    setLeadReferenceEditForm(createLeadReferenceEditForm(leadReferenceData));
+    setLeadReferenceEditing(true);
+  };
+
+  const handleCancelLeadReferenceEdit = () => {
+    setLeadReferenceEditForm(createLeadReferenceEditForm(leadReferenceData));
+    setLeadReferenceEditing(false);
+  };
+
+  const handleSaveLeadReference = async () => {
+    const leadId = customerData?.leadId;
+    const currentLead = leadReferenceData;
+
+    if (!leadId) {
+      toast.error("Lead reference is not available for this customer");
+      return;
+    }
+
+    if (!currentLead) {
+      toast.error("Lead reference data is not loaded yet");
+      return;
+    }
+
+    try {
+      setLeadReferenceSaving(true);
+
+      const updates: Partial<LeadOption> = {};
+
+      const assignTextIfChanged = (
+        formField: LeadReferenceEditableField,
+        apiField: keyof LeadOption = formField as unknown as keyof LeadOption,
+      ) => {
+        if (!editableLeadReferenceFields.has(formField)) return;
+        const next = String(leadReferenceEditForm[formField] || "").trim();
+        const prev = toTextInputValue(currentLead[apiField]).trim();
+        if (next !== prev) {
+          (updates as Record<string, unknown>)[apiField as string] = next;
+        }
+      };
+
+      assignTextIfChanged("source");
+      assignTextIfChanged("status");
+      assignTextIfChanged("stage");
+      assignTextIfChanged("projectType");
+      assignTextIfChanged("propertyProjectType");
+      assignTextIfChanged("propertyType");
+      assignTextIfChanged("homeType");
+      assignTextIfChanged("bhkConfig");
+      assignTextIfChanged("city");
+      assignTextIfChanged("locality");
+      assignTextIfChanged("location");
+      assignTextIfChanged("projectStage");
+      assignTextIfChanged("projectScope");
+      assignTextIfChanged("budget");
+      assignTextIfChanged("budgetRange");
+      assignTextIfChanged("budgetComfort");
+      assignTextIfChanged("timeline");
+      assignTextIfChanged("startTimeline");
+      assignTextIfChanged("companyName");
+      assignTextIfChanged("householdOrCompany");
+      assignTextIfChanged("budgetTier");
+
+      if (editableLeadReferenceFields.has("message")) {
+        const nextMessage = leadReferenceEditForm.message.trim();
+        const previousMessage = toTextInputValue(
+          currentLead.message || currentLead.requirements || currentLead.notes,
+        ).trim();
+        if (nextMessage !== previousMessage) {
+          updates.message = nextMessage;
+          updates.requirements = nextMessage;
+          updates.notes = nextMessage;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("priority")) {
+        const nextPriority = leadReferenceEditForm.priority.trim().toLowerCase();
+        const previousPriority = toTextInputValue(currentLead.priority)
+          .trim()
+          .toLowerCase();
+        if (
+          nextPriority &&
+          ["high", "medium", "low"].includes(nextPriority) &&
+          nextPriority !== previousPriority
+        ) {
+          updates.priority = nextPriority as "high" | "medium" | "low";
+        }
+      }
+
+      if (editableLeadReferenceFields.has("score")) {
+        const nextScore = parseOptionalNumber(leadReferenceEditForm.score, "Score");
+        const previousScore =
+          typeof currentLead.score === "number" ? currentLead.score : undefined;
+        if (nextScore !== undefined && nextScore !== previousScore) {
+          updates.score = nextScore;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("area")) {
+        const nextArea = parseOptionalNumber(leadReferenceEditForm.area, "Area");
+        const previousArea =
+          typeof currentLead.area === "number" ? currentLead.area : undefined;
+        if (nextArea !== undefined && nextArea !== previousArea) {
+          updates.area = nextArea;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("carpetArea")) {
+        const nextCarpetArea = parseOptionalNumber(
+          leadReferenceEditForm.carpetArea,
+          "Carpet Area",
+        );
+        const previousCarpetArea =
+          typeof currentLead.carpetArea === "number"
+            ? currentLead.carpetArea
+            : undefined;
+        if (nextCarpetArea !== undefined && nextCarpetArea !== previousCarpetArea) {
+          updates.carpetArea = nextCarpetArea;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("verificationAttempts")) {
+        const nextAttempts = parseOptionalNumber(
+          leadReferenceEditForm.verificationAttempts,
+          "Verification Attempts",
+        );
+        const previousAttempts =
+          typeof currentLead.verificationAttempts === "number"
+            ? currentLead.verificationAttempts
+            : undefined;
+        if (nextAttempts !== undefined && nextAttempts !== previousAttempts) {
+          updates.verificationAttempts = nextAttempts;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("expectedStartDate")) {
+        const nextDate = leadReferenceEditForm.expectedStartDate;
+        const previousDate = toDateInputValue(currentLead.expectedStartDate);
+        if (nextDate && nextDate !== previousDate) {
+          updates.expectedStartDate = nextDate;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("moveinDate")) {
+        const nextDate = leadReferenceEditForm.moveinDate;
+        const previousDate = toDateInputValue(currentLead.moveinDate);
+        if (nextDate && nextDate !== previousDate) {
+          updates.moveinDate = nextDate;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("canWhatsApp")) {
+        const nextValue = leadReferenceEditForm.canWhatsApp;
+        const previousValue = Boolean(currentLead.canWhatsApp);
+        if (nextValue !== previousValue) {
+          updates.canWhatsApp = nextValue;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("wantsExperienceCenterVisit")) {
+        const nextValue = leadReferenceEditForm.wantsExperienceCenterVisit;
+        const previousValue = Boolean(currentLead.wantsExperienceCenterVisit);
+        if (nextValue !== previousValue) {
+          updates.wantsExperienceCenterVisit = nextValue;
+        }
+      }
+
+      if (editableLeadReferenceFields.has("isPhoneVerified")) {
+        const nextValue = leadReferenceEditForm.isPhoneVerified;
+        const previousValue = Boolean(currentLead.isPhoneVerified);
+        if (nextValue !== previousValue) {
+          updates.isPhoneVerified = nextValue;
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        toast("No lead changes detected");
+        setLeadReferenceEditing(false);
+        return;
+      }
+
+      const updatedLead = await LeadAPI.updateLead(leadId, updates);
+
+      setLeadReferenceData(updatedLead);
+      setCustomerData((prev) =>
+        prev
+          ? {
+              ...prev,
+              convertedFromLead: updatedLead as unknown as APICustomer["convertedFromLead"],
+            }
+          : prev,
+      );
+      setLeadReferenceEditing(false);
+      toast.success("Lead details updated successfully");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to update lead details";
+      toast.error(message);
+    } finally {
+      setLeadReferenceSaving(false);
+    }
+  };
 
   // Load leads list when referral modal opens
   useEffect(() => {
@@ -3435,6 +4216,159 @@ export const CustomerDetails: React.FC = () => {
                 <>
                   {activeTab === "overview" && (
                     <>
+                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-700">
+                              Lead Reference Data
+                            </h3>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Update lead-origin details for this customer. Changes are saved through lead update API.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {leadReferenceEditing && (
+                              <button
+                                onClick={handleCancelLeadReferenceEdit}
+                                disabled={leadReferenceSaving}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Cancel
+                              </button>
+                            )}
+                            <button
+                              onClick={
+                                leadReferenceEditing
+                                  ? handleSaveLeadReference
+                                  : handleStartLeadReferenceEdit
+                              }
+                              disabled={
+                                leadReferenceSaving ||
+                                (!leadReferenceEditing &&
+                                  !hasEditableLeadReferenceFields)
+                              }
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${
+                                leadReferenceEditing
+                                  ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
+                                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                              }`}
+                            >
+                              {leadReferenceSaving ? (
+                                <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : leadReferenceEditing ? (
+                                <Save className="w-3.5 h-3.5" />
+                              ) : (
+                                <Pencil className="w-3.5 h-3.5" />
+                              )}
+                              {leadReferenceEditing ? "Save Lead Changes" : "Edit Lead Data"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {leadReferenceEditing && (
+                          <div className="mt-5 pt-5 border-t border-gray-100 space-y-5">
+                            {!hasEditableLeadReferenceFields ? (
+                              <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                                No currently visible lead fields are editable for this customer.
+                              </div>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  {[
+                                    "source",
+                                    "status",
+                                    "stage",
+                                    "score",
+                                    "priority",
+                                    "companyName",
+                                  ].map((field) =>
+                                    renderLeadReferenceEditField(
+                                      field as LeadReferenceEditableField,
+                                    ),
+                                  )}
+                                </div>
+
+                                {editableLeadReferenceFields.has("message") && (
+                                  <div>
+                                    <label className="text-xs text-gray-500 font-medium">Message / Requirements</label>
+                                    <textarea
+                                      rows={3}
+                                      value={leadReferenceEditForm.message}
+                                      onChange={(e) =>
+                                        updateLeadReferenceEditField(
+                                          "message",
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 resize-none"
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  {[
+                                    "projectType",
+                                    "propertyProjectType",
+                                    "propertyType",
+                                    "homeType",
+                                    "bhkConfig",
+                                    "area",
+                                    "carpetArea",
+                                    "city",
+                                    "locality",
+                                    "location",
+                                    "projectStage",
+                                    "projectScope",
+                                  ].map((field) =>
+                                    renderLeadReferenceEditField(
+                                      field as LeadReferenceEditableField,
+                                    ),
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  {[
+                                    "budget",
+                                    "budgetRange",
+                                    "budgetComfort",
+                                    "timeline",
+                                    "startTimeline",
+                                    "expectedStartDate",
+                                    "moveinDate",
+                                  ].map((field) =>
+                                    renderLeadReferenceEditField(
+                                      field as LeadReferenceEditableField,
+                                    ),
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  {["householdOrCompany", "budgetTier", "verificationAttempts"].map(
+                                    (field) =>
+                                      renderLeadReferenceEditField(
+                                        field as LeadReferenceEditableField,
+                                      ),
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  {[
+                                    "canWhatsApp",
+                                    "wantsExperienceCenterVisit",
+                                    "isPhoneVerified",
+                                  ].map((field) =>
+                                    renderLeadReferenceEditField(
+                                      field as LeadReferenceEditableField,
+                                    ),
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Lead Origin Info */}
                       <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
                     <div className="flex items-center gap-2 mb-5">

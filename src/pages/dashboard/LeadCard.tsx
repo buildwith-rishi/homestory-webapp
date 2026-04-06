@@ -249,7 +249,6 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
           lead.propertyType ||
           lead.propertySubtype ||
           lead.propertyBHK ||
-          lead.budgetTier ||
           lead.location) && (
           <div className="bg-gradient-to-br from-orange-50/80 to-amber-50/50 rounded-xl p-3.5 mb-4 border border-orange-100/50">
             <div className="flex items-center gap-2 mb-2.5">
@@ -273,14 +272,6 @@ const LeadCardBase: React.FC<LeadCardProps> = ({
                         lead.propertySubtype,
                     )}
                     {lead.propertyBHK && ` • ${lead.propertyBHK}`}
-                  </p>
-                </div>
-              )}
-              {lead.budgetTier && (
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Budget</p>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {lead.budgetTier}
                   </p>
                 </div>
               )}

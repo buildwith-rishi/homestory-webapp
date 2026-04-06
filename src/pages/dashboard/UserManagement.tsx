@@ -1226,10 +1226,10 @@ export const UserManagement: React.FC = () => {
                     User
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Role
+                    Access Level
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Credentials
+                    Designation
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Contact

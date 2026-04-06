@@ -16,7 +16,6 @@ import {
   Video,
   ExternalLink,
   File,
-  Download,
   Edit3,
   Save,
   UserCheck,
@@ -1441,16 +1440,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 )}
                               </button>
-                              {resolvedUrl && (
-                                <a
-                                  href={resolvedUrl}
-                                  download={att.fileName}
-                                  className="p-1.5 text-gray-400 hover:text-green-600 rounded"
-                                  title="Download"
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                </a>
-                              )}
                               <button
                                 onClick={() => handleDeleteAttachment(att.id)}
                                 disabled={isDeleting}

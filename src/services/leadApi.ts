@@ -272,12 +272,51 @@ const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
   // Property & Project (current frontend)
   if (updates.propertyType !== undefined) payload.propertyType = updates.propertyType;
   if (updates.projectType !== undefined) payload.projectType = updates.projectType;
+  if (updates.propertyProjectType !== undefined)
+    payload.propertyProjectType = updates.propertyProjectType;
+  if (updates.homeType !== undefined) payload.homeType = updates.homeType;
+  if (updates.bhkConfig !== undefined) payload.bhkConfig = updates.bhkConfig;
+  if (updates.carpetArea !== undefined) payload.carpetArea = updates.carpetArea;
   if (updates.area !== undefined) payload.area = updates.area;
+  if (updates.location !== undefined) payload.location = updates.location;
   if (updates.city !== undefined) payload.city = updates.city;
+  if (updates.locality !== undefined) payload.locality = updates.locality;
   if (updates.projectStage !== undefined) payload.projectStage = updates.projectStage;
+  if (updates.timeline !== undefined) payload.timeline = updates.timeline;
   if (updates.startTimeline !== undefined) payload.startTimeline = updates.startTimeline;
+  if (updates.expectedStartDate !== undefined)
+    payload.expectedStartDate = updates.expectedStartDate;
+  if (updates.moveinDate !== undefined) payload.moveinDate = updates.moveinDate;
+  if (updates.budget !== undefined) payload.budget = updates.budget;
+  if (updates.budgetRange !== undefined) payload.budgetRange = updates.budgetRange;
   if (updates.budgetComfort !== undefined) payload.budgetComfort = updates.budgetComfort;
+  if (updates.budgetTier !== undefined) payload.budgetTier = updates.budgetTier;
   if (updates.projectScope !== undefined) payload.projectScope = updates.projectScope;
+  if (updates.scopeOfWork !== undefined) payload.scopeOfWork = updates.scopeOfWork;
+  if (updates.servicesInterested !== undefined)
+    payload.servicesInterested = updates.servicesInterested;
+  if (updates.serviceInterest !== undefined)
+    payload.serviceInterest = updates.serviceInterest;
+  if (updates.designStyle !== undefined) payload.designStyle = updates.designStyle;
+  if (updates.colorPreferences !== undefined)
+    payload.colorPreferences = updates.colorPreferences;
+  if (updates.referrerName !== undefined) payload.referrerName = updates.referrerName;
+  if (updates.referrerPhone !== undefined) payload.referrerPhone = updates.referrerPhone;
+  if (updates.referrerProjectNumber !== undefined)
+    payload.referrerProjectNumber = updates.referrerProjectNumber;
+  if (updates.agentAgencyName !== undefined)
+    payload.agentAgencyName = updates.agentAgencyName;
+  if (updates.agentAgencyDetails !== undefined)
+    payload.agentAgencyDetails = updates.agentAgencyDetails;
+  if (updates.householdOrCompany !== undefined)
+    payload.householdOrCompany = updates.householdOrCompany;
+  if (updates.wantsExperienceCenterVisit !== undefined)
+    payload.wantsExperienceCenterVisit = updates.wantsExperienceCenterVisit;
+  if (updates.canWhatsApp !== undefined) payload.canWhatsApp = updates.canWhatsApp;
+  if (updates.isPhoneVerified !== undefined)
+    payload.isPhoneVerified = updates.isPhoneVerified;
+  if (updates.verificationAttempts !== undefined)
+    payload.verificationAttempts = updates.verificationAttempts;
 
   // Notes and uploads (current frontend)
   if (updates.message !== undefined) payload.message = updates.message;

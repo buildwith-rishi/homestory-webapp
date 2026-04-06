@@ -970,7 +970,6 @@ const LeadDetails: React.FC = () => {
               lead.projectScope ||
               lead.propertySubtype ||
               lead.propertyBHK ||
-              lead.budgetTier ||
               lead.area ||
               lead.area === 0 ||
               lead.city ||
@@ -1095,13 +1094,6 @@ const LeadDetails: React.FC = () => {
                         <Ruler className="w-5 h-5 text-pink-600 mx-auto mb-1.5" />
                         <p className="text-xs text-gray-500 mb-1">Size</p>
                         <p className="text-sm font-bold text-gray-900">{lead.area ?? lead.propertySizeSqft} sqft</p>
-                      </div>
-                    )}
-                    {lead.budgetTier && (
-                      <div className="p-3 bg-green-50 rounded-lg text-center">
-                        <IndianRupee className="w-5 h-5 text-green-600 mx-auto mb-1.5" />
-                        <p className="text-xs text-gray-500 mb-1">Budget Tier</p>
-                        <p className="text-sm font-bold text-gray-900">{formatEnum(lead.budgetTier)}</p>
                       </div>
                     )}
                   </div>

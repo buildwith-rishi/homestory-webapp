@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   Bell,
   ChevronRight,
@@ -32,7 +32,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   sidebarCollapsed = false,
 }) => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -94,15 +93,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const handleNotificationClick = async (n: Notification) => {
     if (!n.read) {
       await handleMarkRead(n.id);
-    }
-    if (n.link) {
-      const targetPath = n.link.startsWith("/dashboard")
-        ? n.link
-        : n.link.startsWith("/")
-          ? `/dashboard${n.link}`
-          : n.link;
-      navigate(targetPath);
-      setDropdownOpen(false);
     }
   };
 

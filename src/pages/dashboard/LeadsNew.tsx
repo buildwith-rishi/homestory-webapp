@@ -2923,7 +2923,6 @@ const handleBulkDelete = () => {
                   selectedLead.projectScope ||
                   selectedLead.propertySubtype ||
                   selectedLead.propertyBHK ||
-                  selectedLead.budgetTier ||
                   selectedLead.propertySizeSqft ||
                   selectedLead.constructionStatus ||
                   selectedLead.tentativeHandoverDate ||
@@ -3037,14 +3036,6 @@ const handleBulkDelete = () => {
                         <div className="flex justify-between">
                           <span className="text-gray-600">Size:</span>
                           <span className="font-medium">{selectedLead.propertySizeSqft} sqft</span>
-                        </div>
-                      )}
-                      {selectedLead.budgetTier && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Budget Tier:</span>
-                          <span className="font-medium">
-                            {formatEnumValue(selectedLead.budgetTier)}
-                          </span>
                         </div>
                       )}
                       {selectedLead.constructionStatus && (
