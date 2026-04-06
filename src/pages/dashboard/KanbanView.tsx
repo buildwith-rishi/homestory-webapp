@@ -3,7 +3,6 @@ import React, {
   useEffect,
   useMemo,
   useCallback,
-  useRef,
 } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -19,7 +18,6 @@ import {
   User,
   TrendingUp,
   UserPlus,
-  Users,
   X,
   Loader2,
   AlertTriangle,
@@ -38,10 +36,8 @@ import { useProjectStore } from "../../stores/projectStore";
 import { useLeadStore } from "../../stores/leadStore";
 import { addActivityEntry } from "../../stores/kanbanActivityLog";
 import ProjectAPI from "../../services/projectApi";
-import LeadAPI, { LeadAssignee } from "../../services/leadApi";
-import { adminAPI } from "../../services/api";
 import { convertLeadToCustomer } from "../../services/customerApi";
-import { Lead, LeadStage, LeadSource, Project, AdminUser } from "../../types";
+import { Lead, LeadStage, LeadSource, Project } from "../../types";
 import toast from "react-hot-toast";
 
 type ViewType = "leads" | "projects";
@@ -118,22 +114,6 @@ const KanbanView: React.FC = () => {
   const { projects, fetchProjects } = useProjectStore();
   const { leads, fetchLeads, moveLeadByStatus, addLead } = useLeadStore();
 
-  // BDR (Business Development Representatives) state
-  const [bdrUsers, setBdrUsers] = useState<AdminUser[]>([]);
-
-  // Assignee panel state
-  const [assigneePanelOpen, setAssigneePanelOpen] = useState<string | null>(
-    null,
-  );
-  const [assigneePanelPos, setAssigneePanelPos] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-  const [leadAssignees, setLeadAssignees] = useState<LeadAssignee[]>([]);
-  const [assigneesLoading, setAssigneesLoading] = useState(false);
-  const [addAssigneeDropdown, setAddAssigneeDropdown] = useState(false);
-  const assigneePanelRef = useRef<HTMLDivElement | null>(null);
-
   // Lead conversion modal state
   const [pendingConversion, setPendingConversion] = useState<{
     leadId: string;
@@ -145,87 +125,6 @@ const KanbanView: React.FC = () => {
   // Filter for already converted leads
   const [showAlreadyConverted, setShowAlreadyConverted] = useState(false);
 
-  // Fetch BDR users on mount from live user management API
-  useEffect(() => {
-    const fetchBDRs = async () => {
-      try {
-        const bdrs = await adminAPI.getBDRUsers();
-        setBdrUsers(bdrs as unknown as AdminUser[]);
-      } catch (error) {
-        console.error("Failed to fetch BDR users:", error);
-        setBdrUsers([]);
-      }
-    };
-    fetchBDRs();
-  }, []);
-
-  // ─── Assignee Panel Handlers ──────────────────────────────────────────────
-
-  const openAssigneePanel = useCallback(
-    async (leadId: string, anchorEl: HTMLElement) => {
-      const rect = anchorEl.getBoundingClientRect();
-      const scrollY = window.scrollY || document.documentElement.scrollTop;
-      const scrollX = window.scrollX || document.documentElement.scrollLeft;
-
-      setAssigneePanelPos({
-        top: rect.bottom + scrollY + 4,
-        left: Math.min(rect.left + scrollX, window.innerWidth + scrollX - 280),
-      });
-      setAssigneePanelOpen(leadId);
-      setAssigneesLoading(true);
-      setAddAssigneeDropdown(false);
-      try {
-        const data = await LeadAPI.getLeadAssignees(leadId);
-        setLeadAssignees(data.assignees || []);
-      } catch (error) {
-        console.error("Failed to fetch assignees:", error);
-        setLeadAssignees([]);
-      } finally {
-        setAssigneesLoading(false);
-      }
-    },
-    [],
-  );
-
-  const closeAssigneePanel = useCallback(() => {
-    setAssigneePanelOpen(null);
-    setAssigneePanelPos(null);
-    setLeadAssignees([]);
-    setAddAssigneeDropdown(false);
-  }, []);
-
-  const handleRemoveAssignee = useCallback(
-    async (leadId: string, userId: string) => {
-      try {
-        await LeadAPI.removeLeadAssignee(leadId, userId);
-        setLeadAssignees((prev) => prev.filter((a) => a.id !== userId));
-        toast.success("Assignee removed");
-        fetchLeads();
-      } catch (error) {
-        console.error("Failed to remove assignee:", error);
-        toast.error("Failed to remove assignee");
-      }
-    },
-    [fetchLeads],
-  );
-
-  const handleAddAssignee = useCallback(
-    async (leadId: string, userId: string) => {
-      try {
-        await LeadAPI.addLeadAssignees(leadId, { userIds: [userId] });
-        // Re-fetch assignees to get updated list
-        const data = await LeadAPI.getLeadAssignees(leadId);
-        setLeadAssignees(data.assignees || []);
-        toast.success("Assignee added");
-        setAddAssigneeDropdown(false);
-        fetchLeads();
-      } catch (error) {
-        console.error("Failed to add assignee:", error);
-        toast.error("Failed to add assignee");
-      }
-    },
-    [fetchLeads],
-  );
 
   // Leads Kanban Data - Using API statuses
   const [leadsKanbanData, setLeadsKanbanData] = useState<KanbanData>({
@@ -941,23 +840,6 @@ const KanbanView: React.FC = () => {
                 </div>
               )}
             </div>
-            {/* View Assignees button */}
-            <div className="pt-1 flex items-center gap-1.5">
-              {lead.assignedTo && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    openAssigneePanel(lead.id, e.currentTarget);
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className="flex items-center gap-0.5 px-1 py-0.5 rounded-md hover:bg-purple-50 transition-colors text-[10px] text-purple-500 hover:text-purple-700"
-                  title="View / manage assignees"
-                >
-                  <Users size={10} />
-                </button>
-              )}
-            </div>
           </div>
           {lead.source && (
             <div className="pt-1">
@@ -969,10 +851,7 @@ const KanbanView: React.FC = () => {
         </div>
       );
     },
-    [
-      bdrUsers,
-      openAssigneePanel,
-    ],
+    [],
   );
 
   const renderProjectCard = useCallback((task: KanbanTask) => {
@@ -1078,161 +957,6 @@ const KanbanView: React.FC = () => {
 
   return (
     <div className="h-full w-full flex flex-col bg-gray-50 overflow-hidden">
-      {/* Assignee Management Panel Portal */}
-      {assigneePanelOpen &&
-        assigneePanelPos &&
-        createPortal(
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0"
-              style={{ zIndex: 99996 }}
-              onClick={closeAssigneePanel}
-            />
-            {/* Panel */}
-            <div
-              ref={assigneePanelRef}
-              className="absolute w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden"
-              style={{
-                zIndex: 99997,
-                top: assigneePanelPos.top,
-                left: assigneePanelPos.left,
-                maxHeight: "360px",
-              }}
-            >
-              <div className="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Users size={11} />
-                  Lead Assignees
-                </span>
-                <button
-                  onClick={closeAssigneePanel}
-                  className="p-0.5 hover:bg-gray-200 rounded transition-colors"
-                >
-                  <X size={11} className="text-gray-500" />
-                </button>
-              </div>
-              <div className="max-h-[240px] overflow-y-auto">
-                {assigneesLoading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 size={16} className="animate-spin text-gray-400" />
-                  </div>
-                ) : leadAssignees.length === 0 ? (
-                  <div className="px-3 py-4 text-[11px] text-gray-400 italic text-center">
-                    No assignees found
-                  </div>
-                ) : (
-                  leadAssignees.map((assignee) => (
-                    <div
-                      key={assignee.id}
-                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 border-b border-gray-50 last:border-b-0"
-                    >
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
-                        style={{
-                          backgroundColor: `hsl(${(assignee.name.charCodeAt(0) * 37) % 360}, 55%, 50%)`,
-                        }}
-                      >
-                        {assignee.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .slice(0, 2)
-                          .toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[11px] font-medium text-gray-800 truncate">
-                          {assignee.name}
-                        </div>
-                        <div className="text-[9px] text-gray-400">
-                          {assignee.role
-                            ?.replace(/_/g, " ")
-                            .replace(/\b\w/g, (c: string) => c.toUpperCase()) ||
-                            "Member"}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() =>
-                          handleRemoveAssignee(assigneePanelOpen!, assignee.id)
-                        }
-                        className="p-0.5 hover:bg-red-50 rounded transition-colors flex-shrink-0"
-                        title="Remove assignee"
-                      >
-                        <X
-                          size={11}
-                          className="text-gray-400 hover:text-red-500"
-                        />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-              {/* Add Assignee Section */}
-              <div className="border-t border-gray-100 p-2">
-                {!addAssigneeDropdown ? (
-                  <button
-                    onClick={() => setAddAssigneeDropdown(true)}
-                    className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-purple-600 hover:bg-purple-50 rounded-md transition-colors font-medium"
-                  >
-                    <UserPlus size={11} />
-                    Add Assignee
-                  </button>
-                ) : (
-                  <div>
-                    <div className="text-[10px] font-medium text-gray-500 px-1 mb-1">
-                      Select user to co-assign:
-                    </div>
-                    <div className="max-h-[120px] overflow-y-auto">
-                      {bdrUsers
-                        .filter(
-                          (u) => !leadAssignees.some((a) => a.id === u.id),
-                        )
-                        .map((user) => (
-                          <button
-                            key={user.id}
-                            onClick={() =>
-                              handleAddAssignee(assigneePanelOpen!, user.id)
-                            }
-                            className="w-full px-2 py-1.5 text-left text-[11px] hover:bg-purple-50 flex items-center gap-2 rounded-md transition-colors text-gray-700"
-                          >
-                            <div
-                              className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
-                              style={{
-                                backgroundColor: `hsl(${(user.name.charCodeAt(0) * 37) % 360}, 55%, 50%)`,
-                              }}
-                            >
-                              {user.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .slice(0, 2)
-                                .toUpperCase()}
-                            </div>
-                            <span className="truncate">{user.name}</span>
-                          </button>
-                        ))}
-                      {bdrUsers.filter(
-                        (u) => !leadAssignees.some((a) => a.id === u.id),
-                      ).length === 0 && (
-                        <div className="px-2 py-1.5 text-[10px] text-gray-400 italic text-center">
-                          All users already assigned
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setAddAssigneeDropdown(false)}
-                      className="w-full mt-1 px-2 py-1 text-[10px] text-gray-500 hover:text-gray-700 text-center"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </>,
-          document.body,
-        )}
-
       {/* Header */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
