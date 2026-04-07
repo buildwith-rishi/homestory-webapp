@@ -144,7 +144,7 @@ function DesignSystemPage() {
                 <Input
                   label="Search"
                   placeholder="Search projects..."
-                  prefixIcon={<Search size={18} />} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  prefixIcon={<Search size={18} />}
                 />
                 <Input
                   label="With Error"

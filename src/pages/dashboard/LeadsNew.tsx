@@ -718,7 +718,7 @@ export const LeadModal: React.FC<{
                     value={formData.name || ""}
                     onChange={(e) => f("name", e.target.value)}
                     placeholder="e.g., Rahul Sharma"
-                    className={inputClass(errors.name)} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                    className={inputClass(errors.name)}
                   />
                   {errors.name && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
@@ -762,7 +762,7 @@ export const LeadModal: React.FC<{
                     onChange={(e) => f("phone", e.target.value)}
                     onBlur={() => void checkDuplicateField("phone", formData.phone)}
                     placeholder="+91 98765 43210"
-                    className={inputClass(errors.phone)} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                    className={inputClass(errors.phone)}
                   />
                   {checkingDuplicate.phone && (
                     <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
@@ -848,7 +848,7 @@ export const LeadModal: React.FC<{
                           )
                         }
                         placeholder="+91 98765 43210"
-                        className={inputClass(errors.secondaryPhones)} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                        className={inputClass(errors.secondaryPhones)}
                       />
                       <button
                         type="button"
@@ -876,7 +876,7 @@ export const LeadModal: React.FC<{
                     value={formData.companyName || ""}
                     onChange={(e) => f("companyName", e.target.value)}
                     placeholder="e.g., Acme Corp"
-                    className={inputClass()} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                    className={inputClass()}
                   />
                 </div>
 
@@ -1404,7 +1404,7 @@ const PhoneInputModal: React.FC<{
             placeholder="+91 98765 43210"
             className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 mb-2 ${
               error ? "border-red-300 bg-red-50" : "border-gray-300"
-            }`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+            }`}
           />
 
           {error && (

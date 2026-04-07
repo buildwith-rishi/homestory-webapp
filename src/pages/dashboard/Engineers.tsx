@@ -197,7 +197,7 @@ export const EngineersPage: React.FC = () => {
               placeholder="Search by name, role or department..."
               className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>

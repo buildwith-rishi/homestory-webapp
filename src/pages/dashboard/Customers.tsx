@@ -622,7 +622,7 @@ const AddCustomerModal: React.FC<{
                   errors.name
                     ? "border-red-300 bg-red-50/50 focus:border-red-400"
                     : "border-gray-200 bg-white hover:border-gray-300"
-                }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                }`}
               />
               {errors.name && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
@@ -646,7 +646,7 @@ const AddCustomerModal: React.FC<{
               }
               placeholder="e.g., Acme Interiors Pvt Ltd"
               disabled={isCreating}
-              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -705,7 +705,7 @@ const AddCustomerModal: React.FC<{
                   errors.phone
                     ? "border-red-300 bg-red-50/50 focus:border-red-400"
                     : "border-gray-200 bg-white hover:border-gray-300"
-                }`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                }`}
               />
               {isCheckingDuplicate && formData.phone && (
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -768,7 +768,7 @@ const AddCustomerModal: React.FC<{
                 errors.secondaryPhone
                   ? "border-red-300 bg-red-50/50 focus:border-red-400"
                   : "border-gray-200 bg-white hover:border-gray-300"
-              }`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+              }`}
             />
             {errors.secondaryPhone && (
               <div className="flex items-center gap-2 mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
@@ -2064,7 +2064,7 @@ const EditCustomerModal: React.FC<{
                     }
                     className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 ${
                       errors.name ? "border-red-300" : "border-gray-200"
-                    }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                    }`}
                   />
                   {errors.name && (
                     <p className="text-xs text-red-600 mt-1">{errors.name}</p>
@@ -2102,7 +2102,7 @@ const EditCustomerModal: React.FC<{
                     }
                     className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 ${
                       errors.phone ? "border-red-300" : "border-gray-200"
-                    }`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                    }`}
                   />
                   {errors.phone && (
                     <p className="text-xs text-red-600 mt-1">{errors.phone}</p>
@@ -2158,7 +2158,7 @@ const EditCustomerModal: React.FC<{
                         alternatePhone: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-500/20" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-500/20"
                   />
                 </div>
 
@@ -2251,7 +2251,7 @@ const EditCustomerModal: React.FC<{
                       setFormData({ ...formData, companyName: e.target.value })
                     }
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-500/20"
-                    placeholder="e.g., Tech Corp" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                    placeholder="e.g., Tech Corp"
                   />
                 </div>
               </div>
@@ -2310,7 +2310,7 @@ const EditCustomerModal: React.FC<{
                               updateFamilyMember(index, "name", e.target.value)
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            placeholder="Member name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                            placeholder="Member name"
                           />
                         </div>
                         <div>
@@ -2348,7 +2348,7 @@ const EditCustomerModal: React.FC<{
                               )
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            placeholder="Age" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                            placeholder="Age"
                           />
                         </div>
                         <div>
@@ -2522,7 +2522,7 @@ const EditCustomerModal: React.FC<{
                               updateReferral(index, "name", e.target.value)
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            placeholder="Referral name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                            placeholder="Referral name"
                           />
                         </div>
                         <div>
@@ -2536,7 +2536,7 @@ const EditCustomerModal: React.FC<{
                               updateReferral(index, "phone", e.target.value)
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            placeholder="+91 xxxxx xxxxx" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                            placeholder="+91 xxxxx xxxxx"
                           />
                         </div>
                         <div>
@@ -3640,7 +3640,7 @@ export const Customers: React.FC = () => {
             placeholder="Search customers by name..."
             className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
           {isSearching && (
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">

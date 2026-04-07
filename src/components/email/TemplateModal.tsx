@@ -75,7 +75,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g., Welcome Email"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
             />
           </div>
           <div>
@@ -111,7 +111,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
             value={formData.subject}
             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
             placeholder="e.g., Welcome, {{customerName}}!"
-            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
           />
           <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
             <Code className="w-3 h-3" />
@@ -175,7 +175,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                       setVariables(u);
                     }}
                     placeholder="Name"
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors"
                   />
                   <input
                     type="text"

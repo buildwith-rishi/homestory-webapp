@@ -67,10 +67,8 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
 
   const handleInputChange = (field: keyof NewEngineer, value: string) => {
     let sanitizedValue = value;
-    if (field === "name") {
-      sanitizedValue = value.replace(/[0-9]/g, "");
-    } else if (field === "phone") {
-      sanitizedValue = value.replace(/[^0-9+]/g, ""); // Allow only numbers and plus to prevent negative numbers
+    if (field === "phone") {
+      sanitizedValue = value.replace(/[^0-9+]/g, "");
     } else if (field === "email") {
       sanitizedValue = value.replace(/\s/g, "");
     }
@@ -216,7 +214,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                       onChange={(e) =>
                         handleInputChange("name", e.target.value)
                       }
-                      className={`rounded-xl ${errors.name ? "border-red-500 focus:ring-red-500" : ""}`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      className={`rounded-xl ${errors.name ? "border-red-500 focus:ring-red-500" : ""}`}
                     />
                     {errors.name && (
                       <p className="text-red-500 text-xs mt-1">{errors.name}</p>
@@ -263,7 +261,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                         onChange={(e) =>
                           handleInputChange("phone", e.target.value)
                         }
-                        className={`pl-10 rounded-xl ${errors.phone ? "border-red-500 focus:ring-red-500" : ""}`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                        className={`pl-10 rounded-xl ${errors.phone ? "border-red-500 focus:ring-red-500" : ""}`}
                       />
                     </div>
                     {errors.phone && (

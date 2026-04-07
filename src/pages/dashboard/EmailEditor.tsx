@@ -1008,7 +1008,7 @@ export const EmailEditor: React.FC = () => {
                       value={projectSearch}
                       onChange={(e) => setProjectSearch(e.target.value)}
                       placeholder="Search projects…"
-                      className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder:text-gray-400" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder:text-gray-400"
                     />
                     {projectSearch && (
                       <button
@@ -1123,7 +1123,7 @@ export const EmailEditor: React.FC = () => {
               onFocus={() => setFocusedField("name")}
               onBlur={() => setFocusedField(null)}
               placeholder="Recipient name (optional)"
-              className="flex-1 py-3.5 pr-4 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-300" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              className="flex-1 py-3.5 pr-4 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-300"
             />
           </FieldRow>
 
@@ -1454,7 +1454,7 @@ export const EmailEditor: React.FC = () => {
                         })
                       }
                       placeholder={`Enter ${variable.name}...`}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none text-sm transition-colors"
                     />
                   </div>
                 ))}
@@ -1585,7 +1585,7 @@ export const EmailEditor: React.FC = () => {
                       }
                       placeholder="e.g., Welcome Email"
                       autoFocus
-                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors"
                     />
                   </div>
                   <div>
@@ -1664,7 +1664,7 @@ export const EmailEditor: React.FC = () => {
                         })
                       }
                       placeholder="e.g., Welcome, {{customerName}}! 🏠"
-                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors pr-44" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors pr-44"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 flex items-center gap-1 pointer-events-none select-none">
                       <Code className="w-3 h-3" />

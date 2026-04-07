@@ -201,7 +201,7 @@ const AccountModal: React.FC<{
                   placeholder="e.g., Sharma Family Estate"
                   className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors ${
                     errors.name ? "border-red-300 bg-red-50" : "border-gray-300"
-                  }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  }`}
                 />
                 {errors.name && (
                   <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
@@ -312,7 +312,7 @@ const AccountModal: React.FC<{
                     errors.phone
                       ? "border-red-300 bg-red-50"
                       : "border-gray-300"
-                  }`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                  }`}
                 />
                 {errors.phone && (
                   <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
@@ -337,7 +337,7 @@ const AccountModal: React.FC<{
                     errors.email
                       ? "border-red-300 bg-red-50"
                       : "border-gray-300"
-                  }`} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  }`}
                 />
                 {errors.email && (
                   <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
@@ -648,7 +648,7 @@ export function AccountsPage() {
               placeholder="Search accounts by name, email, or phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+              className="w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
           <div className="flex items-center gap-2">

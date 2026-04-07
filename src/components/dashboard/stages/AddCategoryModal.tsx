@@ -129,7 +129,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
               placeholder="e.g. Plumbing, Electrical, Design…"
               required
               autoFocus
-              maxLength={80} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              maxLength={80}
             />
           </div>
 

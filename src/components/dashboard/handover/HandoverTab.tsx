@@ -540,7 +540,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
                       }
                       placeholder="e.g. Deep Cleaning, Gift Hamper"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
-                      required onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      required
                     />
                   </div>
                   <div className="sm:col-span-2">
@@ -572,7 +572,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
                       }
                       placeholder="0"
                       min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                     />
                   </div>
                 </div>

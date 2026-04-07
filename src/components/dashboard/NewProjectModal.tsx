@@ -181,7 +181,7 @@ const TeamSelector: React.FC<TeamSelectorProps> = ({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name or role"
-                className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
               />
             </div>
           </div>
@@ -680,7 +680,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                   value={formData.projectName}
                   onChange={(e) => handleChange("projectName", e.target.value)}
                   placeholder="e.g., Modern 3BHK Interior"
-                  className={errors.projectName ? "border-red-500 ring-2 ring-red-100" : ""} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  className={errors.projectName ? "border-red-500 ring-2 ring-red-100" : ""}
                 />
                 {errors.projectName && (
                   <p className="text-red-500 text-xs mt-1.5 font-medium">
@@ -755,7 +755,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                           errors.accountId
                             ? "border-red-500 ring-2 ring-red-100"
                             : "border-gray-300 focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-                        } ${customersLoading ? "bg-gray-50 cursor-wait" : "bg-white"}`} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                        } ${customersLoading ? "bg-gray-50 cursor-wait" : "bg-white"}`}
                       />
 
                       {customersLoading && (
@@ -838,7 +838,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                   value={formData.budgetValue}
                   onChange={(e) => handleChange("budgetValue", e.target.value)}
                   placeholder="e.g., 4500000"
-                  className={errors.budgetValue ? "border-red-500 ring-2 ring-red-100" : ""} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                  className={errors.budgetValue ? "border-red-500 ring-2 ring-red-100" : ""}
                 />
                 {errors.budgetValue && (
                   <p className="text-red-500 text-xs mt-1.5 font-medium">
@@ -909,7 +909,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                     value={formData.siteContactName}
                     onChange={(e) => handleChange("siteContactName", e.target.value)}
                     placeholder="e.g., Site Supervisor"
-                    className={errors.siteContactName ? "border-red-500 ring-2 ring-red-100" : ""} onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                    className={errors.siteContactName ? "border-red-500 ring-2 ring-red-100" : ""}
                   />
                   {errors.siteContactName && (
                     <p className="text-red-500 text-xs mt-1.5 font-medium">
@@ -927,7 +927,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                     value={formData.siteContactPhone}
                     onChange={(e) => handleChange("siteContactPhone", e.target.value)}
                     placeholder="e.g., +919876543210"
-                    className={errors.siteContactPhone ? "border-red-500 ring-2 ring-red-100" : ""} onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                    className={errors.siteContactPhone ? "border-red-500 ring-2 ring-red-100" : ""}
                   />
                   {errors.siteContactPhone && (
                     <p className="text-red-500 text-xs mt-1.5 font-medium">

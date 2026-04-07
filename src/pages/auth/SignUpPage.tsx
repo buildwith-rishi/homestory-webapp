@@ -136,7 +136,7 @@ export function SignUpPage() {
                   onChange={handleChange}
                   placeholder="Enter your full name"
                   className="w-full h-12 pl-11 pr-4 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-                  required onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  required
                 />
               </div>
             </div>
@@ -159,7 +159,7 @@ export function SignUpPage() {
                   onChange={handleChange}
                   placeholder="admin@example.com"
                   className="w-full h-12 pl-11 pr-4 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-                  required onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  required
                 />
               </div>
             </div>
@@ -182,7 +182,7 @@ export function SignUpPage() {
                   onChange={handleChange}
                   placeholder="Minimum 6 characters"
                   className="w-full h-12 pl-11 pr-12 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-                  required onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  required
                 />
                 <button
                   type="button"
@@ -216,7 +216,7 @@ export function SignUpPage() {
                   onChange={handleChange}
                   placeholder="Re-enter your password"
                   className="w-full h-12 pl-11 pr-12 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-                  required onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  required
                 />
                 <button
                   type="button"
@@ -250,7 +250,7 @@ export function SignUpPage() {
                   onChange={handleChange}
                   placeholder="Enter admin secret key"
                   className="w-full h-12 pl-11 pr-12 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-                  required onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  required
                 />
                 <button
                   type="button"

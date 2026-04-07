@@ -358,7 +358,7 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
             placeholder="Search by name, text, or city..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
           />
         </div>
       </div>
@@ -863,7 +863,7 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
                 setForm((f) => ({ ...f, customerName: e.target.value }))
               }
               placeholder="Enter customer name"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
             />
           </div>
 
@@ -1162,7 +1162,7 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
               onChange={(e) =>
                 setForm((f) => ({ ...f, customerName: e.target.value }))
               }
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
             />
           </div>
 

@@ -1155,7 +1155,7 @@ export const UserManagement: React.FC = () => {
                   placeholder="Search by name or email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 text-gray-900 placeholder-gray-400 text-sm transition-all" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 text-gray-900 placeholder-gray-400 text-sm transition-all"
                 />
               </div>
 
@@ -1843,7 +1843,7 @@ export const UserManagement: React.FC = () => {
                 setCreateForm({ ...createForm, name: e.target.value })
               }
               placeholder="Enter full name"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
             />
           </div>
 
@@ -1875,7 +1875,7 @@ export const UserManagement: React.FC = () => {
                 setCreateForm({ ...createForm, phone: e.target.value });
               }}
               placeholder="9876543210"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
             />
           </div>
 
@@ -2171,7 +2171,7 @@ export const UserManagement: React.FC = () => {
                 setEditForm({ ...editForm, name: e.target.value })
               }
               placeholder="Full Name"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
             />
           </div>
 
@@ -2202,7 +2202,7 @@ export const UserManagement: React.FC = () => {
                 setEditForm({ ...editForm, phone: e.target.value })
               }
               placeholder="9876543210"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-gray-900 placeholder-gray-400 transition-all text-sm"
             />
           </div>
 

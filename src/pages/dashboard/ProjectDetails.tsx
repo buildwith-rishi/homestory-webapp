@@ -581,7 +581,7 @@ export const ProjectDetails: React.FC = () => {
     return availableCcUsers.filter(
       (user) =>
         user.email.includes(query) ||
-        user.name.toLowerCase().includes(query),
+        (user.name || "").toLowerCase().includes(query),
     );
   }, [availableCcUsers, ccEmailSearch]);
 
@@ -1189,8 +1189,8 @@ export const ProjectDetails: React.FC = () => {
       attachments: [],
       customMessage:
         mode === "proforma"
-          ? `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`
-          : `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`,
+          ? `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`
+          : `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`,
     }));
     setShowSendInvoiceModal(true);
   };
@@ -1374,16 +1374,16 @@ export const ProjectDetails: React.FC = () => {
       setInvoiceSentSuccessMessage(
         response.message ||
           (invoiceSendMode === "proforma"
-            ? "Invoice email has been sent successfully."
-            : "Proforma invoice email has been sent successfully."),
+            ? "Proforma invoice email has been sent successfully."
+            : "Invoice email has been sent successfully."),
       );
       setShowInvoiceSentSuccessModal(true);
       setShowSendInvoiceModal(false);
     } catch {
       toast.error(
         invoiceSendMode === "proforma"
-          ? "Failed to send invoice"
-          : "Failed to send proforma invoice",
+          ? "Failed to send proforma invoice"
+          : "Failed to send invoice",
       );
     } finally {
       setIsSendingInvoice(false);
@@ -3731,7 +3731,7 @@ export const ProjectDetails: React.FC = () => {
                         });
                       }}
                       className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.percentage ? "border-red-400" : "border-gray-200"}`}
-                      placeholder="50" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                      placeholder="50"
                     />
                     {paymentFormErrors.percentage && (
                       <p className="text-red-500 text-xs mt-1">{paymentFormErrors.percentage}</p>
@@ -3772,7 +3772,7 @@ export const ProjectDetails: React.FC = () => {
                         });
                       }}
                       className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.expectedAmount ? "border-red-400" : "border-gray-200"}`}
-                      placeholder="50000" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                      placeholder="50000"
                     />
                     {paymentFormErrors.expectedAmount && (
                       <p className="text-red-500 text-xs mt-1">{paymentFormErrors.expectedAmount}</p>
@@ -3816,7 +3816,7 @@ export const ProjectDetails: React.FC = () => {
                         });
                       }}
                       className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.taxPercentage ? "border-red-400" : "border-gray-200"}`}
-                      placeholder="18" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                      placeholder="18"
                     />
                     {paymentFormErrors.taxPercentage && (
                       <p className="text-red-500 text-xs mt-1">{paymentFormErrors.taxPercentage}</p>
@@ -3852,7 +3852,7 @@ export const ProjectDetails: React.FC = () => {
                       });
                     }}
                     className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentFormErrors.invoiceAmount ? "border-red-400" : "border-gray-200"}`}
-                    placeholder="Auto-filled from expected amount + tax" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                    placeholder="Auto-filled from expected amount + tax"
                   />
                   {paymentFormErrors.invoiceAmount && (
                     <p className="text-red-500 text-xs mt-1">{paymentFormErrors.invoiceAmount}</p>
@@ -4021,7 +4021,7 @@ export const ProjectDetails: React.FC = () => {
                       })
                     }
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
-                    placeholder="e.g. 59000" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                    placeholder="e.g. 59000"
                   />
                 </div>
 
@@ -4132,8 +4132,8 @@ export const ProjectDetails: React.FC = () => {
                   <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <Send className="w-5 h-5 text-green-600" />
                     {invoiceSendMode === "proforma"
-                      ? "Send Invoice"
-                      : "Send Proforma Invoice"}
+                      ? "Send Proforma Invoice"
+                      : "Send Invoice"}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">
                     {invoiceTargetPayment.title ||
@@ -4184,7 +4184,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                      placeholder="Client Name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      placeholder="Client Name"
                     />
                   </div>
                 </div>
@@ -4195,6 +4195,24 @@ export const ProjectDetails: React.FC = () => {
                       (optional)
                     </span>
                   </label>
+                  <textarea
+                    value={sendInvoiceForm.ccEmails}
+                    onChange={(e) =>
+                      setSendInvoiceForm({
+                        ...sendInvoiceForm,
+                        ccEmails: e.target.value,
+                      })
+                    }
+                    rows={2}
+                    spellCheck={false}
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm resize-y min-h-[2.75rem] mb-3"
+                    placeholder="Type CC addresses (comma or space separated), e.g. team@company.com, cc@example.com"
+                  />
+                  <p className="text-xs text-gray-500 mb-2">
+                    Or pick from your team below. Manual entries and selections are
+                    combined.
+                  </p>
                   <div className="relative" ref={ccDropdownRef}>
                     <button
                       type="button"
@@ -4230,8 +4248,14 @@ export const ProjectDetails: React.FC = () => {
                             type="text"
                             value={ccEmailSearch}
                             onChange={(e) => setCcEmailSearch(e.target.value)}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onKeyUp={(e) => e.stopPropagation()}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            name="cc-user-search"
                             className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none"
-                            placeholder="Search by name or email" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                            placeholder="Search by name or email"
                           />
                         </div>
 
@@ -4299,7 +4323,7 @@ export const ProjectDetails: React.FC = () => {
                   )}
                   <p className="text-xs text-gray-400 mt-1">
                     All active user emails from User Management are available in
-                    the dropdown.
+                    the dropdown. You can mix typed addresses and selections.
                   </p>
                 </div>
                 <div>
@@ -4378,7 +4402,7 @@ export const ProjectDetails: React.FC = () => {
                           })
                         }
                         className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                        placeholder="GoodHomeStory Interiors Pvt Ltd" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                        placeholder="GoodHomeStory Interiors Pvt Ltd"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -4396,7 +4420,7 @@ export const ProjectDetails: React.FC = () => {
                             })
                           }
                           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                          placeholder="1234567890" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                          placeholder="1234567890"
                         />
                       </div>
                       <div>
@@ -4432,7 +4456,7 @@ export const ProjectDetails: React.FC = () => {
                             })
                           }
                           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none text-sm"
-                          placeholder="HDFC Bank" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                          placeholder="HDFC Bank"
                         />
                       </div>
                       <div>
@@ -4500,8 +4524,8 @@ export const ProjectDetails: React.FC = () => {
                   {isSendingInvoice
                     ? "Sending..."
                     : invoiceSendMode === "proforma"
-                      ? "Send Invoice"
-                      : "Send Proforma Invoice"}
+                      ? "Send Proforma Invoice"
+                      : "Send Invoice"}
                 </Button>
               </div>
             </div>
@@ -5211,7 +5235,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none text-sm"
-                      placeholder="Client Name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      placeholder="Client Name"
                     />
                   </div>
                 </div>
@@ -5306,7 +5330,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none text-sm"
-                      placeholder="e.g., Villa Interior Design" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      placeholder="e.g., Villa Interior Design"
                     />
                   </div>
 
@@ -5377,7 +5401,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      placeholder="Site supervisor name" onKeyPress={(e) => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+                      placeholder="Site supervisor name"
                     />
                   </div>
                   <div>
@@ -5394,7 +5418,7 @@ export const ProjectDetails: React.FC = () => {
                         })
                       }
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
-                      placeholder="+91 98765 43210" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                      placeholder="+91 98765 43210"
                     />
                   </div>
                 </div>
@@ -5970,7 +5994,7 @@ export const ProjectDetails: React.FC = () => {
                       })
                     }
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                    placeholder="Number of days to pause" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                    placeholder="Number of days to pause"
                   />
                 </div>
 

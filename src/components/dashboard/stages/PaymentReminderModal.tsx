@@ -237,7 +237,7 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
                   onChange={(e) => setActualAmount(e.target.value)}
                   placeholder={`Expected: ₹${stage.paymentAmount?.toLocaleString()}`}
                   className="pl-11 h-12 text-base"
-                  required onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                  required
                 />
               </div>
               {actualAmount && parseFloat(actualAmount) !== stage.paymentAmount && (
@@ -281,7 +281,7 @@ export const PaymentReminderModal: React.FC<PaymentReminderModalProps> = ({
                   value={invoiceNumber}
                   onChange={(e) => setInvoiceNumber(e.target.value)}
                   placeholder="INV-2024-001"
-                  className="pl-11 h-12 text-base" onKeyPress={(e) => { if (/[a-zA-Z]/.test(e.key)) e.preventDefault(); }}
+                  className="pl-11 h-12 text-base"
                 />
               </div>
             </div>
