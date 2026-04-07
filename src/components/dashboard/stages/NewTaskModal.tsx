@@ -15,6 +15,11 @@ import type { MatrixCategory, AdminUser } from "../../../types";
 import { adminAPI } from "../../../services/api";
 import type { TeamMember } from "../../../services/teamApi";
 import toast from "react-hot-toast";
+import {
+  extractConflictWarningsFromResponse,
+  mergeConflictWarnings,
+  notifyTaskConflictWarnings,
+} from "../../../utils/taskConflictWarnings";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -480,7 +485,12 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
         }
         return response.json();
       });
-      await Promise.all(taskPromises);
+      const results = await Promise.all(taskPromises);
+      notifyTaskConflictWarnings(
+        mergeConflictWarnings(
+          results.map((r) => extractConflictWarningsFromResponse(r)),
+        ),
+      );
       toast.success(
         `Successfully created ${selectedCategories.length} task(s)`,
       );

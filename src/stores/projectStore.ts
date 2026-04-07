@@ -18,6 +18,7 @@ import type {
 } from "../types";
 import * as projectAPI from "../services/projectApi";
 import * as tasksAPI from "../services/tasksApi";
+import { notifyTaskConflictWarnings } from "../utils/taskConflictWarnings";
 import type {
   AddStageRequest,
   ReorderStagesRequest,
@@ -700,7 +701,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const MAX_RETRIES = 2;
     set({ tasksLoading: true, tasksError: null });
     try {
-      const newTask = await tasksAPI.createTask(data);
+      const { task: newTask, conflictWarnings } =
+        await tasksAPI.createTask(data);
+      notifyTaskConflictWarnings(conflictWarnings);
       set((state) => ({
         projectTasks: [...state.projectTasks, newTask],
         allTasks: [...state.allTasks, newTask],
@@ -766,7 +769,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
 
     try {
-      const updatedTask = await tasksAPI.updateTask(taskId, data);
+      const { task: updatedTask, conflictWarnings } =
+        await tasksAPI.updateTask(taskId, data);
+      notifyTaskConflictWarnings(conflictWarnings);
       set((state) => ({
         projectTasks: state.projectTasks.map((task) =>
           task.id === taskId ? updatedTask : task,

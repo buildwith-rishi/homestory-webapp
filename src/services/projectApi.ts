@@ -46,7 +46,9 @@ import type {
   CreateHandoverActivityRequest,
   UpdateHandoverActivityRequest,
   HandoverPhoto,
+  TaskConflictUserWarning,
 } from "../types";
+import { normalizeConflictWarnings } from "../utils/taskConflictWarnings";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -2187,6 +2189,22 @@ export async function updateMatrixTaskStatus(
   }
 }
 
+export interface MatrixTaskMutationResult {
+  task: MatrixTask;
+  conflictWarnings?: TaskConflictUserWarning[];
+}
+
+function parseMatrixTaskResponse(result: unknown): MatrixTaskMutationResult {
+  if (result && typeof result === "object" && result !== null && "task" in result) {
+    const o = result as Record<string, unknown>;
+    return {
+      task: o.task as MatrixTask,
+      conflictWarnings: normalizeConflictWarnings(o.conflictWarnings),
+    };
+  }
+  return { task: result as MatrixTask };
+}
+
 /**
  * Update a matrix task's details (title, description, category, etc.)
  * PUT /api/matrix-tasks/:taskId
@@ -2194,7 +2212,7 @@ export async function updateMatrixTaskStatus(
 export async function updateMatrixTask(
   taskId: string,
   data: UpdateMatrixTaskRequest,
-): Promise<MatrixTask> {
+): Promise<MatrixTaskMutationResult> {
   try {
     // Strip out undefined values to keep payload clean
     const cleanData = Object.fromEntries(
@@ -2210,7 +2228,7 @@ export async function updateMatrixTask(
       body: JSON.stringify(cleanData),
     });
     const result = await handleResponse<any>(response);
-    return result.task || result;
+    return parseMatrixTaskResponse(result);
   } catch (error) {
     console.error("Error updating task:", error);
     throw error;
@@ -2225,7 +2243,7 @@ export async function pushMatrixTask(
   taskId: string,
   targetDayNumber: number,
   reason?: string,
-): Promise<MatrixTask> {
+): Promise<MatrixTaskMutationResult> {
   try {
     const body: Record<string, unknown> = { targetDayNumber };
     if (reason?.trim()) body.reason = reason.trim();
@@ -2242,7 +2260,7 @@ export async function pushMatrixTask(
       },
     );
     const result = await handleResponse<any>(response);
-    return result.task || result;
+    return parseMatrixTaskResponse(result);
   } catch (error) {
     console.error("Error pushing task:", error);
     throw error;
@@ -2258,7 +2276,7 @@ export async function pushMatrixDayTasks(
   fromDayNumber: number,
   toDayNumber: number,
   reason?: string,
-): Promise<unknown> {
+): Promise<{ conflictWarnings?: TaskConflictUserWarning[] } & Record<string, unknown>> {
   try {
     const body: Record<string, unknown> = { fromDayNumber, toDayNumber };
     if (reason?.trim()) body.reason = reason.trim();
@@ -2274,7 +2292,11 @@ export async function pushMatrixDayTasks(
         body: JSON.stringify(body),
       },
     );
-    return await handleResponse<any>(response);
+    const result = await handleResponse<Record<string, unknown>>(response);
+    return {
+      ...result,
+      conflictWarnings: normalizeConflictWarnings(result.conflictWarnings),
+    };
   } catch (error) {
     console.error("Error bulk pushing day tasks:", error);
     throw error;

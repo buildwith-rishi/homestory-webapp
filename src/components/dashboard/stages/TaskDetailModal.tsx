@@ -43,6 +43,9 @@ import {
   pushMatrixDayTasks,
   notifyCustomerTaskComplete,
 } from "../../../services/projectApi";
+import {
+  notifyTaskConflictWarnings,
+} from "../../../utils/taskConflictWarnings";
 import toast from "react-hot-toast";
 
 interface TaskDetailModalProps {
@@ -290,7 +293,13 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
     setBulkPushing(true);
     try {
-      await pushMatrixDayTasks(matrixId, bulkFromDay, bulkToDay, bulkReason);
+      const bulkResult = await pushMatrixDayTasks(
+        matrixId,
+        bulkFromDay,
+        bulkToDay,
+        bulkReason,
+      );
+      notifyTaskConflictWarnings(bulkResult.conflictWarnings);
       toast.success(`All Day ${bulkFromDay} tasks pushed to Day ${bulkToDay}`);
       setShowBulkPushPanel(false);
       setBulkReason("");
@@ -313,7 +322,12 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
     setPushing(true);
     try {
-      await pushMatrixTask(taskId, pushTargetDay, pushReason);
+      const pushResult = await pushMatrixTask(
+        taskId,
+        pushTargetDay,
+        pushReason,
+      );
+      notifyTaskConflictWarnings(pushResult.conflictWarnings);
       // Persist reason locally so it shows on the task row immediately
       if (pushReason.trim()) {
         try {
@@ -380,7 +394,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           : { assignedToUserId: null }),
       };
 
-      const updatedTask = await updateMatrixTask(taskId, payload);
+      const { task: updatedTask, conflictWarnings } = await updateMatrixTask(
+        taskId,
+        payload,
+      );
+      notifyTaskConflictWarnings(conflictWarnings);
       toast.success("Task updated successfully");
 
       // Optimistically apply the updated fields so the UI reflects changes

@@ -1,7 +1,16 @@
 // Tasks API Service
 // Handles all task-related API operations
 
-import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskCategory } from "../types";
+import type {
+  Task,
+  CreateTaskRequest,
+  UpdateTaskRequest,
+  TaskCategory,
+  TaskConflictUserWarning,
+} from "../types";
+import {
+  normalizeConflictWarnings,
+} from "../utils/taskConflictWarnings";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -36,18 +45,35 @@ async function handleResponse<T>(response: Response): Promise<T> {
 // Task API Functions
 // ==========================================
 
+export interface TaskMutationResult {
+  task: Task;
+  conflictWarnings?: TaskConflictUserWarning[];
+}
+
+function parseTaskMutationResponse(json: unknown): TaskMutationResult {
+  if (json && typeof json === "object" && json !== null && "task" in json) {
+    const o = json as Record<string, unknown>;
+    return {
+      task: o.task as Task,
+      conflictWarnings: normalizeConflictWarnings(o.conflictWarnings),
+    };
+  }
+  return { task: json as Task };
+}
+
 /**
  * Create a new task
  * @param data - Task creation data
- * @returns Promise resolving to the created task
+ * @returns Promise resolving to the created task and optional schedule conflict warnings
  */
-export async function createTask(data: CreateTaskRequest): Promise<Task> {
+export async function createTask(data: CreateTaskRequest): Promise<TaskMutationResult> {
   const response = await fetch(`${API_BASE_URL}/api/tasks`, {
     method: "POST",
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return handleResponse<Task>(response);
+  const json = await handleResponse<unknown>(response);
+  return parseTaskMutationResponse(json);
 }
 
 /**
@@ -135,18 +161,19 @@ export async function getTaskTypes(): Promise<string[]> {
  * Update an existing task
  * @param taskId - ID of the task to update
  * @param data - Task update data
- * @returns Promise resolving to the updated task
+ * @returns Promise resolving to the updated task and optional schedule conflict warnings
  */
 export async function updateTask(
   taskId: string,
   data: UpdateTaskRequest,
-): Promise<Task> {
+): Promise<TaskMutationResult> {
   const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
     method: "PUT",
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
-  return handleResponse<Task>(response);
+  const json = await handleResponse<unknown>(response);
+  return parseTaskMutationResponse(json);
 }
 
 /**

@@ -131,6 +131,22 @@ export interface UpdateTaskRequest {
   completed?: boolean;
 }
 
+/** Overlapping task returned with POST/PUT /api/tasks (and matrix task endpoints when supported). */
+export interface TaskConflictItem {
+  taskId: string;
+  taskTitle: string;
+  project: string;
+  dueDate: string;
+  taskType: string;
+}
+
+/** Per-assignee conflict groups from API (non-blocking warnings). */
+export interface TaskConflictUserWarning {
+  userId: string;
+  userName: string;
+  conflicts: TaskConflictItem[];
+}
+
 // Project API Enums
 export enum PipelineType {
   DESIGN_ONLY = "DESIGN_ONLY",
