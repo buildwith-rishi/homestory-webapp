@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   ChevronRight,
@@ -23,6 +23,8 @@ import {
   markAllNotificationsRead,
   type Notification,
 } from "../../services/notificationApi";
+import { resolveNotificationDestination } from "../../utils/notificationNavigation";
+import toast from "react-hot-toast";
 
 interface DashboardHeaderProps {
   sidebarCollapsed?: boolean;
@@ -33,8 +35,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [apiTotalCount, setApiTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { currentProject } = useProjectStore();
@@ -48,8 +52,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getNotifications();
-      setNotifications(data);
+      const { notifications: list, count } = await getNotifications();
+      setNotifications(list);
+      setApiTotalCount(count);
     } catch {
       // Silently ignore – bell just won't show count if API unavailable
     } finally {
@@ -94,6 +99,20 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     if (!n.read) {
       await handleMarkRead(n.id);
     }
+    try {
+      const path = await resolveNotificationDestination({
+        link: n.link,
+        apiType: n.apiType,
+      });
+      if (path) {
+        setDropdownOpen(false);
+        navigate(path);
+      }
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Could not open this notification",
+      );
+    }
   };
 
   const handleMarkAllRead = async () => {
@@ -106,7 +125,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       case "success":
         return <CheckCircle2 size={16} className="text-green-500" />;
       case "warning":
-        return <AlertTriangle size={16} className="text-yellow-500" />;
+        return <AlertTriangle size={16} className="text-amber-500" />;
       case "error":
         return <AlertCircle size={16} className="text-red-500" />;
       default:
@@ -228,12 +247,22 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           {/* Bell Icon + Notification Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
+              type="button"
               onClick={handleBellClick}
               className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              aria-label={
+                unreadCount > 0
+                  ? `${unreadCount} unread notifications`
+                  : "Notifications"
+              }
             >
               <Bell size={20} className="text-gray-600" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[8px] h-2 bg-orange-500 rounded-full" />
+                <span
+                  className="absolute -top-0.5 -right-0.5 min-w-[1.125rem] h-[1.125rem] px-1 flex items-center justify-center bg-orange-500 text-white text-[10px] font-bold rounded-full leading-none border-2 border-white shadow-sm"
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
               )}
             </button>
 
@@ -246,9 +275,14 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     <h3 className="text-sm font-semibold text-gray-900">
                       Notifications
                     </h3>
+                    {apiTotalCount > 0 && (
+                      <span className="text-xs text-gray-500 font-medium">
+                        {apiTotalCount} total
+                      </span>
+                    )}
                     {unreadCount > 0 && (
                       <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-2 py-0.5 rounded-full">
-                        {unreadCount} new
+                        {unreadCount} unread
                       </span>
                     )}
                   </div>
@@ -283,9 +317,17 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                       <p className="text-sm">No notifications yet</p>
                     </div>
                   ) : (
-                    notifications.map((n) => (
+                    notifications.map((n, idx) => (
                       <div
-                        key={n.id}
+                        key={`${n.id}-${idx}`}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            void handleNotificationClick(n);
+                          }
+                        }}
                         onClick={() => void handleNotificationClick(n)}
                         className={`flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer hover:bg-gray-50 ${
                           !n.read ? "bg-orange-50/40" : ""
@@ -301,13 +343,37 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                             {n.title}
                           </p>
                           {n.message && (
-                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-3">
                               {n.message}
                             </p>
                           )}
-                          <p className="text-xs text-gray-400 mt-1">
-                            {formatTime(n.createdAt)}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-gray-400">
+                            <span>{formatTime(n.createdAt)}</span>
+                            {n.apiType && (
+                              <span className="text-gray-300">·</span>
+                            )}
+                            {n.apiType && (
+                              <span className="uppercase tracking-wide text-gray-400">
+                                {n.apiType.replace(/_/g, " ")}
+                              </span>
+                            )}
+                          </div>
+                          {(n.performedBy || n.projectName) && (
+                            <p className="text-[11px] text-gray-400 mt-1">
+                              {n.performedBy && (
+                                <span>By {n.performedBy}</span>
+                              )}
+                              {n.performedBy && n.projectName && " · "}
+                              {n.projectName && (
+                                <span className="truncate">{n.projectName}</span>
+                              )}
+                            </p>
+                          )}
+                          {n.link && (
+                            <p className="text-[11px] text-orange-600 mt-1 font-medium">
+                              Open linked page
+                            </p>
+                          )}
                         </div>
                         {!n.read && (
                           <span className="mt-1.5 w-2 h-2 flex-shrink-0 bg-orange-500 rounded-full" />

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
   Check,
@@ -283,6 +284,7 @@ function getMonthCalendar(year: number, month: number): (Date | null)[][] {
 // ── Component ─────────────────────────────────────────────────────────────────
 export function BDRTasks() {
   const today = new Date();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<BDRTask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -428,6 +430,29 @@ export function BDRTasks() {
     setUploadNotes("");
     if (attachmentFileInputRef.current) attachmentFileInputRef.current.value = "";
   };
+
+  const focusTaskAppliedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const focusId = searchParams.get("focusTask");
+    if (!focusId) {
+      focusTaskAppliedRef.current = null;
+      return;
+    }
+    if (tasks.length === 0) return;
+    if (focusTaskAppliedRef.current === focusId) return;
+    const task = tasks.find((t) => t.id === focusId);
+    if (!task) return;
+    focusTaskAppliedRef.current = focusId;
+    handleOpenTaskDetail(task);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("focusTask");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [tasks, searchParams, setSearchParams]);
 
   const handleSaveStatus = async () => {
     if (!selectedTask) return;

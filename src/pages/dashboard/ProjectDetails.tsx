@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { hasPermission, RoleId } from "../../config/rbac";
 import {
@@ -381,6 +381,7 @@ const getStatusDisplay = (
 export const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { roleId, user } = useAuth();
   const todayDateOnly = new Date().toISOString().split("T")[0];
   
@@ -464,6 +465,32 @@ export const ProjectDetails: React.FC = () => {
     | "testimonials"
     | "handover"
   >("overview");
+
+  // Notification deep-links: ?tab=payments|stages|…&paymentId=&taskId=
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (!tab) return;
+    const validTabs: Array<typeof activeTab> = [
+      "overview",
+      "stages",
+      "payments",
+      "references",
+      "testimonials",
+      "handover",
+    ];
+    if (!validTabs.includes(tab as typeof activeTab)) return;
+    setActiveTab(tab as typeof activeTab);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("tab");
+        next.delete("paymentId");
+        next.delete("taskId");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [projectId, searchParams, setSearchParams]);
 
   // Payment update modal
   const [showPaymentModal, setShowPaymentModal] = useState(false);
