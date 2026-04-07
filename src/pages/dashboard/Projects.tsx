@@ -89,10 +89,16 @@ const getProgressFromStage = (code: string | null | undefined): number => {
   return Math.round(((idx + 1) / STAGE_ORDER.length) * 100);
 };
 
+/** Summary cards and totals only include projects with this lifecycle status (matches ONGOING badge). */
+const isOngoingProjectStatus = (status: string | undefined | null): boolean =>
+  String(status ?? "").toUpperCase() === "ONGOING";
+
 const getStatusDisplay = (
   status: string,
 ): { key: "on_track" | "at_risk" | "delayed" | "completed"; label: string } => {
   switch (status) {
+    case "ONGOING":
+      return { key: "on_track", label: "Ongoing" };
     case "ACTIVE":
     case "active":
       return { key: "on_track", label: "Active" };
@@ -370,14 +376,12 @@ export const ProjectsPage: React.FC = () => {
   const stats = useMemo(() => {
     const totalProjects = projects.length;
 
-    const inProgress = projects.filter(
-      (p) =>
-        p.status === "ACTIVE" ||
-        p.status === "active" ||
-        p.status === "YET_TO_START",
-    ).length;
+    const ongoingProjects = projects.filter((p) =>
+      isOngoingProjectStatus(p.status),
+    );
+    const ongoingCount = ongoingProjects.length;
 
-    const totalValue = projects.reduce((sum, p) => {
+    const totalValue = ongoingProjects.reduce((sum, p) => {
       const v =
         typeof p.totalValue === "string"
           ? parseFloat(p.totalValue)
@@ -393,7 +397,7 @@ export const ProjectsPage: React.FC = () => {
 
     return {
       totalProjects,
-      inProgress,
+      ongoingCount,
       totalValue: formatCurrency(totalValue),
       teamMembers: uniqueMembers.size,
     };
@@ -611,9 +615,9 @@ export const ProjectsPage: React.FC = () => {
         <Card className="p-4 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">In Progress</p>
+              <p className="text-sm text-gray-600">Ongoing Projects</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {stats.inProgress}
+                {stats.ongoingCount}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">

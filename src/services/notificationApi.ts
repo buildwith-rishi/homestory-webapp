@@ -93,13 +93,28 @@ function extractList(data: unknown): Notification[] {
   return [];
 }
 
-/** GET /api/notifications – Fetch all notifications */
-export async function getNotifications(): Promise<Notification[]> {
+/** Deduplicate overlapping GET /notifications (e.g. React Strict Mode double mount). */
+const notificationsInFlight = new Map<string, Promise<Notification[]>>();
+
+async function fetchNotificationsInternal(): Promise<Notification[]> {
   const response = await fetch(`${API_BASE_URL}/api/notifications`, {
     headers: getAuthHeaders(),
   });
   const data = await handleResponse<unknown>(response);
   return extractList(data);
+}
+
+/** GET /api/notifications – Fetch all notifications */
+export async function getNotifications(): Promise<Notification[]> {
+  const key = "list";
+  let p = notificationsInFlight.get(key);
+  if (!p) {
+    p = fetchNotificationsInternal().finally(() => {
+      notificationsInFlight.delete(key);
+    });
+    notificationsInFlight.set(key, p);
+  }
+  return p;
 }
 
 /** PATCH /api/notifications/:id/read – Mark a notification as read */

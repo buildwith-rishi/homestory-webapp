@@ -336,6 +336,9 @@ export const leadsAPI = {
 // Admin API - User Management
 const adminRequestInFlight = new Map<string, Promise<unknown>>();
 
+/** After first probe, skip the failing route so we do not GET admin (404) then GET users every time. */
+let adminUsersListRoute: "admin" | "legacy" | null = null;
+
 async function withAdminInFlightDedup<T>(
   requestKey: string,
   requestFactory: () => Promise<T>,
@@ -361,9 +364,18 @@ export const adminAPI = {
   // Get all users
   getAllUsers: async () => {
     return withAdminInFlightDedup("admin:getAllUsers:limit=1000", async () => {
+      if (adminUsersListRoute === "legacy") {
+        return fetchAPI("/api/users?limit=1000", { method: "GET" });
+      }
+      if (adminUsersListRoute === "admin") {
+        return fetchAPI("/api/admin/users?limit=1000", { method: "GET" });
+      }
       try {
-        // Admin endpoint includes full user-management fields like roleTitle.
-        return await fetchAPI("/api/admin/users?limit=1000", { method: "GET" });
+        const data = await fetchAPI("/api/admin/users?limit=1000", {
+          method: "GET",
+        });
+        adminUsersListRoute = "admin";
+        return data;
       } catch (error) {
         // Backward compatibility fallback for environments still on legacy route.
         if (
@@ -373,6 +385,7 @@ export const adminAPI = {
             error.status === 404 ||
             error.status === 405)
         ) {
+          adminUsersListRoute = "legacy";
           return fetchAPI("/api/users?limit=1000", { method: "GET" });
         }
         throw error;

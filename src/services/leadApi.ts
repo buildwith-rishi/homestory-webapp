@@ -610,11 +610,30 @@ export async function addLeadNote(
   };
 }
 
-/**
- * Get all notes for a lead
- * GET /api/leads/:id/notes
- */
-export async function getLeadNotes(id: string): Promise<LeadNote[]> {
+/** When GET /api/leads/:id/notes returns 404, avoid repeating that request every load. */
+let leadNotesListGetUnavailable = false;
+
+const getLeadNotesFromActivities = async (
+  id: string,
+): Promise<LeadNote[]> => {
+  const activities = await getLeadActivities(id);
+  return activities
+    .filter((a) => (a.activityType || a.type) === "NOTE_ADDED")
+    .map(mapActivityToLeadNote)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+};
+
+/** Deduplicate concurrent getLeadNotes for the same lead (e.g. React Strict Mode). */
+const leadNotesInFlight = new Map<string, Promise<LeadNote[]>>();
+
+async function fetchLeadNotesInternal(id: string): Promise<LeadNote[]> {
+  if (leadNotesListGetUnavailable) {
+    return getLeadNotesFromActivities(id);
+  }
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/leads/${id}/notes`, {
       method: "GET",
@@ -626,6 +645,8 @@ export async function getLeadNotes(id: string): Promise<LeadNote[]> {
       | LeadNote[]
       | LeadActivity[]
     >(response);
+
+    leadNotesListGetUnavailable = false;
 
     // Handle: [LeadNote]
     if (Array.isArray(data)) {
@@ -658,18 +679,27 @@ export async function getLeadNotes(id: string): Promise<LeadNote[]> {
     // Current backend may not expose GET /notes yet (404).
     // Fallback to activities endpoint and derive notes from NOTE_ADDED events.
     if (/404|not found/i.test(message)) {
-      const activities = await getLeadActivities(id);
-      return activities
-        .filter((a) => (a.activityType || a.type) === "NOTE_ADDED")
-        .map(mapActivityToLeadNote)
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        );
+      leadNotesListGetUnavailable = true;
+      return getLeadNotesFromActivities(id);
     }
 
     throw error;
   }
+}
+
+/**
+ * Get all notes for a lead
+ * GET /api/leads/:id/notes
+ */
+export async function getLeadNotes(id: string): Promise<LeadNote[]> {
+  let p = leadNotesInFlight.get(id);
+  if (!p) {
+    p = fetchLeadNotesInternal(id).finally(() => {
+      leadNotesInFlight.delete(id);
+    });
+    leadNotesInFlight.set(id, p);
+  }
+  return p;
 }
 
 /**

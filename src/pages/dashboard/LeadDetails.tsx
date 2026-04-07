@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -94,16 +94,166 @@ const LeadDetails: React.FC = () => {
     return value;
   };
 
+  const fetchLeadDetails = useCallback(
+    async (isStale?: () => boolean) => {
+      const stale = isStale ?? (() => false);
+      if (!id) {
+        setLoading(false);
+        return;
+      }
 
+      console.log("Fetching lead details for ID:", id);
+      setLoading(true);
+      setLead(null);
+      setActivities([]);
+      setNotes([]);
+      setContacts([]);
+      setStageHistory([]);
+      setReferences([]);
 
+      try {
+        const leadData = await LeadAPI.getLeadById(id);
+        if (stale()) return;
 
+        console.log("Lead data received for ID", id, ":", leadData);
 
+        console.log("Lead contact details debug:", {
+          id: leadData.id,
+          name: leadData.name,
+          email: leadData.email,
+          phone: leadData.phone,
+          nameType: typeof leadData.name,
+          emailType: typeof leadData.email,
+          phoneType: typeof leadData.phone,
+          nameIsUndefinedString: leadData.name === "undefined",
+          emailIsUndefinedString: leadData.email === "undefined",
+          phoneIsUndefinedString: leadData.phone === "undefined",
+        });
 
+        if (leadData && (!leadData.id || leadData.id !== id)) {
+          console.warn(
+            "Lead data ID mismatch. Expected:",
+            id,
+            "Received:",
+            leadData.id,
+          );
+          leadData.id = id;
+        }
+
+        setLead(leadData);
+
+        if (leadData.contacts && Array.isArray(leadData.contacts)) {
+          console.log(
+            "Setting contacts from lead response:",
+            leadData.contacts.length,
+          );
+          setContacts(leadData.contacts);
+        }
+
+        if (leadData.stageHistory && Array.isArray(leadData.stageHistory)) {
+          console.log(
+            "Setting stageHistory from lead response:",
+            leadData.stageHistory.length,
+          );
+          setStageHistory(leadData.stageHistory);
+        }
+
+        if (
+          leadData.activities &&
+          Array.isArray(leadData.activities) &&
+          leadData.activities.length > 0
+        ) {
+          console.log(
+            "Setting activities from lead response:",
+            leadData.activities.length,
+          );
+          setActivities(leadData.activities);
+        } else {
+          try {
+            const activitiesData = await LeadAPI.getLeadActivities(id);
+            if (stale()) return;
+            console.log(
+              "Activities received from separate API for ID",
+              id,
+              ":",
+              activitiesData?.length || 0,
+            );
+            setActivities(activitiesData || []);
+          } catch (activityError) {
+            console.error(
+              "Error fetching activities for lead",
+              id,
+              ":",
+              activityError,
+            );
+            setActivities([]);
+          }
+        }
+
+        try {
+          const rawAttachments: Attachment[] = await listAttachments(
+            "LEAD",
+            id,
+          );
+          if (stale()) return;
+          const attachments = rawAttachments.filter((a) => a.entityId === id);
+          const mapped: LeadReference[] = attachments.map((a) => ({
+            id: a.id,
+            leadId: id,
+            type: a.fileType?.startsWith("image/")
+              ? ("IMAGE" as any)
+              : a.fileType === "application/pdf"
+                ? ("PDF" as any)
+                : a.fileType?.startsWith("video/")
+                  ? ("VIDEO" as any)
+                  : ("DOCUMENT" as any),
+            title: a.fileName,
+            description: a.notes || a.attachmentType?.replace(/_/g, " "),
+            url: a.downloadUrl || a.fileUrl || "",
+            fileName: a.fileName,
+            mimeType: a.fileType,
+            category: "Reference" as const,
+            uploadedBy: "",
+            uploadedAt: a.uploadedAt || a.createdAt || new Date().toISOString(),
+            tags: [a.attachmentType],
+          }));
+          setReferences(mapped);
+        } catch {
+          if (stale()) return;
+          if (leadData.references && Array.isArray(leadData.references)) {
+            setReferences(leadData.references);
+          } else {
+            setReferences([]);
+          }
+        }
+
+        try {
+          setLoadingNotes(true);
+          const notesData = await LeadAPI.getLeadNotes(id);
+          if (stale()) return;
+          console.log("Notes received for ID", id, ":", notesData?.length || 0);
+          setNotes(notesData || []);
+        } catch (noteError) {
+          console.error("Error fetching notes for lead", id, ":", noteError);
+          if (!stale()) setNotes([]);
+        } finally {
+          if (!stale()) setLoadingNotes(false);
+        }
+      } catch (error) {
+        if (stale()) return;
+        console.error("Error fetching lead details for ID", id, ":", error);
+        toast.error("Failed to load lead details");
+        navigate("/dashboard/leads");
+      } finally {
+        if (!stale()) setLoading(false);
+      }
+    },
+    [id, navigate],
+  );
 
   useEffect(() => {
     console.log("LeadDetails useEffect - ID:", id);
 
-    // Reset state when ID changes to prevent showing stale data
     setLead(null);
     setActivities([]);
     setNotes([]);
@@ -112,14 +262,19 @@ const LeadDetails: React.FC = () => {
     setReferences([]);
     setLoading(true);
 
+    let cancelled = false;
+    const stale = () => cancelled;
+
     if (id) {
-      fetchLeadDetails();
+      void fetchLeadDetails(stale);
     } else {
       setLoading(false);
     }
-  }, [id]);
 
-
+    return () => {
+      cancelled = true;
+    };
+  }, [id, fetchLeadDetails]);
 
   // Fetch users for the edit modal
   useEffect(() => {
@@ -207,160 +362,6 @@ const LeadDetails: React.FC = () => {
     }
   };
 
-  const fetchLeadDetails = async () => {
-    if (!id) {
-      setLoading(false);
-      return;
-    }
-
-    console.log("Fetching lead details for ID:", id);
-    setLoading(true);
-    setLead(null); // Clear previous lead data
-    setActivities([]); // Clear previous activities
-    setNotes([]); // Clear previous notes
-    setContacts([]); // Clear previous contacts
-    setStageHistory([]); // Clear previous stage history
-
-    try {
-      // Fetch the specific lead by ID - response includes contacts, stageHistory, activities, convertedToAccount
-      const leadData = await LeadAPI.getLeadById(id);
-      console.log("Lead data received for ID", id, ":", leadData);
-
-      // Debug log to identify if API returns undefined values or string "undefined"
-      console.log("Lead contact details debug:", {
-        id: leadData.id,
-        name: leadData.name,
-        email: leadData.email,
-        phone: leadData.phone,
-        nameType: typeof leadData.name,
-        emailType: typeof leadData.email,
-        phoneType: typeof leadData.phone,
-        nameIsUndefinedString: leadData.name === "undefined",
-        emailIsUndefinedString: leadData.email === "undefined",
-        phoneIsUndefinedString: leadData.phone === "undefined",
-      });
-
-      // Ensure we have the ID in the lead data
-      if (leadData && (!leadData.id || leadData.id !== id)) {
-        console.warn(
-          "Lead data ID mismatch. Expected:",
-          id,
-          "Received:",
-          leadData.id,
-        );
-        leadData.id = id; // Ensure ID is set
-      }
-
-      setLead(leadData);
-
-      // Set contacts from nested response
-      if (leadData.contacts && Array.isArray(leadData.contacts)) {
-        console.log(
-          "Setting contacts from lead response:",
-          leadData.contacts.length,
-        );
-        setContacts(leadData.contacts);
-      }
-
-      // Set stage history from nested response
-      if (leadData.stageHistory && Array.isArray(leadData.stageHistory)) {
-        console.log(
-          "Setting stageHistory from lead response:",
-          leadData.stageHistory.length,
-        );
-        setStageHistory(leadData.stageHistory);
-      }
-
-      // Use activities from nested response first, fallback to separate API call
-      if (
-        leadData.activities &&
-        Array.isArray(leadData.activities) &&
-        leadData.activities.length > 0
-      ) {
-        console.log(
-          "Setting activities from lead response:",
-          leadData.activities.length,
-        );
-        setActivities(leadData.activities);
-      } else {
-        // Fallback: Fetch activities separately
-        try {
-          const activitiesData = await LeadAPI.getLeadActivities(id);
-          console.log(
-            "Activities received from separate API for ID",
-            id,
-            ":",
-            activitiesData?.length || 0,
-          );
-          setActivities(activitiesData || []);
-        } catch (activityError) {
-          console.error(
-            "Error fetching activities for lead",
-            id,
-            ":",
-            activityError,
-          );
-          setActivities([]);
-        }
-      }
-
-      // Load references — fetch real attachments from API
-      try {
-        const rawAttachments: Attachment[] = await listAttachments("LEAD", id);
-        // Strictly filter by entityId on the client side to guarantee isolation
-        // between leads even if the backend returns unfiltered results.
-        const attachments = rawAttachments.filter((a) => a.entityId === id);
-        const mapped: LeadReference[] = attachments.map((a) => ({
-          id: a.id,
-          leadId: id,
-          type: a.fileType?.startsWith("image/")
-            ? ("IMAGE" as any)
-            : a.fileType === "application/pdf"
-              ? ("PDF" as any)
-              : a.fileType?.startsWith("video/")
-                ? ("VIDEO" as any)
-                : ("DOCUMENT" as any),
-          title: a.fileName,
-          description: a.notes || a.attachmentType?.replace(/_/g, " "),
-          url: a.downloadUrl || a.fileUrl || "",
-          fileName: a.fileName,
-          mimeType: a.fileType,
-          category: "Reference" as const,
-          uploadedBy: "",
-          uploadedAt: a.uploadedAt || a.createdAt || new Date().toISOString(),
-          tags: [a.attachmentType],
-        }));
-        setReferences(mapped);
-      } catch {
-        // Fall back to embedded references if API fails
-        if (leadData.references && Array.isArray(leadData.references)) {
-          setReferences(leadData.references);
-        } else {
-          setReferences([]);
-        }
-      }
-
-      // Fetch notes for this specific lead (separate endpoint)
-      try {
-        setLoadingNotes(true);
-        const notesData = await LeadAPI.getLeadNotes(id);
-        console.log("Notes received for ID", id, ":", notesData?.length || 0);
-        setNotes(notesData || []);
-      } catch (noteError) {
-        console.error("Error fetching notes for lead", id, ":", noteError);
-        setNotes([]);
-      } finally {
-        setLoadingNotes(false);
-      }
-    } catch (error) {
-      console.error("Error fetching lead details for ID", id, ":", error);
-      toast.error("Failed to load lead details");
-      navigate("/dashboard/leads");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleEditSave = async (updatedData: Omit<APILead, "id">) => {
     const leadId = lead?.id || id;
     if (!leadId) throw new Error("No lead ID found");
@@ -399,23 +400,6 @@ const LeadDetails: React.FC = () => {
     }
   };
 
-  // Function to refresh just the notes without clearing other data
-  const refreshNotes = async () => {
-    const leadId = lead?.id || id;
-    if (!leadId) return;
-
-    try {
-      setLoadingNotes(true);
-      const notesData = await LeadAPI.getLeadNotes(leadId);
-      console.log("Notes refreshed:", notesData?.length || 0);
-      setNotes(notesData || []);
-    } catch (error) {
-      console.error("Error refreshing notes:", error);
-    } finally {
-      setLoadingNotes(false);
-    }
-  };
-
   const handleAddNote = async () => {
     // Use lead ID from state, fallback to URL param
     const leadId = lead?.id || id;
@@ -443,11 +427,27 @@ const LeadDetails: React.FC = () => {
       toast.success("Note added successfully");
       setNewNote("");
 
-      // Optimistically add the new note to the top of the list
-      setNotes([addedNote, ...notes]);
+      // Use POST response only — avoid extra GET /notes + activities refetch (GET /notes 404s on current backend).
+      setNotes((prev) => [addedNote, ...prev]);
 
-      // Refresh notes from API to ensure consistency
-      await refreshNotes();
+      // Keep Recent Activities in sync without another API call
+      setActivities((prev) => [
+        {
+          id: addedNote.id,
+          activityType: "NOTE_ADDED",
+          entityId: leadId,
+          leadId: leadId,
+          title: "Note added",
+          notes: addedNote.content,
+          createdAt: addedNote.createdAt,
+          occurredAt: addedNote.createdAt,
+          performedByUserId: user?.id,
+          performedByUser: user
+            ? { id: user.id, name: user.name || "User" }
+            : undefined,
+        },
+        ...prev,
+      ]);
     } catch (error) {
       console.error("Error adding note:", error);
       const errorMessage =

@@ -163,11 +163,13 @@ export async function deleteAttachment(id: string): Promise<void> {
   }
 }
 
-/** GET /api/attachments?entityType=LEAD&entityId=...&limit=50 — List attachments */
-export async function listAttachments(
+/** Deduplicate overlapping list calls (e.g. Strict Mode) for the same entity. */
+const listAttachmentsInFlight = new Map<string, Promise<Attachment[]>>();
+
+async function listAttachmentsInternal(
   entityType: AttachmentEntityType,
   entityId: string,
-  limit = 50,
+  limit: number,
 ): Promise<Attachment[]> {
   const params = new URLSearchParams({
     entityType,
@@ -202,6 +204,23 @@ export async function listAttachments(
     const attachmentEntityType = String(attachment.entityType || "").toUpperCase();
     return !attachmentEntityType || attachmentEntityType === requestedEntityType;
   });
+}
+
+/** GET /api/attachments?entityType=LEAD&entityId=...&limit=50 — List attachments */
+export async function listAttachments(
+  entityType: AttachmentEntityType,
+  entityId: string,
+  limit = 50,
+): Promise<Attachment[]> {
+  const key = `${entityType}:${entityId}:${limit}`;
+  let p = listAttachmentsInFlight.get(key);
+  if (!p) {
+    p = listAttachmentsInternal(entityType, entityId, limit).finally(() => {
+      listAttachmentsInFlight.delete(key);
+    });
+    listAttachmentsInFlight.set(key, p);
+  }
+  return p;
 }
 
 export interface CreateAttachmentPayload {
