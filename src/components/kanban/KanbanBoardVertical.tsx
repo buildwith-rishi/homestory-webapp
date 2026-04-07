@@ -104,15 +104,12 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
   const [selectedAssignee, setSelectedAssignee] = useState("Unassigned");
   const [selectedDueDate, setSelectedDueDate] = useState("");
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
-  const [isAddingColumn, setIsAddingColumn] = useState(false);
-  const [newColumnName, setNewColumnName] = useState("");
   const [zoomLevel, setZoomLevel] = useState(100);
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [customDateStart, setCustomDateStart] = useState("");
   const [customDateEnd, setCustomDateEnd] = useState("");
   const [showDateFilter, setShowDateFilter] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const newColumnInputRef = useRef<HTMLInputElement>(null);
 
   const assigneeOptions = useMemo(() => {
     if (addCardAssigneeOptions && addCardAssigneeOptions.length > 0) {
@@ -124,12 +121,6 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
   useEffect(() => {
     setData(initialData);
   }, [initialData]);
-
-  useEffect(() => {
-    if (isAddingColumn && newColumnInputRef.current) {
-      newColumnInputRef.current.focus();
-    }
-  }, [isAddingColumn]);
 
   const scale = zoomLevel / 100;
 
@@ -381,31 +372,6 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
       }
       return copy;
     });
-  };
-
-  const handleAddColumn = () => {
-    if (!newColumnName.trim()) return;
-
-    const newId = `column-${Date.now()}`;
-    const newColumn: KanbanColumn = {
-      id: newId,
-      title: newColumnName.trim(),
-      taskIds: [],
-    };
-
-    const newData = {
-      ...data,
-      columns: {
-        ...data.columns,
-        [newId]: newColumn,
-      },
-      columnOrder: [...data.columnOrder, newId],
-    };
-
-    setData(newData);
-    onDataChange?.(newData);
-    setNewColumnName("");
-    setIsAddingColumn(false);
   };
 
   const applyFormatting = (
@@ -854,52 +820,6 @@ export const KanbanBoardVertical: React.FC<KanbanBoardVerticalProps> = ({
                     </div>
                   );
                 })}
-
-                <div className="flex-shrink-0">
-                  {isAddingColumn ? (
-                    <div className="w-72 rounded-xl border border-gray-200 bg-white/95 backdrop-blur-sm p-3 shadow-sm">
-                      <input
-                        ref={newColumnInputRef}
-                        value={newColumnName}
-                        onChange={(e) => setNewColumnName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleAddColumn();
-                          if (e.key === "Escape") {
-                            setIsAddingColumn(false);
-                            setNewColumnName("");
-                          }
-                        }}
-                        placeholder="Column name"
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-500"
-                      />
-                      <div className="mt-3 flex items-center gap-2">
-                        <button
-                          onClick={handleAddColumn}
-                        className="flex-1 rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition-all duration-150 ease-out hover:bg-orange-600 active:scale-95"
-                        >
-                          Add Column
-                        </button>
-                        <button
-                          onClick={() => {
-                            setIsAddingColumn(false);
-                            setNewColumnName("");
-                          }}
-                        className="rounded-lg p-2 text-gray-500 transition-all duration-150 ease-out hover:bg-gray-100 active:scale-90"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setIsAddingColumn(true)}
-                      className="flex h-14 w-72 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white/60 backdrop-blur-sm text-sm font-semibold text-gray-500 transition-all duration-300 ease-out hover:border-orange-400 hover:bg-orange-50 hover:text-orange-600 active:scale-[0.98]"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add another list
-                    </button>
-                  )}
-                </div>
               </div>
             </div>
           </div>

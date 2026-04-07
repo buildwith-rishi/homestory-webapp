@@ -24,6 +24,8 @@ export interface User {
   role: UserRole;
   /** Raw role string from the API (e.g. "ADMIN", "BDR") */
   apiRole?: string;
+  /** Job title from API when provided; otherwise UI falls back to role name */
+  designation?: string;
   phone?: string;
   avatar?: string;
   createdAt: string;

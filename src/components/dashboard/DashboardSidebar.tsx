@@ -24,8 +24,9 @@ import { LogoutConfirmModal } from "../ui";
 import {
   getVisibleNavItems,
   NAV_SECTIONS,
-  getRoleDisplayName,
-  getRoleBadgeClasses,
+  ROLES,
+  getRoleAccessLevel,
+  ACCESS_LEVEL_BADGE_CLASSES,
 } from "../../config/rbac";
 
 // Map icon string names from config → Lucide components
@@ -88,6 +89,11 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       setShowLogoutConfirm(false);
     }
   };
+
+  const accessLevel = roleId ? getRoleAccessLevel(roleId) : null;
+  const designationLabel =
+    user?.designation?.trim() ||
+    (roleId ? ROLES[roleId].name : user?.role?.replace(/_/g, " ") || "—");
 
   return (
     <aside
@@ -194,11 +200,11 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         )}
       </nav>
 
-      {/* User Profile Section - Compact & Professional */}
+      {/* User Profile — slim footer strip */}
       {!collapsed && user && (
         <div className="relative border-t border-gray-200 bg-white z-10 transition-all duration-300">
-          <div className="p-3">
-            <div className="flex items-center gap-2.5 mb-2">
+          <div className="p-2">
+            <div className="flex items-center gap-2 mb-1.5">
               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-primary font-semibold text-xs">
                   {user.name?.charAt(0).toUpperCase() ||
@@ -206,29 +212,45 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-gray-900 truncate">
+                <p className="text-xs font-semibold text-gray-900 truncate leading-tight">
                   {user.name || "User"}
                 </p>
-                <p className="text-[10px] text-gray-500 truncate">
+                <p className="text-[10px] text-gray-500 truncate leading-tight">
                   {user.email || ""}
                 </p>
               </div>
             </div>
-            {/* Role Badge */}
-            {roleId && (
-              <div className="mb-2">
+            {/* One slim row: role name + access pill (tooltip carries full title if truncated) */}
+            <div
+              className="mb-1.5 flex items-center gap-1.5 rounded-md border border-gray-200/90 bg-gray-50/90 px-1.5 py-1"
+              aria-label={`Role: ${designationLabel}. Access: ${accessLevel ?? "—"}`}
+            >
+              <Shield
+                className="h-3 w-3 shrink-0 text-primary/75"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <p
+                className="min-w-0 flex-1 text-[11px] font-semibold leading-tight text-gray-900 truncate"
+                title={designationLabel}
+              >
+                {designationLabel}
+              </p>
+              {accessLevel ? (
                 <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${getRoleBadgeClasses(roleId)}`}
+                  className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold leading-none ${ACCESS_LEVEL_BADGE_CLASSES[accessLevel]}`}
                 >
-                  {getRoleDisplayName(roleId)}
+                  {accessLevel}
                 </span>
-              </div>
-            )}
+              ) : (
+                <span className="shrink-0 text-[9px] text-gray-400">—</span>
+              )}
+            </div>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-1.5 h-8 px-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors duration-200"
+              className="w-full flex items-center justify-center gap-1.5 h-7 px-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-[11px] font-medium transition-colors duration-200"
             >
-              <LogOut size={13} />
+              <LogOut size={12} />
               <span>Logout</span>
             </button>
           </div>

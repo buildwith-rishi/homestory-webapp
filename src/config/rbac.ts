@@ -28,6 +28,20 @@ export interface RoleMeta {
   defaultRoute: string; // Where to redirect after login
 }
 
+/** Tailwind classes for access-level pills in profile / sidebar */
+export type AccessLevel = RoleMeta["accessLevel"];
+
+export const ACCESS_LEVEL_BADGE_CLASSES: Record<AccessLevel, string> = {
+  Full: "bg-red-50 text-red-800 ring-1 ring-inset ring-red-100",
+  High: "bg-purple-50 text-purple-800 ring-1 ring-inset ring-purple-100",
+  Medium: "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-100",
+  Low: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+};
+
+export function getRoleAccessLevel(role: RoleId): AccessLevel | null {
+  return ROLES[role]?.accessLevel ?? null;
+}
+
 export const ROLES: Record<RoleId, RoleMeta> = {
   SUPER_ADMIN: {
     id: "SUPER_ADMIN",

@@ -1,7 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
-import { Plus } from "lucide-react";
-
 // Import new components
 import { KanbanColumn, type KanbanColumnData } from "./KanbanColumn";
 import { type KanbanCardTask } from "./KanbanCard";
@@ -439,24 +437,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     [data, updateData],
   );
 
-  const handleAddColumn = useCallback(() => {
-    const newColumnId = `col-${Date.now()}`;
-    const newColumn: KanbanColumnType = {
-      id: newColumnId,
-      title: "New Column",
-      taskIds: [],
-    };
-
-    updateData({
-      ...data,
-      columns: {
-        ...data.columns,
-        [newColumnId]: newColumn,
-      },
-      columnOrder: [...data.columnOrder, newColumnId],
-    });
-  }, [data, updateData]);
-
   // -------------------------------------------------------------------------
   // Theme Classes - Refined gradients and shadows
   // -------------------------------------------------------------------------
@@ -582,33 +562,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     );
                   })}
                   {provided.placeholder}
-
-                  {/* Add Column Button - Refined styling with glass-morphism */}
-                  <button
-                    onClick={handleAddColumn}
-                    className={`
-                      group flex-shrink-0 ${compactMode ? "w-[260px]" : "w-[280px]"} h-fit 
-                      px-5 py-4 rounded-xl border-2 border-dashed backdrop-blur-sm
-                      transition-all duration-300 ease-out
-                      flex items-center justify-center gap-2.5
-                      focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2
-                      active:scale-[0.98]
-                      ${
-                        isLight
-                          ? "border-gray-300 hover:border-orange-400 bg-white/60 hover:bg-gradient-to-br hover:from-orange-50 hover:to-orange-100/50 text-gray-500 hover:text-orange-600 shadow-sm hover:shadow-md"
-                          : "border-gray-700 hover:border-orange-500/70 bg-gray-800/60 hover:bg-gradient-to-br hover:from-orange-900/20 hover:to-orange-800/10 text-gray-500 hover:text-orange-400 shadow-lg hover:shadow-xl"
-                      }
-                    `}
-                    aria-label="Add new column"
-                  >
-                    <Plus
-                      size={18}
-                      className="transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110"
-                    />
-                    <span className="text-sm font-semibold tracking-wide">
-                      Add Column
-                    </span>
-                  </button>
                 </div>
               )}
             </Droppable>

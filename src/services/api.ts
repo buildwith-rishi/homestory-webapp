@@ -15,6 +15,12 @@ interface LoginResponse {
     phone?: string;
     avatar?: string;
     permissions?: string[];
+    /** Backend may send any of these for job title */
+    designation?: string;
+    job_title?: string;
+    jobTitle?: string;
+    title?: string;
+    role_title?: string;
   };
   accessToken?: string;
   refreshToken?: string;

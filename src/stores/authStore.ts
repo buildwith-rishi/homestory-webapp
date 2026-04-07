@@ -39,12 +39,22 @@ export const useAuthStore = create<AuthState>((set) => ({
         // Get permissions for the role
         const permissions = ROLE_PERMISSIONS[normalizedRoleId] || [];
 
+        const raw = response.user;
+        const designationFromApi = [
+          raw.designation,
+          raw.job_title,
+          raw.jobTitle,
+          raw.title,
+          raw.role_title,
+        ].find((v): v is string => typeof v === "string" && v.trim().length > 0);
+
         const user: User = {
           id: response.user.id,
           email: response.user.email,
           name: response.user.name,
           role: userRole,
           apiRole: apiRole,
+          ...(designationFromApi ? { designation: designationFromApi.trim() } : {}),
           phone: response.user.phone || "",
           avatar:
             response.user.avatar ||
