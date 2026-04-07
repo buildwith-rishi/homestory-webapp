@@ -109,6 +109,11 @@ function extractList(data: unknown): TeamMember[] {
   if (data && typeof data === "object") {
     const obj = data as Record<string, unknown>;
     if (Array.isArray(obj.data)) return obj.data as TeamMember[];
+    if (obj.data && typeof obj.data === "object" && !Array.isArray(obj.data)) {
+      const inner = obj.data as Record<string, unknown>;
+      if (Array.isArray(inner.members)) return inner.members as TeamMember[];
+      if (Array.isArray(inner.team)) return inner.team as TeamMember[];
+    }
     if (Array.isArray(obj.team)) return obj.team as TeamMember[];
     if (Array.isArray(obj.members)) return obj.members as TeamMember[];
     if (Array.isArray(obj.results)) return obj.results as TeamMember[];

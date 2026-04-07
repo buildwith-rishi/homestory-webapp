@@ -31,7 +31,7 @@ import { hasPermission, RoleId } from "../../config/rbac";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useProjectStore } from "../../stores/projectStore";
 import type { Project, CreateProjectRequest } from "../../types";
-import { deleteProject as deleteProjectApi, listProjects } from "../../services/projectApi";
+import { deleteProject as deleteProjectApi } from "../../services/projectApi";
 import toast from "react-hot-toast";
 
 // --- Helper functions ---
@@ -424,23 +424,8 @@ export const ProjectsPage: React.FC = () => {
         return;
       }
 
-      // 2) Server-side check to avoid stale-cache misses
-      const remote = await listProjects({ accountId: request.accountId, limit: 1000 });
-      const remoteDuplicate = (remote.projects || []).some((p) => {
-        const existingName = (p.projectName || p.name || "").trim().toLowerCase();
-        const existingAccountId = p.accountId || "";
-        return (
-          existingName === normalizedName &&
-          existingAccountId === (request.accountId || "")
-        );
-      });
-
-      if (remoteDuplicate) {
-        toast.error(
-          "A project with this name already exists for this customer. Please choose a different project name.",
-        );
-        return;
-      }
+      // Duplicate name for this customer is already validated in NewProjectModal
+      // via listProjects before submit; avoid a second identical API round-trip here.
 
       await addProject(request);
       toast.success("Project created successfully!");

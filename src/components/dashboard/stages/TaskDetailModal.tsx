@@ -31,7 +31,8 @@ import type {
   AdminUser,
   NotifyCustomerRequest,
 } from "../../../types";
-import { adminAPI } from "../../../services/api";
+import type { TeamMember } from "../../../services/teamApi";
+import { loadMatrixAssigneeData } from "../../../utils/matrixAssigneeLoaders";
 import { getAttachment } from "../../../services/attachmentApi";
 import {
   getMatrixTaskDetails,
@@ -127,6 +128,19 @@ const inferAttachmentType = (file: File): string => {
   return "OTHER";
 };
 
+const isPhotoAttachment = (a: TaskAttachment): boolean => {
+  const at = String(a.attachmentType || "").toUpperCase();
+  if (at === "PHOTO") return true;
+  const ft = String(a.fileType || "").toLowerCase();
+  return ft.startsWith("image/");
+};
+
+const formatRoleLabel = (role?: string | null) => {
+  const r = String(role || "").trim();
+  if (!r) return "—";
+  return r.replace(/_/g, " ");
+};
+
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -170,27 +184,83 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   // Resolved signed download URLs keyed by attachment id
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const completionPhotoInputRef = useRef<HTMLInputElement>(null);
 
-  // Users list for assignee dropdown
+  // Users + vendors for assignment (same loader as New Task)
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [vendors, setVendors] = useState<TeamMember[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
 
-  // Resolve assignee display name from all possible API field shapes.
-  // The backend Prisma FK may be "assignedToUserId" while the MatrixTask type
-  // declares "assignedToId" — check both so we work regardless of API shape.
-  const assignedUserName = useMemo(() => {
-    if (!task) return "";
-    if (task.assignedTo?.name) return task.assignedTo.name;
+  // Resolve CRM user + team member for read-only display
+  const { assignedUserDisplay, assignedVendorDisplay } = useMemo(() => {
+    if (!task) {
+      return {
+        assignedUserDisplay: null as null | { name: string; role: string },
+        assignedVendorDisplay: null as null | { name: string; role: string },
+      };
+    }
     const t = task as unknown as Record<string, unknown>;
-    const id =
+    const userId =
       task.assignedToId ||
       (t.assignedToUserId as string | undefined) ||
       (t.assigned_to_user_id as string | undefined) ||
-      (t.assignedTo as Record<string, string> | null)?.id ||
-      null;
-    if (!id) return "";
-    return users.find((u) => u.id === id)?.name ?? "";
-  }, [task, users]);
+      task.assignedTo?.id ||
+      "";
+    const userName =
+      task.assignedTo?.name ||
+      (userId ? users.find((u) => u.id === String(userId))?.name : "") ||
+      "";
+    const userRole =
+      task.assignedTo?.role ||
+      (userId ? users.find((u) => u.id === String(userId))?.role : "") ||
+      "";
+
+    const memberId =
+      task.assignedToMemberId ||
+      (t.assigned_to_member_id as string | undefined) ||
+      task.assignedMember?.id ||
+      "";
+    const vendorName =
+      task.assignedMember?.name ||
+      (memberId
+        ? vendors.find((v) => v.id === String(memberId))?.name
+        : "") ||
+      "";
+    const vendorRole =
+      task.assignedMember?.role ||
+      (memberId
+        ? vendors.find((v) => v.id === String(memberId))?.role
+        : "") ||
+      "";
+
+    const memberType =
+      memberId && vendors.find((v) => v.id === String(memberId))?.memberType;
+
+    const showVendorRow =
+      Boolean(vendorName && memberId) &&
+      String(memberId) !== String(userId || "");
+
+    return {
+      assignedUserDisplay:
+        userName
+          ? {
+              name: userName,
+              role: String(userRole || "").trim()
+                ? formatRoleLabel(userRole)
+                : "—",
+            }
+          : null,
+      assignedVendorDisplay: showVendorRow
+        ? {
+            name: vendorName,
+            role: String(vendorRole || memberType || "").trim()
+              ? formatRoleLabel(vendorRole || memberType)
+              : "—",
+          }
+        : null,
+    };
+  }, [task, users, vendors]);
 
   // Push single task to another day
   const [showPushPanel, setShowPushPanel] = useState(false);
@@ -219,6 +289,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [editCategoryId, setEditCategoryId] = useState("");
   const [editAssigneeRole, setEditAssigneeRole] = useState("");
   const [editAssigneeId, setEditAssigneeId] = useState("");
+  const [editVendorId, setEditVendorId] = useState("");
   const [editDayNumber, setEditDayNumber] = useState<number>(1);
   const [editStartDate, setEditStartDate] = useState("");
   const [editCompletionNotes, setEditCompletionNotes] = useState("");
@@ -231,9 +302,38 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setEditDescription(task.description || "");
     setEditCategoryId(task.categoryId || task.category?.id || "");
     const t = task as unknown as Record<string, unknown>;
-    setEditAssigneeId(
-      task.assignedToId || (t.assignedToUserId as string | undefined) || "",
-    );
+    const userId = String(
+      task.assignedToId ||
+        (t.assignedToUserId as string | undefined) ||
+        (t.assigned_to_user_id as string | undefined) ||
+        task.assignedTo?.id ||
+        "",
+    ).trim();
+    const memberId = String(
+      task.assignedToMemberId ||
+        (t.assigned_to_member_id as string | undefined) ||
+        task.assignedMember?.id ||
+        "",
+    ).trim();
+
+    setEditAssigneeId(userId);
+    if (memberId && (!userId || memberId !== userId)) {
+      setEditVendorId(memberId);
+    } else {
+      setEditVendorId("");
+    }
+    if (userId) {
+      const u = users.find((x) => x.id === userId);
+      const roleFromTask = task.assignedTo?.role;
+      setEditAssigneeRole(
+        String(roleFromTask || u?.role || "")
+          .trim()
+          .toUpperCase()
+          .replace(/\s+/g, "_") || "",
+      );
+    } else {
+      setEditAssigneeRole("");
+    }
     setEditDayNumber(task.dayNumber || 1);
     // Normalize startDate to YYYY-MM-DD for date input
     const sd = task.startDate || "";
@@ -256,6 +356,33 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     if (!editAssigneeRole) return [];
     return users.filter((u) => u.role === editAssigneeRole);
   }, [users, editAssigneeRole]);
+
+  const isCompletingNow = useMemo(() => {
+    if (!task) return false;
+    return (
+      String(editStatus || "").toUpperCase() === "COMPLETED" &&
+      String(task.status || "").toUpperCase() !== "COMPLETED"
+    );
+  }, [editStatus, task]);
+
+  const saveEditBlocked = useMemo(() => {
+    if (!editTitle.trim()) return true;
+    if (String(editStatus || "").toUpperCase() === "COMPLETED") {
+      if (!editCompletionNotes.trim()) return true;
+      if (
+        isCompletingNow &&
+        !attachments.some(isPhotoAttachment)
+      )
+        return true;
+    }
+    return false;
+  }, [
+    editTitle,
+    editCompletionNotes,
+    editStatus,
+    attachments,
+    isCompletingNow,
+  ]);
 
   const handleNotifyCustomer = async () => {
     setNotifying(true);
@@ -358,6 +485,24 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       toast.error("Task title is required");
       return;
     }
+    const nextStatus = editStatus || task.status;
+    if (String(nextStatus).toUpperCase() === "COMPLETED") {
+      if (!editCompletionNotes.trim()) {
+        toast.error("Completion notes are required when marking a task complete");
+        return;
+      }
+      const wasCompleted =
+        String(task.status || "").toUpperCase() === "COMPLETED";
+      if (
+        !wasCompleted &&
+        !attachments.some(isPhotoAttachment)
+      ) {
+        toast.error(
+          "Upload at least one photo attachment before marking this task complete",
+        );
+        return;
+      }
+    }
     setSavingEdit(true);
     try {
       // Compute taskDate from editStartDate + editDayNumber so it stays in sync
@@ -389,9 +534,25 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         ...(editCompletionNotes.trim() && {
           completionNotes: editCompletionNotes.trim(),
         }),
-        ...(editAssigneeId
-          ? { assignedToUserId: editAssigneeId }
-          : { assignedToUserId: null }),
+        ...(editVendorId && editAssigneeId
+          ? {
+              assignedToUserId: editAssigneeId,
+              assignedToMemberId: editVendorId,
+            }
+          : editVendorId
+            ? {
+                assignedToUserId: null,
+                assignedToMemberId: editVendorId,
+              }
+            : editAssigneeId
+              ? {
+                  assignedToUserId: editAssigneeId,
+                  assignedToMemberId: editAssigneeId,
+                }
+              : {
+                  assignedToUserId: null,
+                  assignedToMemberId: null,
+                }),
       };
 
       const { task: updatedTask, conflictWarnings } = await updateMatrixTask(
@@ -436,74 +597,33 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
-  // Fetch users for assignee dropdown
   useEffect(() => {
-    const fetchUsers = async () => {
+    let mounted = true;
+    const load = async () => {
       setUsersLoading(true);
+      setVendorsLoading(true);
       try {
-        const response = await adminAPI.getAllUsers();
-        let usersList: Array<Record<string, unknown>> = [];
-        if (Array.isArray(response)) {
-          usersList = response as Array<Record<string, unknown>>;
-        } else if (response && typeof response === "object") {
-          if ("users" in response && Array.isArray(response.users)) {
-            usersList = response.users as Array<Record<string, unknown>>;
-          } else if (
-            "data" in response &&
-            response.data &&
-            typeof response.data === "object" &&
-            "users" in response.data &&
-            Array.isArray(
-              (response.data as { users: Array<Record<string, unknown>> }).users,
-            )
-          ) {
-            usersList = (
-              response.data as { users: Array<Record<string, unknown>> }
-            ).users;
-          } else if ("data" in response && Array.isArray(response.data)) {
-            usersList = response.data as Array<Record<string, unknown>>;
-          }
-        }
-
-        const normalizedUsers = usersList.map((user) => {
-          const roleFromApi =
-            user.role ||
-            (
-              user.credential as { roleKey?: string; name?: string } | undefined
-            )?.roleKey ||
-            (
-              user.credential as { roleKey?: string; name?: string } | undefined
-            )?.name ||
-            "BDR";
-
-          const roleTitleFromApi =
-            (user.roleTitle as string | undefined) ||
-            (user.userRoleTitle as string | undefined) ||
-            (user.title as string | undefined);
-
-          return {
-            ...user,
-            role: String(roleFromApi).toUpperCase() as AdminUser["role"],
-            roleTitle: roleTitleFromApi,
-          } as AdminUser;
-        });
-
-        // Deduplicate
-        const seen = new Set<string>();
-        setUsers(
-          normalizedUsers.filter((u) => {
-            if (seen.has(u.id)) return false;
-            seen.add(u.id);
-            return u.isActive !== false && !u.isBanned;
-          }),
-        );
+        const { users: nextUsers, vendors: nextVendors } =
+          await loadMatrixAssigneeData();
+        if (!mounted) return;
+        setUsers(nextUsers);
+        setVendors(nextVendors);
       } catch {
-        // Non-critical, silently fail
+        if (mounted) {
+          setUsers([]);
+          setVendors([]);
+        }
       } finally {
-        setUsersLoading(false);
+        if (mounted) {
+          setUsersLoading(false);
+          setVendorsLoading(false);
+        }
       }
     };
-    fetchUsers();
+    void load();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -567,6 +687,16 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         assignedTo:
           raw.assignedTo ||
           (r.assignedToUser as MatrixTask["assignedTo"]) ||
+          null,
+        assignedMember:
+          raw.assignedMember ||
+          (r.assignedMember as MatrixTask["assignedMember"]) ||
+          (r.assigned_member as MatrixTask["assignedMember"]) ||
+          null,
+        assignedToMemberId:
+          raw.assignedToMemberId ??
+          (r.assignedToMemberId as string | null | undefined) ??
+          (r.assigned_to_member_id as string | null | undefined) ??
           null,
       };
       console.log("[TaskDetailModal] Task data:", taskData);
@@ -887,54 +1017,139 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           required
                         />
                       </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
-                          Assigned To
-                        </label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          <select
-                            value={editAssigneeRole}
-                            onChange={(e) => {
-                              const nextRole = e.target.value;
-                              setEditAssigneeRole(nextRole);
-                              setEditAssigneeId("");
-                            }}
-                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white"
-                          >
-                            <option value="">
-                              {usersLoading ? "Loading roles..." : "Select Role"}
-                            </option>
-                            {availableAssigneeRoles.map((role) => (
-                              <option key={role} value={role}>
-                                {role.replace(/_/g, " ")}
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                            User (CRM)
+                          </label>
+                          <p className="text-[11px] text-gray-400 mb-1.5">
+                            Pick a role, then a user.
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <select
+                              value={editAssigneeRole}
+                              onChange={(e) => {
+                                const nextRole = e.target.value;
+                                setEditAssigneeRole(nextRole);
+                                setEditAssigneeId("");
+                              }}
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white"
+                            >
+                              <option value="">
+                                {usersLoading
+                                  ? "Loading roles..."
+                                  : "Select role"}
                               </option>
-                            ))}
-                          </select>
+                              {availableAssigneeRoles.map((role) => (
+                                <option key={role} value={role}>
+                                  {role.replace(/_/g, " ")}
+                                </option>
+                              ))}
+                            </select>
 
+                            <select
+                              value={editAssigneeId}
+                              onChange={(e) => {
+                                setEditAssigneeId(e.target.value);
+                              }}
+                              disabled={!editAssigneeRole}
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              <option value="">
+                                {editAssigneeRole
+                                  ? "Unassigned"
+                                  : "Select role first"}
+                              </option>
+                              {roleFilteredUsers.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.name}
+                                  {u.role
+                                    ? ` (${formatRoleLabel(u.role)})`
+                                    : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                            Vendor (team)
+                          </label>
+                          <p className="text-[11px] text-gray-400 mb-1.5">
+                            Team / vendor assignee (optional). Clear the
+                            dropdown to remove.
+                          </p>
                           <select
-                            value={editAssigneeId}
-                            onChange={(e) => setEditAssigneeId(e.target.value)}
-                            disabled={!editAssigneeRole}
-                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                            value={editVendorId}
+                            onChange={(e) => {
+                              setEditVendorId(e.target.value);
+                            }}
+                            disabled={vendorsLoading}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white disabled:bg-gray-50"
                           >
                             <option value="">
-                              {editAssigneeRole
-                                ? "Unassigned"
-                                : "Select role first"}
+                              {vendorsLoading
+                                ? "Loading vendors..."
+                                : "No vendor"}
                             </option>
-                            {roleFilteredUsers.map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.name}
+                            {vendors.map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name}
+                                {v.role || v.memberType
+                                  ? ` (${formatRoleLabel(String(v.role || v.memberType))})`
+                                  : ""}
                               </option>
                             ))}
                           </select>
                         </div>
                       </div>
+                      {isCompletingNow && (
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                            Completion photo
+                            <span className="text-red-500 ml-0.5">*</span>
+                          </label>
+                          <p className="text-[11px] text-gray-500 mb-2">
+                            At least one image attachment is required before you
+                            can save with status Completed. You can upload here
+                            or use the Attachments tab.
+                          </p>
+                          <input
+                            ref={completionPhotoInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFileUpload}
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              completionPhotoInputRef.current?.click()
+                            }
+                            disabled={uploading}
+                            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border border-orange-300 rounded-lg text-orange-800 bg-white hover:bg-orange-50 disabled:opacity-50"
+                          >
+                            {uploading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Upload className="w-4 h-4" />
+                            )}
+                            Upload photo
+                          </button>
+                          {attachments.filter(isPhotoAttachment).length ===
+                            0 && (
+                            <p className="text-xs text-red-600 mt-1.5">
+                              No photo uploaded yet — add one to save as
+                              Completed.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 pt-1">
                         <Button
                           size="sm"
                           onClick={handleSaveTaskEdit}
-                          disabled={savingEdit || !editTitle.trim()}
+                          disabled={savingEdit || saveEditBlocked}
                           className="bg-orange-500 hover:bg-orange-600 text-white"
                         >
                           {savingEdit ? (
@@ -1024,18 +1239,41 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     )}
                   </div>
 
-                  {/* Assigned To */}
-                  {assignedUserName && (
-                    <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-                      <UserCheck className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                      <div>
-                        <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wide">
-                          Assigned To
-                        </p>
-                        <p className="text-sm font-medium text-orange-800">
-                          {assignedUserName}
-                        </p>
-                      </div>
+                  {/* User + Vendor assignment */}
+                  {(assignedUserDisplay || assignedVendorDisplay) && (
+                    <div className="space-y-2">
+                      {assignedUserDisplay && (
+                        <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                          <UserCheck className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wide">
+                              User
+                            </p>
+                            <p className="text-sm font-medium text-orange-800 truncate">
+                              {assignedUserDisplay.name}
+                            </p>
+                            <p className="text-xs text-orange-700/80">
+                              Role: {assignedUserDisplay.role}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {assignedVendorDisplay && (
+                        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                          <UserCheck className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">
+                              Vendor
+                            </p>
+                            <p className="text-sm font-medium text-amber-900 truncate">
+                              {assignedVendorDisplay.name}
+                            </p>
+                            <p className="text-xs text-amber-800/90">
+                              Role: {assignedVendorDisplay.role}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {task.completionNotes && (

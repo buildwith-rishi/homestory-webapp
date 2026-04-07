@@ -10,23 +10,15 @@ import {
   Paperclip,
   Plus,
   Calendar,
-  Send,
-  Bell,
   User,
   Upload,
   X,
 } from "lucide-react";
 import { Button } from "../../ui";
 import type { MatrixTask, MatrixCategory, AdminUser } from "../../../types";
-import {
-  getMatrixDayTasks,
-  getProjectById,
-  uploadTaskAttachment,
-} from "../../../services/projectApi";
+import { getMatrixDayTasks, uploadTaskAttachment } from "../../../services/projectApi";
 import { adminAPI } from "../../../services/api";
 import { getAllTeamMembers, TeamMember } from "../../../services/teamApi";
-import { sendEmail } from "../../../services/emailSendApi";
-import { RichTextEditor } from "./RichTextEditor";
 import { NewTaskModal } from "./NewTaskModal";
 import { useAuth } from "../../../contexts/AuthContext";
 import toast from "react-hot-toast";
@@ -34,7 +26,6 @@ import toast from "react-hot-toast";
 interface DayTasksPanelProps {
   matrixId: string;
   projectId: string;
-  projectName?: string;
   dayNumber: number;
   startDate: string | null;
   categories: MatrixCategory[];
@@ -131,7 +122,6 @@ function getPushReason(taskId: string): string {
 export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   matrixId,
   projectId,
-  projectName = "",
   dayNumber,
   startDate,
   categories,
@@ -163,37 +153,6 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     uploading: boolean;
   } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-
-  // Notify customer state
-  const [checkedTaskIds, setCheckedTaskIds] = useState<Set<string>>(new Set());
-  const [showNotifyCompose, setShowNotifyCompose] = useState(false);
-  const [notifyEmail, setNotifyEmail] = useState("");
-  const [notifyCc, setNotifyCc] = useState("");
-  const [notifyToName, setNotifyToName] = useState("");
-  const [notifySubject, setNotifySubject] = useState("");
-  const [notifyMessage, setNotifyMessage] = useState("");
-  const [loadingEmail, setLoadingEmail] = useState(false);
-  const [sendingNotify, setSendingNotify] = useState(false);
-  const [editorResetKey, setEditorResetKey] = useState(0);
-  const [editorInitialHtml, setEditorInitialHtml] = useState("");
-
-  /** Build a professional pre-filled email template for the message body */
-  const buildEmailTemplate = (opts: {
-    customerName: string;
-    projectName: string;
-    dayNumber: number;
-    taskTitles: string[];
-  }) => {
-    const taskItems = opts.taskTitles.map((t) => `<li>${t}</li>`).join("");
-    return [
-      `<p>Hi <strong>${opts.customerName}</strong>,</p>`,
-      `<p>Hope you're doing great! Here's your <strong>Day ${opts.dayNumber}</strong> project update for <strong>${opts.projectName}</strong>.</p>`,
-      `<p>We've completed the following tasks today:</p>`,
-      `<ul>${taskItems}</ul>`,
-      `<p>If you have any questions or need clarification on anything, please feel free to reply to this email — we're always happy to help!</p>`,
-      `<p>Warm regards,<br/>The GoodHomeStory Team</p>`,
-    ].join("");
-  };
 
   /** Upload all staged images then commit the COMPLETED status change */
   const handleCompletionDone = async () => {
@@ -284,180 +243,6 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
       .then((members) => setTeamMembers(members))
       .catch(() => {});
   }, []);
-
-  // Auto-uncheck tasks that are no longer COMPLETED
-  useEffect(() => {
-    const completedIds = new Set(
-      tasks.filter((t) => t.status === "COMPLETED").map((t) => t.id),
-    );
-    setCheckedTaskIds((prev) => {
-      const next = new Set([...prev].filter((id) => completedIds.has(id)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [tasks]);
-
-  /** Fallback: fetch via task customer-email endpoint */
-  const fetchNotifyEmailFallback = async () => {
-    const firstId = [...checkedTaskIds][0];
-    if (!firstId) return;
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com"}/api/tasks/${firstId}/customer-email`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-          },
-        },
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const email = data.customerEmail || data.email || "";
-        const name = data.customerName || data.toName || data.name || "";
-        if (email) setNotifyEmail(email);
-        if (name) setNotifyToName(name);
-      }
-    } catch {
-      // non-critical
-    }
-  };
-
-  /** Auto-populate email from the project's lead or account */
-  const fetchProjectEmail = async () => {
-    if (!projectId) return;
-    setLoadingEmail(true);
-    try {
-      const project = await getProjectById(projectId);
-      const email = project.lead?.email || project.account?.email || "";
-      const name = project.lead?.name || project.account?.name || "";
-      if (email) setNotifyEmail(email);
-      if (name) setNotifyToName(name);
-      // Fallback to task-level endpoint if project has no email
-      if (!email) await fetchNotifyEmailFallback();
-    } catch {
-      await fetchNotifyEmailFallback();
-    } finally {
-      setLoadingEmail(false);
-    }
-  };
-
-  const buildNotifyHtml = (opts: {
-    customerName: string;
-    projectName: string;
-    updateTitle: string;
-    personalNote: string;
-    taskTitles: string[];
-    dayNumber: number;
-  }) => {
-    const taskListItems = opts.taskTitles
-      .map((t) => `<li style="padding:4px 0;color:#374151;">✅ ${t}</li>`)
-      .join("");
-
-    const isNoteEmpty = !opts.personalNote.replace(/<[^>]*>/g, "").trim();
-    const noteBlock =
-      opts.personalNote && !isNoteEmpty
-        ? `<div style="margin:16px 0 8px;color:#374151;line-height:1.7;font-size:14px;">${opts.personalNote}</div>`
-        : "";
-
-    return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
-<body style="margin:0;padding:0;background:#f9fafb;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);max-width:600px;">
-        <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">GoodHomeStory</h1>
-          <p style="margin:4px 0 0;color:#fed7aa;font-size:13px;">Project Day ${opts.dayNumber} Update</p>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi <strong>${opts.customerName}</strong>,</p>
-          <p style="margin:0 0 20px;color:#374151;line-height:1.6;">Here's your Day <strong>${opts.dayNumber}</strong> update for <strong>${opts.projectName}</strong>.</p>
-          <div style="background:#fff7ed;border-left:4px solid #f97316;border-radius:6px;padding:14px 18px;margin:0 0 20px;">
-            <p style="margin:0;font-size:14px;font-weight:600;color:#c2410c;">${opts.updateTitle}</p>
-          </div>
-          ${noteBlock}
-          <p style="margin:0 0 10px;color:#374151;font-weight:600;font-size:14px;">Completed today:</p>
-          <ul style="margin:0 0 24px;padding-left:18px;">${taskListItems}</ul>
-          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">If you have any questions, feel free to reply to this email.<br/>— The GoodHomeStory Team</p>
-        </td></tr>
-        <!-- Footer -->
-        <tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
-          <p style="margin:0;color:#9ca3af;font-size:11px;text-align:center;">© 2026 GoodHomeStory. All rights reserved.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-  };
-
-  const handleSendNotify = async () => {
-    if (!notifyEmail.trim()) {
-      toast.error("Please enter the customer email address");
-      return;
-    }
-    if (!notifySubject.trim()) {
-      toast.error("Please enter a subject");
-      return;
-    }
-    setSendingNotify(true);
-    const checkedTasks = tasks.filter((t) => checkedTaskIds.has(t.id));
-    const updateTitle =
-      checkedTasks.length === 1
-        ? checkedTasks[0].title
-        : `Day ${dayNumber} Task Update`;
-    const customerName =
-      notifyToName.trim() || notifyEmail.trim().split("@")[0];
-
-    const htmlBody = buildNotifyHtml({
-      customerName,
-      projectName: projectName || "Your Project",
-      updateTitle,
-      personalNote: notifyMessage.trim(),
-      taskTitles: checkedTasks.map((t) => t.title),
-      dayNumber,
-    });
-
-    try {
-      const res = await sendEmail({
-        to: notifyEmail.trim(),
-        cc: notifyCc.trim() || undefined,
-        toName: notifyToName.trim() || undefined,
-        subject: notifySubject.trim(),
-        htmlBody,
-        templateName: "project_update",
-        variables: {
-          customerName,
-          projectName: projectName || "Your Project",
-          updateTitle,
-          updateBody: notifyMessage.trim() || updateTitle,
-        },
-        emailType: "PROJECT_UPDATE",
-        projectId,
-      });
-      if (res.success) {
-        toast.success(`Notification sent to ${notifyEmail.trim()}`);
-        setShowNotifyCompose(false);
-        setNotifyMessage("");
-        setNotifySubject("");
-        setNotifyToName("");
-        setNotifyEmail("");
-        setNotifyCc("");
-        setEditorResetKey((k) => k + 1);
-        setCheckedTaskIds(new Set());
-      } else {
-        toast.error(res.message || "Failed to send notification");
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to send notification",
-      );
-    } finally {
-      setSendingNotify(false);
-    }
-  };
 
   const filteredTasks = tasks.filter((t) => {
     if (
@@ -714,28 +499,6 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                     return (
                       <div key={task.id} className="rounded-lg overflow-hidden">
                         <div className="flex items-center gap-3 py-2.5 px-3 hover:bg-gray-50 transition-colors group">
-                          {/* Notify checkbox — only enabled when COMPLETED */}
-                          <input
-                            type="checkbox"
-                            disabled={task.status !== "COMPLETED"}
-                            checked={checkedTaskIds.has(task.id)}
-                            onChange={(e) => {
-                              setCheckedTaskIds((prev) => {
-                                const next = new Set(prev);
-                                if (e.target.checked) next.add(task.id);
-                                else next.delete(task.id);
-                                return next;
-                              });
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            title={
-                              task.status !== "COMPLETED"
-                                ? "Only completed tasks can be selected for notification"
-                                : "Select for customer notification"
-                            }
-                            className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400 disabled:opacity-25 disabled:cursor-not-allowed flex-shrink-0"
-                          />
-
                           {/* Status icon */}
                           <span className={`flex-shrink-0 ${cfg.text}`}>
                             {cfg.icon}
@@ -1076,187 +839,6 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
           })}
         </div>
       )}
-
-      {/* ── Notify Customer Section ──────────────────────────── */}
-      <div
-        className={`border rounded-xl transition-all overflow-hidden ${
-          checkedTaskIds.size > 0
-            ? "border-orange-200 bg-orange-50/60"
-            : "border-gray-100 bg-gray-50/40 opacity-60"
-        }`}
-      >
-        {/* Bar / trigger row */}
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Bell
-              className={`w-4 h-4 ${checkedTaskIds.size > 0 ? "text-orange-500" : "text-gray-400"}`}
-            />
-            <span
-              className={`text-sm font-semibold ${
-                checkedTaskIds.size > 0 ? "text-orange-700" : "text-gray-400"
-              }`}
-            >
-              Notify Customer
-            </span>
-            {checkedTaskIds.size > 0 && (
-              <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">
-                {checkedTaskIds.size} task
-                {checkedTaskIds.size > 1 ? "s" : ""} selected
-              </span>
-            )}
-            {checkedTaskIds.size === 0 && (
-              <span className="text-xs text-gray-400 italic">
-                Mark tasks as Completed and check them above to enable
-              </span>
-            )}
-          </div>
-          {checkedTaskIds.size > 0 && (
-            <button
-              onClick={() => {
-                if (!showNotifyCompose) {
-                  // Auto-fill subject on open
-                  if (!notifySubject)
-                    setNotifySubject(`Task Update – Day ${dayNumber}`);
-                  // Auto-populate customer email from the project
-                  if (!notifyEmail) fetchProjectEmail();
-                  // Build and inject pre-filled email template
-                  const checkedTasks = tasks.filter((t) =>
-                    checkedTaskIds.has(t.id),
-                  );
-                  const customerName = notifyToName.trim() || "Customer";
-                  const template = buildEmailTemplate({
-                    customerName,
-                    projectName: projectName || "Your Project",
-                    dayNumber,
-                    taskTitles: checkedTasks.map((t) => t.title),
-                  });
-                  setEditorInitialHtml(template);
-                  setEditorResetKey((k) => k + 1);
-                }
-                setShowNotifyCompose((prev) => !prev);
-              }}
-              className="text-xs font-medium text-orange-600 hover:text-orange-800 bg-orange-100 hover:bg-orange-200 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              {showNotifyCompose ? "Close" : "Compose Email"}
-            </button>
-          )}
-        </div>
-
-        {/* Compose form — visible only when tasks are checked and compose is open */}
-        {showNotifyCompose && checkedTaskIds.size > 0 && (
-          <div className="border-t border-orange-100 px-4 pb-4 pt-3 space-y-3">
-            {/* Selected task summary */}
-            <div className="text-xs text-gray-500 bg-white border border-gray-100 rounded-lg px-3 py-2 space-y-0.5">
-              <p className="font-semibold text-gray-600 mb-1">
-                Notifying about:
-              </p>
-              {tasks
-                .filter((t) => checkedTaskIds.has(t.id))
-                .map((t) => (
-                  <p key={t.id} className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />
-                    {t.title}
-                  </p>
-                ))}
-            </div>
-
-            {/* To */}
-            <div className="flex items-center gap-2">
-              <label className="w-16 text-xs font-semibold text-gray-500 uppercase shrink-0">
-                To
-              </label>
-              <div className="flex-1 flex items-center gap-2">
-                <input
-                  type="email"
-                  value={notifyEmail}
-                  onChange={(e) => setNotifyEmail(e.target.value)}
-                  placeholder="customer@example.com"
-                  className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-                />
-                {!notifyEmail && (
-                  <button
-                    onClick={fetchProjectEmail}
-                    disabled={loadingEmail}
-                    className="text-xs text-orange-500 hover:text-orange-700 font-medium whitespace-nowrap disabled:opacity-50"
-                  >
-                    {loadingEmail ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      "Load email"
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Subject */}
-            <div className="flex items-center gap-2">
-              <label className="w-16 text-xs font-semibold text-gray-500 uppercase shrink-0">
-                Cc
-              </label>
-              <input
-                type="text"
-                value={notifyCc}
-                onChange={(e) => setNotifyCc(e.target.value)}
-                placeholder="cc1@example.com, cc2@example.com"
-                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-              />
-            </div>
-
-            {/* Subject */}
-            <div className="flex items-center gap-2">
-              <label className="w-16 text-xs font-semibold text-gray-500 uppercase shrink-0">
-                Subject
-              </label>
-              <input
-                type="text"
-                value={notifySubject}
-                onChange={(e) => setNotifySubject(e.target.value)}
-                placeholder="Email subject…"
-                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-              />
-            </div>
-
-            {/* Message — rich text */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">
-                Message (optional)
-              </label>
-              <RichTextEditor
-                onChange={setNotifyMessage}
-                placeholder="Add a personal note to the customer…"
-                resetKey={editorResetKey}
-                initialHtml={editorInitialHtml}
-                minHeight="140px"
-              />
-            </div>
-
-            {/* Send button */}
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                onClick={handleSendNotify}
-                disabled={
-                  sendingNotify || !notifyEmail.trim() || !notifySubject.trim()
-                }
-                className="bg-orange-500 hover:bg-orange-600 text-white"
-              >
-                {sendingNotify ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                    Sending…
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-3.5 h-3.5 mr-1.5" />
-                    Send Notification
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* New Task Modal */}
       {showNewTaskModal && (

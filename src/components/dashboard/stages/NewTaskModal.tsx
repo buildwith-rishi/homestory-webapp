@@ -12,8 +12,8 @@ import {
   Briefcase,
 } from "lucide-react";
 import type { MatrixCategory, AdminUser } from "../../../types";
-import { adminAPI } from "../../../services/api";
 import type { TeamMember } from "../../../services/teamApi";
+import { loadMatrixAssigneeData } from "../../../utils/matrixAssigneeLoaders";
 import toast from "react-hot-toast";
 import {
   extractConflictWarningsFromResponse,
@@ -88,125 +88,6 @@ const normalizeRoleValue = (role?: string): string =>
     .trim()
     .toLowerCase();
 
-const normalizeAssignableUsers = (response: unknown): AdminUser[] => {
-  let usersList: Array<Record<string, unknown>> = [];
-
-  if (Array.isArray(response)) {
-    usersList = response as Array<Record<string, unknown>>;
-  } else if (response && typeof response === "object") {
-    if ("users" in response && Array.isArray(response.users)) {
-      usersList = response.users as Array<Record<string, unknown>>;
-    } else if (
-      "data" in response &&
-      response.data &&
-      typeof response.data === "object" &&
-      "users" in response.data &&
-      Array.isArray(
-        (response.data as { users: Array<Record<string, unknown>> }).users,
-      )
-    ) {
-      usersList = (response.data as { users: Array<Record<string, unknown>> })
-        .users;
-    } else if ("data" in response && Array.isArray(response.data)) {
-      usersList = response.data as Array<Record<string, unknown>>;
-    }
-  }
-
-  const normalized = usersList
-    .map((user) => {
-      const roleFromApi =
-        user.role ||
-        (user.credential as { roleKey?: string; name?: string } | undefined)
-          ?.roleKey ||
-        (user.credential as { roleKey?: string; name?: string } | undefined)
-          ?.name ||
-        "";
-
-      const role = String(roleFromApi).trim().toUpperCase();
-
-      return {
-        ...user,
-        id: String(user.id || ""),
-        name: String(user.name || ""),
-        email: String(user.email || ""),
-        role: role as AdminUser["role"],
-      } as AdminUser;
-    })
-    .filter(
-      (u) =>
-        Boolean(u.id) &&
-        Boolean(u.name) &&
-        Boolean(u.role) &&
-        u.isActive !== false &&
-        !u.isBanned,
-    );
-
-  const seen = new Set<string>();
-  return normalized.filter((u) => {
-    if (seen.has(u.id)) return false;
-    seen.add(u.id);
-    return true;
-  });
-};
-
-const normalizeTeamMembers = (response: unknown): TeamMember[] => {
-  let membersList: Array<Record<string, unknown>> = [];
-
-  if (Array.isArray(response)) {
-    membersList = response as Array<Record<string, unknown>>;
-  } else if (response && typeof response === "object") {
-    const obj = response as Record<string, unknown>;
-
-    if (Array.isArray(obj.data)) {
-      membersList = obj.data as Array<Record<string, unknown>>;
-    } else if (Array.isArray(obj.team)) {
-      membersList = obj.team as Array<Record<string, unknown>>;
-    } else if (Array.isArray(obj.members)) {
-      membersList = obj.members as Array<Record<string, unknown>>;
-    } else if (Array.isArray(obj.results)) {
-      membersList = obj.results as Array<Record<string, unknown>>;
-    } else if (
-      obj.data &&
-      typeof obj.data === "object" &&
-      Array.isArray((obj.data as Record<string, unknown>).members)
-    ) {
-      membersList = (obj.data as { members: Array<Record<string, unknown>> })
-        .members;
-    } else if (
-      obj.data &&
-      typeof obj.data === "object" &&
-      Array.isArray((obj.data as Record<string, unknown>).team)
-    ) {
-      membersList = (obj.data as { team: Array<Record<string, unknown>> }).team;
-    }
-  }
-
-  const seen = new Set<string>();
-  return membersList
-    .map((member) => {
-      const id = String(member.id || "").trim();
-      const name = String(member.name || "").trim();
-      const email = String(member.email || "").trim();
-      const role = String(member.role || "").trim();
-      const memberType = String(member.memberType || "").trim();
-
-      return {
-        ...member,
-        id,
-        name,
-        email,
-        role,
-        memberType,
-      } as TeamMember;
-    })
-    .filter((m) => {
-      if (!m.id || !m.name) return false;
-      if (seen.has(m.id)) return false;
-      seen.add(m.id);
-      return true;
-    });
-};
-
 export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   matrixId,
   dayNumber,
@@ -261,58 +142,21 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       setUsersLoading(true);
       setVendorsLoading(true);
       try {
-        const [usersRes, teamResponse] = await Promise.all([
-          adminAPI.getAllUsers(),
-          fetch(`${API_BASE_URL}/api/team`, {
-            headers: getAuthHeaders(),
-          }).then(async (res) => {
-            if (!res.ok) throw new Error("Failed to fetch team members");
-            return res.json();
-          }),
-        ]);
+        const { users: nextUsers, vendors: nextVendors } =
+          await loadMatrixAssigneeData();
         if (!mounted) return;
-        setUsers(normalizeAssignableUsers(usersRes));
-
-        const teamMembers = normalizeTeamMembers(teamResponse);
-        const activeMembers = teamMembers.filter(
-          (member) =>
-            member.isBanned !== true &&
-            member.isDeactivated !== true &&
-            member.isActive !== false,
-        );
-
-        const vendorMembers = activeMembers.filter((member) => {
-          const type = String(member.memberType || "")
-            .trim()
-            .toUpperCase();
-          const role = String(member.role || "")
-            .trim()
-            .toUpperCase();
-          const department = String(member.department || "")
-            .trim()
-            .toUpperCase();
-          return (
-            type.includes("VENDOR") ||
-            role.includes("VENDOR") ||
-            department.includes("VENDOR")
+        setUsers(nextUsers);
+        setVendors(nextVendors);
+        if (mounted && nextUsers.length === 0) {
+          toast.error(
+            "Could not load users for assignment. Check your connection or permissions.",
           );
-        });
-
-        const visibleVendors =
-          vendorMembers.length > 0 ? vendorMembers : activeMembers;
-
-        const sortedVendors = visibleVendors
-          .filter((member) => {
-            // Keep only items that can be selected in the dropdown.
-            return Boolean(member.id) && Boolean(member.name);
-          })
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-        setVendors(sortedVendors);
+        }
       } catch {
         if (!mounted) return;
         setUsers([]);
         setVendors([]);
+        toast.error("Failed to load users and vendors");
       } finally {
         if (mounted) setUsersLoading(false);
         if (mounted) setVendorsLoading(false);
@@ -767,7 +611,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                                 {vendorsLoading
                                   ? "Loading vendors..."
                                   : vendors.length === 0
-                                    ? "No active vendors available"
+                                    ? "No team members loaded"
                                     : "Select a vendor..."}
                               </option>
                               {vendorsForRole.map((vendor) => (

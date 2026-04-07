@@ -42,6 +42,7 @@ import {
   UserCircle,
   ExternalLink,
   ChevronDown,
+  Lock,
 } from "lucide-react";
 import {
   Button,
@@ -492,6 +493,16 @@ export const ProjectDetails: React.FC = () => {
     );
   }, [projectId, searchParams, setSearchParams]);
 
+  // Stages are only available after the project has been started (not YET_TO_START)
+  useEffect(() => {
+    if (!currentProject) return;
+    const yetToStart =
+      String(currentProject.status ?? "").toUpperCase() === "YET_TO_START";
+    if (yetToStart && activeTab === "stages") {
+      setActiveTab("overview");
+    }
+  }, [currentProject?.id, currentProject?.status, activeTab]);
+
   // Payment update modal
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<ProjectPayment | null>(
@@ -574,6 +585,24 @@ export const ProjectDetails: React.FC = () => {
     () => Array.from(new Set(parseEmailList(sendInvoiceForm.ccEmails).map((e) => e.toLowerCase()))),
     [sendInvoiceForm.ccEmails],
   );
+
+  /** Invoice & proforma send both require recipient + bank details */
+  const canSubmitSendInvoice = useMemo(() => {
+    const to = sendInvoiceForm.toEmail.trim();
+    const name = sendInvoiceForm.toName.trim();
+    if (!to || !name || !EMAIL_REGEX.test(to)) return false;
+    if (
+      !sendInvoiceForm.accountName.trim() ||
+      !sendInvoiceForm.accountNumber.trim() ||
+      !sendInvoiceForm.ifscCode.trim() ||
+      !sendInvoiceForm.bankName.trim()
+    ) {
+      return false;
+    }
+    const rawCc = parseEmailList(sendInvoiceForm.ccEmails);
+    if (rawCc.some((email) => !EMAIL_REGEX.test(email))) return false;
+    return true;
+  }, [sendInvoiceForm]);
 
   const filteredCcUsers = useMemo(() => {
     const query = ccEmailSearch.trim().toLowerCase();
@@ -813,15 +842,28 @@ export const ProjectDetails: React.FC = () => {
 
 
 
-  // Fetch project data on mount
+  // Fetch project data on mount (stages load only after project is started — see below)
   useEffect(() => {
     if (projectId) {
       fetchProjectById(projectId);
-      fetchProjectStages(projectId);
       fetchProjectPayments(projectId);
       fetchProjectAttachments(projectId);
     }
-  }, [projectId, fetchProjectById, fetchProjectStages, fetchProjectPayments]);
+  }, [projectId, fetchProjectById, fetchProjectPayments]);
+
+  // Load stages only when the project is not "YET TO START" (aligns with locked Stages tab)
+  useEffect(() => {
+    if (!projectId || !currentProject || currentProject.id !== projectId) return;
+    const yetToStart =
+      String(currentProject.status ?? "").toUpperCase() === "YET_TO_START";
+    if (yetToStart) return;
+    fetchProjectStages(projectId);
+  }, [
+    projectId,
+    currentProject?.id,
+    currentProject?.status,
+    fetchProjectStages,
+  ]);
 
   // Reset hydrated tracking when project changes
   useEffect(() => {
@@ -1338,13 +1380,14 @@ export const ProjectDetails: React.FC = () => {
 
     const attachments = sendInvoiceForm.attachments;
 
-    if (
-      invoiceSendMode === "invoice" &&
-      (!sendInvoiceForm.accountNumber ||
-        !sendInvoiceForm.ifscCode ||
-        !sendInvoiceForm.bankName)
-    ) {
-      toast.error("Please fill in bank details");
+    const accName = sendInvoiceForm.accountName.trim();
+    const accNum = sendInvoiceForm.accountNumber.trim();
+    const ifsc = sendInvoiceForm.ifscCode.trim();
+    const bank = sendInvoiceForm.bankName.trim();
+    if (!accName || !accNum || !ifsc || !bank) {
+      toast.error(
+        "Please fill in account name, account number, IFSC code, and bank name",
+      );
       return;
     }
     setIsSendingInvoice(true);
@@ -1355,17 +1398,13 @@ export const ProjectDetails: React.FC = () => {
         customMessage: sendInvoiceForm.customMessage || undefined,
         cc: ccEmails,
         attachments,
-        ...(invoiceSendMode === "invoice"
-          ? {
-              bankDetails: {
-                accountName: sendInvoiceForm.accountName,
-                accountNumber: sendInvoiceForm.accountNumber,
-                ifscCode: sendInvoiceForm.ifscCode,
-                bankName: sendInvoiceForm.bankName,
-                upiId: sendInvoiceForm.upiId || undefined,
-              },
-            }
-          : {}),
+        bankDetails: {
+          accountName: accName,
+          accountNumber: accNum,
+          ifscCode: ifsc,
+          bankName: bank,
+          upiId: sendInvoiceForm.upiId.trim() || undefined,
+        },
       };
       const response = await sendPaymentInvoice(
         invoiceTargetPayment.id,
@@ -2350,6 +2389,8 @@ export const ProjectDetails: React.FC = () => {
 
   const project = currentProject;
   const projectName = project.projectName || project.name || "Untitled Project";
+  const stagesTabLocked =
+    String(project.status ?? "").toUpperCase() === "YET_TO_START";
   const statusDisplay = getStatusDisplay(project);
   const paymentTotals = calculatePaymentTotals();
   const visibleDesignTeamMembers = (project.designTeam || []).filter(Boolean);
@@ -2360,20 +2401,20 @@ export const ProjectDetails: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50/40 via-white to-orange-50/20">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-orange-100/60 via-orange-50/80 to-amber-50/60 border-b border-orange-200/60 px-2 sm:px-3 py-3 backdrop-blur-sm">
-        <div className="w-full relative z-10">
+      <div className="relative bg-gradient-to-br from-orange-100/60 via-orange-50/80 to-amber-50/60 border-b border-orange-200/60 px-4 sm:px-5 py-2.5 backdrop-blur-sm">
+        <div className="w-full max-w-[1600px] mx-auto relative z-10">
           <button
             onClick={() => navigate("/dashboard/projects")}
-            className="flex items-center gap-2 text-gray-700 hover:text-orange-600 mb-4 transition-colors group"
+            className="flex items-center gap-2 text-gray-700 hover:text-orange-600 mb-2 transition-colors group"
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             <span className="text-sm font-semibold">Back to Projects</span>
           </button>
 
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start justify-between mb-2.5">
             <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-orange-600 bg-clip-text text-transparent">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-orange-600 bg-clip-text text-transparent">
                   {projectName}
                 </h1>
                 {project.projectNumber && (
@@ -2457,34 +2498,34 @@ export const ProjectDetails: React.FC = () => {
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            <div className="relative bg-white/80 backdrop-blur rounded-xl p-3 border border-orange-100/50 shadow-sm">
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">
                 CURRENT STAGE
               </p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-lg font-bold text-gray-900 leading-tight">
                 {project.currentStageCode
                   ? getStageLabel(project.currentStageCode)
                   : "N/A"}
               </p>
             </div>
 
-            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
+            <div className="relative bg-white/80 backdrop-blur rounded-xl p-3 border border-orange-100/50 shadow-sm">
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">
                 TOTAL VALUE
               </p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-xl font-bold text-gray-900 leading-tight">
                 {formatCurrencyExact(
                   parseFloat(String(project.totalValue)) || 0,
                 )}
               </p>
             </div>
 
-            <div className="relative bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100/50 shadow-sm">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
+            <div className="relative bg-white/80 backdrop-blur rounded-xl p-3 border border-orange-100/50 shadow-sm">
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">
                 CATEGORY
               </p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-lg font-bold text-gray-900 leading-tight">
                 {formatEnumLabel(project.projectCategory)}
               </p>
             </div>
@@ -2500,7 +2541,8 @@ export const ProjectDetails: React.FC = () => {
 
       {/* Pause Info Banner */}
       {project.status?.toUpperCase() === "PAUSED" && (
-        <div className="bg-yellow-50 border border-yellow-200 mt-2 rounded-xl p-4">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-5">
+        <div className="bg-yellow-50 border border-yellow-200 mt-2 rounded-lg p-3">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
               <Pause className="w-5 h-5 text-yellow-600" />
@@ -2567,12 +2609,13 @@ export const ProjectDetails: React.FC = () => {
             </button>
           </div>
         </div>
+        </div>
       )}
 
       {/* Tabs */}
       <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-20 shadow-sm">
-        <div className="w-full px-2 sm:px-3">
-          <div className="flex gap-8">
+        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-5">
+          <div className="flex gap-4 sm:gap-6 overflow-x-auto scrollbar-thin">
             {[
               { id: "overview", label: "Overview", icon: FileText },
               { id: "stages", label: "Stages", icon: CheckCircle2 },
@@ -2587,43 +2630,68 @@ export const ProjectDetails: React.FC = () => {
                 icon: MessageSquare,
               },
               { id: "handover", label: "Handover", icon: Gift },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`relative flex items-center gap-2 py-4 transition-all group ${
-                  activeTab === tab.id
-                    ? "text-orange-600"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span className="font-semibold text-sm">{tab.label}</span>
-                {activeTab === tab.id && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full"></div>
-                )}
-              </button>
-            ))}
+            ].map((tab) => {
+              const isStagesTab = tab.id === "stages";
+              const isLocked = isStagesTab && stagesTabLocked;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  aria-disabled={isLocked}
+                  title={
+                    isLocked
+                      ? "Start the project first to view and edit stages"
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (isLocked) {
+                      toast.error(
+                        "Start the project before you can manage stages.",
+                      );
+                      return;
+                    }
+                    setActiveTab(tab.id as typeof activeTab);
+                  }}
+                  className={`relative flex items-center gap-1.5 py-2.5 shrink-0 transition-all group ${
+                    isLocked
+                      ? "text-gray-400 cursor-not-allowed opacity-70"
+                      : activeTab === tab.id
+                        ? "text-orange-600"
+                        : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  {isLocked ? (
+                    <Lock className="w-4 h-4 shrink-0" aria-hidden />
+                  ) : (
+                    <tab.icon className="w-4 h-4" />
+                  )}
+                  <span className="font-semibold text-sm">{tab.label}</span>
+                  {activeTab === tab.id && !isLocked && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full"></div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="w-full px-2 sm:px-3 py-4">
+      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-5 py-3">
         {/* Overview Tab */}
         {activeTab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             {/* Left Column */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="lg:col-span-2 space-y-3">
               {/* Project Information */}
-              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+              <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <h2 className="text-base font-bold text-gray-900 mb-2.5 flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
                     <FileText className="w-4 h-4 text-white" />
                   </div>
                   Project Information
                 </h2>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2.5">
                   <InfoItem
                     label="Customer"
                     value={project.account?.name || "N/A"}
@@ -2650,7 +2718,7 @@ export const ProjectDetails: React.FC = () => {
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                       Property Address
                     </p>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-2 border border-gray-100">
                       {project.propertyAddress || "N/A"}
                     </p>
                   </div>
@@ -2658,7 +2726,7 @@ export const ProjectDetails: React.FC = () => {
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                       Billing Address
                     </p>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-2 border border-gray-100">
                       {project.billingAddress || "N/A"}
                     </p>
                   </div>
@@ -2667,19 +2735,19 @@ export const ProjectDetails: React.FC = () => {
 
               {(project.specialRequirements ||
                 project.remarks) && (
-                <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                  <h2 className="text-base font-bold text-gray-900 mb-2.5 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
                       <FileText className="w-4 h-4 text-white" />
                     </div>
                     Requirements & Notes
                   </h2>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                         Special Requirements
                       </p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-2 border border-gray-100">
                         {project.specialRequirements || "N/A"}
                       </p>
                     </div>
@@ -2687,7 +2755,7 @@ export const ProjectDetails: React.FC = () => {
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                         Remarks
                       </p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 border border-gray-100">
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-2 border border-gray-100">
                         {project.remarks || "N/A"}
                       </p>
                     </div>
@@ -2697,9 +2765,9 @@ export const ProjectDetails: React.FC = () => {
 
               {/* Client/Lead Information */}
               {project.lead && (
-                <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                  <h2 className="text-base font-bold text-gray-900 mb-2.5 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                       <Users className="w-4 h-4 text-white" />
                     </div>
                     Client Information
@@ -2742,9 +2810,9 @@ export const ProjectDetails: React.FC = () => {
               )}
 
               {/* Team */}
-              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+              <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <h2 className="text-base font-bold text-gray-900 mb-2.5 flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
                     <Users className="w-4 h-4 text-white" />
                   </div>
                   Assigned Teams
@@ -2784,7 +2852,7 @@ export const ProjectDetails: React.FC = () => {
 
                   {!visibleDesignTeamMembers.length &&
                     !visibleExecutionTeamMembers.length && (
-                      <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-xl">
+                      <div className="text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
                         <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                         <p className="text-sm text-gray-500">
                           No team members assigned yet
@@ -2795,10 +2863,10 @@ export const ProjectDetails: React.FC = () => {
               </Card>
 
               {/* Documents Section */}
-              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center">
+              <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <div className="flex items-center justify-between mb-2.5">
+                  <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center">
                       <Paperclip className="w-4 h-4 text-white" />
                     </div>
                     Documents
@@ -2924,11 +2992,11 @@ export const ProjectDetails: React.FC = () => {
             </div>
 
             {/* Right Column */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Customer */}
               {(project.account?.name || project.account?.email || project.account?.phone) && (
-                <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                  <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
                       <UserCircle className="w-3.5 h-3.5 text-white" />
                     </div>
@@ -2953,15 +3021,15 @@ export const ProjectDetails: React.FC = () => {
               )}
 
               {/* Payment Summary */}
-              <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
                     <DollarSign className="w-3.5 h-3.5 text-white" />
                   </div>
                   Payment Summary
                 </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center px-2 py-1.5 rounded-lg bg-gray-50">
                     <span className="text-sm text-gray-600">Total Value</span>
                     <span className="font-bold text-gray-900">
                       {formatCurrencyExact(
@@ -2969,13 +3037,13 @@ export const ProjectDetails: React.FC = () => {
                       )}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-green-50">
+                  <div className="flex justify-between items-center px-2 py-1.5 rounded-lg bg-green-50">
                     <span className="text-sm text-green-700">Collected</span>
                     <span className="font-bold text-green-600">
                       {formatCurrencyExact(paymentTotals.totalPaid)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-orange-50">
+                  <div className="flex justify-between items-center px-2 py-1.5 rounded-lg bg-orange-50">
                     <span className="text-sm text-orange-700">Pending</span>
                     <span className="font-bold text-orange-600">
                       {formatCurrencyExact(paymentTotals.totalPending)}
@@ -2989,8 +3057,29 @@ export const ProjectDetails: React.FC = () => {
           </div>
         )}
 
-        {/* Stages Tab */}
-        {activeTab === "stages" && <ProjectStagesSection project={project} />}
+        {/* Stages Tab — blocked until project is started */}
+        {activeTab === "stages" && stagesTabLocked && (
+          <Card className="p-5 max-w-lg mx-auto border border-amber-200/80 bg-gradient-to-br from-amber-50/90 to-white shadow-sm">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center">
+                <Lock className="w-7 h-7 text-amber-700" aria-hidden />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">
+                Stages are locked
+              </h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                This project has not been started yet. Use{" "}
+                <span className="font-semibold text-gray-800">
+                  Start Project
+                </span>{" "}
+                above to begin—then you can manage stages, dates, and progress.
+              </p>
+            </div>
+          </Card>
+        )}
+        {activeTab === "stages" && !stagesTabLocked && (
+          <ProjectStagesSection project={project} />
+        )}
 
         {/* Payments Tab */}
         {activeTab === "payments" &&
@@ -3273,7 +3362,7 @@ export const ProjectDetails: React.FC = () => {
               <div className="space-y-4">
                 {/* Overall Payment Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50/50 border-green-200/50 shadow-sm">
+                  <Card className="p-3 bg-gradient-to-br from-green-50 to-emerald-50/50 border-green-200/50 shadow-sm">
                     <p className="text-sm text-green-700 mb-2 font-semibold">
                       Collected
                     </p>
@@ -3281,7 +3370,7 @@ export const ProjectDetails: React.FC = () => {
                       {formatCurrencyExact(paymentTotals.totalPaid)}
                     </p>
                   </Card>
-                  <Card className="p-4 bg-gradient-to-br from-orange-50 to-amber-50/50 border-orange-200/50 shadow-sm">
+                  <Card className="p-3 bg-gradient-to-br from-orange-50 to-amber-50/50 border-orange-200/50 shadow-sm">
                     <p className="text-sm text-orange-700 mb-2 font-semibold">
                       Pending
                     </p>
@@ -3292,7 +3381,7 @@ export const ProjectDetails: React.FC = () => {
                 </div>
 
                 {/* Phase Tabs */}
-                <Card className="p-4 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
+                <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                   {/* Tab header */}
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
@@ -4383,8 +4472,7 @@ export const ProjectDetails: React.FC = () => {
                     Selected files will be sent as attachments with this invoice email.
                   </p>
                 </div>
-                {invoiceSendMode === "invoice" && (
-                  <>
+                <>
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">
                       Bank Details
                     </p>
@@ -4480,8 +4568,7 @@ export const ProjectDetails: React.FC = () => {
                         />
                       </div>
                     </div>
-                  </>
-                )}
+                </>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Custom Message{" "}
@@ -4512,9 +4599,14 @@ export const ProjectDetails: React.FC = () => {
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleSendInvoice}
-                  disabled={isSendingInvoice}
+                  disabled={isSendingInvoice || !canSubmitSendInvoice}
+                  title={
+                    !canSubmitSendInvoice
+                      ? "Fill recipient email, name, and all required bank fields"
+                      : undefined
+                  }
                 >
                   {isSendingInvoice ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -6193,11 +6285,11 @@ const InfoItem: React.FC<{ label: string; value: string }> = ({
   label,
   value,
 }) => (
-  <div className="p-3 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
-    <p className="text-xs font-bold text-gray-500 uppercase mb-1.5 tracking-wide">
+  <div className="p-2 rounded-lg bg-gradient-to-br from-gray-50 to-orange-50/20 border border-gray-100">
+    <p className="text-[10px] font-bold text-gray-500 uppercase mb-0.5 tracking-wide">
       {label}
     </p>
-    <p className="text-base font-bold text-gray-900">{value}</p>
+    <p className="text-sm font-semibold text-gray-900 leading-snug">{value}</p>
   </div>
 );
 
@@ -6211,8 +6303,8 @@ const TeamMemberItem: React.FC<{
   onRemove?: () => void;
   isRemoving?: boolean;
 }> = ({ name, role, email, phone, badge, onRemove, isRemoving = false }) => (
-  <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-gray-50 via-white to-orange-50/20 rounded-xl border border-gray-100">
-    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold shadow-md flex-shrink-0">
+  <div className="flex items-center gap-2.5 p-2.5 bg-gradient-to-br from-gray-50 via-white to-orange-50/20 rounded-lg border border-gray-100">
+    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white text-sm font-bold shadow-sm flex-shrink-0">
       {name
         .split(" ")
         .map((n) => n[0])

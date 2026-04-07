@@ -1090,7 +1090,6 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                     <DayTasksPanel
                       matrixId={matrix.id}
                       projectId={projectId}
-                      projectName={projectName}
                       dayNumber={dayNum}
                       startDate={matrix.startDate}
                       categories={categories}

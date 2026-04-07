@@ -185,7 +185,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const project = await projectAPI.getProjectById(id);
-      set({ currentProject: project, isLoading: false });
+      const yetToStart =
+        String(project.status ?? "").toUpperCase() === "YET_TO_START";
+      set({
+        currentProject: project,
+        isLoading: false,
+        ...(yetToStart
+          ? {
+              projectStages: [],
+              currentStageCode: null,
+              currentPhase: null,
+            }
+          : {}),
+      });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to fetch project";
@@ -514,24 +526,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const createdProject = await projectAPI.createProject(projectData);
-
-      // Remove any payment milestones the backend auto-seeds on creation
-      // so projects start with a clean, empty payments list
-      try {
-        const paymentsResponse = await projectAPI.getProjectPayments(
-          createdProject.id,
-        );
-        const autoCreated = paymentsResponse.payments || [];
-        await Promise.all(
-          autoCreated.map((p) => projectAPI.deleteProjectPayment(p.id)),
-        );
-      } catch (cleanupErr) {
-        // Non-fatal: log but don't block project creation
-        console.warn(
-          "Could not remove auto-created payment milestones:",
-          cleanupErr,
-        );
-      }
 
       // Re-fetch the projects list to stay in sync
       const response = await projectAPI.listProjects({ limit: 1000 });

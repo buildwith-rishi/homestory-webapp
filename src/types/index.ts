@@ -1602,7 +1602,15 @@ export interface MatrixTask {
   /** Some API responses use 'reason' directly */
   reason?: string | null;
   assignedToId?: string | null;
-  assignedTo?: { id: string; name: string; email?: string } | null;
+  assignedTo?: { id: string; name: string; email?: string; role?: string } | null;
+  /** Team / vendor assignment (matrix task) */
+  assignedToMemberId?: string | null;
+  assignedMember?: {
+    id: string;
+    name: string;
+    email?: string;
+    role?: string;
+  } | null;
   category?: { id?: string; name: string; color?: string } | null;
   categoryId?: string;
   _count?: { attachments: number };

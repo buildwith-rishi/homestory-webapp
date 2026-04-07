@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import ReactDOM from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -135,7 +141,8 @@ const mergeCustomerNotes = (
           ? candidate.createdAt.slice(0, 16)
           : "";
         return (
-          candidateContent === normalizedContent && candidateDate === normalizedDate
+          candidateContent === normalizedContent &&
+          candidateDate === normalizedDate
         );
       }) === idx
     );
@@ -143,7 +150,8 @@ const mergeCustomerNotes = (
 
   return deduped.sort(
     (a, b) =>
-      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+      new Date(b.createdAt || 0).getTime() -
+      new Date(a.createdAt || 0).getTime(),
   );
 };
 
@@ -331,14 +339,15 @@ const formatLeadReferenceValue = (value: unknown): string => {
     if (v.label && typeof v.label === "string") {
       return v.label;
     }
-    
+
     return JSON.stringify(value, null, 2);
   }
 
   return String(value);
 };
 
-const isHttpUrl = (value: string): boolean => /^https?:\/\//i.test(value.trim());
+const isHttpUrl = (value: string): boolean =>
+  /^https?:\/\//i.test(value.trim());
 
 const getFileNameFromUrl = (url: string): string => {
   try {
@@ -448,7 +457,9 @@ const LEAD_STAGE_OPTIONS: SelectOption[] = [
   { value: "UNQUALIFIED", label: "Unqualified" },
 ];
 
-const LEAD_FIELD_ENUM_OPTIONS: Partial<Record<LeadReferenceEditableField, SelectOption[]>> = {
+const LEAD_FIELD_ENUM_OPTIONS: Partial<
+  Record<LeadReferenceEditableField, SelectOption[]>
+> = {
   propertyType: [
     { value: "RESIDENTIAL", label: "Residential" },
     { value: "COMMERCIAL", label: "Commercial" },
@@ -532,7 +543,10 @@ const LEAD_FIELD_ENUM_OPTIONS: Partial<Record<LeadReferenceEditableField, Select
   ],
 };
 
-const LEAD_REFERENCE_EDIT_SOURCE_MAP: Record<LeadReferenceEditableField, string[]> = {
+const LEAD_REFERENCE_EDIT_SOURCE_MAP: Record<
+  LeadReferenceEditableField,
+  string[]
+> = {
   source: ["source"],
   status: ["status"],
   stage: ["stage"],
@@ -573,20 +587,20 @@ const getEditableLeadReferenceFieldSet = (
   const editableFields = new Set<LeadReferenceEditableField>();
   if (!lead) return editableFields;
 
-  (Object.keys(LEAD_REFERENCE_EDIT_SOURCE_MAP) as LeadReferenceEditableField[]).forEach(
-    (field) => {
-      const sourceKeys = LEAD_REFERENCE_EDIT_SOURCE_MAP[field];
-      const hasValue = sourceKeys.some((key) =>
-        isLeadReferenceMeaningful(
-          (lead as unknown as Record<string, unknown>)[key],
-        ),
-      );
+  (
+    Object.keys(LEAD_REFERENCE_EDIT_SOURCE_MAP) as LeadReferenceEditableField[]
+  ).forEach((field) => {
+    const sourceKeys = LEAD_REFERENCE_EDIT_SOURCE_MAP[field];
+    const hasValue = sourceKeys.some((key) =>
+      isLeadReferenceMeaningful(
+        (lead as unknown as Record<string, unknown>)[key],
+      ),
+    );
 
-      if (hasValue) {
-        editableFields.add(field);
-      }
-    },
-  );
+    if (hasValue) {
+      editableFields.add(field);
+    }
+  });
 
   return editableFields;
 };
@@ -897,7 +911,10 @@ export const CustomerDetails: React.FC = () => {
     setUploadingReference(true);
     try {
       const fileBase64 = await fileToBase64(referenceUploadFile);
-      const fileName = getUploadFileName(referenceUploadFile, referenceUploadTitle);
+      const fileName = getUploadFileName(
+        referenceUploadFile,
+        referenceUploadTitle,
+      );
 
       const uploadedAttachment = await uploadAttachment({
         entityType: "LEAD",
@@ -1070,7 +1087,10 @@ export const CustomerDetails: React.FC = () => {
             const apiLeadNotes = await LeadAPI.getLeadNotes(resolvedLeadId);
             leadNotes = mapLeadNotesToCustomerNotes(apiLeadNotes || []);
           } catch (leadNotesError) {
-            console.warn("Failed to fetch converted lead notes:", leadNotesError);
+            console.warn(
+              "Failed to fetch converted lead notes:",
+              leadNotesError,
+            );
           }
         }
 
@@ -1305,7 +1325,10 @@ export const CustomerDetails: React.FC = () => {
               ...fresh, // overwrite with fresh details
               // Normalize URL fields
               downloadUrl:
-                fresh.downloadUrl || fresh.url || fresh.fileUrl || fresh.storageUrl,
+                fresh.downloadUrl ||
+                fresh.url ||
+                fresh.fileUrl ||
+                fresh.storageUrl,
               attachmentType: fresh.attachmentType as KycDocType,
             } as KycDocument;
           } catch (e) {
@@ -1401,7 +1424,10 @@ export const CustomerDetails: React.FC = () => {
     if (!customerId) return;
     setBankDetailsSaving(true);
     try {
-      const savedBankDetails = await saveBankDetailsApi(customerId, bankDetails);
+      const savedBankDetails = await saveBankDetailsApi(
+        customerId,
+        bankDetails,
+      );
       setBankDetails(savedBankDetails);
       setCustomerData((prev) =>
         prev ? { ...prev, bankDetails: savedBankDetails } : prev,
@@ -1436,20 +1462,26 @@ export const CustomerDetails: React.FC = () => {
           (customerData?.convertedFromLead as unknown as LeadOption | null) ||
           null;
         const rawAttachments =
-          attachmentsResult.status === "fulfilled" ? attachmentsResult.value : [];
+          attachmentsResult.status === "fulfilled"
+            ? attachmentsResult.value
+            : [];
 
         if (leadResult.status === "rejected") {
-          console.warn("Lead details unavailable, using attachments only:", leadResult.reason);
+          console.warn(
+            "Lead details unavailable, using attachments only:",
+            leadResult.reason,
+          );
         }
 
         if (attachmentsResult.status === "rejected") {
-          console.warn("Lead attachments unavailable:", attachmentsResult.reason);
+          console.warn(
+            "Lead attachments unavailable:",
+            attachmentsResult.reason,
+          );
         }
 
         // Filter client-side to guarantee only this lead's files are shown
-        const attachments = rawAttachments.filter(
-          (a) => a.entityId === leadId,
-        );
+        const attachments = rawAttachments.filter((a) => a.entityId === leadId);
         setLeadReferenceData(lead || fallbackLeadFromCustomer);
         setLeadAttachments(attachments);
       } catch (err) {
@@ -1498,7 +1530,9 @@ export const CustomerDetails: React.FC = () => {
       "mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400";
     const fieldValue = leadReferenceEditForm[field] as string | boolean;
 
-    const getSelectOptions = (targetField: LeadReferenceEditableField): SelectOption[] => {
+    const getSelectOptions = (
+      targetField: LeadReferenceEditableField,
+    ): SelectOption[] => {
       const baseOptions =
         targetField === "source"
           ? leadSourceOptions
@@ -1530,10 +1564,14 @@ export const CustomerDetails: React.FC = () => {
       case "priority":
         return (
           <div key={field}>
-            <label className="text-xs text-gray-500 font-medium">Priority</label>
+            <label className="text-xs text-gray-500 font-medium">
+              Priority
+            </label>
             <select
               value={(fieldValue as string) || ""}
-              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              onChange={(e) =>
+                updateLeadReferenceEditField(field, e.target.value)
+              }
               className={`${commonInputClass} bg-white`}
             >
               <option value="">Select priority</option>
@@ -1572,7 +1610,9 @@ export const CustomerDetails: React.FC = () => {
             </label>
             <select
               value={(fieldValue as string) || ""}
-              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              onChange={(e) =>
+                updateLeadReferenceEditField(field, e.target.value)
+              }
               className={`${commonInputClass} bg-white`}
             >
               <option value="">Select...</option>
@@ -1603,7 +1643,9 @@ export const CustomerDetails: React.FC = () => {
             <input
               type="number"
               value={(fieldValue as string) || ""}
-              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              onChange={(e) =>
+                updateLeadReferenceEditField(field, e.target.value)
+              }
               className={commonInputClass}
             />
           </div>
@@ -1613,12 +1655,16 @@ export const CustomerDetails: React.FC = () => {
         return (
           <div key={field}>
             <label className="text-xs text-gray-500 font-medium">
-              {field === "expectedStartDate" ? "Expected Start Date" : "Move-in Date"}
+              {field === "expectedStartDate"
+                ? "Expected Start Date"
+                : "Move-in Date"}
             </label>
             <input
               type="date"
               value={(fieldValue as string) || ""}
-              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              onChange={(e) =>
+                updateLeadReferenceEditField(field, e.target.value)
+              }
               className={commonInputClass}
             />
           </div>
@@ -1634,7 +1680,9 @@ export const CustomerDetails: React.FC = () => {
             <input
               type="checkbox"
               checked={Boolean(fieldValue)}
-              onChange={(e) => updateLeadReferenceEditField(field, e.target.checked)}
+              onChange={(e) =>
+                updateLeadReferenceEditField(field, e.target.checked)
+              }
               className="rounded border-gray-300"
             />
             {field === "canWhatsApp"
@@ -1655,7 +1703,9 @@ export const CustomerDetails: React.FC = () => {
             <input
               type="text"
               value={(fieldValue as string) || ""}
-              onChange={(e) => updateLeadReferenceEditField(field, e.target.value)}
+              onChange={(e) =>
+                updateLeadReferenceEditField(field, e.target.value)
+              }
               className={commonInputClass}
             />
           </div>
@@ -1743,7 +1793,9 @@ export const CustomerDetails: React.FC = () => {
       }
 
       if (editableLeadReferenceFields.has("priority")) {
-        const nextPriority = leadReferenceEditForm.priority.trim().toLowerCase();
+        const nextPriority = leadReferenceEditForm.priority
+          .trim()
+          .toLowerCase();
         const previousPriority = toTextInputValue(currentLead.priority)
           .trim()
           .toLowerCase();
@@ -1757,7 +1809,10 @@ export const CustomerDetails: React.FC = () => {
       }
 
       if (editableLeadReferenceFields.has("score")) {
-        const nextScore = parseOptionalNumber(leadReferenceEditForm.score, "Score");
+        const nextScore = parseOptionalNumber(
+          leadReferenceEditForm.score,
+          "Score",
+        );
         const previousScore =
           typeof currentLead.score === "number" ? currentLead.score : undefined;
         if (nextScore !== undefined && nextScore !== previousScore) {
@@ -1766,7 +1821,10 @@ export const CustomerDetails: React.FC = () => {
       }
 
       if (editableLeadReferenceFields.has("area")) {
-        const nextArea = parseOptionalNumber(leadReferenceEditForm.area, "Area");
+        const nextArea = parseOptionalNumber(
+          leadReferenceEditForm.area,
+          "Area",
+        );
         const previousArea =
           typeof currentLead.area === "number" ? currentLead.area : undefined;
         if (nextArea !== undefined && nextArea !== previousArea) {
@@ -1783,7 +1841,10 @@ export const CustomerDetails: React.FC = () => {
           typeof currentLead.carpetArea === "number"
             ? currentLead.carpetArea
             : undefined;
-        if (nextCarpetArea !== undefined && nextCarpetArea !== previousCarpetArea) {
+        if (
+          nextCarpetArea !== undefined &&
+          nextCarpetArea !== previousCarpetArea
+        ) {
           updates.carpetArea = nextCarpetArea;
         }
       }
@@ -1855,7 +1916,8 @@ export const CustomerDetails: React.FC = () => {
         prev
           ? {
               ...prev,
-              convertedFromLead: updatedLead as unknown as APICustomer["convertedFromLead"],
+              convertedFromLead:
+                updatedLead as unknown as APICustomer["convertedFromLead"],
             }
           : prev,
       );
@@ -2799,7 +2861,7 @@ export const CustomerDetails: React.FC = () => {
             {customer.ownerName && (
               <div>
                 <p className="text-xs font-medium text-gray-400 mb-1">
-                 Lead By
+                  Lead By
                 </p>
                 <p className="text-sm font-semibold text-gray-900">
                   {customer.ownerName}
@@ -3077,7 +3139,9 @@ export const CustomerDetails: React.FC = () => {
                     {validationAlert && (
                       <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
                         <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-red-700">{validationAlert.message}</p>
+                        <p className="text-sm text-red-700">
+                          {validationAlert.message}
+                        </p>
                       </div>
                     )}
 
@@ -4223,7 +4287,8 @@ export const CustomerDetails: React.FC = () => {
                               Lead Reference Data
                             </h3>
                             <p className="text-xs text-gray-400 mt-1">
-                              Update lead-origin details for this customer. Changes are saved through lead update API.
+                              Update lead-origin details for this customer.
+                              Changes are saved through lead update API.
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -4261,7 +4326,9 @@ export const CustomerDetails: React.FC = () => {
                               ) : (
                                 <Pencil className="w-3.5 h-3.5" />
                               )}
-                              {leadReferenceEditing ? "Save Lead Changes" : "Edit Lead Data"}
+                              {leadReferenceEditing
+                                ? "Save Lead Changes"
+                                : "Edit Lead Data"}
                             </button>
                           </div>
                         </div>
@@ -4270,7 +4337,8 @@ export const CustomerDetails: React.FC = () => {
                           <div className="mt-5 pt-5 border-t border-gray-100 space-y-5">
                             {!hasEditableLeadReferenceFields ? (
                               <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-                                No currently visible lead fields are editable for this customer.
+                                No currently visible lead fields are editable
+                                for this customer.
                               </div>
                             ) : (
                               <>
@@ -4291,7 +4359,9 @@ export const CustomerDetails: React.FC = () => {
 
                                 {editableLeadReferenceFields.has("message") && (
                                   <div>
-                                    <label className="text-xs text-gray-500 font-medium">Message / Requirements</label>
+                                    <label className="text-xs text-gray-500 font-medium">
+                                      Message / Requirements
+                                    </label>
                                     <textarea
                                       rows={3}
                                       value={leadReferenceEditForm.message}
@@ -4344,11 +4414,14 @@ export const CustomerDetails: React.FC = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                  {["householdOrCompany", "budgetTier", "verificationAttempts"].map(
-                                    (field) =>
-                                      renderLeadReferenceEditField(
-                                        field as LeadReferenceEditableField,
-                                      ),
+                                  {[
+                                    "householdOrCompany",
+                                    "budgetTier",
+                                    "verificationAttempts",
+                                  ].map((field) =>
+                                    renderLeadReferenceEditField(
+                                      field as LeadReferenceEditableField,
+                                    ),
                                   )}
                                 </div>
 
@@ -4371,506 +4444,519 @@ export const CustomerDetails: React.FC = () => {
 
                       {/* Lead Origin Info */}
                       <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                    <div className="flex items-center gap-2 mb-5">
-                      <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                        <Tag className="w-4 h-4 text-orange-600" />
-                      </div>
-                      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                        Lead Information
-                      </h3>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {leadReferenceData?.source && (
-                        <div>
-                          <p className="text-xs text-gray-400 mb-0.5">Source</p>
-                          <p className="text-sm font-medium text-gray-800 capitalize">
-                            {String(leadReferenceData.source).replace(
-                              /_/g,
-                              " ",
-                            )}
-                          </p>
+                        <div className="flex items-center gap-2 mb-5">
+                          <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                            <Tag className="w-4 h-4 text-orange-600" />
+                          </div>
+                          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                            Lead Information
+                          </h3>
                         </div>
-                      )}
-                      {leadReferenceData?.status && (
-                        <div>
-                          <p className="text-xs text-gray-400 mb-0.5">Status</p>
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              leadReferenceData.status === "CONVERTED"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-blue-100 text-blue-700"
-                            }`}
-                          >
-                            {leadReferenceData.status}
-                          </span>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {leadReferenceData?.source && (
+                            <div>
+                              <p className="text-xs text-gray-400 mb-0.5">
+                                Source
+                              </p>
+                              <p className="text-sm font-medium text-gray-800 capitalize">
+                                {String(leadReferenceData.source).replace(
+                                  /_/g,
+                                  " ",
+                                )}
+                              </p>
+                            </div>
+                          )}
+                          {leadReferenceData?.status && (
+                            <div>
+                              <p className="text-xs text-gray-400 mb-0.5">
+                                Status
+                              </p>
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  leadReferenceData.status === "CONVERTED"
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-blue-100 text-blue-700"
+                                }`}
+                              >
+                                {leadReferenceData.status}
+                              </span>
+                            </div>
+                          )}
+                          {leadReferenceData?.stage && (
+                            <div>
+                              <p className="text-xs text-gray-400 mb-0.5">
+                                Stage
+                              </p>
+                              <p className="text-sm font-medium text-gray-800 capitalize">
+                                {String(leadReferenceData.stage).replace(
+                                  /_/g,
+                                  " ",
+                                )}
+                              </p>
+                            </div>
+                          )}
+                          {leadReferenceData?.score !== undefined && (
+                            <div>
+                              <p className="text-xs text-gray-400 mb-0.5">
+                                Lead Score
+                              </p>
+                              <p className="text-sm font-medium text-gray-800">
+                                {leadReferenceData.score}
+                              </p>
+                            </div>
+                          )}
+                          {leadReferenceData?.priority && (
+                            <div>
+                              <p className="text-xs text-gray-400 mb-0.5">
+                                Priority
+                              </p>
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                                  leadReferenceData.priority === "high"
+                                    ? "bg-red-100 text-red-700"
+                                    : leadReferenceData.priority === "medium"
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {leadReferenceData.priority}
+                              </span>
+                            </div>
+                          )}
+                          {leadReferenceData?.createdAt && (
+                            <div>
+                              <p className="text-xs text-gray-400 mb-0.5">
+                                Lead Created
+                              </p>
+                              <p className="text-sm font-medium text-gray-800">
+                                {new Date(
+                                  leadReferenceData.createdAt,
+                                ).toLocaleDateString("en-IN", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {leadReferenceData?.stage && (
-                        <div>
-                          <p className="text-xs text-gray-400 mb-0.5">Stage</p>
-                          <p className="text-sm font-medium text-gray-800 capitalize">
-                            {String(leadReferenceData.stage).replace(/_/g, " ")}
-                          </p>
-                        </div>
-                      )}
-                      {leadReferenceData?.score !== undefined && (
-                        <div>
-                          <p className="text-xs text-gray-400 mb-0.5">
-                            Lead Score
-                          </p>
-                          <p className="text-sm font-medium text-gray-800">
-                            {leadReferenceData.score}
-                          </p>
-                        </div>
-                      )}
-                      {leadReferenceData?.priority && (
-                        <div>
-                          <p className="text-xs text-gray-400 mb-0.5">
-                            Priority
-                          </p>
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                              leadReferenceData.priority === "high"
-                                ? "bg-red-100 text-red-700"
-                                : leadReferenceData.priority === "medium"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {leadReferenceData.priority}
-                          </span>
-                        </div>
-                      )}
-                      {leadReferenceData?.createdAt && (
-                        <div>
-                          <p className="text-xs text-gray-400 mb-0.5">
-                            Lead Created
-                          </p>
-                          <p className="text-sm font-medium text-gray-800">
-                            {new Date(
-                              leadReferenceData.createdAt,
-                            ).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    {(leadReferenceData?.message ||
-                      leadReferenceData?.requirements ||
-                      leadReferenceData?.notes) && (
-                      <div className="mt-4 pt-4 border-t border-gray-100">
-                        <p className="text-xs text-gray-400 mb-1">
-                          Message / Requirements
-                        </p>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {leadReferenceData.message ||
-                            leadReferenceData.requirements ||
-                            leadReferenceData.notes}
-                        </p>
-                      </div>
-                    )}
+                        {(leadReferenceData?.message ||
+                          leadReferenceData?.requirements ||
+                          leadReferenceData?.notes) && (
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <p className="text-xs text-gray-400 mb-1">
+                              Message / Requirements
+                            </p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {leadReferenceData.message ||
+                                leadReferenceData.requirements ||
+                                leadReferenceData.notes}
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       {/* Project Requirements */}
                       {(leadReferenceData?.projectType ||
-                    leadReferenceData?.propertyType ||
-                    leadReferenceData?.bhkConfig ||
-                    leadReferenceData?.carpetArea ||
-                    leadReferenceData?.location ||
-                    leadReferenceData?.city ||
-                    leadReferenceData?.locality ||
-                    leadReferenceData?.homeType ||
-                    leadReferenceData?.propertyProjectType ||
-                    leadReferenceData?.projectScope ||
-                    leadReferenceData?.projectStage ||
-                    leadReferenceData?.area) && (
-                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                      <div className="flex items-center gap-2 mb-5">
-                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                          <Home className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                          Project Requirements
-                        </h3>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {leadReferenceData?.projectType && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Project Type
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.projectType}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.propertyProjectType && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Property / Project Type
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.propertyProjectType}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.propertyType && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Property Type
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.propertyType}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.homeType && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Home Type
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.homeType}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.bhkConfig && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              BHK Config
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.bhkConfig}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.carpetArea && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Carpet Area
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.carpetArea} sq.ft
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.area && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">Area</p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.area} sq.ft
-                            </p>
-                          </div>
-                        )}
-                        {(leadReferenceData?.city ||
-                          leadReferenceData?.locality ||
-                          leadReferenceData?.location) && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Location
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {[
-                                leadReferenceData.locality,
-                                leadReferenceData.city,
-                                leadReferenceData.location,
-                              ]
-                                .filter(Boolean)
-                                .join(", ")}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.projectStage && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Project Stage
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.projectStage}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.projectScope && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Project Scope
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.projectScope}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      {leadReferenceData?.scopeOfWork &&
-                        leadReferenceData.scopeOfWork.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-gray-100">
-                            <p className="text-xs text-gray-400 mb-2">
-                              Scope of Work
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {leadReferenceData.scopeOfWork.map((item, i) => (
-                                <span
-                                  key={i}
-                                  className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium"
-                                >
-                                  {item}
-                                </span>
-                              ))}
+                        leadReferenceData?.propertyType ||
+                        leadReferenceData?.bhkConfig ||
+                        leadReferenceData?.carpetArea ||
+                        leadReferenceData?.location ||
+                        leadReferenceData?.city ||
+                        leadReferenceData?.locality ||
+                        leadReferenceData?.homeType ||
+                        leadReferenceData?.propertyProjectType ||
+                        leadReferenceData?.projectScope ||
+                        leadReferenceData?.projectStage ||
+                        leadReferenceData?.area) && (
+                        <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                          <div className="flex items-center gap-2 mb-5">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                              <Home className="w-4 h-4 text-blue-600" />
                             </div>
+                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                              Project Requirements
+                            </h3>
                           </div>
-                        )}
-                      {leadReferenceData?.servicesInterested &&
-                        leadReferenceData.servicesInterested.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-xs text-gray-400 mb-2">
-                              Services Interested
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {leadReferenceData.servicesInterested.map(
-                                (item, i) => (
-                                  <span
-                                    key={i}
-                                    className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium"
-                                  >
-                                    {item}
-                                  </span>
-                                ),
-                              )}
-                            </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {leadReferenceData?.projectType && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Project Type
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.projectType}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.propertyProjectType && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Property / Project Type
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.propertyProjectType}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.propertyType && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Property Type
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.propertyType}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.homeType && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Home Type
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.homeType}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.bhkConfig && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  BHK Config
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.bhkConfig}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.carpetArea && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Carpet Area
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.carpetArea} sq.ft
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.area && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Area
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.area} sq.ft
+                                </p>
+                              </div>
+                            )}
+                            {(leadReferenceData?.city ||
+                              leadReferenceData?.locality ||
+                              leadReferenceData?.location) && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Location
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {[
+                                    leadReferenceData.locality,
+                                    leadReferenceData.city,
+                                    leadReferenceData.location,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(", ")}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.projectStage && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Project Stage
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.projectStage}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.projectScope && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Project Scope
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.projectScope}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                        )}
+                          {leadReferenceData?.scopeOfWork &&
+                            leadReferenceData.scopeOfWork.length > 0 && (
+                              <div className="mt-4 pt-4 border-t border-gray-100">
+                                <p className="text-xs text-gray-400 mb-2">
+                                  Scope of Work
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {leadReferenceData.scopeOfWork.map(
+                                    (item, i) => (
+                                      <span
+                                        key={i}
+                                        className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium"
+                                      >
+                                        {item}
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          {leadReferenceData?.servicesInterested &&
+                            leadReferenceData.servicesInterested.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-xs text-gray-400 mb-2">
+                                  Services Interested
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {leadReferenceData.servicesInterested.map(
+                                    (item, i) => (
+                                      <span
+                                        key={i}
+                                        className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium"
+                                      >
+                                        {item}
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
                         </div>
                       )}
 
                       {/* Budget & Timeline */}
                       {(leadReferenceData?.budget ||
-                    leadReferenceData?.budgetRange ||
-                    leadReferenceData?.budgetComfort ||
-                    leadReferenceData?.timeline ||
-                    leadReferenceData?.startTimeline ||
-                    leadReferenceData?.expectedStartDate ||
-                    leadReferenceData?.moveinDate) && (
-                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                      <div className="flex items-center gap-2 mb-5">
-                        <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                          <DollarSign className="w-4 h-4 text-green-600" />
-                        </div>
-                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                          Budget & Timeline
-                        </h3>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {leadReferenceData?.budget && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Budget
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.budget}
-                            </p>
+                        leadReferenceData?.budgetRange ||
+                        leadReferenceData?.budgetComfort ||
+                        leadReferenceData?.timeline ||
+                        leadReferenceData?.startTimeline ||
+                        leadReferenceData?.expectedStartDate ||
+                        leadReferenceData?.moveinDate) && (
+                        <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                          <div className="flex items-center gap-2 mb-5">
+                            <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                              <DollarSign className="w-4 h-4 text-green-600" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                              Budget & Timeline
+                            </h3>
                           </div>
-                        )}
-                        {leadReferenceData?.budgetRange && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Budget Range
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.budgetRange}
-                            </p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {leadReferenceData?.budget && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Budget
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.budget}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.budgetRange && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Budget Range
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.budgetRange}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.budgetComfort && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Budget Comfort
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.budgetComfort}
+                                </p>
+                              </div>
+                            )}
+                            {(leadReferenceData?.timeline ||
+                              leadReferenceData?.startTimeline) && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Timeline
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.timeline ||
+                                    leadReferenceData.startTimeline}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.expectedStartDate && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Expected Start
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {new Date(
+                                    leadReferenceData.expectedStartDate,
+                                  ).toLocaleDateString("en-IN", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.moveinDate && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Move-in Date
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {new Date(
+                                    leadReferenceData.moveinDate,
+                                  ).toLocaleDateString("en-IN", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {leadReferenceData?.budgetComfort && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Budget Comfort
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.budgetComfort}
-                            </p>
-                          </div>
-                        )}
-                        {(leadReferenceData?.timeline ||
-                          leadReferenceData?.startTimeline) && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Timeline
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.timeline ||
-                                leadReferenceData.startTimeline}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.expectedStartDate && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Expected Start
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {new Date(
-                                leadReferenceData.expectedStartDate,
-                              ).toLocaleDateString("en-IN", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.moveinDate && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Move-in Date
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {new Date(
-                                leadReferenceData.moveinDate,
-                              ).toLocaleDateString("en-IN", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </p>
-                          </div>
-                        )}
-                      </div>
                         </div>
                       )}
 
                       {/* Design Preferences */}
                       {(leadReferenceData?.designStyle?.length ||
-                    leadReferenceData?.colorPreferences?.length ||
-                    leadReferenceData?.serviceInterest) && (
-                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                      <div className="flex items-center gap-2 mb-5">
-                        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-                          <Layers className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                          Design Preferences
-                        </h3>
-                      </div>
-                      {leadReferenceData?.serviceInterest && (
-                        <div className="mb-4">
-                          <p className="text-xs text-gray-400 mb-0.5">
-                            Service Interest
-                          </p>
-                          <p className="text-sm font-medium text-gray-800">
-                            {leadReferenceData.serviceInterest}
-                          </p>
-                        </div>
-                      )}
-                      {leadReferenceData?.designStyle &&
-                        leadReferenceData.designStyle.length > 0 && (
-                          <div className="mb-3">
-                            <p className="text-xs text-gray-400 mb-2">
-                              Design Style
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {leadReferenceData.designStyle.map((s, i) => (
-                                <span
-                                  key={i}
-                                  className="px-2.5 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-medium"
-                                >
-                                  {s}
-                                </span>
-                              ))}
+                        leadReferenceData?.colorPreferences?.length ||
+                        leadReferenceData?.serviceInterest) && (
+                        <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                          <div className="flex items-center gap-2 mb-5">
+                            <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                              <Layers className="w-4 h-4 text-purple-600" />
                             </div>
+                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                              Design Preferences
+                            </h3>
                           </div>
-                        )}
-                      {leadReferenceData?.colorPreferences &&
-                        leadReferenceData.colorPreferences.length > 0 && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-2">
-                              Color Preferences
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {leadReferenceData.colorPreferences.map(
-                                (c, i) => (
-                                  <span
-                                    key={i}
-                                    className="px-2.5 py-1 bg-pink-50 text-pink-700 rounded-lg text-xs font-medium"
-                                  >
-                                    {c}
-                                  </span>
-                                ),
-                              )}
+                          {leadReferenceData?.serviceInterest && (
+                            <div className="mb-4">
+                              <p className="text-xs text-gray-400 mb-0.5">
+                                Service Interest
+                              </p>
+                              <p className="text-sm font-medium text-gray-800">
+                                {leadReferenceData.serviceInterest}
+                              </p>
                             </div>
-                          </div>
-                        )}
+                          )}
+                          {leadReferenceData?.designStyle &&
+                            leadReferenceData.designStyle.length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-xs text-gray-400 mb-2">
+                                  Design Style
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {leadReferenceData.designStyle.map((s, i) => (
+                                    <span
+                                      key={i}
+                                      className="px-2.5 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-medium"
+                                    >
+                                      {s}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          {leadReferenceData?.colorPreferences &&
+                            leadReferenceData.colorPreferences.length > 0 && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-2">
+                                  Color Preferences
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {leadReferenceData.colorPreferences.map(
+                                    (c, i) => (
+                                      <span
+                                        key={i}
+                                        className="px-2.5 py-1 bg-pink-50 text-pink-700 rounded-lg text-xs font-medium"
+                                      >
+                                        {c}
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
                         </div>
                       )}
 
                       {/* Referral Info */}
                       {(leadReferenceData?.referrerName ||
-                    leadReferenceData?.referrerPhone ||
-                    leadReferenceData?.referrerProjectNumber ||
-                    leadReferenceData?.agentAgencyName) && (
-                      <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                      <div className="flex items-center gap-2 mb-5">
-                        <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
-                          <UserPlus className="w-4 h-4 text-teal-600" />
-                        </div>
-                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                          Referral Source
-                        </h3>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {leadReferenceData?.referrerName && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Referrer Name
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.referrerName}
-                            </p>
+                        leadReferenceData?.referrerPhone ||
+                        leadReferenceData?.referrerProjectNumber ||
+                        leadReferenceData?.agentAgencyName) && (
+                        <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                          <div className="flex items-center gap-2 mb-5">
+                            <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
+                              <UserPlus className="w-4 h-4 text-teal-600" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                              Referral Source
+                            </h3>
                           </div>
-                        )}
-                        {leadReferenceData?.referrerPhone && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Referrer Phone
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.referrerPhone}
-                            </p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {leadReferenceData?.referrerName && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Referrer Name
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.referrerName}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.referrerPhone && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Referrer Phone
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.referrerPhone}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.referrerProjectNumber && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Project Number
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.referrerProjectNumber}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.agentAgencyName && (
+                              <div>
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Agent / Agency
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.agentAgencyName}
+                                </p>
+                              </div>
+                            )}
+                            {leadReferenceData?.agentAgencyDetails && (
+                              <div className="col-span-2">
+                                <p className="text-xs text-gray-400 mb-0.5">
+                                  Agency Details
+                                </p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {leadReferenceData.agentAgencyDetails}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {leadReferenceData?.referrerProjectNumber && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Project Number
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.referrerProjectNumber}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.agentAgencyName && (
-                          <div>
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Agent / Agency
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.agentAgencyName}
-                            </p>
-                          </div>
-                        )}
-                        {leadReferenceData?.agentAgencyDetails && (
-                          <div className="col-span-2">
-                            <p className="text-xs text-gray-400 mb-0.5">
-                              Agency Details
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {leadReferenceData.agentAgencyDetails}
-                            </p>
-                          </div>
-                        )}
-                      </div>
                         </div>
                       )}
 
@@ -4988,7 +5074,9 @@ export const CustomerDetails: React.FC = () => {
                           </p>
                           <button
                             onClick={handleUploadLeadReference}
-                            disabled={!referenceUploadFile || uploadingReference}
+                            disabled={
+                              !referenceUploadFile || uploadingReference
+                            }
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
                           >
                             {uploadingReference ? (

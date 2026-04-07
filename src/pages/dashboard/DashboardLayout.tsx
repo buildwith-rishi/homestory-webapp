@@ -96,7 +96,7 @@ export const DashboardLayout: React.FC = () => {
                 ? "pt-16 px-0 pb-0"
                 : isProjectDetailsRoute
                   ? "pt-[72px] px-2 sm:px-3 lg:px-4 pb-5"
-                : "pt-20 px-3 sm:px-4 lg:px-6 pb-6"
+                  : "pt-20 px-3 sm:px-4 lg:px-6 pb-6"
             }`}
           >
             <Outlet />
