@@ -191,6 +191,53 @@ const toCurrencyNumber = (value: unknown): number => {
   return 0;
 };
 
+/** Map API / legacy values to UI lifecycle status for filtering and display */
+const normalizeCustomerStatus = (
+  raw: string | undefined | null,
+): Customer["status"] => {
+  const s = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  if (["active", "inactive", "completed", "churned"].includes(s)) {
+    return s as Customer["status"];
+  }
+  if (s === "deactivated" || s === "disabled") return "inactive";
+  if (s === "closed" || s === "done") return "completed";
+  if (s === "cancelled" || s === "canceled") return "churned";
+  return "active";
+};
+
+/** Customer type string for Residential / Commercial filters (API may use aliases) */
+const getCustomerTypeKey = (t: unknown): string => {
+  if (typeof t === "string") return t.trim().toUpperCase();
+  if (t && typeof t === "object" && "value" in (t as object)) {
+    const v = (t as { value?: unknown }).value;
+    if (typeof v === "string") return v.trim().toUpperCase();
+  }
+  return "";
+};
+
+const customerTypeMatchesFilter = (
+  customerType: unknown,
+  filter: string,
+): boolean => {
+  if (filter === "all") return true;
+  const key = getCustomerTypeKey(customerType);
+  const f = filter.toUpperCase();
+  if (f === "RESIDENTIAL") {
+    return (
+      key === "RESIDENTIAL" ||
+      key === "HOME" ||
+      key === "HOUSEHOLD"
+    );
+  }
+  if (f === "COMMERCIAL") {
+    return key === "COMMERCIAL" || key === "COMMERCIAL_PROPERTY";
+  }
+  return key === f;
+};
+
 const customerPropertyTypeOptions = [
   { value: "HOME", label: "Home" },
   { value: "RESIDENTIAL", label: "Residential" },
@@ -2957,29 +3004,22 @@ export const Customers: React.FC = () => {
         const contactsByAccountId = contactsCacheRef.current.byAccountId;
         const projectAggByAccountId = projectsAggCacheRef.current.byAccountId;
 
-        // Map API customers to UI Customer format
-        const activeCustomersOnly = (response.customers || []).filter(
+        // Map API customers to UI Customer format (include inactive lifecycle statuses;
+        // only exclude truly deleted / removed records).
+        const listableCustomers = (response.customers || []).filter(
           (apiCustomer: APICustomer & {
-            isActive?: boolean;
             isDeleted?: boolean;
             deletedAt?: string | null;
           }) => {
             const status = (apiCustomer.status || "").toLowerCase();
-            // Deactivated / soft-deleted customers should not be shown in the dashboard list.
-            if (apiCustomer.isActive === false) return false;
             if (apiCustomer.isDeleted === true) return false;
             if (apiCustomer.deletedAt) return false;
-            if (
-              status === "inactive" ||
-              status === "deactivated" ||
-              status === "deleted"
-            )
-              return false;
+            if (status === "deleted") return false;
             return true;
           },
         );
 
-        const mappedCustomers: Customer[] = activeCustomersOnly.map(
+        const mappedCustomers: Customer[] = listableCustomers.map(
           (apiCustomer) => {
             const initials = apiCustomer.name
               .split(" ")
@@ -3070,12 +3110,7 @@ export const Customers: React.FC = () => {
                 apiCustomer.projects?.length ||
                 0,
               totalValue: projectAgg?.totalValue || embeddedProjectValue,
-              status:
-                (apiCustomer.status?.toLowerCase() as
-                  | "active"
-                  | "completed"
-                  | "inactive"
-                  | "churned") || "active",
+              status: normalizeCustomerStatus(apiCustomer.status),
               rating: 0,
               lastContact: apiCustomer.updatedAt
                 ? new Date(apiCustomer.updatedAt).toLocaleDateString()
@@ -3280,40 +3315,48 @@ export const Customers: React.FC = () => {
     // Store previous state for rollback
     const previousCustomers = [...customers];
 
+    const normalizedUpdate: Customer = {
+      ...updatedCustomer,
+      status: normalizeCustomerStatus(updatedCustomer.status as string),
+    };
+
     // Optimistic update - update UI immediately
     setCustomers(
-      customers.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c)),
+      customers.map((c) =>
+        c.id === normalizedUpdate.id ? normalizedUpdate : c,
+      ),
     );
 
     try {
       // Call backend API to persist changes
       const customerToUpdate: Partial<APICustomer> = {
-        name: updatedCustomer.name?.trim(),
-        type: updatedCustomer.type || undefined,
-        status: (updatedCustomer.status || "active").toUpperCase(),
+        name: normalizedUpdate.name?.trim(),
+        type: normalizedUpdate.type || undefined,
+        status: (normalizedUpdate.status || "active").toUpperCase(),
         email:
-          updatedCustomer.email && updatedCustomer.email !== "No email"
-            ? updatedCustomer.email.trim()
+          normalizedUpdate.email && normalizedUpdate.email !== "No email"
+            ? normalizedUpdate.email.trim()
             : undefined,
         phone:
-          updatedCustomer.phone && updatedCustomer.phone !== "No phone"
-            ? updatedCustomer.phone.trim()
+          normalizedUpdate.phone && normalizedUpdate.phone !== "No phone"
+            ? normalizedUpdate.phone.trim()
             : undefined,
-        secondaryEmails: (updatedCustomer.secondaryEmails || [])
+        secondaryEmails: (normalizedUpdate.secondaryEmails || [])
           .map((email) => email.trim())
           .filter(Boolean),
-        secondaryPhones: (updatedCustomer.secondaryPhones || [])
+        secondaryPhones: (normalizedUpdate.secondaryPhones || [])
           .map((phone) => phone.trim())
           .filter(Boolean),
       };
 
       await CustomerAPI.updateCustomer(
-        String(updatedCustomer.id),
+        String(normalizedUpdate.id),
         customerToUpdate as any,
       );
 
       // Success! Show success message
       toast.success("Customer updated successfully!");
+      await fetchCustomers(searchQuery.trim() || undefined);
       // Modal will be closed by the caller
     } catch (error: any) {
       console.error("Failed to update customer:", error);
@@ -3372,18 +3415,14 @@ export const Customers: React.FC = () => {
 
   // Filter customers based on active filters
   const filteredCustomers = customers.filter((customer) => {
-    // Type filter — case-insensitive comparison
-    if (
-      activeTypeFilter !== "all" &&
-      (customer.type || "").toUpperCase() !== activeTypeFilter.toUpperCase()
-    ) {
+    if (!customerTypeMatchesFilter(customer.type, activeTypeFilter)) {
       return false;
     }
 
-    // Status filter
+    const lifecycle = normalizeCustomerStatus(customer.status);
     if (
       activeStatusFilter !== "all" &&
-      customer.status !== activeStatusFilter
+      lifecycle !== activeStatusFilter
     ) {
       return false;
     }
