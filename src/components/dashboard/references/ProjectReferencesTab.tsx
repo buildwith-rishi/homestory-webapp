@@ -37,9 +37,95 @@ import {
   getReferenceTypes,
 } from "../../../services/projectApi";
 import type { OptionItemWithDescription } from "../../../types";
+import {
+  listAttachments,
+  getAttachment,
+  type Attachment,
+} from "../../../services/attachmentApi";
+import { getCustomerById } from "../../../services/customerApi";
+import type { Customer } from "../../../types/customer";
+
+/** Same lead resolution as CustomerDetails when loading references. */
+function resolveLeadIdFromCustomerRecord(customer: Customer): string {
+  const extra = customer as Customer & {
+    leadId?: string | null;
+    lead?: { id?: string };
+  };
+  return (
+    extra.convertedFromLeadId?.trim() ||
+    customer.convertedFromLead?.id?.trim() ||
+    extra.leadId?.trim() ||
+    extra.lead?.id?.trim() ||
+    ""
+  );
+}
+
+/** Rows mirrored from customer attachment APIs (not editable as project references). */
+export type ReferenceRow = ProjectReference & {
+  inheritSource?: "lead" | "account";
+  sourceAttachmentId?: string;
+};
+
+function attachmentToReferenceRow(
+  a: Attachment,
+  projectId: string,
+  source: "lead" | "account",
+): ReferenceRow {
+  const refType =
+    a.fileType?.startsWith("image/")
+      ? "PHOTO"
+      : a.fileType === "application/pdf"
+        ? "PDF"
+        : "DOCUMENT";
+  const url =
+    a.downloadUrl || a.fileUrl || a.storageUrl || a.url || null;
+  const iso = a.createdAt || a.uploadedAt || new Date().toISOString();
+  return {
+    id: `inherited-${source}-${a.id}`,
+    projectId,
+    referenceType: refType,
+    fileName: a.fileName,
+    fileType: a.fileType,
+    fileSize: a.fileSize ?? null,
+    storageUrl: a.storageUrl ?? a.fileUrl ?? null,
+    downloadUrl: url,
+    linkUrl: null,
+    linkTitle: null,
+    title: a.fileName,
+    description: a.notes ?? null,
+    notes: a.notes ?? null,
+    category: "REFERENCES",
+    subCategory: null,
+    tags: [],
+    uploadedById: a.uploadedByUser?.id ?? "",
+    createdAt: iso,
+    updatedAt: a.updatedAt || iso,
+    uploadedBy: {
+      id: a.uploadedByUser?.id ?? "",
+      name: a.uploadedByUser?.name ?? "",
+    },
+    inheritSource: source,
+    sourceAttachmentId: a.id,
+  };
+}
+
+function isInheritedRef(ref: ReferenceRow): boolean {
+  return ref.inheritSource === "lead" || ref.inheritSource === "account";
+}
+
+function getInheritedAttachmentId(ref: ReferenceRow): string | null {
+  if (!isInheritedRef(ref)) return null;
+  if (ref.sourceAttachmentId) return ref.sourceAttachmentId;
+  const match = ref.id.match(/^inherited-(?:lead|account)-(.+)$/);
+  return match?.[1] || null;
+}
 
 interface ProjectReferencesTabProps {
   projectId: string;
+  /** Linked customer account — used to resolve leadId and to load ACCOUNT attachments. */
+  accountId?: string | null;
+  /** Lead id on the project; if missing, resolved from the customer record when accountId is set. */
+  leadId?: string | null;
 }
 
 type ViewMode = "grid" | "list";
@@ -89,7 +175,7 @@ const formatFileSize = (bytes: number | null): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const getReferenceNotes = (reference: ProjectReference): string => {
+const getReferenceNotes = (reference: ReferenceRow): string => {
   const text = [reference.notes, reference.description].find(
     (value) => typeof value === "string" && value.trim().length > 0,
   );
@@ -98,8 +184,10 @@ const getReferenceNotes = (reference: ProjectReference): string => {
 
 export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   projectId,
+  accountId,
+  leadId,
 }) => {
-  const [references, setReferences] = useState<ProjectReference[]>([]);
+  const [references, setReferences] = useState<ReferenceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -165,7 +253,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   const quotationFileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit modal
-  const [editingRef, setEditingRef] = useState<ProjectReference | null>(null);
+  const [editingRef, setEditingRef] = useState<ReferenceRow | null>(null);
   const [editForm, setEditForm] = useState({
     notes: "",
     category: "",
@@ -181,23 +269,77 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Preview
-  const [previewRef, setPreviewRef] = useState<ProjectReference | null>(null);
+  const [previewRef, setPreviewRef] = useState<ReferenceRow | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
-  // ── Fetch references ──
+  // ── Fetch references: project API + customer lead & account attachments ──
   const fetchReferences = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getProjectReferences(projectId);
-      setReferences(data.references || []);
-      setTotal(data.total || 0);
+      const accountIdTrim = accountId?.trim() || "";
+      let leadIdTrim = leadId?.trim() || "";
+
+      // When a customer is linked, their record is the source of truth for lead-phase files
+      // (same as Customer → References). Also fills leadId when the project only had account set.
+      if (accountIdTrim) {
+        try {
+          const customer = await getCustomerById(accountIdTrim);
+          const fromCustomer = resolveLeadIdFromCustomerRecord(customer);
+          if (fromCustomer) {
+            leadIdTrim = fromCustomer;
+          }
+        } catch (e) {
+          console.warn(
+            "Could not load customer for project references (lead/account files):",
+            e,
+          );
+        }
+      }
+
+      const [projectRes, leadAtts, accountAtts] = await Promise.all([
+        getProjectReferences(projectId),
+        leadIdTrim
+          ? listAttachments("LEAD", leadIdTrim, 200).catch((e) => {
+              console.warn("Lead attachments for project references:", e);
+              return [] as Attachment[];
+            })
+          : Promise.resolve([] as Attachment[]),
+        accountIdTrim
+          ? listAttachments("ACCOUNT", accountIdTrim, 200).catch((e) => {
+              console.warn("Account attachments for project references:", e);
+              return [] as Attachment[];
+            })
+          : Promise.resolve([] as Attachment[]),
+      ]);
+
+      const projectRefs: ReferenceRow[] = (projectRes.references || []).map(
+        (r) => ({ ...r }),
+      );
+
+      const seenAttachmentIds = new Set<string>();
+      const inherited: ReferenceRow[] = [];
+
+      for (const a of leadAtts.filter((x) => x.entityId === leadIdTrim)) {
+        if (seenAttachmentIds.has(a.id)) continue;
+        seenAttachmentIds.add(a.id);
+        inherited.push(attachmentToReferenceRow(a, projectId, "lead"));
+      }
+      for (const a of accountAtts.filter((x) => x.entityId === accountIdTrim)) {
+        if (seenAttachmentIds.has(a.id)) continue;
+        seenAttachmentIds.add(a.id);
+        inherited.push(attachmentToReferenceRow(a, projectId, "account"));
+      }
+
+      const merged: ReferenceRow[] = [...inherited, ...projectRefs];
+      setReferences(merged);
+      setTotal(merged.length);
     } catch (error) {
       console.error("Error fetching references:", error);
       toast.error("Failed to load references");
     } finally {
       setIsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, accountId, leadId]);
 
   // ── Fetch options ──
   useEffect(() => {
@@ -353,6 +495,12 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   // ── Update reference ──
   const handleSaveEdit = async () => {
     if (!editingRef) return;
+    if (isInheritedRef(editingRef)) {
+      toast.error(
+        "This file is managed on the customer profile. Edit it there.",
+      );
+      return;
+    }
 
     if (editingRef.referenceType === "LINK") {
       if (!editForm.linkUrl || !editForm.linkTitle || !editForm.category) {
@@ -397,6 +545,14 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   // ── Delete reference ──
   const handleDelete = async () => {
     if (!deletingId) return;
+    const target = references.find((r) => r.id === deletingId);
+    if (target && isInheritedRef(target)) {
+      toast.error(
+        "This file is linked from the customer record. Manage it from the customer profile.",
+      );
+      setDeletingId(null);
+      return;
+    }
     setIsDeleting(true);
     try {
       await deleteProjectReference(projectId, deletingId);
@@ -413,7 +569,36 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   };
 
   // ── Download reference ──
-  const handleDownload = async (ref: ProjectReference) => {
+  const handleDownload = async (ref: ReferenceRow) => {
+    if (isInheritedRef(ref)) {
+      try {
+        const attachmentId = getInheritedAttachmentId(ref);
+        if (!attachmentId) {
+          toast.error("Attachment id not found");
+          return;
+        }
+        const fresh = await getAttachment(attachmentId);
+        const fileUrl =
+          fresh.downloadUrl || fresh.url || fresh.fileUrl || fresh.storageUrl;
+        if (!fileUrl) {
+          toast.error("File URL not available for this attachment");
+          return;
+        }
+        const a = document.createElement("a");
+        a.href = fileUrl;
+        a.download = fresh.fileName || ref.fileName || `reference-${ref.id}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to download",
+        );
+        return;
+      }
+    }
+
     if (ref.downloadUrl) {
       const a = document.createElement("a");
       a.href = ref.downloadUrl;
@@ -443,7 +628,35 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   };
 
   // ── View file in new tab (uses authenticated download endpoint) ──
-  const handleViewFile = async (ref: ProjectReference) => {
+  const handleViewFile = async (ref: ReferenceRow) => {
+    if (isInheritedRef(ref)) {
+      try {
+        const attachmentId = getInheritedAttachmentId(ref);
+        if (!attachmentId) {
+          toast.error("Attachment id not found");
+          return;
+        }
+        // Required flow: always resolve a fresh signed URL per attachment id.
+        const fresh = await getAttachment(attachmentId);
+        const fileUrl =
+          fresh.downloadUrl || fresh.url || fresh.fileUrl || fresh.storageUrl;
+        if (!fileUrl) {
+          toast.error("File URL not available for this attachment");
+          return;
+        }
+        const win = window.open(fileUrl, "_blank");
+        if (!win) {
+          toast.error("Please allow popups to view this file.");
+        }
+        return;
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to open file",
+        );
+        return;
+      }
+    }
+
     if (ref.downloadUrl) {
       window.open(ref.downloadUrl, "_blank");
       return;
@@ -467,7 +680,13 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     }
   };
 
-  const openEdit = (ref: ProjectReference) => {
+  const openEdit = (ref: ReferenceRow) => {
+    if (isInheritedRef(ref)) {
+      toast.error(
+        "Lead-phase files are edited from the customer profile.",
+      );
+      return;
+    }
     setEditingRef(ref);
     setEditForm({
       notes: ref.notes || ref.description || "",
@@ -479,12 +698,16 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     });
   };
 
-  const handleOpenPreview = async (ref: ProjectReference) => {
+  const handleOpenPreview = async (ref: ReferenceRow) => {
     setPreviewRef(ref);
     setIsLoadingPreview(true);
+    if (isInheritedRef(ref)) {
+      setIsLoadingPreview(false);
+      return;
+    }
     try {
       const fullReference = await getProjectReference(projectId, ref.id);
-      setPreviewRef(fullReference);
+      setPreviewRef(fullReference as ReferenceRow);
     } catch {
       // Keep existing reference snapshot if detail fetch fails.
     } finally {
@@ -510,8 +733,13 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
             References & Inspirations
           </h2>
           <p className="text-gray-500 mt-1">
-            {total} {total === 1 ? "reference" : "references"} saved for this
-            project
+            {total} {total === 1 ? "reference" : "references"} for this project
+            {references.some((r) => isInheritedRef(r)) && (
+              <span className="text-gray-400">
+                {" "}
+                (includes files from the linked customer / lead)
+              </span>
+            )}
           </p>
         </div>
 
@@ -1592,7 +1820,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
 // ─── Reference Card (Grid View) ──────────────────────────────────────────────
 
 interface ReferenceItemProps {
-  reference: ProjectReference;
+  reference: ReferenceRow;
   onEdit: () => void;
   onDelete: () => void;
   onDownload: () => void;
@@ -1612,6 +1840,7 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
     reference.linkTitle || reference.title || reference.fileName || "Untitled";
   const isLink = reference.referenceType === "LINK";
   const noteText = getReferenceNotes(reference);
+  const inherited = isInheritedRef(reference);
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all group overflow-hidden">
@@ -1662,20 +1891,32 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
 
       <div className="p-4">
         {/* Type badge & category */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
           <span
             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold border ${TYPE_COLORS[reference.referenceType] || "bg-gray-50 text-gray-600 border-gray-200"}`}
           >
             {TYPE_ICONS[reference.referenceType]}
             {reference.referenceType}
           </span>
-          {reference.category && (
-            <span
-              className={`px-2 py-0.5 rounded-md text-xs font-semibold ${CATEGORY_COLORS[reference.category] || "bg-gray-100 text-gray-600"}`}
-            >
-              {getCategoryLabel(reference.category)}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            {reference.inheritSource === "lead" && (
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-amber-50 text-amber-800 border border-amber-200">
+                Lead phase
+              </span>
+            )}
+            {reference.inheritSource === "account" && (
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-slate-50 text-slate-700 border border-slate-200">
+                Customer
+              </span>
+            )}
+            {reference.category && (
+              <span
+                className={`px-2 py-0.5 rounded-md text-xs font-semibold ${CATEGORY_COLORS[reference.category] || "bg-gray-100 text-gray-600"}`}
+              >
+                {getCategoryLabel(reference.category)}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Title */}
@@ -1780,20 +2021,24 @@ const ReferenceCard: React.FC<ReferenceItemProps> = ({
                 <Download className="w-3.5 h-3.5 text-green-500" />
               </button>
             )}
-            <button
-              onClick={onEdit}
-              className="p-1.5 hover:bg-orange-50 rounded-lg transition-colors"
-              title="Edit"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-orange-500" />
-            </button>
-            <button
-              onClick={onDelete}
-              className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
-              title="Delete"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-red-500" />
-            </button>
+            {!inherited && (
+              <>
+                <button
+                  onClick={onEdit}
+                  className="p-1.5 hover:bg-orange-50 rounded-lg transition-colors"
+                  title="Edit"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-orange-500" />
+                </button>
+                <button
+                  onClick={onDelete}
+                  className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1815,6 +2060,7 @@ const ReferenceRow: React.FC<ReferenceItemProps> = ({
     reference.linkTitle || reference.title || reference.fileName || "Untitled";
   const isLink = reference.referenceType === "LINK";
   const noteText = getReferenceNotes(reference);
+  const inherited = isInheritedRef(reference);
 
   return (
     <tr className="hover:bg-orange-50/30 transition-colors group">
@@ -1872,15 +2118,27 @@ const ReferenceRow: React.FC<ReferenceItemProps> = ({
         </span>
       </td>
       <td className="px-4 py-3">
-        {reference.category ? (
-          <span
-            className={`px-2 py-0.5 rounded-md text-xs font-semibold ${CATEGORY_COLORS[reference.category] || "bg-gray-100 text-gray-600"}`}
-          >
-            {getCategoryLabel(reference.category)}
-          </span>
-        ) : (
-          <span className="text-xs text-gray-400">—</span>
-        )}
+        <div className="flex flex-col gap-1">
+          {reference.inheritSource === "lead" && (
+            <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-50 text-amber-800 border border-amber-200">
+              Lead phase
+            </span>
+          )}
+          {reference.inheritSource === "account" && (
+            <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-50 text-slate-700 border border-slate-200">
+              Customer
+            </span>
+          )}
+          {reference.category ? (
+            <span
+              className={`px-2 py-0.5 rounded-md text-xs font-semibold ${CATEGORY_COLORS[reference.category] || "bg-gray-100 text-gray-600"}`}
+            >
+              {getCategoryLabel(reference.category)}
+            </span>
+          ) : (
+            <span className="text-xs text-gray-400">—</span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-3">
         <div>
@@ -1930,20 +2188,24 @@ const ReferenceRow: React.FC<ReferenceItemProps> = ({
               <Download className="w-3.5 h-3.5 text-green-500" />
             </button>
           )}
-          <button
-            onClick={onEdit}
-            className="p-1.5 hover:bg-orange-50 rounded-lg transition-colors"
-            title="Edit"
-          >
-            <Edit3 className="w-3.5 h-3.5 text-orange-500" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-red-500" />
-          </button>
+          {!inherited && (
+            <>
+              <button
+                onClick={onEdit}
+                className="p-1.5 hover:bg-orange-50 rounded-lg transition-colors"
+                title="Edit"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-orange-500" />
+              </button>
+              <button
+                onClick={onDelete}
+                className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+              </button>
+            </>
+          )}
         </div>
       </td>
     </tr>

@@ -3488,7 +3488,11 @@ export const ProjectDetails: React.FC = () => {
 
         {/* References Tab */}
         {activeTab === "references" && project && (
-          <ProjectReferencesTab projectId={project.id} />
+          <ProjectReferencesTab
+            projectId={project.id}
+            accountId={project.accountId ?? project.account?.id ?? null}
+            leadId={project.leadId || project.lead?.id || null}
+          />
         )}
 
         {/* Testimonials Tab */}
