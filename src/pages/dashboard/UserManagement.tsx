@@ -1912,7 +1912,7 @@ export const UserManagement: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Role <span className="text-red-500">*</span>
+              Access Level <span className="text-red-500">*</span>
             </label>
             <select
               required
@@ -2208,7 +2208,7 @@ export const UserManagement: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Role <span className="text-red-500">*</span>
+              Access Level <span className="text-red-500">*</span>
             </label>
             <select
               required
@@ -2275,7 +2275,7 @@ export const UserManagement: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Credential <span className="text-red-500">*</span>
+              Designation <span className="text-red-500">*</span>
             </label>
             <select
               required

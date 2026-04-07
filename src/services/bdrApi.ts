@@ -1,5 +1,6 @@
 // BDR API Service – wraps /api/bdr/* endpoints
 import { fetchAPI } from "./api";
+import type { AttachmentType } from "./attachmentApi";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -255,6 +256,134 @@ export const getAdminBDRTasksByUserId = (
     method: "GET",
   });
 };
+
+// ── Task attachments (BDR) ───────────────────────────────────────────────────
+
+/** Matches backend enum for POST /api/bdr/tasks/:id/attachments */
+export type BDRTaskAttachmentType =
+  | "PHOTO"
+  | "VIDEO"
+  | "DOCUMENT"
+  | "AUDIO"
+  | "COMPLETION_PHOTO"
+  | "SITE_PHOTO"
+  | "APPROVAL_DOCUMENT"
+  | "WARRANTY_DOCUMENT"
+  | "DESIGN_DOCUMENT"
+  | "HANDOVER_DOCUMENT"
+  | "OTHER";
+
+export interface BDRTaskAttachment {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileUrl?: string | null;
+  downloadUrl?: string | null;
+  attachmentType: BDRTaskAttachmentType;
+  notes?: string | null;
+  uploadedAt: string;
+  uploadedByUser?: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+}
+
+export interface BDRTaskAttachmentsResponse {
+  attachments: BDRTaskAttachment[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface UploadBDRTaskAttachmentPayload {
+  fileName: string;
+  fileType: string;
+  fileBase64: string;
+  attachmentType: BDRTaskAttachmentType;
+  notes?: string;
+}
+
+/**
+ * Maps BDR UI / doc labels to the Prisma `AttachmentType` enum used by the
+ * shared attachments service. Values like `PHOTO` are not valid in the DB —
+ * images are stored as `SITE_PHOTO` (same convention as {@link attachmentApi.mimeToAttachmentType}).
+ */
+export function bdrTaskAttachmentTypeToPrisma(
+  t: BDRTaskAttachmentType,
+): AttachmentType {
+  switch (t) {
+    case "PHOTO":
+    case "COMPLETION_PHOTO":
+      return "SITE_PHOTO";
+    case "SITE_PHOTO":
+      return "SITE_PHOTO";
+    case "VIDEO":
+      return "RENDER_3D";
+    case "DOCUMENT":
+      return "OTHER";
+    case "AUDIO":
+      return "OTHER";
+    case "APPROVAL_DOCUMENT":
+      return "APPROVAL_DOCUMENT";
+    case "WARRANTY_DOCUMENT":
+      return "WARRANTY_DOCUMENT";
+    case "DESIGN_DOCUMENT":
+    case "HANDOVER_DOCUMENT":
+      return "SIGN_OFF";
+    case "OTHER":
+    default:
+      return "OTHER";
+  }
+}
+
+/** GET /api/bdr/tasks/:id/attachments */
+export const getBDRTaskAttachments = (
+  taskId: string,
+  limit = 50,
+  offset = 0,
+): Promise<BDRTaskAttachmentsResponse> => {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return fetchAPI<BDRTaskAttachmentsResponse>(
+    `/api/bdr/tasks/${taskId}/attachments?${params.toString()}`,
+    { method: "GET" },
+  );
+};
+
+/** POST /api/bdr/tasks/:id/attachments */
+export const uploadBDRTaskAttachment = async (
+  taskId: string,
+  payload: UploadBDRTaskAttachmentPayload,
+): Promise<BDRTaskAttachment> => {
+  const body = {
+    ...payload,
+    attachmentType: bdrTaskAttachmentTypeToPrisma(payload.attachmentType),
+  };
+  const res = await fetchAPI<
+    BDRTaskAttachment | { attachment?: BDRTaskAttachment; message?: string }
+  >(`/api/bdr/tasks/${taskId}/attachments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res && typeof res === "object" && "attachment" in res && res.attachment) {
+    return res.attachment;
+  }
+  return res as BDRTaskAttachment;
+};
+
+/** DELETE /api/bdr/tasks/:id/attachments/:attachmentId */
+export const deleteBDRTaskAttachment = (
+  taskId: string,
+  attachmentId: string,
+): Promise<{ message?: string }> =>
+  fetchAPI<{ message?: string }>(
+    `/api/bdr/tasks/${taskId}/attachments/${attachmentId}`,
+    { method: "DELETE" },
+  );
 
 // ── Lead Creation ─────────────────────────────────────────────────────────────
 

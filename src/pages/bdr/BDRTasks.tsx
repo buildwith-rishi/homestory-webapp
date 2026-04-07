@@ -26,6 +26,8 @@ import {
   Sparkles,
   Grid3X3,
   TrendingUp,
+  Paperclip,
+  Download,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import toast from "react-hot-toast";
@@ -34,8 +36,14 @@ import {
   createBDRTask,
   updateBDRTask,
   deleteBDRTask,
+  getBDRTaskAttachments,
+  uploadBDRTaskAttachment,
+  deleteBDRTaskAttachment,
   type BDRTaskAPIItem,
+  type BDRTaskAttachment,
+  type BDRTaskAttachmentType,
 } from "../../services/bdrApi";
+import { fileToBase64 } from "../../services/attachmentApi";
 import {
   getSiteEngineerTasks,
   updateSiteEngineerTaskStatus,
@@ -107,6 +115,42 @@ const TASK_TYPE_ICONS: Record<string, typeof Briefcase> = {
   Other: Briefcase,
 };
 
+/** Attachment types for POST /api/bdr/tasks/:id/attachments */
+const BDR_ATTACHMENT_TYPE_OPTIONS: {
+  value: BDRTaskAttachmentType;
+  label: string;
+}[] = [
+  { value: "PHOTO", label: "Photo" },
+  { value: "VIDEO", label: "Video" },
+  { value: "DOCUMENT", label: "Document (PDF / Office)" },
+  { value: "AUDIO", label: "Audio" },
+  { value: "COMPLETION_PHOTO", label: "Completion photo" },
+  { value: "SITE_PHOTO", label: "Site photo" },
+  { value: "APPROVAL_DOCUMENT", label: "Approval document" },
+  { value: "WARRANTY_DOCUMENT", label: "Warranty" },
+  { value: "DESIGN_DOCUMENT", label: "Design document" },
+  { value: "HANDOVER_DOCUMENT", label: "Handover document" },
+  { value: "OTHER", label: "Other" },
+];
+
+function inferAttachmentTypeFromFile(file: File): BDRTaskAttachmentType {
+  const t = file.type || "";
+  if (t.startsWith("image/")) return "PHOTO";
+  if (t.startsWith("video/")) return "VIDEO";
+  if (t.startsWith("audio/")) return "AUDIO";
+  return "DOCUMENT";
+}
+
+/** BDR: Save enabled when a file is chosen or the task already has attachments */
+function bdrCanSaveStatus(
+  loadingAttachments: boolean,
+  uploadFile: File | null,
+  attachments: BDRTaskAttachment[],
+): boolean {
+  if (loadingAttachments) return false;
+  return uploadFile !== null || attachments.length > 0;
+}
+
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
   "January",
@@ -160,6 +204,7 @@ const mapAPITask = (t: BDRTaskAPIItem): BDRTask => ({
   completed: fromAPIStatus(t.status) === "COMPLETED",
   createdAt: t.createdAt,
   updatedAt: t.updatedAt,
+  completionPhoto: t.completionPhoto ?? undefined,
 });
 
 /** Map a Matrix/SiteEngineer task to the BDRTask shape */
@@ -258,7 +303,19 @@ export function BDRTasks() {
     previewUrl: string;
   } | null>(null);
   const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const attachmentFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [taskAttachments, setTaskAttachments] = useState<BDRTaskAttachment[]>([]);
+  const [loadingAttachments, setLoadingAttachments] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadAttachmentType, setUploadAttachmentType] =
+    useState<BDRTaskAttachmentType>("DOCUMENT");
+  const [uploadNotes, setUploadNotes] = useState("");
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<
+    string | null
+  >(null);
 
   // ── Add Task Modal ──
   const [showAddTask, setShowAddTask] = useState(false);
@@ -273,8 +330,8 @@ export function BDRTasks() {
   });
   const [isSavingNewTask, setIsSavingNewTask] = useState(false);
 
-  const loadTasks = useCallback(async () => {
-    setIsLoading(true);
+  const loadTasks = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setIsLoading(true);
     setTasksError(null);
     try {
       // Fetch both BDR specific tasks and assigned Matrix tasks
@@ -298,13 +355,26 @@ export function BDRTasks() {
         err instanceof Error ? err.message : "Failed to load tasks",
       );
     } finally {
-      setIsLoading(false);
+      if (!opts?.silent) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
+
+  const loadTaskAttachments = useCallback(async (taskId: string) => {
+    setLoadingAttachments(true);
+    try {
+      const res = await getBDRTaskAttachments(taskId, 50, 0);
+      setTaskAttachments(res.attachments || []);
+    } catch {
+      setTaskAttachments([]);
+      toast.error("Failed to load attachments");
+    } finally {
+      setLoadingAttachments(false);
+    }
+  }, []);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -338,6 +408,14 @@ export function BDRTasks() {
     setSelectedTask(task);
     setEditStatus(task.status);
     setWorkPhoto(null);
+    setTaskAttachments([]);
+    setUploadFile(null);
+    setUploadNotes("");
+    setUploadAttachmentType("DOCUMENT");
+    if (attachmentFileInputRef.current) attachmentFileInputRef.current.value = "";
+    if (task.taskType !== "Project Task") {
+      void loadTaskAttachments(task.id);
+    }
   };
 
   const handleCloseTaskDetail = () => {
@@ -345,40 +423,73 @@ export function BDRTasks() {
     setEditStatus("");
     if (workPhoto?.previewUrl) URL.revokeObjectURL(workPhoto.previewUrl);
     setWorkPhoto(null);
+    setTaskAttachments([]);
+    setUploadFile(null);
+    setUploadNotes("");
+    if (attachmentFileInputRef.current) attachmentFileInputRef.current.value = "";
   };
 
   const handleSaveStatus = async () => {
     if (!selectedTask) return;
-    const needsCompletionPhoto =
-      editStatus === "COMPLETED" && !workPhoto && !selectedTask.completionPhoto;
-    if (needsCompletionPhoto) {
+
+    const isProjectTask = selectedTask.taskType === "Project Task";
+    if (
+      !isProjectTask &&
+      editStatus === "COMPLETED" &&
+      taskAttachments.length === 0 &&
+      !uploadFile
+    ) {
+      toast.error(
+        "Select a file to upload with Save, or use existing attachments before completing.",
+      );
+      return;
+    }
+
+    if (
+      isProjectTask &&
+      editStatus === "COMPLETED" &&
+      !workPhoto &&
+      !selectedTask.completionPhoto
+    ) {
       toast.error("Please add a completion photo before saving.");
       return;
     }
 
     setIsSavingStatus(true);
     try {
-      let updated: BDRTask;
-      if (selectedTask.taskType === "Project Task") {
-        // Handle Matrix/Site Engineer Task
+      if (isProjectTask) {
         const apiStatus = toAPIStatus(editStatus);
         const seStatus = apiStatus;
 
         const res = await updateSiteEngineerTaskStatus(selectedTask.id, {
           status: seStatus as "TODO" | "IN_PROGRESS" | "COMPLETED",
         });
-        updated = mapMatrixTask(res);
+        const updated = mapMatrixTask(res);
+        setTasks((prev) =>
+          prev.map((t) => (t.id === selectedTask.id ? updated : t)),
+        );
       } else {
-        // Handle Standard BDR Task
-        const res = await updateBDRTask(selectedTask.id, {
+        if (uploadFile) {
+          const base64 = await fileToBase64(uploadFile);
+          await uploadBDRTaskAttachment(selectedTask.id, {
+            fileName: uploadFile.name,
+            fileType: uploadFile.type || "application/octet-stream",
+            fileBase64: base64,
+            attachmentType: uploadAttachmentType,
+            notes: uploadNotes.trim() || undefined,
+          });
+          setUploadFile(null);
+          setUploadNotes("");
+          if (attachmentFileInputRef.current)
+            attachmentFileInputRef.current.value = "";
+        }
+        await updateBDRTask(selectedTask.id, {
           status: toAPIStatus(editStatus),
         });
-        updated = mapAPITask(res);
+        await loadTaskAttachments(selectedTask.id);
+        await loadTasks({ silent: true });
       }
 
-      setTasks((prev) =>
-        prev.map((t) => (t.id === selectedTask.id ? updated : t)),
-      );
       toast.success("Task status updated!");
       handleCloseTaskDetail();
     } catch (err) {
@@ -397,6 +508,38 @@ export function BDRTasks() {
     toast.success("Photo captured!");
     // Reset input so same file can be re-selected
     e.target.value = "";
+  };
+
+  const handleAttachmentFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadFile(file);
+    setUploadAttachmentType(inferAttachmentTypeFromFile(file));
+    e.target.value = "";
+  };
+
+  const handleViewAttachment = (a: BDRTaskAttachment) => {
+    const url = a.downloadUrl || a.fileUrl;
+    if (!url) {
+      toast.error("No download link available");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!selectedTask || selectedTask.taskType === "Project Task") return;
+    if (!window.confirm("Delete this attachment?")) return;
+    setDeletingAttachmentId(attachmentId);
+    try {
+      await deleteBDRTaskAttachment(selectedTask.id, attachmentId);
+      toast.success("Attachment deleted");
+      await loadTaskAttachments(selectedTask.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeletingAttachmentId(null);
+    }
   };
 
   // ── Add Task handlers ──
@@ -421,19 +564,23 @@ export function BDRTasks() {
     const task = tasks.find((t) => t.id === taskId);
     if (task?.taskType === "Project Task") {
       toast.error(
-        "Project tasks cannot be deleted from here. Go to the project page.",
+        "Project tasks cannot be deleted from here. Open the project to manage them.",
       );
       return;
     }
 
     if (!window.confirm("Delete this task? This cannot be undone.")) return;
+    setIsDeletingTask(true);
     try {
       await deleteBDRTask(taskId);
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      await loadTasks({ silent: true });
       toast.success("Task deleted");
       handleCloseTaskDetail();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete task");
+    } finally {
+      setIsDeletingTask(false);
     }
   };
 
@@ -822,7 +969,8 @@ export function BDRTasks() {
               {tasksError}
             </p>
             <button
-              onClick={loadTasks}
+              type="button"
+              onClick={() => void loadTasks()}
               className="text-sm text-orange-600 font-semibold underline"
             >
               Try again
@@ -1080,85 +1228,229 @@ export function BDRTasks() {
                   </div>
                 </div>
 
-                {/* Camera Section */}
-                <div
-                  className={`rounded-2xl border-2 transition-all overflow-hidden ${
-                    editStatus === "COMPLETED"
-                      ? "border-emerald-200 bg-emerald-50"
-                      : "border-dashed border-gray-200 bg-gray-50 opacity-50"
-                  }`}
-                >
-                  <div className="px-4 pt-4 pb-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Camera
-                        className={`w-4 h-4 ${editStatus === "COMPLETED" ? "text-emerald-600" : "text-gray-400"}`}
-                      />
-                      <p
-                        className={`text-sm font-bold ${editStatus === "COMPLETED" ? "text-emerald-800" : "text-gray-400"}`}
-                      >
-                        Completion Photo
+                {/* BDR: attachments API — not used for Matrix project tasks */}
+                {selectedTask.taskType !== "Project Task" && (
+                  <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                    <div className="px-4 pt-4 pb-3 border-b border-gray-100 bg-gray-50/80">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Paperclip className="w-4 h-4 text-orange-600" />
+                        <p className="text-sm font-bold text-gray-900">
+                          Task attachments
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Choose a file, type, and optional notes — then tap{" "}
+                        <span className="font-semibold text-gray-700">
+                          Save Status
+                        </span>{" "}
+                        to upload and update the task. View or delete anytime.
                       </p>
                     </div>
-                    <p
-                      className={`text-xs ${editStatus === "COMPLETED" ? "text-emerald-600" : "text-gray-400"}`}
-                    >
-                      {editStatus === "COMPLETED"
-                        ? "Capture a photo as proof of task completion."
-                        : "Mark task as Completed to enable photo capture."}
-                    </p>
-                  </div>
 
-                  {editStatus === "COMPLETED" && (
-                    <div className="px-4 pb-4">
-                      {workPhoto ? (
-                        <div className="relative">
-                          <img
-                            src={workPhoto.previewUrl}
-                            alt="Task completion"
-                            className="w-full h-48 object-cover rounded-xl"
-                          />
-                          <button
-                            onClick={() => {
-                              URL.revokeObjectURL(workPhoto.previewUrl);
-                              setWorkPhoto(null);
-                            }}
-                            className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"
-                          >
-                            <X className="w-4 h-4 text-white" />
-                          </button>
-                          <div className="absolute bottom-2 left-2 bg-emerald-500 text-white text-xs font-semibold px-2 py-1 rounded-lg flex items-center gap-1">
-                            <Check className="w-3 h-3" />
-                            Photo Ready
+                    {loadingAttachments ? (
+                      <div className="flex items-center justify-center py-10">
+                        <Loader2 className="w-7 h-7 animate-spin text-orange-500" />
+                      </div>
+                    ) : taskAttachments.length === 0 ? (
+                      <p className="px-4 py-6 text-sm text-gray-400 text-center">
+                        No attachments yet
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-gray-100 max-h-52 overflow-y-auto">
+                        {taskAttachments.map((a) => {
+                          const typeLabel =
+                            BDR_ATTACHMENT_TYPE_OPTIONS.find(
+                              (o) => o.value === a.attachmentType,
+                            )?.label ?? a.attachmentType;
+                          return (
+                            <li
+                              key={a.id}
+                              className="px-4 py-3 flex items-start gap-3"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate">
+                                  {a.fileName}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                  <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md bg-orange-50 text-orange-700 border border-orange-100">
+                                    {typeLabel}
+                                  </span>
+                                  <span className="text-[11px] text-gray-400">
+                                    {new Date(a.uploadedAt).toLocaleString()}
+                                  </span>
+                                </div>
+                                {a.notes && (
+                                  <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">
+                                    {a.notes}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewAttachment(a)}
+                                  className="p-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-colors"
+                                  title="Open"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttachment(a.id)}
+                                  disabled={deletingAttachmentId === a.id}
+                                  className="p-2 rounded-xl text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                  title="Delete"
+                                >
+                                  {deletingAttachmentId === a.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+
+                    <div className="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100 bg-gray-50/50">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                          Attachment type
+                        </label>
+                        <select
+                          value={uploadAttachmentType}
+                          onChange={(e) =>
+                            setUploadAttachmentType(
+                              e.target.value as BDRTaskAttachmentType,
+                            )
+                          }
+                          className="w-full px-3 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-medium bg-white focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none"
+                        >
+                          {BDR_ATTACHMENT_TYPE_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                          Notes (optional)
+                        </label>
+                        <textarea
+                          value={uploadNotes}
+                          onChange={(e) => setUploadNotes(e.target.value)}
+                          rows={2}
+                          placeholder="e.g. Client signed quote"
+                          className="w-full px-3 py-2.5 rounded-xl border-2 border-gray-200 text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:border-orange-400 outline-none resize-none"
+                        />
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            attachmentFileInputRef.current?.click()
+                          }
+                          className="px-4 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-700 hover:bg-white bg-white transition-colors"
+                        >
+                          Choose file
+                        </button>
+                        {uploadFile && (
+                          <span className="text-xs text-emerald-700 truncate flex-1 font-medium">
+                            {uploadFile.name}
+                            <span className="block text-[10px] text-emerald-600/90 mt-0.5">
+                              Will upload when you save status
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Completion photo — Matrix / site engineer project tasks only */}
+                {selectedTask.taskType === "Project Task" && (
+                  <div
+                    className={`rounded-2xl border-2 transition-all overflow-hidden ${
+                      editStatus === "COMPLETED"
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-dashed border-gray-200 bg-gray-50 opacity-50"
+                    }`}
+                  >
+                    <div className="px-4 pt-4 pb-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Camera
+                          className={`w-4 h-4 ${editStatus === "COMPLETED" ? "text-emerald-600" : "text-gray-400"}`}
+                        />
+                        <p
+                          className={`text-sm font-bold ${editStatus === "COMPLETED" ? "text-emerald-800" : "text-gray-400"}`}
+                        >
+                          Completion photo
+                        </p>
+                      </div>
+                      <p
+                        className={`text-xs ${editStatus === "COMPLETED" ? "text-emerald-600" : "text-gray-400"}`}
+                      >
+                        {editStatus === "COMPLETED"
+                          ? "Capture a photo as proof of task completion."
+                          : "Mark task as Completed to enable photo capture."}
+                      </p>
+                    </div>
+
+                    {editStatus === "COMPLETED" && (
+                      <div className="px-4 pb-4">
+                        {workPhoto ? (
+                          <div className="relative">
+                            <img
+                              src={workPhoto.previewUrl}
+                              alt="Task completion"
+                              className="w-full h-48 object-cover rounded-xl"
+                            />
+                            <button
+                              onClick={() => {
+                                URL.revokeObjectURL(workPhoto.previewUrl);
+                                setWorkPhoto(null);
+                              }}
+                              className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"
+                            >
+                              <X className="w-4 h-4 text-white" />
+                            </button>
+                            <div className="absolute bottom-2 left-2 bg-emerald-500 text-white text-xs font-semibold px-2 py-1 rounded-lg flex items-center gap-1">
+                              <Check className="w-3 h-3" />
+                              Photo Ready
+                            </div>
+                            <button
+                              onClick={() => cameraInputRef.current?.click()}
+                              className="absolute bottom-2 right-2 bg-white/90 text-gray-700 text-xs font-semibold px-2 py-1 rounded-lg flex items-center gap-1 border border-gray-200"
+                            >
+                              <Camera className="w-3 h-3" />
+                              Retake
+                            </button>
                           </div>
+                        ) : (
                           <button
                             onClick={() => cameraInputRef.current?.click()}
-                            className="absolute bottom-2 right-2 bg-white/90 text-gray-700 text-xs font-semibold px-2 py-1 rounded-lg flex items-center gap-1 border border-gray-200"
+                            className="w-full h-32 flex flex-col items-center justify-center gap-2.5 bg-white border-2 border-dashed border-emerald-200 rounded-xl hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition-all"
                           >
-                            <Camera className="w-3 h-3" />
-                            Retake
+                            <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                              <Camera className="w-6 h-6 text-emerald-600" />
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-bold text-emerald-700">
+                                Capture Photo
+                              </p>
+                              <p className="text-xs text-emerald-500 mt-0.5">
+                                Tap to open camera or gallery
+                              </p>
+                            </div>
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => cameraInputRef.current?.click()}
-                          className="w-full h-32 flex flex-col items-center justify-center gap-2.5 bg-white border-2 border-dashed border-emerald-200 rounded-xl hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition-all"
-                        >
-                          <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
-                            <Camera className="w-6 h-6 text-emerald-600" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm font-bold text-emerald-700">
-                              Capture Photo
-                            </p>
-                            <p className="text-xs text-emerald-500 mt-0.5">
-                              Tap to open camera or gallery
-                            </p>
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
@@ -1174,9 +1466,16 @@ export function BDRTasks() {
                     onClick={handleSaveStatus}
                     disabled={
                       isSavingStatus ||
-                      (editStatus === "COMPLETED" &&
+                      (selectedTask.taskType === "Project Task" &&
+                        editStatus === "COMPLETED" &&
                         !workPhoto &&
-                        !selectedTask.completionPhoto)
+                        !selectedTask.completionPhoto) ||
+                      (selectedTask.taskType !== "Project Task" &&
+                        !bdrCanSaveStatus(
+                          loadingAttachments,
+                          uploadFile,
+                          taskAttachments,
+                        ))
                     }
                     className="flex-1 py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-60 shadow-md shadow-orange-200"
                   >
@@ -1188,15 +1487,28 @@ export function BDRTasks() {
                     Save Status
                   </button>
                 </div>
-                <button
-                  onClick={() =>
-                    selectedTask && handleDeleteTask(selectedTask.id)
-                  }
-                  className="w-full py-3 rounded-2xl border-2 border-red-100 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete Task
-                </button>
+                {selectedTask.taskType === "Project Task" ? (
+                  <p className="text-center text-xs text-gray-400 px-2">
+                    Project tasks are managed from the project page — delete is
+                    not available here.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isDeletingTask}
+                    onClick={() =>
+                      selectedTask && handleDeleteTask(selectedTask.id)
+                    }
+                    className="w-full py-3 rounded-2xl border-2 border-red-100 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {isDeletingTask ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {isDeletingTask ? "Deleting…" : "Delete Task"}
+                  </button>
+                )}
               </div>
             </div>
           </div>,
@@ -1403,8 +1715,7 @@ export function BDRTasks() {
           document.body,
         )}
 
-      {/* Hidden camera inputs */}
-      {/* Hidden camera input for task detail modal only */}
+      {/* Hidden file inputs for task detail modal */}
       <input
         ref={cameraInputRef}
         type="file"
@@ -1412,6 +1723,13 @@ export function BDRTasks() {
         capture="environment"
         className="hidden"
         onChange={handleCameraCapture}
+      />
+      <input
+        ref={attachmentFileInputRef}
+        type="file"
+        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,application/pdf"
+        className="hidden"
+        onChange={handleAttachmentFilePick}
       />
     </div>
   );
