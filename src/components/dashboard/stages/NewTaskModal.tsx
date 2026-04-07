@@ -9,9 +9,11 @@ import {
   Search,
   User,
   Users,
+  Briefcase,
 } from "lucide-react";
 import type { MatrixCategory, AdminUser } from "../../../types";
 import { adminAPI } from "../../../services/api";
+import type { TeamMember } from "../../../services/teamApi";
 import toast from "react-hot-toast";
 
 const API_BASE_URL =
@@ -76,6 +78,11 @@ const formatRole = (role: string): string =>
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+const normalizeRoleValue = (role?: string): string =>
+  String(role || "")
+    .trim()
+    .toLowerCase();
+
 const normalizeAssignableUsers = (response: unknown): AdminUser[] => {
   let usersList: Array<Record<string, unknown>> = [];
 
@@ -137,6 +144,64 @@ const normalizeAssignableUsers = (response: unknown): AdminUser[] => {
   });
 };
 
+const normalizeTeamMembers = (response: unknown): TeamMember[] => {
+  let membersList: Array<Record<string, unknown>> = [];
+
+  if (Array.isArray(response)) {
+    membersList = response as Array<Record<string, unknown>>;
+  } else if (response && typeof response === "object") {
+    const obj = response as Record<string, unknown>;
+
+    if (Array.isArray(obj.data)) {
+      membersList = obj.data as Array<Record<string, unknown>>;
+    } else if (Array.isArray(obj.team)) {
+      membersList = obj.team as Array<Record<string, unknown>>;
+    } else if (Array.isArray(obj.members)) {
+      membersList = obj.members as Array<Record<string, unknown>>;
+    } else if (Array.isArray(obj.results)) {
+      membersList = obj.results as Array<Record<string, unknown>>;
+    } else if (
+      obj.data &&
+      typeof obj.data === "object" &&
+      Array.isArray((obj.data as Record<string, unknown>).members)
+    ) {
+      membersList = (obj.data as { members: Array<Record<string, unknown>> })
+        .members;
+    } else if (
+      obj.data &&
+      typeof obj.data === "object" &&
+      Array.isArray((obj.data as Record<string, unknown>).team)
+    ) {
+      membersList = (obj.data as { team: Array<Record<string, unknown>> }).team;
+    }
+  }
+
+  const seen = new Set<string>();
+  return membersList
+    .map((member) => {
+      const id = String(member.id || "").trim();
+      const name = String(member.name || "").trim();
+      const email = String(member.email || "").trim();
+      const role = String(member.role || "").trim();
+      const memberType = String(member.memberType || "").trim();
+
+      return {
+        ...member,
+        id,
+        name,
+        email,
+        role,
+        memberType,
+      } as TeamMember;
+    })
+    .filter((m) => {
+      if (!m.id || !m.name) return false;
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+};
+
 export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   matrixId,
   dayNumber,
@@ -154,8 +219,10 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
 
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [vendors, setVendors] = useState<TeamMember[]>([]);
 
   // categoryAssignees: { [categoryId]: userId }
   const [categoryAssignees, setCategoryAssignees] = useState<
@@ -164,6 +231,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
 
   // categoryRoles: { [categoryId]: roleName } — selected role per category
   const [categoryRoles, setCategoryRoles] = useState<Record<string, string>>(
+    {},
+  );
+
+  // categoryVendors: { [categoryId]: vendorMemberId } — selected vendor per category
+  const [categoryVendors, setCategoryVendors] = useState<Record<string, string>>(
     {},
   );
 
@@ -180,26 +252,74 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   useEffect(() => {
     let mounted = true;
 
-    const fetchUsers = async () => {
+    const fetchUsersAndVendors = async () => {
       setUsersLoading(true);
+      setVendorsLoading(true);
       try {
-        const res = await adminAPI.getAllUsers();
+        const [usersRes, teamResponse] = await Promise.all([
+          adminAPI.getAllUsers(),
+          fetch(`${API_BASE_URL}/api/team`, {
+            headers: getAuthHeaders(),
+          }).then(async (res) => {
+            if (!res.ok) throw new Error("Failed to fetch team members");
+            return res.json();
+          }),
+        ]);
         if (!mounted) return;
-        setUsers(normalizeAssignableUsers(res));
+        setUsers(normalizeAssignableUsers(usersRes));
+
+        const teamMembers = normalizeTeamMembers(teamResponse);
+        const activeMembers = teamMembers.filter(
+          (member) =>
+            member.isBanned !== true &&
+            member.isDeactivated !== true &&
+            member.isActive !== false,
+        );
+
+        const vendorMembers = activeMembers.filter((member) => {
+          const type = String(member.memberType || "")
+            .trim()
+            .toUpperCase();
+          const role = String(member.role || "")
+            .trim()
+            .toUpperCase();
+          const department = String(member.department || "")
+            .trim()
+            .toUpperCase();
+          return (
+            type.includes("VENDOR") ||
+            role.includes("VENDOR") ||
+            department.includes("VENDOR")
+          );
+        });
+
+        const visibleVendors =
+          vendorMembers.length > 0 ? vendorMembers : activeMembers;
+
+        const sortedVendors = visibleVendors
+          .filter((member) => {
+            // Keep only items that can be selected in the dropdown.
+            return Boolean(member.id) && Boolean(member.name);
+          })
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        setVendors(sortedVendors);
       } catch {
         if (!mounted) return;
         setUsers([]);
+        setVendors([]);
       } finally {
         if (mounted) setUsersLoading(false);
+        if (mounted) setVendorsLoading(false);
       }
     };
 
-    fetchUsers();
+    fetchUsersAndVendors();
 
     // Refresh list when the tab regains focus so newly-created users appear quickly.
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        void fetchUsers();
+        void fetchUsersAndVendors();
       }
     };
 
@@ -253,11 +373,27 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       delete next[categoryId];
       return next;
     });
+    setCategoryVendors((prev) => {
+      const next = { ...prev };
+      delete next[categoryId];
+      return next;
+    });
   };
 
   const selectRole = (categoryId: string, role: string) => {
     setCategoryRoles((prev) => ({ ...prev, [categoryId]: role }));
     // Clear assigned user when role changes
+    setCategoryAssignees((prev) => ({ ...prev, [categoryId]: "" }));
+    setOpenAssigneeFor(null);
+    setAssigneeSearch("");
+  };
+
+  const selectVendor = (categoryId: string, vendorId: string) => {
+    setCategoryVendors((prev) => ({
+      ...prev,
+      [categoryId]: vendorId,
+    }));
+    // Vendor assignment and user assignment are mutually exclusive.
     setCategoryAssignees((prev) => ({ ...prev, [categoryId]: "" }));
     setOpenAssigneeFor(null);
     setAssigneeSearch("");
@@ -309,6 +445,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     try {
       const taskPromises = selectedCategories.map(async (categoryId) => {
         const assignedUserId = categoryAssignees[categoryId];
+        const assignedVendorId = categoryVendors[categoryId];
         const payload: Record<string, unknown> = {
           dayNumber,
           categoryId,
@@ -317,7 +454,9 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
           startDate: normalizedStartDate,
           taskDate,
         };
-        if (assignedUserId) {
+        if (assignedVendorId) {
+          payload.assignedToMemberId = assignedVendorId;
+        } else if (assignedUserId) {
           payload.assignedToUserId = assignedUserId;
           payload.assignedToMemberId = assignedUserId;
         }
@@ -455,12 +594,34 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                 const selectedRole = categoryRoles[category.id] || "";
                 const assignedUserId = categoryAssignees[category.id] || "";
                 const assignedUser = users.find((u) => u.id === assignedUserId);
+                const assignedVendorId = categoryVendors[category.id] || "";
+                const assignedVendor = vendors.find(
+                  (v) => v.id === assignedVendorId,
+                );
                 const isMemberPickerOpen = openAssigneeFor === category.id;
 
                 // Count of members for the selected role
                 const membersInRole = selectedRole
                   ? users.filter((u) => u.role === selectedRole)
                   : [];
+
+                // Always show all vendors; role-matched vendors appear first.
+                const vendorsForRole = [...vendors].sort((a, b) => {
+                  const aMatches =
+                    selectedRole &&
+                    normalizeRoleValue(a.role) ===
+                      normalizeRoleValue(selectedRole)
+                      ? 1
+                      : 0;
+                  const bMatches =
+                    selectedRole &&
+                    normalizeRoleValue(b.role) ===
+                      normalizeRoleValue(selectedRole)
+                      ? 1
+                      : 0;
+                  if (aMatches !== bMatches) return bMatches - aMatches;
+                  return a.name.localeCompare(b.name);
+                });
 
                 return (
                   <div key={category.id}>
@@ -497,16 +658,29 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                       </div>
 
                       {/* Assigned member chip */}
-                      {isSelected && assignedUser && (
+                      {isSelected && (assignedVendor || assignedUser) && (
                         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200 rounded-full flex-shrink-0">
-                          <div className="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
-                            <span className="text-[8px] font-bold text-white">
-                              {getUserInitials(assignedUser.name)}
-                            </span>
-                          </div>
-                          <span className="text-xs font-medium text-orange-700 max-w-[80px] truncate">
-                            {assignedUser.name.split(" ")[0]}
-                          </span>
+                          {assignedVendor ? (
+                            <>
+                              <div className="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
+                                <Briefcase className="w-2.5 h-2.5 text-white" />
+                              </div>
+                              <span className="text-xs font-medium text-orange-700 max-w-[80px] truncate">
+                                {assignedVendor.name.split(" ")[0]}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
+                                <span className="text-[8px] font-bold text-white">
+                                  {getUserInitials(assignedUser!.name)}
+                                </span>
+                              </div>
+                              <span className="text-xs font-medium text-orange-700 max-w-[80px] truncate">
+                                {assignedUser!.name.split(" ")[0]}
+                              </span>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -559,7 +733,45 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                           </div>
                         </div>
 
-                        {/* Step 2 — Member picker (only after role is selected) */}
+                        {/* Step 2 — Vendor dropdown */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Briefcase className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                              Vendor
+                            </span>
+                          </div>
+                          <div className="relative flex-1">
+                            <select
+                              value={assignedVendorId}
+                              onChange={(e) =>
+                                selectVendor(category.id, e.target.value)
+                              }
+                              className={`w-full appearance-none pl-3 pr-8 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 transition-colors ${
+                                assignedVendorId
+                                  ? "border-orange-300 bg-orange-50 text-orange-800 font-medium"
+                                  : "border-gray-200 bg-white text-gray-500"
+                              }`}
+                            >
+                              <option value="">
+                                {vendorsLoading
+                                  ? "Loading vendors..."
+                                  : vendors.length === 0
+                                    ? "No active vendors available"
+                                    : "Select a vendor..."}
+                              </option>
+                              {vendorsForRole.map((vendor) => (
+                                <option key={vendor.id} value={vendor.id}>
+                                  {vendor.name}
+                                  {vendor.role ? ` (${vendor.role})` : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        {/* Step 3 — Member picker (only after role is selected) */}
                         {selectedRole && (
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -576,16 +788,21 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  if (assignedVendorId) return;
                                   setOpenAssigneeFor(
                                     isMemberPickerOpen ? null : category.id,
                                   );
                                   setAssigneeSearch("");
                                 }}
                                 className={`w-full flex items-center justify-between pl-3 pr-2.5 py-2 text-sm border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500/20 ${
+                                  assignedVendorId
+                                    ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
+                                  :
                                   assignedUser
                                     ? "border-orange-300 bg-orange-50"
                                     : "border-gray-200 bg-white hover:border-orange-300"
                                 }`}
+                                disabled={Boolean(assignedVendorId)}
                               >
                                 {assignedUser ? (
                                   <span className="flex items-center gap-2">
@@ -600,8 +817,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                                   </span>
                                 ) : (
                                   <span className="text-gray-400 italic">
-                                    Select member
+                                    {assignedVendorId
+                                      ? "Vendor selected"
+                                      : "Select member"}
                                     {membersInRole.length > 0 &&
+                                      !assignedVendorId &&
                                       ` (${membersInRole.length} available)`}
                                     …
                                   </span>
