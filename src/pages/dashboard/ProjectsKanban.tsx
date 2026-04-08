@@ -10,7 +10,6 @@ import ProjectAPI from "../../services/projectApi";
 import { Project } from "../../types";
 import {
   Calendar,
-  DollarSign,
   MapPin,
   User,
   TrendingUp,
@@ -343,18 +342,6 @@ const ProjectsKanban: React.FC = () => {
           )}
 
           <div className="flex items-center gap-2 pt-0.5">
-            {project.totalValue && (
-              <div className="flex items-center gap-0.5">
-                <DollarSign
-                  size={10}
-                  className="text-green-500 flex-shrink-0"
-                />
-                <span className="font-medium text-gray-700">
-                  ₹{parseFloat(String(project.totalValue)).toLocaleString()}
-                </span>
-              </div>
-            )}
-
             {project.propertySizeSqft && (
               <div className="flex items-center gap-0.5">
                 <TrendingUp size={10} className="text-gray-400 flex-shrink-0" />

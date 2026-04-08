@@ -83,30 +83,6 @@ const columnToStatus: Record<string, string> = {
   "col-converted": "CONVERTED",
 };
 
-const formatProjectCurrency = (value: unknown): string => {
-  if (value === null || value === undefined || value === "") return "";
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return `₹${value.toLocaleString("en-IN")}`;
-  }
-
-  const raw = String(value).trim();
-  if (!raw) return "";
-
-  const cleanedNumeric = raw
-    .replace(/\\u20B9/gi, "")
-    .replace(/₹/g, "")
-    .replace(/,/g, "")
-    .trim();
-
-  const parsed = Number(cleanedNumeric);
-  if (Number.isFinite(parsed)) {
-    return `₹${parsed.toLocaleString("en-IN")}`;
-  }
-
-  return raw.replace(/\\u20B9/gi, "₹");
-};
-
 const KanbanView: React.FC = () => {
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<ViewType>("leads");
@@ -893,17 +869,6 @@ const KanbanView: React.FC = () => {
             </div>
           )}
           <div className="flex items-center gap-2 pt-0.5">
-            {project.totalValue && (
-              <div className="flex items-center gap-0.5">
-                <DollarSign
-                  size={10}
-                  className="text-green-500 flex-shrink-0"
-                />
-                <span className="font-medium text-gray-700">
-                  {formatProjectCurrency(project.totalValue)}
-                </span>
-              </div>
-            )}
             {project.propertySizeSqft && (
               <div className="flex items-center gap-0.5">
                 <TrendingUp size={10} className="text-gray-400 flex-shrink-0" />

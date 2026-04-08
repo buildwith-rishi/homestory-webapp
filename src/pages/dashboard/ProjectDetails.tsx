@@ -21,7 +21,6 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
-  DollarSign,
   Mail,
 
   MessageSquare,
@@ -2498,7 +2497,7 @@ export const ProjectDetails: React.FC = () => {
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             <div className="relative bg-white/80 backdrop-blur rounded-xl p-3 border border-orange-100/50 shadow-sm">
               <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">
                 CURRENT STAGE
@@ -2507,17 +2506,6 @@ export const ProjectDetails: React.FC = () => {
                 {project.currentStageCode
                   ? getStageLabel(project.currentStageCode)
                   : "N/A"}
-              </p>
-            </div>
-
-            <div className="relative bg-white/80 backdrop-blur rounded-xl p-3 border border-orange-100/50 shadow-sm">
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">
-                TOTAL VALUE
-              </p>
-              <p className="text-xl font-bold text-gray-900 leading-tight">
-                {formatCurrencyExact(
-                  parseFloat(String(project.totalValue)) || 0,
-                )}
               </p>
             </div>
 
@@ -2699,12 +2687,6 @@ export const ProjectDetails: React.FC = () => {
                   <InfoItem
                     label="Tentative Handover"
                     value={formatDate(project.tentativeHandoverDate)}
-                  />
-                  <InfoItem
-                    label="Budget Value"
-                    value={formatCurrencyExact(
-                      parseFloat(String(project.totalValue)) || 0,
-                    )}
                   />
                   <InfoItem
                     label="Site Contact Name"
@@ -3019,39 +3001,6 @@ export const ProjectDetails: React.FC = () => {
                   )}
                 </Card>
               )}
-
-              {/* Payment Summary */}
-              <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
-                    <DollarSign className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  Payment Summary
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center px-2 py-1.5 rounded-lg bg-gray-50">
-                    <span className="text-sm text-gray-600">Total Value</span>
-                    <span className="font-bold text-gray-900">
-                      {formatCurrencyExact(
-                        parseFloat(String(project.totalValue)) || 0,
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center px-2 py-1.5 rounded-lg bg-green-50">
-                    <span className="text-sm text-green-700">Collected</span>
-                    <span className="font-bold text-green-600">
-                      {formatCurrencyExact(paymentTotals.totalPaid)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center px-2 py-1.5 rounded-lg bg-orange-50">
-                    <span className="text-sm text-orange-700">Pending</span>
-                    <span className="font-bold text-orange-600">
-                      {formatCurrencyExact(paymentTotals.totalPending)}
-                    </span>
-                  </div>
-                </div>
-              </Card>
-
 
             </div>
           </div>

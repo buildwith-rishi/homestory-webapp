@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Bell,
   ChevronRight,
   X,
-  CheckCheck,
   Info,
   AlertTriangle,
   CheckCircle2,
@@ -20,11 +19,8 @@ import Spinner from "../ui/Spinner";
 import {
   getNotifications,
   markNotificationRead,
-  markAllNotificationsRead,
   type Notification,
 } from "../../services/notificationApi";
-import { resolveNotificationDestination } from "../../utils/notificationNavigation";
-import toast from "react-hot-toast";
 
 interface DashboardHeaderProps {
   sidebarCollapsed?: boolean;
@@ -35,11 +31,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [apiTotalCount, setApiTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [dateFilter, setDateFilter] = useState<"today" | "7d" | "30d">("7d");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { currentProject } = useProjectStore();
   const { currentMeeting } = useMeetingStore();
@@ -47,14 +42,36 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const { currentLead } = useLeadStore();
   const { currentTeamMember } = useTeamMemberStore();
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const notificationInDateFilter = useCallback(
+    (createdAt: string, filter: "today" | "7d" | "30d") => {
+      const t = new Date(createdAt).getTime();
+      const now = Date.now();
+      if (filter === "today") {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        return t >= start.getTime() && t <= now;
+      }
+      if (filter === "7d") {
+        return t >= now - 7 * 24 * 60 * 60 * 1000;
+      }
+      return t >= now - 30 * 24 * 60 * 60 * 1000;
+    },
+    [],
+  );
+
+  const filteredNotifications = useMemo(
+    () =>
+      notifications.filter((n) =>
+        notificationInDateFilter(n.createdAt, dateFilter),
+      ),
+    [notifications, dateFilter, notificationInDateFilter],
+  );
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const { notifications: list, count } = await getNotifications();
+      const { notifications: list } = await getNotifications();
       setNotifications(list);
-      setApiTotalCount(count);
     } catch {
       // Silently ignore – bell just won't show count if API unavailable
     } finally {
@@ -99,25 +116,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     if (!n.read) {
       await handleMarkRead(n.id);
     }
-    try {
-      const path = await resolveNotificationDestination({
-        link: n.link,
-        apiType: n.apiType,
-      });
-      if (path) {
-        setDropdownOpen(false);
-        navigate(path);
-      }
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Could not open this notification",
-      );
-    }
-  };
-
-  const handleMarkAllRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    await markAllNotificationsRead();
   };
 
   const getNotificationIcon = (type: Notification["type"]) => {
@@ -250,20 +248,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               type="button"
               onClick={handleBellClick}
               className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-              aria-label={
-                unreadCount > 0
-                  ? `${unreadCount} unread notifications`
-                  : "Notifications"
-              }
+              aria-label="Notifications"
             >
               <Bell size={20} className="text-gray-600" />
-              {unreadCount > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 min-w-[1.125rem] h-[1.125rem] px-1 flex items-center justify-center bg-orange-500 text-white text-[10px] font-bold rounded-full leading-none border-2 border-white shadow-sm"
-                >
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
             </button>
 
             {/* Dropdown panel */}
@@ -271,38 +258,42 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               <div className="absolute right-0 top-12 w-[min(24rem,calc(100vw-1rem))] bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <h3 className="text-sm font-semibold text-gray-900">
                       Notifications
                     </h3>
-                    {apiTotalCount > 0 && (
-                      <span className="text-xs text-gray-500 font-medium">
-                        {apiTotalCount} total
-                      </span>
-                    )}
-                    {unreadCount > 0 && (
-                      <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-2 py-0.5 rounded-full">
-                        {unreadCount} unread
-                      </span>
-                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
-                      >
-                        <CheckCheck size={13} />
-                        Mark all read
-                      </button>
-                    )}
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(false)}
+                    className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                    aria-label="Close notifications"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <div className="px-4 pb-3 border-b border-gray-100 flex flex-wrap gap-2">
+                  {(
+                    [
+                      { id: "today" as const, label: "Today" },
+                      { id: "7d" as const, label: "Last 7 days" },
+                      { id: "30d" as const, label: "Last 30 days" },
+                    ] as const
+                  ).map((opt) => (
                     <button
-                      onClick={() => setDropdownOpen(false)}
-                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setDateFilter(opt.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                        dateFilter === opt.id
+                          ? "bg-orange-500 text-white shadow-sm"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
                     >
-                      <X size={14} />
+                      {opt.label}
                     </button>
-                  </div>
+                  ))}
                 </div>
 
                 {/* Notification list */}
@@ -316,8 +307,15 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                       <Bell size={28} className="opacity-30" />
                       <p className="text-sm">No notifications yet</p>
                     </div>
+                  ) : filteredNotifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400 px-4 text-center">
+                      <Bell size={28} className="opacity-30" />
+                      <p className="text-sm">
+                        No notifications in this date range
+                      </p>
+                    </div>
                   ) : (
-                    notifications.map((n, idx) => (
+                    filteredNotifications.map((n, idx) => (
                       <div
                         key={`${n.id}-${idx}`}
                         role="button"
@@ -369,15 +367,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                               )}
                             </p>
                           )}
-                          {n.link && (
-                            <p className="text-[11px] text-orange-600 mt-1 font-medium">
-                              Open linked page
-                            </p>
-                          )}
                         </div>
-                        {!n.read && (
-                          <span className="mt-1.5 w-2 h-2 flex-shrink-0 bg-orange-500 rounded-full" />
-                        )}
                       </div>
                     ))
                   )}

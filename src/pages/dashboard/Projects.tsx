@@ -4,7 +4,6 @@ import {
   Plus,
   Calendar,
   Users,
-  DollarSign,
   Clock,
   Search,
   Grid3X3,
@@ -137,16 +136,6 @@ const statusColors: Record<string, { bg: string; text: string; dot: string }> =
       dot: "bg-green-500",
     },
   };
-
-const formatCurrency = (value: number | string | undefined | null): string => {
-  if (value === undefined || value === null) return "\u20B90";
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "\u20B90";
-  if (num >= 10000000) return `\u20B9${(num / 10000000).toFixed(2)}Cr`;
-  if (num >= 100000) return `\u20B9${(num / 100000).toFixed(2)}L`;
-  if (num >= 1000) return `\u20B9${(num / 1000).toFixed(1)}K`;
-  return `\u20B9${num}`;
-};
 
 const getInitials = (name: string | undefined | null): string => {
   if (!name) return "?";
@@ -335,8 +324,6 @@ export const ProjectsPage: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const canCreateProject = hasPermission(roleId as RoleId, "projects.create");
   const canDeleteProject = hasPermission(roleId as RoleId, "projects.delete");
-  /** Designers must not see aggregate or per-project budget / value (RBAC). */
-  const isDesigner = roleId === "DESIGNER";
 
   // Initial data fetch
   useEffect(() => {
@@ -383,14 +370,6 @@ export const ProjectsPage: React.FC = () => {
     );
     const ongoingCount = ongoingProjects.length;
 
-    const totalValue = ongoingProjects.reduce((sum, p) => {
-      const v =
-        typeof p.totalValue === "string"
-          ? parseFloat(p.totalValue)
-          : p.totalValue || 0;
-      return sum + (isNaN(v) ? 0 : v);
-    }, 0);
-
     const uniqueMembers = new Set<string>();
     projects.forEach((p) => {
       if (p.assignedDesigner?.id) uniqueMembers.add(p.assignedDesigner.id);
@@ -400,7 +379,6 @@ export const ProjectsPage: React.FC = () => {
     return {
       totalProjects,
       ongoingCount,
-      totalValue: formatCurrency(totalValue),
       teamMembers: uniqueMembers.size,
     };
   }, [projects]);
@@ -584,10 +562,8 @@ export const ProjectsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats — Total Value hidden for Designer */}
-      <div
-        className={`grid grid-cols-1 gap-4 ${isDesigner ? "md:grid-cols-3" : "md:grid-cols-4"}`}
-      >
+      {/* Stats */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="p-4 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
@@ -614,21 +590,6 @@ export const ProjectsPage: React.FC = () => {
             </div>
           </div>
         </Card>
-        {!isDesigner && (
-          <Card className="p-4 rounded-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Value</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {stats.totalValue}
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-              </div>
-            </div>
-          </Card>
-        )}
         <Card className="p-4 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
@@ -753,17 +714,6 @@ export const ProjectsPage: React.FC = () => {
                         : "\u2014"}
                     </span>
                   </div>
-                  {!isDesigner && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 flex items-center gap-2">
-                        <DollarSign className="w-4 h-4" />
-                        Budget
-                      </span>
-                      <span className="font-medium text-emerald-600">
-                        {formatCurrency(project.totalValue)}
-                      </span>
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t">
@@ -824,11 +774,6 @@ export const ProjectsPage: React.FC = () => {
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Created
                   </th>
-                  {!isDesigner && (
-                    <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Budget
-                    </th>
-                  )}
                   <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Team
                   </th>
@@ -941,17 +886,6 @@ export const ProjectsPage: React.FC = () => {
                           </span>
                         </div>
                       </td>
-
-                      {!isDesigner && (
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            <DollarSign className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                            <span className="text-sm font-bold text-emerald-600 whitespace-nowrap">
-                              {formatCurrency(project.totalValue)}
-                            </span>
-                          </div>
-                        </td>
-                      )}
 
                       {/* Team */}
                       <td className="px-4 py-3">
