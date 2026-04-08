@@ -51,6 +51,17 @@ function getApiErrorMessage(data: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Avoid throwing on 401/empty bodies so session expiry still runs notifySessionExpired */
+async function parseJsonResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text.trim()) return undefined;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 // API Error Class
 export class ApiError extends Error {
   constructor(
@@ -81,7 +92,7 @@ export async function fetchAPI<T>(
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    const data = await response.json();
+    const data = await parseJsonResponseBody(response);
 
     if (!response.ok) {
       // If unauthorized and we have a refresh token, try to refresh
@@ -106,9 +117,14 @@ export async function fetchAPI<T>(
               },
             );
 
-            if (refreshResponse.ok) {
-              const refreshData = await refreshResponse.json();
-              const newToken = refreshData.accessToken || refreshData.token;
+            const refreshData = (await parseJsonResponseBody(
+              refreshResponse,
+            )) as Record<string, unknown> | undefined;
+
+            if (refreshResponse.ok && refreshData) {
+              const newToken =
+                (refreshData.accessToken as string | undefined) ||
+                (refreshData.token as string | undefined);
 
               if (newToken) {
                 localStorage.setItem("auth_token", newToken);
@@ -116,7 +132,7 @@ export async function fetchAPI<T>(
                 if (refreshData.refreshToken) {
                   localStorage.setItem(
                     "refresh_token",
-                    refreshData.refreshToken,
+                    String(refreshData.refreshToken),
                   );
                 }
 
@@ -133,7 +149,7 @@ export async function fetchAPI<T>(
                   `${API_BASE_URL}${endpoint}`,
                   retryConfig,
                 );
-                const retryData = await retryResponse.json();
+                const retryData = await parseJsonResponseBody(retryResponse);
 
                 if (!retryResponse.ok) {
                   if (retryResponse.status === 401) {
@@ -146,10 +162,13 @@ export async function fetchAPI<T>(
                   );
                 }
 
-                return retryData;
+                return retryData as T;
               }
             }
-          } catch {
+          } catch (inner) {
+            if (inner instanceof ApiError) {
+              throw inner;
+            }
             // Refresh failed, clear tokens and throw error
             localStorage.removeItem("auth_token");
             localStorage.removeItem("refresh_token");
@@ -175,7 +194,7 @@ export async function fetchAPI<T>(
       );
     }
 
-    return data;
+    return data as T;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
