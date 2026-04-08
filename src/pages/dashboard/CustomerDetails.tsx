@@ -62,6 +62,7 @@ import CustomerAPI, {
   getBankDetails,
   type KycDocType,
   type KycDocument,
+  type UpdateImportantDateInput,
 } from "../../services/customerApi";
 import {
   listAttachments,
@@ -78,6 +79,7 @@ import type { Project } from "../../types";
 import {
   IMPORTANT_DATE_TYPE_OPTIONS,
   getImportantDateDisplayTitle,
+  getImportantDateTypeLabel,
 } from "../../utils/importantDateTypes";
 
 interface FamilyMember {
@@ -733,6 +735,8 @@ export const CustomerDetails: React.FC = () => {
   const [showFamilyModal, setShowFamilyModal] = useState(false);
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
   const [showDateModal, setShowDateModal] = useState(false);
+  const [editingImportantDate, setEditingImportantDate] =
+    useState<ImportantDate | null>(null);
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
 
@@ -2257,57 +2261,144 @@ export const CustomerDetails: React.FC = () => {
     }
   };
 
-  const handleAddDate = async () => {
+  const resetDateForm = () => {
+    setDateForm({
+      dateType: "BIRTHDAY",
+      date: "",
+      isRecurring: true,
+      reminderDays: 7,
+      notes: "",
+      customLabel: "",
+    });
+    setEditingImportantDate(null);
+  };
+
+  const closeDateModal = () => {
+    setShowDateModal(false);
+    resetDateForm();
+  };
+
+  const openAddImportantDateModal = () => {
+    setEditingImportantDate(null);
+    setDateForm({
+      dateType: "BIRTHDAY",
+      date: "",
+      isRecurring: true,
+      reminderDays: 7,
+      notes: "",
+      customLabel: "",
+    });
+    setShowDateModal(true);
+  };
+
+  const openEditImportantDateModal = (date: ImportantDate) => {
+    if (!date.id) {
+      toast.error("This date cannot be edited (missing id).");
+      return;
+    }
+    const raw = String(date.date || "");
+    const dateInput = raw.includes("T")
+      ? raw.split("T")[0]!
+      : raw.slice(0, 10);
+    setEditingImportantDate(date);
+    setDateForm({
+      dateType: (date.dateType || "BIRTHDAY").toUpperCase(),
+      date: dateInput,
+      isRecurring: date.isRecurring ?? true,
+      reminderDays: date.reminderDays ?? 7,
+      notes: date.notes || "",
+      customLabel: date.customLabel || "",
+    });
+    setShowDateModal(true);
+  };
+
+  const handleSaveImportantDate = async () => {
     if (!customer || !dateForm.dateType || !dateForm.date) return;
 
     setIsSaving(true);
     try {
-      const payload: Parameters<typeof CustomerAPI.addImportantDate>[1] = {
-        dateType: dateForm.dateType,
-        date: dateForm.date,
-        isRecurring: dateForm.isRecurring,
-        reminderDays: Number(dateForm.reminderDays),
-        notes: dateForm.notes,
-      };
-      if (dateForm.dateType === "CUSTOM") {
-        payload.customLabel = dateForm.customLabel.trim();
+      if (editingImportantDate?.id) {
+        const body: UpdateImportantDateInput = {
+          date: dateForm.date,
+          dateType: dateForm.dateType,
+          isRecurring: dateForm.isRecurring,
+          reminderDays: Number(dateForm.reminderDays),
+          notes: dateForm.notes,
+        };
+        if (dateForm.dateType === "CUSTOM") {
+          body.customLabel = dateForm.customLabel.trim();
+        }
+
+        const result = await CustomerAPI.updateImportantDate(
+          editingImportantDate.id,
+          body,
+        );
+
+        setCustomerData((prev) => {
+          if (!prev) return prev;
+          const merged: ImportantDate = {
+            id: result.id,
+            dateType: result.dateType,
+            date: result.date,
+            isRecurring: result.isRecurring,
+            reminderDays: result.reminderDays,
+            notes: result.notes ?? undefined,
+            customLabel: result.customLabel ?? undefined,
+          };
+          return {
+            ...prev,
+            importantDates: (prev.importantDates || []).map((d) =>
+              d.id === editingImportantDate.id ? merged : d,
+            ),
+          };
+        });
+
+        closeDateModal();
+        toast.success("Important date updated successfully!");
+      } else {
+        const payload: Parameters<typeof CustomerAPI.addImportantDate>[1] = {
+          dateType: dateForm.dateType,
+          date: dateForm.date,
+          isRecurring: dateForm.isRecurring,
+          reminderDays: Number(dateForm.reminderDays),
+          notes: dateForm.notes,
+        };
+        if (dateForm.dateType === "CUSTOM") {
+          payload.customLabel = dateForm.customLabel.trim();
+        }
+
+        const result = await CustomerAPI.addImportantDate(
+          String(customer.id),
+          payload,
+        );
+
+        setCustomerData((prev) => {
+          if (!prev) return prev;
+          const newDate: ImportantDate = {
+            id: result.id,
+            dateType: result.dateType,
+            date: result.date,
+            isRecurring: result.isRecurring,
+            reminderDays: result.reminderDays,
+            notes: result.notes,
+            customLabel: result.customLabel ?? undefined,
+          };
+          return {
+            ...prev,
+            importantDates: [...(prev.importantDates || []), newDate],
+          };
+        });
+
+        closeDateModal();
+        toast.success("Important date added successfully!");
       }
-
-      const result = await CustomerAPI.addImportantDate(
-        String(customer.id),
-        payload,
-      );
-
-      // Optimistically update local state
-      setCustomerData((prev) => {
-        if (!prev) return prev;
-        const newDate: ImportantDate = {
-          id: result.id,
-          dateType: result.dateType,
-          date: result.date,
-          isRecurring: result.isRecurring,
-          reminderDays: result.reminderDays,
-          notes: result.notes,
-          customLabel: result.customLabel ?? undefined,
-        };
-        return {
-          ...prev,
-          importantDates: [...(prev.importantDates || []), newDate],
-        };
-      });
-
-      setDateForm({
-        dateType: "BIRTHDAY",
-        date: "",
-        isRecurring: true,
-        reminderDays: 7,
-        notes: "",
-        customLabel: "",
-      });
-      setShowDateModal(false);
-      toast.success("Important date added successfully!");
     } catch (error: any) {
-      toast.error(error.message || "Failed to add important date");
+      toast.error(
+        error.message ||
+          (editingImportantDate
+            ? "Failed to update important date"
+            : "Failed to add important date"),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -2965,9 +3056,7 @@ export const CustomerDetails: React.FC = () => {
           { key: "ranking", label: "Ranking", icon: Award },
           { key: "projects", label: "Projects", icon: FolderOpen },
           { key: "kyc", label: "KYC", icon: Shield },
-          ...(customerData?.leadId
-            ? [{ key: "references", label: "References", icon: Link2 }]
-            : []),
+          { key: "references", label: "References", icon: Link2 },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -3623,14 +3712,14 @@ export const CustomerDetails: React.FC = () => {
 
                     return (
                       <div
-                        key={index}
-                        className="p-4 bg-gray-50 rounded-xl flex items-center justify-between group"
+                        key={date.id || `date-${index}`}
+                        className="p-4 bg-gray-50 rounded-xl flex items-center justify-between group gap-3"
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-2xl shrink-0">
                             {icons[typeKey] || icons.custom}
                           </span>
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-semibold text-gray-900">
                               {label}
                               {date.isRecurring && (
@@ -3647,12 +3736,22 @@ export const CustomerDetails: React.FC = () => {
                               })}
                             </p>
                             {date.notes && (
-                              <p className="text-xs text-gray-500 mt-1 italic">
+                              <p className="text-xs text-gray-500 mt-1 italic truncate">
                                 "{date.notes}"
                               </p>
                             )}
                           </div>
                         </div>
+                        {editingTab === "dates" && date.id && (
+                          <button
+                            type="button"
+                            onClick={() => openEditImportantDateModal(date)}
+                            className="shrink-0 p-2 rounded-lg text-gray-500 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                            title="Edit date"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -3665,7 +3764,7 @@ export const CustomerDetails: React.FC = () => {
               {editingTab === "dates" && (
                 <Button
                   className="w-full mt-4 bg-orange-500 hover:bg-orange-600"
-                  onClick={() => setShowDateModal(true)}
+                  onClick={openAddImportantDateModal}
                 >
                   <Gift className="w-4 h-4" />
                   Add Important Date
@@ -5460,13 +5559,15 @@ export const CustomerDetails: React.FC = () => {
             {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowDateModal(false)}
+              onClick={closeDateModal}
             />
             {/* Modal */}
             <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 animate-scale-in">
               <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <Calendar className="w-6 h-6 text-orange-500" />
-                Add Important Date
+                {editingImportantDate
+                  ? "Edit Important Date"
+                  : "Add Important Date"}
               </h3>
               <div className="space-y-6">
                 <div>
@@ -5491,6 +5592,14 @@ export const CustomerDetails: React.FC = () => {
                         {label}
                       </option>
                     ))}
+                    {dateForm.dateType &&
+                      !IMPORTANT_DATE_TYPE_OPTIONS.some(
+                        (o) => o.value === dateForm.dateType,
+                      ) && (
+                        <option value={dateForm.dateType}>
+                          {getImportantDateTypeLabel(dateForm.dateType)}
+                        </option>
+                      )}
                   </select>
                 </div>
                 {dateForm.dateType === "CUSTOM" && (
@@ -5584,23 +5693,13 @@ export const CustomerDetails: React.FC = () => {
               <div className="flex gap-3 mt-6">
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    setShowDateModal(false);
-                    setDateForm({
-                      dateType: "BIRTHDAY",
-                      date: "",
-                      isRecurring: true,
-                      reminderDays: 7,
-                      notes: "",
-                      customLabel: "",
-                    });
-                  }}
+                  onClick={closeDateModal}
                   className="flex-1"
                 >
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleAddDate}
+                  onClick={handleSaveImportantDate}
                   className="flex-1 bg-orange-500 hover:bg-orange-600"
                   disabled={
                     !dateForm.dateType ||
@@ -5610,7 +5709,13 @@ export const CustomerDetails: React.FC = () => {
                       !dateForm.customLabel.trim())
                   }
                 >
-                  {isSaving ? "Adding..." : "Add Date"}
+                  {isSaving
+                    ? editingImportantDate
+                      ? "Saving..."
+                      : "Adding..."
+                    : editingImportantDate
+                      ? "Save changes"
+                      : "Add Date"}
                 </Button>
               </div>
             </div>

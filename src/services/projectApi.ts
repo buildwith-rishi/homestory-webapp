@@ -2326,6 +2326,8 @@ export async function getMatrixTaskDetails(
 export interface MatrixUserTasksQuery {
   status?: string;
   projectId?: string;
+  /** Filter tasks scheduled on this calendar day (YYYY-MM-DD) if supported by API. */
+  date?: string;
   limit?: number;
   offset?: number;
 }
@@ -2349,6 +2351,8 @@ export async function getMatrixTasksForUser(
   if (query.status !== undefined && query.status !== "")
     sp.set("status", query.status);
   if (query.projectId) sp.set("projectId", query.projectId);
+  if (query.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date))
+    sp.set("date", query.date);
   sp.set("limit", String(limit));
   sp.set("offset", String(offset));
   const qs = sp.toString();

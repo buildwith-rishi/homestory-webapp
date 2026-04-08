@@ -489,6 +489,43 @@ export async function getImportantDates(
   }
 }
 
+/** PUT /api/important-dates/:id — update an existing important date */
+export interface UpdateImportantDateInput {
+  date?: string;
+  dateType?: string;
+  isRecurring?: boolean;
+  reminderDays?: number;
+  notes?: string;
+  customLabel?: string;
+}
+
+export async function updateImportantDate(
+  id: string,
+  data: UpdateImportantDateInput,
+): Promise<CustomerImportantDate> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/important-dates/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+
+    const dataOut = await handleResponse<
+      { importantDate: CustomerImportantDate } | CustomerImportantDate
+    >(response);
+
+    return "importantDate" in dataOut
+      ? (dataOut as { importantDate: CustomerImportantDate }).importantDate
+      : (dataOut as CustomerImportantDate);
+  } catch (error) {
+    console.error("Error updating important date:", error);
+    throw error;
+  }
+}
+
 // ─── KYC & Bank Details ─────────────────────────────────────────────────────
 
 export type KycDocType = "AADHAR" | "PAN" | "GST_CERTIFICATE";
@@ -685,6 +722,7 @@ const CustomerAPI = {
   getFamilyRelationshipTypes,
   addImportantDate,
   getImportantDates,
+  updateImportantDate,
 
   addFamilyMember,
   updateFamilyMember,

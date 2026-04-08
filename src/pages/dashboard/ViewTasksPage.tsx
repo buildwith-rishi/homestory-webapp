@@ -14,7 +14,17 @@ import {
   ExternalLink,
   ClipboardList,
   ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
+import {
+  addMonths,
+  subMonths,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  format,
+  isSameMonth,
+} from "date-fns";
 import { Card, Badge, Modal } from "../../components/ui";
 import { adminAPI } from "../../services/api";
 import {
@@ -93,6 +103,39 @@ const statusLabel = (s: string) =>
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+/** Normalize API task date to YYYY-MM-DD for calendar / compare */
+function toDateKey(iso?: string | null): string | null {
+  if (!iso) return null;
+  const s = String(iso);
+  const part = s.includes("T") ? s.split("T")[0]! : s.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(part) ? part : null;
+}
+
+/** Load every matrix task for a user (paginated) for calendar + date filter */
+async function fetchAllMatrixTasksForUserId(
+  userId: string,
+): Promise<MatrixTask[]> {
+  const limit = 100;
+  let offset = 0;
+  const byId = new Map<string, MatrixTask>();
+  let total: number | undefined;
+  while (true) {
+    const { tasks, total: t } = await getMatrixTasksForUser(userId, {
+      limit,
+      offset,
+    });
+    if (typeof t === "number") total = t;
+    for (const task of tasks) {
+      if (task.id && !byId.has(task.id)) byId.set(task.id, task);
+    }
+    if (tasks.length < limit) break;
+    if (total !== undefined && byId.size >= total) break;
+    offset += limit;
+    if (offset > 50000) break;
+  }
+  return [...byId.values()];
+}
+
 export const ViewTasksPage: React.FC = () => {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -103,11 +146,15 @@ export const ViewTasksPage: React.FC = () => {
   const [tasksOpen, setTasksOpen] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState<string | null>(null);
+  const [rawTasks, setRawTasks] = useState<MatrixTask[]>([]);
   const [tasks, setTasks] = useState<MatrixTaskWithAtt[]>([]);
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>("");
-  const [offset, setOffset] = useState(0);
-  const [totalTasks, setTotalTasks] = useState<number | undefined>(undefined);
-  const limit = 50;
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<
+    string | null
+  >(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  const [listLimit, setListLimit] = useState(50);
+  const pageSize = 50;
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const resolvedAttachmentIdsRef = useRef<Set<string>>(new Set());
 
@@ -183,25 +230,86 @@ export const ViewTasksPage: React.FC = () => {
     return "—";
   };
 
-  const loadTasksForUser = async (
-    user: UserRow,
-    nextOffset: number,
-    opts?: { append?: boolean; statusOverride?: string },
-  ) => {
+  const tasksForCalendar = useMemo(() => {
+    let list = rawTasks;
+    if (taskStatusFilter) {
+      const u = taskStatusFilter.toUpperCase();
+      list = list.filter((t) => String(t.status).toUpperCase() === u);
+    }
+    return list;
+  }, [rawTasks, taskStatusFilter]);
+
+  const datesWithTasks = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of tasksForCalendar) {
+      const k = toDateKey(t.taskDate);
+      if (k) s.add(k);
+    }
+    return s;
+  }, [tasksForCalendar]);
+
+  const filteredTasks = useMemo(() => {
+    let list = tasksForCalendar;
+    if (selectedCalendarDate) {
+      list = list.filter(
+        (t) => toDateKey(t.taskDate) === selectedCalendarDate,
+      );
+    }
+    return list;
+  }, [tasksForCalendar, selectedCalendarDate]);
+
+  const visibleTasks = useMemo(
+    () => filteredTasks.slice(0, listLimit),
+    [filteredTasks, listLimit],
+  );
+
+  const loadAllTasksForUser = async (user: UserRow) => {
     setTasksLoading(true);
     setTasksError(null);
-    const statusParam = opts?.statusOverride ?? taskStatusFilter;
     try {
-      const { tasks: raw, total } = await getMatrixTasksForUser(user.id, {
-        status: statusParam || undefined,
-        limit,
-        offset: nextOffset,
-      });
-      setTotalTasks(total);
-      setOffset(nextOffset);
+      const merged = await fetchAllMatrixTasksForUserId(user.id);
+      setRawTasks(merged);
+    } catch (e) {
+      setTasksError(e instanceof Error ? e.message : "Failed to load tasks");
+      setRawTasks([]);
+    } finally {
+      setTasksLoading(false);
+    }
+  };
 
+  const openTasks = (user: UserRow) => {
+    setTaskUser(user);
+    setTasksOpen(true);
+    setTaskStatusFilter("");
+    setSelectedCalendarDate(null);
+    setCalendarMonth(new Date());
+    setListLimit(pageSize);
+    setRawTasks([]);
+    resolvedAttachmentIdsRef.current = new Set();
+    setResolvedUrls({});
+    void loadAllTasksForUser(user);
+  };
+
+  const closeTasks = () => {
+    setTasksOpen(false);
+    setTaskUser(null);
+    setRawTasks([]);
+    setTasks([]);
+    setTasksError(null);
+    setSelectedCalendarDate(null);
+    setResolvedUrls({});
+    resolvedAttachmentIdsRef.current = new Set();
+  };
+
+  useEffect(() => {
+    if (!tasksOpen || visibleTasks.length === 0) {
+      setTasks([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
       const withAtt: MatrixTaskWithAtt[] = await Promise.all(
-        raw.map(async (t) => {
+        visibleTasks.map(async (t) => {
           const ext = t as MatrixTaskWithAtt;
           if (ext.attachments && ext.attachments.length > 0) return ext;
           try {
@@ -212,49 +320,12 @@ export const ViewTasksPage: React.FC = () => {
           }
         }),
       );
-      if (opts?.append) {
-        setTasks((prev) => {
-          const seen = new Set(prev.map((x) => x.id));
-          const merged = [...prev];
-          for (const t of withAtt) {
-            if (!seen.has(t.id)) {
-              seen.add(t.id);
-              merged.push(t);
-            }
-          }
-          return merged;
-        });
-      } else {
-        resolvedAttachmentIdsRef.current = new Set();
-        setResolvedUrls({});
-        setTasks(withAtt);
-      }
-    } catch (e) {
-      setTasksError(e instanceof Error ? e.message : "Failed to load tasks");
-      if (!opts?.append) setTasks([]);
-    } finally {
-      setTasksLoading(false);
-    }
-  };
-
-  const openTasks = (user: UserRow) => {
-    setTaskUser(user);
-    setTasksOpen(true);
-    setTaskStatusFilter("");
-    setOffset(0);
-    resolvedAttachmentIdsRef.current = new Set();
-    setResolvedUrls({});
-    void loadTasksForUser(user, 0, { statusOverride: "" });
-  };
-
-  const closeTasks = () => {
-    setTasksOpen(false);
-    setTaskUser(null);
-    setTasks([]);
-    setTasksError(null);
-    setResolvedUrls({});
-    resolvedAttachmentIdsRef.current = new Set();
-  };
+      if (!cancelled) setTasks(withAtt);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tasksOpen, visibleTasks]);
 
   useEffect(() => {
     if (!tasksOpen || tasks.length === 0) return;
@@ -290,10 +361,48 @@ export const ViewTasksPage: React.FC = () => {
     };
   }, [tasksOpen, tasks]);
 
-  const canLoadMore =
-    totalTasks !== undefined
-      ? offset + limit < totalTasks
-      : tasks.length > 0 && tasks.length % limit === 0;
+  const canLoadMore = listLimit < filteredTasks.length;
+
+  const isHydratingAttachments =
+    !tasksLoading &&
+    visibleTasks.length > 0 &&
+    tasks.length === 0 &&
+    !tasksError;
+
+  const calendarWeekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const monthGridCells = useMemo(() => {
+    const start = startOfMonth(calendarMonth);
+    const end = endOfMonth(calendarMonth);
+    const days = eachDayOfInterval({ start, end });
+    const leading = start.getDay();
+    const cells: Array<Date | null> = [];
+    for (let i = 0; i < leading; i++) cells.push(null);
+    days.forEach((d) => cells.push(d));
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [calendarMonth]);
+
+  const refreshTasksForDateFromServer = useCallback(
+    async (dateStr: string) => {
+      if (!taskUser) return;
+      try {
+        const { tasks: dayTasks } = await getMatrixTasksForUser(taskUser.id, {
+          date: dateStr,
+          limit: 200,
+          offset: 0,
+        });
+        if (!dayTasks.length) return;
+        setRawTasks((prev) => {
+          const m = new Map(prev.map((t) => [t.id, t]));
+          for (const t of dayTasks) m.set(t.id, t);
+          return [...m.values()];
+        });
+      } catch {
+        /* API may not support date filter; client list still applies */
+      }
+    },
+    [taskUser],
+  );
 
   return (
     <div className="space-y-6 animate-fade-in max-w-[1600px] mx-auto">
@@ -438,25 +547,145 @@ export const ViewTasksPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="px-5 py-3 border-b border-gray-50 flex flex-wrap items-center gap-2">
-            <label className="text-xs font-medium text-gray-500">Status</label>
-            <select
-              value={taskStatusFilter}
-              onChange={(e) => {
-                const v = e.target.value;
-                setTaskStatusFilter(v);
-                if (taskUser)
-                  void loadTasksForUser(taskUser, 0, { statusOverride: v });
-              }}
-              className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
-            >
-              <option value="">All</option>
-              <option value="PENDING">Pending</option>
-              <option value="IN_PROGRESS">In progress</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CANCELLED">Cancelled</option>
-              <option value="OVERDUE">Overdue</option>
-            </select>
+          <div className="px-5 py-3 border-b border-gray-50 flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs font-medium text-gray-500">Status</label>
+              <select
+                value={taskStatusFilter}
+                onChange={(e) => {
+                  setTaskStatusFilter(e.target.value);
+                  setListLimit(pageSize);
+                }}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
+              >
+                <option value="">All</option>
+                <option value="PENDING">Pending</option>
+                <option value="IN_PROGRESS">In progress</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+                <option value="OVERDUE">Overdue</option>
+              </select>
+            </div>
+            {selectedCalendarDate && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCalendarDate(null);
+                  setListLimit(pageSize);
+                }}
+                className="text-xs font-medium text-orange-600 hover:text-orange-700 px-2 py-1 rounded-lg hover:bg-orange-50"
+              >
+                Clear date filter
+              </button>
+            )}
+          </div>
+
+          <div className="px-5 py-3 border-b border-gray-50 bg-gray-50/50">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Calendar — days with a dot have at least one task (respects status
+              filter). Click a day to show only tasks on that date.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm w-full max-w-[320px]">
+                <div className="flex items-center justify-between mb-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCalendarMonth((m) => subMonths(m, 1))
+                    }
+                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
+                    aria-label="Previous month"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {format(calendarMonth, "MMMM yyyy")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCalendarMonth((m) => addMonths(m, 1))
+                    }
+                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
+                    aria-label="Next month"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-gray-400 mb-1">
+                  {calendarWeekdays.map((d) => (
+                    <div key={d}>{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-0.5">
+                  {monthGridCells.map((day, idx) => {
+                    if (!day) {
+                      return (
+                        <div
+                          key={`pad-${idx}`}
+                          className="aspect-square min-h-[2rem]"
+                        />
+                      );
+                    }
+                    const key = format(day, "yyyy-MM-dd");
+                    const inMonth = isSameMonth(day, calendarMonth);
+                    const hasTask = datesWithTasks.has(key);
+                    const isSel = selectedCalendarDate === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          if (selectedCalendarDate === key) {
+                            setSelectedCalendarDate(null);
+                            setListLimit(pageSize);
+                          } else {
+                            setSelectedCalendarDate(key);
+                            setListLimit(pageSize);
+                            void refreshTasksForDateFromServer(key);
+                          }
+                        }}
+                        className={[
+                          "aspect-square min-h-[2rem] rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors",
+                          inMonth ? "text-gray-900" : "text-gray-300",
+                          isSel
+                            ? "bg-orange-500 text-white"
+                            : "hover:bg-orange-50 text-gray-800",
+                        ].join(" ")}
+                      >
+                        <span>{format(day, "d")}</span>
+                        {hasTask && (
+                          <span
+                            className={
+                              isSel
+                                ? "w-1 h-1 rounded-full bg-white"
+                                : "w-1 h-1 rounded-full bg-orange-500"
+                            }
+                            aria-hidden
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {selectedCalendarDate && (
+                <p className="text-sm text-gray-600 pt-1">
+                  Showing tasks for{" "}
+                  <span className="font-semibold text-gray-900">
+                    {format(
+                      new Date(selectedCalendarDate + "T12:00:00"),
+                      "EEE, d MMM yyyy",
+                    )}
+                  </span>
+                  <span className="text-gray-500">
+                    {" "}
+                    ({filteredTasks.length} total
+                    {taskStatusFilter ? ", status filtered" : ""})
+                  </span>
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
@@ -469,7 +698,12 @@ export const ViewTasksPage: React.FC = () => {
               <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700">
                 {tasksError}
               </div>
-            ) : tasks.length === 0 ? (
+            ) : isHydratingAttachments ? (
+              <div className="flex flex-col items-center py-12 gap-2">
+                <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                <p className="text-sm text-gray-500">Loading details…</p>
+              </div>
+            ) : filteredTasks.length === 0 ? (
               <p className="text-center text-gray-500 py-8 text-sm">
                 No matrix tasks found for this user with the current filters.
               </p>
@@ -600,21 +834,18 @@ export const ViewTasksPage: React.FC = () => {
 
             {!tasksLoading &&
               !tasksError &&
-              tasks.length > 0 &&
               canLoadMore &&
               taskUser && (
                 <div className="flex justify-center pt-2">
                   <button
                     type="button"
                     onClick={() =>
-                      void loadTasksForUser(taskUser, offset + limit, {
-                        append: true,
-                      })
+                      setListLimit((n) => n + pageSize)
                     }
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100"
                   >
                     <ChevronRight className="w-4 h-4" />
-                    Load more
+                    Load more ({tasks.length} of {filteredTasks.length})
                   </button>
                 </div>
               )}

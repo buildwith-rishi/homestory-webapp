@@ -186,11 +186,11 @@ export const UserEmailCombobox: React.FC<UserEmailComboboxProps> = ({
               />
               <input
                 id={`${reactId}-panel-search`}
-                type="search"
+                type="text"
+                inputMode="search"
                 role="searchbox"
                 value={panelSearch}
                 onChange={(e) => setPanelSearch(e.target.value)}
-                onMouseDown={stopBlurChain}
                 placeholder="Search by name or email…"
                 autoComplete="off"
                 className="flex-1 min-w-0 text-sm bg-transparent text-gray-900 placeholder:text-gray-400 outline-none"
