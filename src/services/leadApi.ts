@@ -391,6 +391,55 @@ export async function getLeadStatuses(): Promise<LeadStatus[]> {
   return data.statuses || [];
 }
 
+/** Normalizes varying GET /api/leads JSON shapes to a single contract. */
+export function normalizeListLeadsResponse(raw: unknown): {
+  leads: Lead[];
+  total: number;
+  page: number;
+  limit: number;
+} {
+  const r = raw as Record<string, unknown>;
+  const data =
+    r.data && typeof r.data === "object"
+      ? (r.data as Record<string, unknown>)
+      : undefined;
+  const meta =
+    r.meta && typeof r.meta === "object"
+      ? (r.meta as Record<string, unknown>)
+      : undefined;
+  const pagination =
+    r.pagination && typeof r.pagination === "object"
+      ? (r.pagination as Record<string, unknown>)
+      : undefined;
+
+  const leadsRaw = r.leads ?? data?.leads ?? r.results ?? data?.results;
+  const leads = Array.isArray(leadsRaw) ? (leadsRaw as Lead[]) : [];
+
+  const totalRaw =
+    r.total ??
+    data?.total ??
+    meta?.total ??
+    pagination?.total ??
+    r.count ??
+    data?.count;
+  const total =
+    typeof totalRaw === "number" && !Number.isNaN(totalRaw)
+      ? totalRaw
+      : leads.length;
+
+  const pageRaw = r.page ?? data?.page ?? meta?.page ?? pagination?.page;
+  const page =
+    typeof pageRaw === "number" && !Number.isNaN(pageRaw) ? pageRaw : 1;
+
+  const limitRaw = r.limit ?? data?.limit ?? meta?.limit ?? pagination?.limit;
+  const limit =
+    typeof limitRaw === "number" && !Number.isNaN(limitRaw)
+      ? limitRaw
+      : leads.length;
+
+  return { leads, total, page, limit };
+}
+
 /**
  * List all leads with optional filters
  * GET /api/leads
@@ -420,7 +469,43 @@ export async function listLeads(params?: {
     cache: "no-store",
   });
 
-  return handleResponse(response);
+  const raw = await handleResponse<unknown>(response);
+  return normalizeListLeadsResponse(raw);
+}
+
+const LIST_LEADS_MAX_PAGES = 500;
+const LIST_LEADS_DEFAULT_PAGE_SIZE = 200;
+
+/**
+ * Fetch every lead page until a short page is returned (or an empty page).
+ * Does not trust `total` alone when a full page is returned, so counts stay
+ * correct if the API reports an incorrect total.
+ */
+export async function listAllLeads(
+  params?: {
+    status?: string;
+    source?: string;
+    search?: string;
+  },
+  options?: { pageSize?: number; signal?: AbortSignal },
+): Promise<Lead[]> {
+  const pageSize = options?.pageSize ?? LIST_LEADS_DEFAULT_PAGE_SIZE;
+  const all: Lead[] = [];
+  let page = 1;
+
+  while (page <= LIST_LEADS_MAX_PAGES) {
+    if (options?.signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+    const res = await listLeads({ ...params, page, limit: pageSize });
+    const batch = res.leads ?? [];
+    all.push(...batch);
+    if (batch.length === 0) break;
+    if (batch.length < pageSize) break;
+    page++;
+  }
+
+  return all;
 }
 
 /**

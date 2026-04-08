@@ -3,7 +3,7 @@ import { X, BarChart3, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { WidgetProps } from "./index";
-import { listLeads, Lead } from "../../../services/leadApi";
+import { listAllLeads, Lead } from "../../../services/leadApi";
 
 interface FunnelStage {
   name: string;
@@ -67,14 +67,7 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
     let cancelled = false;
     const fetchAll = async () => {
       try {
-        const results: Lead[] = [];
-        let page = 1;
-        while (true) {
-          const res = await listLeads({ limit: 200, page });
-          results.push(...res.leads);
-          if (results.length >= res.total || res.leads.length < 200) break;
-          page++;
-        }
+        const results = await listAllLeads();
         if (!cancelled) setLeads(results);
       } catch {
         if (!cancelled) setLeads([]);
@@ -89,6 +82,7 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   }, []);
 
   const stages: FunnelStage[] = useMemo(() => {
+    const total = leads.length;
     const counts = STAGE_CONFIG.map((cfg) => {
       const count = leads.filter((l) => {
         const val = ((l.stage || l.status || "") as string).toUpperCase();
@@ -96,19 +90,18 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
       }).length;
       return { ...cfg, count };
     });
-    const maxCount = counts[0]?.count || 1;
     return counts.map((s) => ({
       ...s,
       name: s.label,
-      percentage: maxCount > 0 ? Math.round((s.count / maxCount) * 100) : 0,
+      percentage:
+        total > 0 ? Math.min(100, Math.round((s.count / total) * 100)) : 0,
     }));
   }, [leads]);
 
-  const conversionRate =
-    stages[0]?.count > 0
-      ? Math.round(((stages[4]?.count || 0) / stages[0].count) * 100)
-      : 0;
   const totalLeads = leads.length;
+  const wonCount = stages[4]?.count ?? 0;
+  const conversionRate =
+    totalLeads > 0 ? Math.round((wonCount / totalLeads) * 100) : 0;
 
   return (
     <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 group relative overflow-hidden flex flex-col">
@@ -181,6 +174,9 @@ const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           </p>
           <p className="text-xl font-extrabold text-emerald-700 leading-tight mt-0.5">
             {conversionRate}%
+          </p>
+          <p className="text-[10px] text-emerald-600/80 mt-1 leading-tight">
+            Won ÷ all leads
           </p>
         </div>
         <div

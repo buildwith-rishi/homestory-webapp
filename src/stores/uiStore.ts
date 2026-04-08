@@ -1,6 +1,35 @@
 import { create } from "zustand";
 import { NotificationType, DashboardWidget } from "../types";
 
+function parseDashboardWidget(raw: unknown): DashboardWidget | null {
+  if (!raw || typeof raw !== "object") return null;
+  const w = raw as Record<string, unknown>;
+  if (typeof w.instanceId !== "string" || typeof w.widgetId !== "string") {
+    return null;
+  }
+  const pos =
+    w.position && typeof w.position === "object"
+      ? (w.position as Record<string, unknown>)
+      : {};
+  const size =
+    w.size && typeof w.size === "object"
+      ? (w.size as Record<string, unknown>)
+      : {};
+  const x = typeof pos.x === "number" && !Number.isNaN(pos.x) ? pos.x : 0;
+  const y = typeof pos.y === "number" && !Number.isNaN(pos.y) ? pos.y : 0;
+  const sw = typeof size.w === "number" && !Number.isNaN(size.w) ? size.w : 1;
+  const sh = typeof size.h === "number" && !Number.isNaN(size.h) ? size.h : 1;
+  return {
+    instanceId: w.instanceId,
+    widgetId: w.widgetId,
+    position: { x, y },
+    size: {
+      w: Math.max(1, Math.min(4, sw)),
+      h: Math.max(1, Math.min(4, sh)),
+    },
+  };
+}
+
 interface UIState {
   sidebarCollapsed: boolean;
   activeModal: string | null;
@@ -49,7 +78,12 @@ const loadWidgetsFromStorage = (): DashboardWidget[] => {
   try {
     const stored = localStorage.getItem("dashboard-widgets");
     if (stored) {
-      return JSON.parse(stored);
+      const parsed: unknown = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return DEFAULT_WIDGETS;
+      const normalized = parsed
+        .map(parseDashboardWidget)
+        .filter((w): w is DashboardWidget => w !== null);
+      return normalized;
     }
   } catch (e) {
     console.error("Failed to load widgets from storage:", e);

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { X, TrendingUp, Loader2 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { WidgetProps } from "./index";
-import { listLeads, Lead } from "../../../services/leadApi";
+import { listAllLeads, Lead } from "../../../services/leadApi";
 
 const SOURCE_CONFIG: Array<{ label: string; keys: string[]; color: string }> = [
   { label: "Website", keys: ["WEBSITE", "WEB", "ONLINE"], color: "#DC5800" },
@@ -31,14 +31,7 @@ const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
     let cancelled = false;
     const fetch = async () => {
       try {
-        const results: Lead[] = [];
-        let page = 1;
-        while (true) {
-          const res = await listLeads({ limit: 200, page });
-          results.push(...res.leads);
-          if (results.length >= res.total || res.leads.length < 200) break;
-          page++;
-        }
+        const results = await listAllLeads();
         if (!cancelled) setLeads(results);
       } catch {
         if (!cancelled) setLeads([]);

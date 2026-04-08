@@ -16,20 +16,10 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
-  CalendarDays,
-  ChevronLeft,
-  ExternalLink,
-  Image as ImageIcon,
 } from "lucide-react";
 import { Card, Badge, Modal } from "../../components/ui";
 import { adminAPI } from "../../services/api";
 import { AdminUser, CreateUserRequest } from "../../types";
-import {
-  getAdminSETasksByUserId,
-  getMatrixTaskDetails,
-  type SiteEngineerTask,
-  type DetailedMatrixTaskAttachment,
-} from "../../services/siteEngineerApi";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   getRoleBadgeClasses,
@@ -77,17 +67,6 @@ interface ApiRoleDefinition {
   accessLevel?: string;
   permissions: string[];
 }
-
-interface UserTaskWithAttachments extends SiteEngineerTask {
-  attachments?: DetailedMatrixTaskAttachment[];
-}
-
-const formatLocalDateKey = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
 
 const normalizeRolesResponse = (response: unknown): ApiRoleDefinition[] => {
   let rawRoles: Array<Record<string, unknown>> = [];
@@ -230,17 +209,7 @@ export const UserManagement: React.FC = () => {
   const [showBanModal, setShowBanModal] = useState(false);
   const [showUnbanModal, setShowUnbanModal] = useState(false);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
-  const [showTaskCalendarModal, setShowTaskCalendarModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-  const [calendarUser, setCalendarUser] = useState<UserListItem | null>(null);
-  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>(() =>
-    formatLocalDateKey(new Date()),
-  );
-  const [userTasksLoading, setUserTasksLoading] = useState(false);
-  const [userTasksError, setUserTasksError] = useState<string | null>(null);
-  const [userTasks, setUserTasks] = useState<UserTaskWithAttachments[]>([]);
-  const [taskDetailsLoadingIds, setTaskDetailsLoadingIds] = useState<string[]>([]);
   const [phoneErrorUser, setPhoneErrorUser] = useState<string | null>(null);
 
   // Form states
@@ -865,158 +834,6 @@ export const UserManagement: React.FC = () => {
     return getRoleBadgeClasses(role as RoleId);
   };
 
-  const toDateKey = (value?: string): string | null => {
-    if (!value) return null;
-    const normalized = value.includes("T") ? value.split("T")[0] : value;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
-    const date = new Date(`${normalized}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return null;
-    return normalized;
-  };
-
-  const buildMonthGrid = (month: Date): (Date | null)[] => {
-    const year = month.getFullYear();
-    const monthIdx = month.getMonth();
-    const firstDay = new Date(year, monthIdx, 1);
-    const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
-    const leadPadding = firstDay.getDay();
-
-    const cells: (Date | null)[] = [];
-    for (let i = 0; i < leadPadding; i += 1) cells.push(null);
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      cells.push(new Date(year, monthIdx, day));
-    }
-    return cells;
-  };
-
-  const openUserTaskCalendar = async (user: UserListItem) => {
-    setCalendarUser(user);
-    setShowTaskCalendarModal(true);
-    setUserTasks([]);
-    setUserTasksError(null);
-    setUserTasksLoading(true);
-
-    const todayKey = formatLocalDateKey(new Date());
-    setCalendarMonth(new Date());
-    setSelectedCalendarDate(todayKey);
-
-    try {
-      const memberId = String(
-        (user as unknown as { memberId?: string; teamMemberId?: string; assignedToMemberId?: string })
-          .memberId ||
-          (user as unknown as { memberId?: string; teamMemberId?: string; assignedToMemberId?: string })
-            .teamMemberId ||
-          (user as unknown as { memberId?: string; teamMemberId?: string; assignedToMemberId?: string })
-            .assignedToMemberId ||
-          "",
-      ).trim();
-
-      const tasks = await getAdminSETasksByUserId(user.id, memberId || undefined);
-      const normalized = tasks
-        .map((task) => ({
-          ...task,
-          dueDate: toDateKey(task.dueDate) || toDateKey(task.createdAt) || undefined,
-        }))
-        .sort((a, b) => {
-          const aDate = a.dueDate || "";
-          const bDate = b.dueDate || "";
-          if (aDate !== bDate) return aDate.localeCompare(bDate);
-          return (a.title || "").localeCompare(b.title || "");
-        });
-
-      setUserTasks(normalized);
-
-      const nextSelectedDate =
-        normalized.find((task) => task.dueDate === todayKey)?.dueDate ||
-        normalized[0]?.dueDate ||
-        todayKey;
-
-      setSelectedCalendarDate(nextSelectedDate);
-      const nextDate = new Date(`${nextSelectedDate}T00:00:00`);
-      if (!Number.isNaN(nextDate.getTime())) {
-        setCalendarMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
-      }
-    } catch (error) {
-      setUserTasksError(
-        error instanceof Error ? error.message : "Failed to load user tasks",
-      );
-    } finally {
-      setUserTasksLoading(false);
-    }
-  };
-
-  const closeUserTaskCalendar = () => {
-    setShowTaskCalendarModal(false);
-    setCalendarUser(null);
-    setUserTasks([]);
-    setUserTasksError(null);
-    setTaskDetailsLoadingIds([]);
-  };
-
-  const ensureTaskAttachmentsLoaded = async (taskId: string) => {
-    const task = userTasks.find((item) => item.id === taskId);
-    if (!task || task.attachments) return;
-    if (taskDetailsLoadingIds.includes(taskId)) return;
-
-    setTaskDetailsLoadingIds((prev) => [...prev, taskId]);
-    try {
-      const details = await getMatrixTaskDetails(taskId);
-      const attachments = Array.isArray(details.attachments)
-        ? details.attachments
-        : [];
-
-      setUserTasks((prev) =>
-        prev.map((item) =>
-          item.id === taskId
-            ? {
-                ...item,
-                attachments,
-              }
-            : item,
-        ),
-      );
-    } catch (error) {
-      console.warn("Failed to load task attachments:", error);
-    } finally {
-      setTaskDetailsLoadingIds((prev) => prev.filter((id) => id !== taskId));
-    }
-  };
-
-  const tasksByDate = useMemo(() => {
-    return userTasks.reduce<Record<string, UserTaskWithAttachments[]>>((acc, task) => {
-      const key = toDateKey(task.dueDate) || toDateKey(task.createdAt);
-      if (!key) return acc;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(task);
-      return acc;
-    }, {});
-  }, [userTasks]);
-
-  const selectedDateTasks = useMemo(
-    () => tasksByDate[selectedCalendarDate] || [],
-    [tasksByDate, selectedCalendarDate],
-  );
-
-  const allTasksSorted = useMemo(
-    () =>
-      [...userTasks].sort((a, b) => {
-        const aDate = toDateKey(a.dueDate) || toDateKey(a.createdAt) || "";
-        const bDate = toDateKey(b.dueDate) || toDateKey(b.createdAt) || "";
-        if (aDate !== bDate) return bDate.localeCompare(aDate);
-        return (a.title || "").localeCompare(b.title || "");
-      }),
-    [userTasks],
-  );
-
-  useEffect(() => {
-    if (!showTaskCalendarModal || selectedDateTasks.length === 0) return;
-    selectedDateTasks.forEach((task) => {
-      void ensureTaskAttachmentsLoaded(task.id);
-    });
-  }, [selectedDateTasks, showTaskCalendarModal]);
-
-  const monthCells = useMemo(() => buildMonthGrid(calendarMonth), [calendarMonth]);
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -1226,10 +1043,10 @@ export const UserManagement: React.FC = () => {
                     User
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Access Level
+                    Designation
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Designation
+                    Access Level
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Contact
@@ -1306,15 +1123,6 @@ export const UserManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            void openUserTaskCalendar(user);
-                          }}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all"
-                        >
-                          <CalendarDays className="w-3.5 h-3.5 mr-1.5" />
-                          View Tasks
-                        </button>
                         <button
                           onClick={() => {
                             const fallbackRoleTitle =
@@ -1487,317 +1295,6 @@ export const UserManagement: React.FC = () => {
         </Card>
       )}
 
-      {/* User Tasks Calendar Modal */}
-      <Modal
-        isOpen={showTaskCalendarModal}
-        onClose={closeUserTaskCalendar}
-        showCloseButton={false}
-        size="auto"
-      >
-        <div className="w-[98vw] max-w-[92rem] h-[88vh] bg-white flex flex-col overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-gray-900">User Task Calendar</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                {calendarUser ? `${calendarUser.name} • ${calendarUser.email}` : "Task history"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={closeUserTaskCalendar}
-              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-5 gap-0">
-            <div className="xl:col-span-3 p-6 min-h-0 overflow-auto">
-              <div className="flex items-center justify-between mb-4">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCalendarMonth(
-                      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
-                    )
-                  }
-                  className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {calendarMonth.toLocaleDateString("en-IN", {
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCalendarMonth(
-                      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
-                    )
-                  }
-                  className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-7 gap-2 mb-2">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                  <div key={day} className="text-xs font-semibold text-gray-500 text-center py-2">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-2">
-                {monthCells.map((cell, idx) => {
-                  if (!cell) {
-                    return <div key={`empty-${idx}`} className="h-24 md:h-28 rounded-xl bg-gray-50/50" />;
-                  }
-
-                  const key = formatLocalDateKey(cell);
-                  const dayTasks = tasksByDate[key] || [];
-                  const isSelected = key === selectedCalendarDate;
-                  const isToday = key === formatLocalDateKey(new Date());
-
-                  return (
-                    <button
-                      type="button"
-                      key={key}
-                      onClick={() => setSelectedCalendarDate(key)}
-                      className={`h-24 md:h-28 rounded-xl border p-2 text-left transition-all ${
-                        isSelected
-                          ? "border-orange-400 bg-orange-50 shadow-sm"
-                          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`text-sm font-semibold ${
-                            isToday ? "text-orange-600" : "text-gray-800"
-                          }`}
-                        >
-                          {cell.getDate()}
-                        </span>
-                        {dayTasks.length > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">
-                            {dayTasks.length}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-2 space-y-1">
-                        {dayTasks.slice(0, 2).map((task) => (
-                          <div
-                            key={task.id}
-                            className="text-[10px] rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 truncate"
-                            title={task.title}
-                          >
-                            {task.title}
-                          </div>
-                        ))}
-                        {dayTasks.length > 2 && (
-                          <p className="text-[10px] text-gray-500">+{dayTasks.length - 2} more</p>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="xl:col-span-2 p-6 bg-gray-50/50 min-h-0 overflow-y-auto border-t border-gray-100 xl:border-t-0 xl:border-l xl:border-gray-100">
-              <div className="mb-4">
-                <h4 className="text-sm font-semibold text-gray-800">Selected Date</h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  {new Date(`${selectedCalendarDate}T00:00:00`).toLocaleDateString("en-IN", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </p>
-              </div>
-
-              {userTasksLoading ? (
-                <div className="p-6 bg-white rounded-xl border border-gray-100 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-gray-900 mx-auto" />
-                  <p className="text-sm text-gray-500 mt-3">Loading tasks...</p>
-                </div>
-              ) : userTasksError ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-                  {userTasksError}
-                </div>
-              ) : selectedDateTasks.length === 0 ? (
-                <div className="p-6 bg-white rounded-xl border border-gray-100 text-center">
-                  <p className="text-sm font-medium text-gray-700">No tasks on this date</p>
-                  <p className="text-xs text-gray-500 mt-1">Select another date to inspect task activity.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {selectedDateTasks.map((task) => {
-                    const isDetailLoading = taskDetailsLoadingIds.includes(task.id);
-                    const attachments = task.attachments || [];
-
-                    return (
-                      <div key={task.id} className="bg-white rounded-xl border border-gray-200 p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <h5 className="text-sm font-semibold text-gray-900">{task.title}</h5>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {task.projectName || "Project task"}
-                            </p>
-                          </div>
-                          <Badge
-                            className={`px-2 py-0.5 ${
-                              task.status === "COMPLETED"
-                                ? "bg-green-100 text-green-700"
-                                : task.status === "IN_PROGRESS"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {task.status}
-                          </Badge>
-                        </div>
-
-                        {task.description && (
-                          <p className="text-xs text-gray-600 mt-2">{task.description}</p>
-                        )}
-
-                        <div className="mt-3">
-                          <p className="text-[11px] font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-                            Uploaded Files
-                          </p>
-                          {isDetailLoading ? (
-                            <p className="text-xs text-gray-500">Loading attachments...</p>
-                          ) : attachments.length === 0 ? (
-                            <p className="text-xs text-gray-500">No files uploaded for this task.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {attachments.map((attachment) => {
-                                const fileType = String(attachment.fileType || "");
-                                const isImage = fileType.startsWith("image/");
-                                const openUrl =
-                                  (attachment as unknown as { downloadUrl?: string }).downloadUrl ||
-                                  attachment.fileUrl;
-
-                                return (
-                                  <div
-                                    key={attachment.id}
-                                    className="rounded-lg border border-gray-200 bg-gray-50 p-2.5"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="min-w-0">
-                                        <p className="text-xs font-medium text-gray-800 truncate">
-                                          {attachment.fileName}
-                                        </p>
-                                        <p className="text-[11px] text-gray-500 truncate">
-                                          {attachment.description || fileType || "Attachment"}
-                                        </p>
-                                      </div>
-                                      <a
-                                        href={openUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 hover:text-orange-800"
-                                      >
-                                        <ExternalLink className="w-3.5 h-3.5" />
-                                        Open
-                                      </a>
-                                    </div>
-
-                                    {isImage && (
-                                      <a
-                                        href={openUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="mt-2 block"
-                                      >
-                                        <img
-                                          src={openUrl}
-                                          alt={attachment.fileName}
-                                          className="w-full h-36 object-cover rounded-md border border-gray-200"
-                                          loading="lazy"
-                                        />
-                                      </a>
-                                    )}
-
-                                    {!isImage && (
-                                      <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-gray-500">
-                                        <ImageIcon className="w-3.5 h-3.5" />
-                                        <span>Preview unavailable. Click Open.</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {!userTasksLoading && !userTasksError && (
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-semibold text-gray-800">All Assigned Tasks</h4>
-                    <span className="text-xs text-gray-500">{allTasksSorted.length} total</span>
-                  </div>
-
-                  {allTasksSorted.length === 0 ? (
-                    <div className="p-4 bg-white rounded-xl border border-gray-100 text-xs text-gray-500">
-                      No tasks assigned for this user.
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {allTasksSorted.map((task) => {
-                        const taskDate = toDateKey(task.dueDate) || toDateKey(task.createdAt) || "-";
-                        const isActiveDate = taskDate === selectedCalendarDate;
-
-                        return (
-                          <button
-                            type="button"
-                            key={`all-${task.id}`}
-                            onClick={() => {
-                              if (taskDate !== "-") {
-                                setSelectedCalendarDate(taskDate);
-                                const dt = new Date(`${taskDate}T00:00:00`);
-                                if (!Number.isNaN(dt.getTime())) {
-                                  setCalendarMonth(new Date(dt.getFullYear(), dt.getMonth(), 1));
-                                }
-                              }
-                            }}
-                            className={`w-full text-left rounded-lg border px-3 py-2 transition-all ${
-                              isActiveDate
-                                ? "border-orange-300 bg-orange-50"
-                                : "border-gray-200 bg-white hover:border-gray-300"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-medium text-gray-800 truncate">{task.title}</p>
-                              <span className="text-[11px] text-gray-500 whitespace-nowrap">{taskDate}</span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 mt-0.5 truncate">
-                              {task.projectName || "Project task"}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </Modal>
-
       {/* Create User Modal */}
       <Modal
         isOpen={showCreateModal}
@@ -1912,7 +1409,7 @@ export const UserManagement: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Access Level <span className="text-red-500">*</span>
+               Designation <span className="text-red-500">*</span>
             </label>
             <select
               required
@@ -2208,7 +1705,7 @@ export const UserManagement: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Access Level <span className="text-red-500">*</span>
+              Designation <span className="text-red-500">*</span>
             </label>
             <select
               required
@@ -2243,66 +1740,6 @@ export const UserManagement: React.FC = () => {
               ))}
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Department <span className="text-red-500">*</span>
-            </label>
-            <select
-              required
-              value={editForm.departmentId}
-              onChange={(e) =>
-                setEditForm({
-                  ...editForm,
-                  departmentId: e.target.value,
-                })
-              }
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-900 transition-all text-sm appearance-none cursor-pointer"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: "right 0.75rem center",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "1.25em 1.25em",
-              }}
-            >
-              {departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Designation <span className="text-red-500">*</span>
-            </label>
-            <select
-              required
-              value={editForm.credentialId}
-              onChange={(e) =>
-                setEditForm({
-                  ...editForm,
-                  credentialId: e.target.value,
-                })
-              }
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white text-gray-900 transition-all text-sm appearance-none cursor-pointer"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: "right 0.75rem center",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "1.25em 1.25em",
-              }}
-            >
-              {credentials.map((credential) => (
-                <option key={credential.id} value={credential.id}>
-                  {credential.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          
 
           {/* Modal Footer */}
           <div className="flex gap-3 pt-4 border-t border-gray-100 mt-6">

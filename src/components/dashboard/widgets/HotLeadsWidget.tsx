@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Card, Badge, Button } from "../../ui";
 import { WidgetProps } from "./index";
-import { listLeads, Lead } from "../../../services/leadApi";
+import { listAllLeads, Lead } from "../../../services/leadApi";
 
 const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   const navigate = useNavigate();
@@ -15,15 +15,7 @@ const HotLeadsWidget: React.FC<WidgetProps> = ({ onRemove }) => {
     let cancelled = false;
     const fetch = async () => {
       try {
-        const results: Lead[] = [];
-        let page = 1;
-        while (true) {
-          const res = await listLeads({ limit: 100, page });
-          results.push(...res.leads);
-          if (results.length >= res.total || res.leads.length < 100) break;
-          page++;
-          if (page > 5) break; // safety cap
-        }
+        const results = await listAllLeads(undefined, { pageSize: 200 });
         if (!cancelled) setAllLeads(results);
       } catch {
         if (!cancelled) setAllLeads([]);

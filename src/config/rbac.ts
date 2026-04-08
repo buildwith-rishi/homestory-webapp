@@ -439,6 +439,14 @@ export const NAV_ITEMS: NavItemConfig[] = [
     section: "account",
     allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER", "HR"],
   },
+  {
+    id: "view-tasks",
+    label: "View Tasks",
+    path: "/dashboard/view-tasks",
+    icon: "ClipboardList",
+    section: "account",
+    allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER", "HR"],
+  },
 ];
 
 /**

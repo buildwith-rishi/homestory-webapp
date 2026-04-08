@@ -197,9 +197,7 @@ export async function loadMatrixAssigneeData(): Promise<{
   const teamAsUsers = teamMembers
     .filter(
       (m) =>
-        m.isBanned !== true &&
-        m.isDeactivated !== true &&
-        m.isActive !== false,
+        m.isBanned !== true && m.isDeactivated !== true && m.isActive !== false,
     )
     .map(teamMemberToAssignableUser)
     .filter((u): u is AdminUser => u !== null);

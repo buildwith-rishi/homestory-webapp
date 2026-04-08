@@ -38,6 +38,47 @@ import EmailSendAPI, {
 import EmailEditorCore, {
   EmailEditorCoreRef,
 } from "../../components/email/EmailEditorCore";
+import {
+  UserEmailCombobox,
+  DirectoryUser,
+} from "../../components/email/UserEmailCombobox";
+import { adminAPI } from "../../services/api";
+import { getAllTeamMembers } from "../../services/teamApi";
+
+function parseEmailDirectoryUsers(response: unknown): DirectoryUser[] {
+  let usersList: unknown[] = [];
+  if (response && typeof response === "object") {
+    const r = response as Record<string, unknown>;
+    if (Array.isArray(r.users)) usersList = r.users as unknown[];
+    else if (Array.isArray(response)) usersList = response as unknown[];
+    else if (r.data && typeof r.data === "object") {
+      const d = r.data as Record<string, unknown>;
+      if (Array.isArray(d)) usersList = d as unknown[];
+      else if (Array.isArray(d.users)) usersList = d.users as unknown[];
+    }
+  }
+  const seen = new Set<string>();
+  const out: DirectoryUser[] = [];
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  for (const raw of usersList) {
+    if (!raw || typeof raw !== "object") continue;
+    const u = raw as Record<string, unknown>;
+    const email = String(u.email ?? "")
+      .trim()
+      .toLowerCase();
+    if (!email || !emailRe.test(email)) continue;
+    if (seen.has(email)) continue;
+    seen.add(email);
+    const id = String(u.id ?? email).trim();
+    const name = String(u.name ?? "").trim();
+    out.push({ id: id || email, name, email });
+  }
+  return out.sort((a, b) =>
+    (a.name || a.email).localeCompare(b.name || b.email, undefined, {
+      sensitivity: "base",
+    }),
+  );
+}
 
 const CATEGORY_EMOJI: Record<string, string> = {
   ONBOARDING: "\u{1f44b}",
@@ -185,6 +226,9 @@ export const EmailEditor: React.FC = () => {
   const [subject, setSubject] = useState("");
   const [showCc, setShowCc] = useState(false);
 
+  const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+
   // Project picker state
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -257,6 +301,49 @@ export const EmailEditor: React.FC = () => {
       .then((res) => setProjects(res.projects))
       .catch(() => {})
       .finally(() => setProjectsLoading(false));
+  }, []);
+
+  // CRM users for To / Cc searchable comboboxes
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setDirectoryLoading(true);
+      try {
+        const response = await adminAPI.getAllUsers();
+        if (cancelled) return;
+        setDirectoryUsers(parseEmailDirectoryUsers(response));
+      } catch {
+        try {
+          const team = await getAllTeamMembers();
+          if (cancelled) return;
+          const seen = new Set<string>();
+          const list: DirectoryUser[] = [];
+          for (const m of team) {
+            const email = (m.email || "").trim().toLowerCase();
+            if (!email || seen.has(email)) continue;
+            seen.add(email);
+            list.push({
+              id: m.id,
+              name: (m.name || "").trim(),
+              email,
+            });
+          }
+          list.sort((a, b) =>
+            (a.name || a.email).localeCompare(b.name || b.email, undefined, {
+              sensitivity: "base",
+            }),
+          );
+          setDirectoryUsers(list);
+        } catch {
+          if (!cancelled) setDirectoryUsers([]);
+        }
+      } finally {
+        if (!cancelled) setDirectoryLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Close project dropdown on outside click
@@ -1092,14 +1179,15 @@ export const EmailEditor: React.FC = () => {
             icon={<AtSign className="w-4 h-4" />}
             focused={focusedField === "to"}
           >
-            <input
-              type="email"
+            <UserEmailCombobox
+              mode="single"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={setTo}
               onFocus={() => setFocusedField("to")}
               onBlur={() => setFocusedField(null)}
-              placeholder="recipient@email.com"
-              className="flex-1 py-3.5 pr-4 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-300"
+              placeholder="recipient@email.com — type or search users"
+              users={directoryUsers}
+              loading={directoryLoading}
             />
             {!showCc && (
               <button
@@ -1133,14 +1221,15 @@ export const EmailEditor: React.FC = () => {
               icon={<Users className="w-4 h-4" />}
               focused={focusedField === "cc"}
             >
-              <input
-                type="email"
+              <UserEmailCombobox
+                mode="comma"
                 value={cc}
-                onChange={(e) => setCc(e.target.value)}
+                onChange={setCc}
                 onFocus={() => setFocusedField("cc")}
                 onBlur={() => setFocusedField(null)}
-                placeholder="cc@email.com"
-                className="flex-1 py-3.5 pr-4 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-300"
+                placeholder="cc@email.com — separate with commas, or pick from list"
+                users={directoryUsers}
+                loading={directoryLoading}
               />
               <button
                 onClick={() => {

@@ -14,5 +14,6 @@ export { CustomerDetails } from "./CustomerDetails";
 export { Marketing } from "./Marketing";
 export { Analytics } from "./Analytics";
 export { UserManagement } from "./UserManagement";
+export { ViewTasksPage } from "./ViewTasksPage";
 export { default as KanbanView } from "./KanbanView";
 export { EmailEditor } from "./EmailEditor";

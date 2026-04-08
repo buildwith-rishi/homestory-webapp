@@ -2323,6 +2323,69 @@ export async function getMatrixTaskDetails(
   }
 }
 
+export interface MatrixUserTasksQuery {
+  status?: string;
+  projectId?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface MatrixUserTasksResult {
+  tasks: MatrixTask[];
+  total?: number;
+}
+
+/**
+ * All matrix tasks assigned to a CRM user (admin / oversight).
+ * GET /api/matrices/user/:userId/tasks?status=&projectId=&limit=&offset=
+ */
+export async function getMatrixTasksForUser(
+  userId: string,
+  query: MatrixUserTasksQuery = {},
+): Promise<MatrixUserTasksResult> {
+  const limit = query.limit ?? 50;
+  const offset = query.offset ?? 0;
+  const sp = new URLSearchParams();
+  if (query.status !== undefined && query.status !== "")
+    sp.set("status", query.status);
+  if (query.projectId) sp.set("projectId", query.projectId);
+  sp.set("limit", String(limit));
+  sp.set("offset", String(offset));
+  const qs = sp.toString();
+  const url = `${API_BASE_URL}/api/matrices/user/${encodeURIComponent(userId)}/tasks?${qs}`;
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    const result = await handleResponse<Record<string, unknown>>(response);
+    let tasks: MatrixTask[] = [];
+    if (Array.isArray(result)) {
+      tasks = result as MatrixTask[];
+    } else if (Array.isArray(result.tasks)) {
+      tasks = result.tasks as MatrixTask[];
+    } else if (Array.isArray(result.data)) {
+      tasks = result.data as MatrixTask[];
+    } else if (
+      result.data &&
+      typeof result.data === "object" &&
+      Array.isArray((result.data as { tasks?: MatrixTask[] }).tasks)
+    ) {
+      tasks = (result.data as { tasks: MatrixTask[] }).tasks;
+    }
+    const total =
+      typeof result.total === "number"
+        ? result.total
+        : typeof (result as { count?: number }).count === "number"
+          ? (result as { count: number }).count
+          : undefined;
+    return { tasks, total };
+  } catch (error) {
+    console.error("Error fetching matrix tasks for user:", error);
+    throw error;
+  }
+}
+
 /**
  * Get tasks for a specific day
  * GET /api/matrices/:matrixId/day/:dayNumber
@@ -2907,6 +2970,7 @@ const ProjectAPI = {
   updateMatrixTaskStatus,
   updateMatrixTask,
   getMatrixTaskDetails,
+  getMatrixTasksForUser,
   getMatrixDayTasks,
   getCategoryTasks,
   uploadTaskAttachment,

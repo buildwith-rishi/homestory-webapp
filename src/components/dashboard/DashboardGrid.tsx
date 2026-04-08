@@ -5,6 +5,7 @@ import { Card, Button, Skeleton } from "../ui";
 import { useUIStore } from "../../stores/uiStore";
 import { DashboardWidget } from "../../types";
 import { getWidgetById, WidgetRegistryItem, WIDGET_REGISTRY } from "./widgets";
+import { WidgetErrorBoundary } from "./WidgetErrorBoundary";
 
 // Loading skeleton for widgets
 const WidgetSkeleton: React.FC = () => (
@@ -96,13 +97,15 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="h-full"
     >
-      <Suspense fallback={<WidgetSkeleton />}>
-        <WidgetComponent
-          instanceId={widget.instanceId}
-          onRemove={onRemove}
-          size={widget.size}
-        />
-      </Suspense>
+      <WidgetErrorBoundary title={widgetDef.name} onRemove={onRemove}>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <WidgetComponent
+            instanceId={widget.instanceId}
+            onRemove={onRemove}
+            size={widget.size}
+          />
+        </Suspense>
+      </WidgetErrorBoundary>
     </motion.div>
   );
 };

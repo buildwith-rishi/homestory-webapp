@@ -122,10 +122,6 @@ const KanbanView: React.FC = () => {
   } | null>(null);
   const [isConverting, setIsConverting] = useState(false);
 
-  // Filter for already converted leads
-  const [showAlreadyConverted, setShowAlreadyConverted] = useState(false);
-
-
   // Leads Kanban Data - Using API statuses
   const [leadsKanbanData, setLeadsKanbanData] = useState<KanbanData>({
     columns: {
@@ -322,12 +318,11 @@ const KanbanView: React.FC = () => {
       }
       seenLeadIds.add(lead.id);
       
-      // Skip leads that have already been converted to customers (unless filter is on)
-      // These are in the system as customers now, no need to show in Kanban by default
+      // Skip leads already converted to customers (shown as customers elsewhere)
       const leadMetadata = lead as any;
       const isAlreadyConverted = !!(leadMetadata.convertedToAccount || leadMetadata.convertedToAccountId);
       
-      if (isAlreadyConverted && !showAlreadyConverted) {
+      if (isAlreadyConverted) {
         alreadyConvertedCount++;
         return;
       }
@@ -362,7 +357,7 @@ const KanbanView: React.FC = () => {
       columns,
       tasks,
     }));
-  }, [leads, showAlreadyConverted]);
+  }, [leads]);
 
   // Update Projects Kanban when projects change
   useEffect(() => {
@@ -1017,21 +1012,6 @@ const KanbanView: React.FC = () => {
               </span>
             </button>
           </div>
-          
-          {/* Filter: Show Already Converted Leads */}
-          {activeView === "leads" && (
-            <label className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showAlreadyConverted}
-                onChange={(e) => setShowAlreadyConverted(e.target.checked)}
-                className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-              />
-              <span className="text-xs font-medium text-gray-700">
-                Show Already Onboarded
-              </span>
-            </label>
-          )}
         </div>
       </div>
 

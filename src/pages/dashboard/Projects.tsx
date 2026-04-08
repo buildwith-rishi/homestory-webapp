@@ -335,6 +335,8 @@ export const ProjectsPage: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const canCreateProject = hasPermission(roleId as RoleId, "projects.create");
   const canDeleteProject = hasPermission(roleId as RoleId, "projects.delete");
+  /** Designers must not see aggregate or per-project budget / value (RBAC). */
+  const isDesigner = roleId === "DESIGNER";
 
   // Initial data fetch
   useEffect(() => {
@@ -582,8 +584,10 @@ export const ProjectsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats — Total Value hidden for Designer */}
+      <div
+        className={`grid grid-cols-1 gap-4 ${isDesigner ? "md:grid-cols-3" : "md:grid-cols-4"}`}
+      >
         <Card className="p-4 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
@@ -610,19 +614,21 @@ export const ProjectsPage: React.FC = () => {
             </div>
           </div>
         </Card>
-        <Card className="p-4 rounded-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Value</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {stats.totalValue}
-              </p>
+        {!isDesigner && (
+          <Card className="p-4 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Value</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {stats.totalValue}
+                </p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-emerald-600" />
+              </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-emerald-600" />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        )}
         <Card className="p-4 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
@@ -747,15 +753,17 @@ export const ProjectsPage: React.FC = () => {
                         : "\u2014"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4" />
-                      Budget
-                    </span>
-                    <span className="font-medium text-emerald-600">
-                      {formatCurrency(project.totalValue)}
-                    </span>
-                  </div>
+                  {!isDesigner && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 flex items-center gap-2">
+                        <DollarSign className="w-4 h-4" />
+                        Budget
+                      </span>
+                      <span className="font-medium text-emerald-600">
+                        {formatCurrency(project.totalValue)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t">
@@ -816,9 +824,11 @@ export const ProjectsPage: React.FC = () => {
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Budget
-                  </th>
+                  {!isDesigner && (
+                    <th className="text-left px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Budget
+                    </th>
+                  )}
                   <th className="text-center px-4 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Team
                   </th>
@@ -932,15 +942,16 @@ export const ProjectsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Budget */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <DollarSign className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                          <span className="text-sm font-bold text-emerald-600 whitespace-nowrap">
-                            {formatCurrency(project.totalValue)}
-                          </span>
-                        </div>
-                      </td>
+                      {!isDesigner && (
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                            <span className="text-sm font-bold text-emerald-600 whitespace-nowrap">
+                              {formatCurrency(project.totalValue)}
+                            </span>
+                          </div>
+                        </td>
+                      )}
 
                       {/* Team */}
                       <td className="px-4 py-3">

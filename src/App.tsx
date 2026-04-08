@@ -22,6 +22,7 @@ import {
   Marketing,
   Analytics,
   UserManagement,
+  ViewTasksPage,
   KanbanView,
   EmailEditor,
 } from "./pages/dashboard";
@@ -292,6 +293,21 @@ function App() {
                   ]}
                 >
                   <UserManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="view-tasks"
+              element={
+                <ProtectedRoute
+                  allowedRoleIds={[
+                    "SUPER_ADMIN",
+                    "ADMIN",
+                    "LEAD_PROJECT_MANAGER",
+                    "HR",
+                  ]}
+                >
+                  <ViewTasksPage />
                 </ProtectedRoute>
               }
             />

@@ -16,6 +16,7 @@ import {
   Shield,
   Layers,
   Mail,
+  ClipboardList,
 } from "lucide-react";
 import Logo from "../shared/Logo";
 import BrandPattern from "../shared/BrandPattern";
@@ -43,6 +44,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Shield,
   Layers,
   Mail,
+  ClipboardList,
 };
 
 interface DashboardSidebarProps {
