@@ -48,6 +48,7 @@ import type {
   HandoverPhoto,
   TaskConflictUserWarning,
 } from "../types";
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
 import { normalizeConflictWarnings } from "../utils/taskConflictWarnings";
 
 const API_BASE_URL =
@@ -69,6 +70,7 @@ const getAuthHeaders = (): HeadersInit => {
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     let errorMessage = `API Error: ${response.status} ${response.statusText}`;
     try {
       const errorData = await response.json();
@@ -546,6 +548,7 @@ export async function deleteProjectPayment(paymentId: string): Promise<void> {
       headers: getAuthHeaders(),
     });
     if (!response.ok) {
+      onUnauthorizedResponse(response);
       let errorMessage = `HTTP error! status: ${response.status}`;
       try {
         const error = await response.json();
@@ -1241,6 +1244,7 @@ export async function deleteProjectReference(
       },
     );
     if (!response.ok) {
+      onUnauthorizedResponse(response);
       let errorMessage = `API Error: ${response.status} ${response.statusText}`;
       try {
         const errorData = await response.json();
@@ -1275,6 +1279,7 @@ export async function downloadProjectReference(
       },
     );
     if (!response.ok) {
+      onUnauthorizedResponse(response);
       throw new Error(`Download failed: ${response.status}`);
     }
     return response.blob();
@@ -1392,6 +1397,7 @@ export async function deleteTestimonial(
     },
   );
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
       errorData.message ||
@@ -1941,6 +1947,7 @@ export async function updateMatrixDayTitle(
     );
 
     if (!response.ok) {
+      onUnauthorizedResponse(response);
       const errorText = await response.text();
       console.error(
         `Failed to update matrix day title. Route: /api/matrices/${matrixId}/day/${dayNumber}/title. Code: ${response.status}`,

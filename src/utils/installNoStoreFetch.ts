@@ -6,8 +6,8 @@ type GlobalWithFetchMarker = typeof globalThis & {
 
 /**
  * Ensures every browser fetch uses no-store so stale API/data responses are not reused.
- * Also globally captures 401 Unauthorized errors from our backend API to notify the UI
- * that the session has expired.
+ * Session expiry (401) is handled in fetchAPI and service-layer handleResponse helpers
+ * so refresh-token retries are not interrupted.
  */
 export function installNoStoreFetch(): void {
   if (typeof window === "undefined" || typeof window.fetch !== "function") {
@@ -28,18 +28,6 @@ export function installNoStoreFetch(): void {
     };
 
     const response = await originalFetch(input, mergedInit);
-
-    // If an API request responds with 401 Unauthorised, emit an event
-    // Ignore refresh token or login endpoints to prevent infinite redirect loops on failed log-ins.
-    const urlString = input.toString();
-    const isAuthEndpoint = urlString.includes("/api/auth/");
-    if (
-      response.status === 401 &&
-      urlString.includes("/api/") &&
-      !isAuthEndpoint
-    ) {
-      window.dispatchEvent(new CustomEvent("sessionExpired"));
-    }
 
     return response;
   };

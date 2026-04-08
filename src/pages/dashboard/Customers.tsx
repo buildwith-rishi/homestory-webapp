@@ -3317,6 +3317,11 @@ export const Customers: React.FC = () => {
 
       // Refresh the customer list to show the new customer
       await fetchCustomers();
+
+      const newId = response?.id != null ? String(response.id) : "";
+      if (newId) {
+        navigate(`/dashboard/customers/${newId}`, { replace: false });
+      }
     } catch (error: any) {
       console.error("Error creating customer:", error);
 

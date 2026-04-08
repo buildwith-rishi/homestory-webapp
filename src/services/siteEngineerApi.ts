@@ -1,6 +1,8 @@
 // Site Engineer API Service
 // Handles all site-engineer-specific API operations
 
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
 
@@ -112,6 +114,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
   }
 
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     const msg =
       (data as { message?: string; error?: string })?.message ||
       (data as { message?: string; error?: string })?.error ||

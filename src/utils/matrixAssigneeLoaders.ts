@@ -1,6 +1,7 @@
 /**
  * Shared loaders for matrix task modals: CRM users + team vendors (works for designer / non-admin).
  */
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
 import { adminAPI, fetchAPI } from "../services/api";
 import { getAllTeamMembers, type TeamMember } from "../services/teamApi";
 import type { AdminUser } from "../types";
@@ -177,7 +178,11 @@ async function loadTeamMembersWithFallback(): Promise<TeamMember[]> {
       const res = await fetch(`${API_BASE_URL}/api/team`, {
         headers: getAuthHeaders(),
       });
-      if (res.ok) return normalizeTeamMembers(await res.json());
+      if (!res.ok) {
+        onUnauthorizedResponse(res);
+        return [];
+      }
+      return normalizeTeamMembers(await res.json());
     } catch {
       /* ignore */
     }

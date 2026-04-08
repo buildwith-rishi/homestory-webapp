@@ -1,6 +1,7 @@
 // API Configuration
 // Always use backend base URL from environment so API calls never hit localhost.
 import { normalizeRole } from "../config/rbac";
+import { notifySessionExpired } from "../auth/sessionExpired";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -135,6 +136,9 @@ export async function fetchAPI<T>(
                 const retryData = await retryResponse.json();
 
                 if (!retryResponse.ok) {
+                  if (retryResponse.status === 401) {
+                    notifySessionExpired();
+                  }
                   throw new ApiError(
                     retryResponse.status,
                     getApiErrorMessage(retryData, "Request failed"),
@@ -150,9 +154,18 @@ export async function fetchAPI<T>(
             localStorage.removeItem("auth_token");
             localStorage.removeItem("refresh_token");
             localStorage.removeItem("user");
+            notifySessionExpired();
             throw new ApiError(401, "Session expired. Please login again.");
           }
         }
+      }
+
+      if (
+        response.status === 401 &&
+        endpoint !== "/api/auth/refresh" &&
+        endpoint !== "/api/auth/login"
+      ) {
+        notifySessionExpired();
       }
 
       throw new ApiError(

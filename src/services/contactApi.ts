@@ -1,6 +1,8 @@
 // Contact API Service
 // Handles all contact-related API operations
 
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
 
@@ -91,6 +93,7 @@ const getAuthHeaders = (): HeadersInit => {
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     let errorMessage = `HTTP error! status: ${response.status}`;
     try {
       const error = await response.json();

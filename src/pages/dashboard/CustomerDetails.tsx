@@ -216,6 +216,95 @@ interface Customer {
   createdAt?: string;
   updatedAt?: string;
   convertedFromLead?: APICustomer["convertedFromLead"] | null;
+  /** Merged top-level + uiIntake fields from “Add customer” / API */
+  customerIntake?: CustomerIntakeSnapshot;
+}
+
+/** Intake fields from Add Customer modal — merged from API root + uiIntake */
+type CustomerIntakeSnapshot = Partial<{
+  companyName: string;
+  propertyType: string;
+  projectType: string;
+  area: string;
+  city: string;
+  projectStage: string;
+  startTimeline: string;
+  budgetComfort: string;
+  projectScope: string;
+  floorPlan: string;
+  messageNotes: string;
+  requirements: string;
+}>;
+
+function mergeCustomerIntakeFromApi(
+  api: Record<string, unknown>,
+): CustomerIntakeSnapshot {
+  const uiRaw = api.uiIntake;
+  const ui =
+    uiRaw && typeof uiRaw === "object" && uiRaw !== null
+      ? (uiRaw as Record<string, unknown>)
+      : {};
+  const keys = [
+    "companyName",
+    "propertyType",
+    "projectType",
+    "area",
+    "city",
+    "projectStage",
+    "startTimeline",
+    "budgetComfort",
+    "projectScope",
+    "floorPlan",
+    "messageNotes",
+    "requirements",
+  ] as const;
+  const out: CustomerIntakeSnapshot = {};
+  for (const k of keys) {
+    const top = api[k];
+    const nested = ui[k];
+    const pick =
+      typeof top === "string" && top.trim()
+        ? top.trim()
+        : typeof nested === "string" && nested.trim()
+          ? nested.trim()
+          : undefined;
+    if (pick) out[k] = pick;
+  }
+  return out;
+}
+
+function formatCustomerIntakeLabel(key: string): string {
+  const labels: Record<string, string> = {
+    companyName: "Company name",
+    propertyType: "Property type",
+    projectType: "Project type",
+    area: "Area / locality",
+    city: "City",
+    projectStage: "Project stage",
+    startTimeline: "Start timeline",
+    budgetComfort: "Budget comfort",
+    projectScope: "Project scope",
+    floorPlan: "Floor plan",
+    messageNotes: "Notes",
+    requirements: "Requirements",
+  };
+  return labels[key] || key;
+}
+
+function formatCustomerIntakeDisplayValue(key: string, value: string): string {
+  const enumish = new Set([
+    "propertyType",
+    "projectType",
+    "projectStage",
+    "budgetComfort",
+    "projectScope",
+    "startTimeline",
+  ]);
+  if (!enumish.has(key)) return value;
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const statusColors = {
@@ -1060,17 +1149,28 @@ export const CustomerDetails: React.FC = () => {
         console.log("Mapped projects:", apiProjects);
         console.log("Projects count:", apiCustomer._count?.projects);
 
-        // Build location from available address fields
+        const rawApiRecord = apiCustomer as unknown as Record<string, unknown>;
+        const intakeMerged = mergeCustomerIntakeFromApi(rawApiRecord);
+        const occupationFromApi =
+          typeof rawApiRecord.occupation === "string"
+            ? rawApiRecord.occupation.trim()
+            : "";
+
+        // Build location from billing/shipping, or fall back to intake city/area from Add Customer
         const locationParts = [
-          apiCustomer.billingCity || apiCustomer.shippingCity,
+          apiCustomer.billingCity ||
+            apiCustomer.shippingCity ||
+            intakeMerged.city,
           apiCustomer.billingState || apiCustomer.shippingState,
         ].filter(Boolean);
         const location =
           locationParts.length > 0
             ? locationParts.join(", ")
-            : apiCustomer.billingAddress ||
-              apiCustomer.shippingAddress ||
-              "N/A";
+            : intakeMerged.city || intakeMerged.area
+              ? [intakeMerged.city, intakeMerged.area].filter(Boolean).join(" — ")
+              : apiCustomer.billingAddress ||
+                apiCustomer.shippingAddress ||
+                "N/A";
 
         // Conversion responses can vary by backend version.
         // Resolve the original lead id from all known payload shapes.
@@ -1141,8 +1241,10 @@ export const CustomerDetails: React.FC = () => {
           clientRanking: undefined,
           communicationPreference: undefined,
           notes: mergedNotes,
-          occupation: undefined,
-          companyName: undefined,
+          occupation: occupationFromApi || undefined,
+          companyName: intakeMerged.companyName || undefined,
+          customerIntake:
+            Object.keys(intakeMerged).length > 0 ? intakeMerged : undefined,
           assignedProjects: apiProjects,
           leadId: resolvedLeadId,
           type: apiCustomer.type,
@@ -3507,6 +3609,54 @@ export const CustomerDetails: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Project & preferences from Add Customer / stored intake (shown when not only duplicate of Professional row) */}
+              {(() => {
+                const intake = customer.customerIntake;
+                if (!intake) return null;
+                const rows = Object.entries(intake).filter(([key, val]) => {
+                  if (!val || String(val).trim() === "") return false;
+                  if (key === "companyName" && customer.companyName) return false;
+                  return true;
+                });
+                if (rows.length === 0) return null;
+                return (
+                  <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                    <div className="flex items-center gap-2 mb-5">
+                      <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                        <Home className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                        Project & preferences
+                      </h3>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-4">
+                      Details captured when this customer was added (or synced from
+                      your CRM).
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {rows.map(([key, value]) => (
+                        <div
+                          key={key}
+                          className="flex items-start gap-3 p-3 bg-gray-50/80 rounded-xl"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs text-gray-400 font-medium">
+                              {formatCustomerIntakeLabel(key)}
+                            </p>
+                            <p className="text-sm font-medium text-gray-900 mt-0.5 whitespace-pre-wrap break-words">
+                              {formatCustomerIntakeDisplayValue(
+                                key,
+                                String(value),
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
 

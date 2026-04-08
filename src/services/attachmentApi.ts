@@ -1,3 +1,5 @@
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
 
@@ -65,6 +67,7 @@ const getAuthHeaders = (): HeadersInit => {
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     let message = `HTTP error ${response.status}`;
     try {
       const err = await response.json();
@@ -152,6 +155,7 @@ export async function deleteAttachment(id: string): Promise<void> {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     let message = `HTTP error ${response.status}`;
     try {
       const err = await response.json();

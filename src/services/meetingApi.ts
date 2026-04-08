@@ -9,6 +9,7 @@ import type {
   Participant,
   MeetingNote,
 } from "../types";
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -389,6 +390,7 @@ function unwrapMeetingResponse(data: any): Meeting {
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     let errorMessage = `HTTP error! status: ${response.status}`;
     try {
       const error = await response.json();
@@ -1055,6 +1057,7 @@ export async function importTranscript(params: {
     );
 
     if (!response.ok) {
+      onUnauthorizedResponse(response);
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
         errorData.message ||

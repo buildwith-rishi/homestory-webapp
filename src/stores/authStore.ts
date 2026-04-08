@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { User, UserRole } from "../types";
 import { authAPI, ApiError } from "../services/api";
 import { normalizeRole, ROLE_PERMISSIONS, RoleId } from "../config/rbac";
+import { resetSessionExpiredGuard } from "../auth/sessionExpired";
 
 interface AuthState {
   user: User | null;
@@ -65,6 +66,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
         // Store user in localStorage
         localStorage.setItem("user", JSON.stringify(user));
+
+        resetSessionExpiredGuard();
 
         set({
           user,

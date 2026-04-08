@@ -101,6 +101,11 @@ export interface Customer {
   familyMembers?: CustomerFamilyMember[];
   importantDates?: CustomerImportantDate[];
   convertedFromLead?: ConvertedFromLead | null;
+  /** Company / org name (may also appear under uiIntake) */
+  companyName?: string | null;
+  occupation?: string | null;
+  /** Intake snapshot from create-customer flow or CRM */
+  uiIntake?: Record<string, unknown> | null;
 }
 
 export interface CustomerType {

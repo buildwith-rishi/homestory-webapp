@@ -7,6 +7,7 @@ import type {
   SearchCustomerResponse,
   SearchCustomerParams,
 } from "../types/customer";
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -36,6 +37,7 @@ const getAuthHeaders = (): HeadersInit => {
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     let errorMessage = `HTTP error! status: ${response.status}`;
     try {
       const error = await response.json();
@@ -198,7 +200,13 @@ export async function createCustomer(
       body: JSON.stringify(customer),
     });
 
-    const newCustomer = await handleResponse<Customer>(response);
+    const data = await handleResponse<Customer | { customer: Customer }>(
+      response,
+    );
+    const newCustomer =
+      data && typeof data === "object" && "customer" in data && data.customer
+        ? data.customer
+        : (data as Customer);
     console.log("Customer created successfully:", newCustomer);
     return newCustomer;
   } catch (error) {
@@ -275,6 +283,7 @@ export async function deleteCustomer(id: string): Promise<void> {
     });
 
     if (!response.ok) {
+      onUnauthorizedResponse(response);
       let errorMessage = `Failed to delete customer. Status: ${response.status}`;
       try {
         const error = await response.json();
@@ -566,6 +575,7 @@ export async function uploadKycDocument(
     },
   );
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     let message = `HTTP error ${response.status}`;
     try {
       const err = await response.json();
@@ -590,6 +600,7 @@ export async function getKycDocuments(
   );
   if (!response.ok) {
     if (response.status === 404) return [];
+    onUnauthorizedResponse(response);
     let message = `HTTP error ${response.status}`;
     try {
       const err = await response.json();
@@ -683,6 +694,7 @@ export async function getBankDetails(accountId: string): Promise<string> {
   );
   if (!response.ok) {
     if (response.status === 404) return "";
+    onUnauthorizedResponse(response);
     let message = `HTTP error ${response.status}`;
     try {
       const err = await response.json();

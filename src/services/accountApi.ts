@@ -1,4 +1,6 @@
 // Account API Service
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
 
 console.log('Account API Base URL:', API_BASE_URL);
@@ -43,6 +45,7 @@ const getAuthHeaders = (): HeadersInit => {
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    onUnauthorizedResponse(response);
     let errorMessage = `HTTP error! status: ${response.status}`;
     try {
       const error = await response.json();
@@ -243,6 +246,7 @@ export async function deleteAccount(id: string): Promise<void> {
     });
 
     if (!response.ok) {
+      onUnauthorizedResponse(response);
       let errorMessage = `Failed to delete account. Status: ${response.status}`;
       try {
         const error = await response.json();
