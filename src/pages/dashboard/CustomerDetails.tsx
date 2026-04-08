@@ -18,7 +18,6 @@ import {
   Save,
   Award,
   MessageCircle,
-  Briefcase,
   UserPlus,
   Gift,
   Trash2,
@@ -232,9 +231,43 @@ type CustomerIntakeSnapshot = Partial<{
   budgetComfort: string;
   projectScope: string;
   floorPlan: string;
+  floorPlanUrl: string;
   messageNotes: string;
   requirements: string;
 }>;
+
+/** Matches PUT /api/customers/:id project-related body fields */
+type IntakeEditFormState = {
+  propertyType: string;
+  projectType: string;
+  area: string;
+  city: string;
+  startTimeline: string;
+  budgetComfort: string;
+  projectScope: string;
+  requirements: string;
+  floorPlanUrl: string;
+};
+
+function pickStringField(
+  top: unknown,
+  nested: unknown,
+): string | undefined {
+  const a =
+    typeof top === "string" && top.trim()
+      ? top.trim()
+      : typeof nested === "string" && nested.trim()
+        ? nested.trim()
+        : undefined;
+  return a;
+}
+
+function pickAreaField(top: unknown, nested: unknown): string | undefined {
+  const v = top !== undefined && top !== null && top !== "" ? top : nested;
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return undefined;
+}
 
 function mergeCustomerIntakeFromApi(
   api: Record<string, unknown>,
@@ -244,11 +277,15 @@ function mergeCustomerIntakeFromApi(
     uiRaw && typeof uiRaw === "object" && uiRaw !== null
       ? (uiRaw as Record<string, unknown>)
       : {};
-  const keys = [
+  const out: CustomerIntakeSnapshot = {};
+
+  const areaVal = pickAreaField(api.area, ui.area);
+  if (areaVal) out.area = areaVal;
+
+  const stringKeys = [
     "companyName",
     "propertyType",
     "projectType",
-    "area",
     "city",
     "projectStage",
     "startTimeline",
@@ -258,33 +295,62 @@ function mergeCustomerIntakeFromApi(
     "messageNotes",
     "requirements",
   ] as const;
-  const out: CustomerIntakeSnapshot = {};
-  for (const k of keys) {
-    const top = api[k];
-    const nested = ui[k];
-    const pick =
-      typeof top === "string" && top.trim()
-        ? top.trim()
-        : typeof nested === "string" && nested.trim()
-          ? nested.trim()
-          : undefined;
+  for (const k of stringKeys) {
+    const pick = pickStringField(api[k], ui[k]);
     if (pick) out[k] = pick;
   }
+
+  const floorPlanUrl =
+    pickStringField(api.floorPlanUrl, ui.floorPlanUrl) ||
+    pickStringField(api.floor_plan_url, undefined);
+  if (floorPlanUrl) out.floorPlanUrl = floorPlanUrl;
+
   return out;
 }
+
+function buildIntakeEditFormFromCustomer(c: Customer): IntakeEditFormState {
+  const i = c.customerIntake || {};
+  return {
+    propertyType: i.propertyType || "",
+    projectType: i.projectType || "",
+    area: i.area || "",
+    city: i.city || "",
+    startTimeline: i.startTimeline || "",
+    budgetComfort: i.budgetComfort || "",
+    projectScope: i.projectScope || "",
+    requirements: i.requirements || "",
+    floorPlanUrl: i.floorPlanUrl || i.floorPlan || "",
+  };
+}
+
+/** View keys for this card — same set sent on save (PUT customer) */
+const PUT_PROJECT_INTAKE_KEYS: (keyof CustomerIntakeSnapshot)[] = [
+  "propertyType",
+  "projectType",
+  "area",
+  "city",
+  "startTimeline",
+  "budgetComfort",
+  "projectScope",
+  "requirements",
+  "floorPlanUrl",
+  "floorPlan",
+];
 
 function formatCustomerIntakeLabel(key: string): string {
   const labels: Record<string, string> = {
     companyName: "Company name",
+    occupation: "Occupation",
     propertyType: "Property type",
     projectType: "Project type",
-    area: "Area / locality",
+    area: "Area (sq.ft / size)",
     city: "City",
     projectStage: "Project stage",
     startTimeline: "Start timeline",
     budgetComfort: "Budget comfort",
     projectScope: "Project scope",
     floorPlan: "Floor plan",
+    floorPlanUrl: "Floor plan URL",
     messageNotes: "Notes",
     requirements: "Requirements",
   };
@@ -305,6 +371,80 @@ function formatCustomerIntakeDisplayValue(key: string, value: string): string {
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Dropdown options aligned with POST/PUT customer APIs */
+const INTAKE_PROPERTY_TYPE_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "RESIDENTIAL", label: "Residential" },
+  { value: "COMMERCIAL", label: "Commercial" },
+  { value: "VILLA", label: "Villa" },
+  { value: "MIXED_USE", label: "Mixed Use" },
+  { value: "OTHERS", label: "Others" },
+];
+
+const INTAKE_PROJECT_TYPE_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "APARTMENT", label: "Apartment" },
+  { value: "VILLA", label: "Villa" },
+  { value: "ROW_HOUSE", label: "Row House" },
+  { value: "PENTHOUSE", label: "Penthouse" },
+  { value: "DUPLEX", label: "Duplex" },
+  { value: "STUDIO", label: "Studio" },
+  { value: "OFFICE", label: "Office" },
+  { value: "RETAIL", label: "Retail" },
+  { value: "WAREHOUSE", label: "Warehouse" },
+  { value: "OTHER", label: "Other" },
+];
+
+const INTAKE_START_TIMELINE_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "NOT_SURE", label: "Not Sure" },
+  { value: "IMMEDIATELY", label: "Immediately" },
+  { value: "WITHIN_MONTH", label: "Within a month" },
+  { value: "ONE_TO_THREE_MONTHS", label: "1-3 Months" },
+  { value: "THREE_TO_SIX_MONTHS", label: "3-6 Months" },
+  { value: "SIX_PLUS_MONTHS", label: "6+ Months" },
+];
+
+const INTAKE_BUDGET_COMFORT_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "NOT_SURE", label: "Not Sure" },
+  { value: "VALUE", label: "Value" },
+  { value: "BALANCED", label: "Balanced" },
+  { value: "PREMIUM", label: "Premium" },
+  { value: "LUXURY", label: "Luxury" },
+  { value: "NEED_GUIDANCE", label: "Need Guidance" },
+];
+
+const INTAKE_PROJECT_SCOPE_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "NOT_SURE", label: "Not Sure" },
+  { value: "TURNKEY", label: "Turnkey" },
+  { value: "DESIGN_ONLY", label: "Design Only" },
+  { value: "KITCHEN_WARDROBES", label: "Kitchen & Wardrobes" },
+  { value: "INTERIOR_DESIGN_ONLY", label: "Interior Design Only" },
+  {
+    value: "INTERIOR_DESIGN_AND_BUILD",
+    label: "Interior Design & Build",
+  },
+  {
+    value: "ARCHITECTURE_DESIGN_ONLY",
+    label: "Architecture Design Only",
+  },
+  { value: "RENOVATION", label: "Renovation" },
+  { value: "SPECIFIC_SPACE", label: "Specific Space" },
+  { value: "FULL_HOME_INTERIOR", label: "Full home interior" },
+  { value: "OTHERS", label: "Others" },
+];
+
+function mergeIntakeSelectOptions(
+  options: { value: string; label: string }[],
+  current: string,
+): { value: string; label: string }[] {
+  const v = (current || "").trim();
+  if (!v || options.some((o) => o.value === v)) return options;
+  return [...options, { value: v, label: v }];
 }
 
 const statusColors = {
@@ -810,6 +950,20 @@ export const CustomerDetails: React.FC = () => {
     newEmail: "",
     newPhone: "",
   });
+
+  const [editingProjectIntake, setEditingProjectIntake] = useState(false);
+  const [intakeEditForm, setIntakeEditForm] = useState<IntakeEditFormState>({
+    propertyType: "",
+    projectType: "",
+    area: "",
+    city: "",
+    startTimeline: "",
+    budgetComfort: "",
+    projectScope: "",
+    requirements: "",
+    floorPlanUrl: "",
+  });
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -2140,6 +2294,13 @@ export const CustomerDetails: React.FC = () => {
   }, [customerData?.id]);
 
   const customer = customerData;
+
+  useEffect(() => {
+    if (customerData && !editingProjectIntake) {
+      setIntakeEditForm(buildIntakeEditFormFromCustomer(customerData));
+    }
+  }, [customerData, editingProjectIntake]);
+
   const additionalLeadReferenceFields =
     getAdditionalLeadReferenceFields(leadReferenceData);
 
@@ -2172,12 +2333,20 @@ export const CustomerDetails: React.FC = () => {
     setValidationAlert(null);
     const previousData = { ...customer };
 
-    // Optimistic update
-    setCustomerData((prev) => (prev ? { ...prev, ...updates } : prev));
+    setCustomerData((prev) => {
+      if (!prev) return prev;
+      const next: Customer = { ...prev, ...updates };
+      if (updates.customerIntake) {
+        next.customerIntake = {
+          ...prev.customerIntake,
+          ...updates.customerIntake,
+        };
+      }
+      return next;
+    });
 
     try {
-      // Map UI fields to API fields
-      const apiUpdates: any = {};
+      const apiUpdates: Record<string, unknown> = {};
 
       if (updates.name !== undefined) apiUpdates.name = updates.name;
       if (updates.status !== undefined)
@@ -2211,14 +2380,97 @@ export const CustomerDetails: React.FC = () => {
         apiUpdates.secondaryPhones = updates.secondaryPhones;
       }
       if (updates.clientRanking !== undefined) {
-        // Store in notes or custom field if available
         const rankingNote = `Client Ranking: ${updates.clientRanking}`;
         apiUpdates.notes = apiUpdates.notes
           ? `${apiUpdates.notes}\n${rankingNote}`
           : rankingNote;
       }
 
-      await CustomerAPI.updateCustomer(String(customer.id), apiUpdates);
+      if (updates.companyName !== undefined) {
+        apiUpdates.companyName = updates.companyName?.trim() || null;
+      }
+      if (updates.occupation !== undefined) {
+        apiUpdates.occupation = updates.occupation?.trim() || null;
+      }
+
+      if (updates.customerIntake !== undefined) {
+        const i = updates.customerIntake;
+        if (i.propertyType !== undefined)
+          apiUpdates.propertyType = i.propertyType?.trim() || null;
+        if (i.projectType !== undefined)
+          apiUpdates.projectType = i.projectType?.trim() || null;
+        if (i.city !== undefined) apiUpdates.city = i.city?.trim() || null;
+        if (i.projectStage !== undefined)
+          apiUpdates.projectStage = i.projectStage?.trim() || null;
+        if (i.startTimeline !== undefined)
+          apiUpdates.startTimeline = i.startTimeline?.trim() || null;
+        if (i.budgetComfort !== undefined)
+          apiUpdates.budgetComfort = i.budgetComfort?.trim() || null;
+        if (i.projectScope !== undefined)
+          apiUpdates.projectScope = i.projectScope?.trim() || null;
+        if (i.requirements !== undefined)
+          apiUpdates.requirements = i.requirements?.trim() || null;
+        if (i.messageNotes !== undefined)
+          apiUpdates.messageNotes = i.messageNotes?.trim() || null;
+        if (i.floorPlanUrl !== undefined)
+          apiUpdates.floorPlanUrl = i.floorPlanUrl?.trim() || null;
+        if (i.floorPlan !== undefined)
+          apiUpdates.floorPlan = i.floorPlan?.trim() || null;
+        if (i.area !== undefined) {
+          const raw = String(i.area ?? "")
+            .replace(/,/g, "")
+            .trim();
+          if (raw === "") apiUpdates.area = null;
+          else {
+            const n = parseFloat(raw);
+            apiUpdates.area = Number.isFinite(n) ? n : null;
+          }
+        }
+      }
+
+      const updated = await CustomerAPI.updateCustomer(
+        String(customer.id),
+        apiUpdates,
+      );
+
+      setCustomerData((prev) => {
+        if (!prev) return prev;
+        const u = updated as unknown as Record<string, unknown>;
+        const mergedIntake = mergeCustomerIntakeFromApi(u);
+        const st = String((updated as { status?: string }).status || "")
+          .toLowerCase()
+          .trim();
+        const nextStatus: Customer["status"] =
+          st === "active" || st === "inactive" || st === "completed"
+            ? st
+            : prev.status;
+        return {
+          ...prev,
+          name: (updated as { name?: string }).name ?? prev.name,
+          email: String(
+            (updated as { email?: string | null }).email ?? prev.email ?? "",
+          ),
+          phone: String(
+            (updated as { phone?: string | null }).phone ?? prev.phone ?? "",
+          ),
+          type: (updated as { type?: string }).type ?? prev.type,
+          status: nextStatus,
+          secondaryEmails:
+            (updated as { secondaryEmails?: string[] }).secondaryEmails ??
+            prev.secondaryEmails,
+          secondaryPhones:
+            (updated as { secondaryPhones?: string[] }).secondaryPhones ??
+            prev.secondaryPhones,
+          companyName:
+            mergedIntake.companyName ??
+            (updated as { companyName?: string }).companyName ??
+            prev.companyName,
+          occupation:
+            (updated as { occupation?: string }).occupation ?? prev.occupation,
+          customerIntake: { ...prev.customerIntake, ...mergedIntake },
+        };
+      });
+
       setValidationAlert(null);
       toast.success("Customer updated successfully!");
       return true;
@@ -3569,94 +3821,331 @@ export const CustomerDetails: React.FC = () => {
                 )}
               </div>
 
-              {/* Professional Information */}
-              {(customer.occupation || customer.companyName) && (
-                <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-5">
-                    Professional
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {customer.occupation && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
-                        <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                          <Briefcase className="w-4 h-4 text-indigo-500" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 font-medium">
-                            Occupation
-                          </p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {customer.occupation}
-                          </p>
-                        </div>
-                      </div>
+              {/* Project fields — PUT /api/customers/:id (aligned with CRM API) */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <Home className="w-4 h-4 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                        Project details
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        propertyType, projectType, area, city, timelines, scope,
+                        requirements, floorPlanUrl — same fields as the update
+                        customer API. Name, type, status, and contacts are edited
+                        above.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editingProjectIntake && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingProjectIntake(false);
+                          setIntakeEditForm(
+                            buildIntakeEditFormFromCustomer(customer),
+                          );
+                        }}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Cancel
+                      </button>
                     )}
-                    {customer.companyName && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50/80 rounded-xl">
-                        <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                          <Award className="w-4 h-4 text-amber-500" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 font-medium">
-                            Company
-                          </p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {customer.companyName}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (editingProjectIntake) {
+                          const success = await handleSaveCustomer({
+                            customerIntake: {
+                              propertyType: intakeEditForm.propertyType,
+                              projectType: intakeEditForm.projectType,
+                              area: intakeEditForm.area,
+                              city: intakeEditForm.city,
+                              startTimeline: intakeEditForm.startTimeline,
+                              budgetComfort: intakeEditForm.budgetComfort,
+                              projectScope: intakeEditForm.projectScope,
+                              requirements: intakeEditForm.requirements,
+                              floorPlanUrl: intakeEditForm.floorPlanUrl,
+                            },
+                          });
+                          if (success !== false) setEditingProjectIntake(false);
+                        } else {
+                          setIntakeEditForm(
+                            buildIntakeEditFormFromCustomer(customer),
+                          );
+                          setEditingProjectIntake(true);
+                        }
+                      }}
+                      disabled={isSaving}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all disabled:opacity-50 ${
+                        editingProjectIntake
+                          ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {isSaving && editingProjectIntake ? (
+                        <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : editingProjectIntake ? (
+                        <Save className="w-3.5 h-3.5" />
+                      ) : (
+                        <Edit2 className="w-3.5 h-3.5" />
+                      )}
+                      {editingProjectIntake ? "Save" : "Edit"}
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {/* Project & preferences from Add Customer / stored intake (shown when not only duplicate of Professional row) */}
-              {(() => {
-                const intake = customer.customerIntake;
-                if (!intake) return null;
-                const rows = Object.entries(intake).filter(([key, val]) => {
-                  if (!val || String(val).trim() === "") return false;
-                  if (key === "companyName" && customer.companyName) return false;
-                  return true;
-                });
-                if (rows.length === 0) return null;
-                return (
-                  <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                    <div className="flex items-center gap-2 mb-5">
-                      <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                        <Home className="w-4 h-4 text-orange-600" />
-                      </div>
-                      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                        Project & preferences
-                      </h3>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-4">
-                      Details captured when this customer was added (or synced from
-                      your CRM).
-                    </p>
+                {editingProjectIntake ? (
+                  <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {rows.map(([key, value]) => (
-                        <div
-                          key={key}
-                          className="flex items-start gap-3 p-3 bg-gray-50/80 rounded-xl"
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Property type
+                        </label>
+                        <select
+                          value={intakeEditForm.propertyType}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              propertyType: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
                         >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs text-gray-400 font-medium">
-                              {formatCustomerIntakeLabel(key)}
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 mt-0.5 whitespace-pre-wrap break-words">
-                              {formatCustomerIntakeDisplayValue(
-                                key,
-                                String(value),
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+                          {mergeIntakeSelectOptions(
+                            INTAKE_PROPERTY_TYPE_OPTIONS,
+                            intakeEditForm.propertyType,
+                          ).map((o) => (
+                            <option key={o.value || "empty"} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Project type
+                        </label>
+                        <select
+                          value={intakeEditForm.projectType}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              projectType: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                        >
+                          {mergeIntakeSelectOptions(
+                            INTAKE_PROJECT_TYPE_OPTIONS,
+                            intakeEditForm.projectType,
+                          ).map((o) => (
+                            <option key={o.value || "empty-p"} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Area (e.g. sq.ft)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={intakeEditForm.area}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              area: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                          placeholder="3000"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          value={intakeEditForm.city}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              city: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                          placeholder="Bangalore"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Start timeline
+                        </label>
+                        <select
+                          value={intakeEditForm.startTimeline}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              startTimeline: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                        >
+                          {mergeIntakeSelectOptions(
+                            INTAKE_START_TIMELINE_OPTIONS,
+                            intakeEditForm.startTimeline,
+                          ).map((o) => (
+                            <option key={o.value || "empty-t"} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Budget comfort
+                        </label>
+                        <select
+                          value={intakeEditForm.budgetComfort}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              budgetComfort: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                        >
+                          {mergeIntakeSelectOptions(
+                            INTAKE_BUDGET_COMFORT_OPTIONS,
+                            intakeEditForm.budgetComfort,
+                          ).map((o) => (
+                            <option key={o.value || "empty-b"} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Project scope
+                        </label>
+                        <select
+                          value={intakeEditForm.projectScope}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              projectScope: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                        >
+                          {mergeIntakeSelectOptions(
+                            INTAKE_PROJECT_SCOPE_OPTIONS,
+                            intakeEditForm.projectScope,
+                          ).map((o) => (
+                            <option key={o.value || "empty-sc"} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Floor plan URL
+                        </label>
+                        <input
+                          type="url"
+                          value={intakeEditForm.floorPlanUrl}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              floorPlanUrl: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                          placeholder="https://…"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Requirements
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={intakeEditForm.requirements}
+                          onChange={(e) =>
+                            setIntakeEditForm((p) => ({
+                              ...p,
+                              requirements: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 resize-y min-h-[72px]"
+                          placeholder="What the customer is looking for"
+                        />
+                      </div>
                     </div>
                   </div>
-                );
-              })()}
+                ) : (
+                  (() => {
+                    const intake = customer.customerIntake || {};
+                    const rowEntries: [string, string][] = [];
+                    for (const k of PUT_PROJECT_INTAKE_KEYS) {
+                      const val = intake[k];
+                      if (val && String(val).trim())
+                        rowEntries.push([k as string, String(val)]);
+                    }
+                    if (rowEntries.length === 0) {
+                      return (
+                        <p className="text-sm text-gray-500 py-2">
+                          No project details yet. Click Edit to add fields (matches
+                          PUT /api/customers).
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {rowEntries.map(([key, value]) => (
+                          <div
+                            key={key}
+                            className="flex items-start gap-3 p-3 bg-gray-50/80 rounded-xl"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs text-gray-400 font-medium">
+                                {formatCustomerIntakeLabel(key)}
+                              </p>
+                              <p className="text-sm font-medium text-gray-900 mt-0.5 whitespace-pre-wrap break-words">
+                                {key === "floorPlanUrl" &&
+                                /^https?:\/\//i.test(value) ? (
+                                  <a
+                                    href={value}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-orange-600 hover:underline"
+                                  >
+                                    {value}
+                                  </a>
+                                ) : (
+                                  formatCustomerIntakeDisplayValue(key, value)
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
             </>
           )}
 

@@ -246,7 +246,7 @@ export async function getCustomerById(id: string): Promise<Customer> {
  */
 export async function updateCustomer(
   id: string,
-  updates: Partial<Customer>,
+  updates: Partial<Customer> & Record<string, unknown>,
 ): Promise<Customer> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/customers/${id}`, {

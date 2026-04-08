@@ -110,6 +110,8 @@ interface Customer {
   startTimeline?: string;
   budgetComfort?: string;
   projectScope?: string;
+  /** API field for floor plan link */
+  floorPlanUrl?: string;
   floorPlan?: string;
   messageNotes?: string;
   requirements?: string;
@@ -334,7 +336,7 @@ const AddCustomerModal: React.FC<{
     startTimeline: "",
     budgetComfort: "",
     projectScope: "",
-    floorPlan: "",
+    floorPlanUrl: "",
     messageNotes: "",
     requirements: "",
   });
@@ -477,7 +479,7 @@ const AddCustomerModal: React.FC<{
           startTimeline: formData.startTimeline || undefined,
           budgetComfort: formData.budgetComfort || undefined,
           projectScope: formData.projectScope || undefined,
-          floorPlan: formData.floorPlan.trim() || undefined,
+          floorPlanUrl: formData.floorPlanUrl.trim() || undefined,
           messageNotes: formData.messageNotes.trim() || undefined,
           requirements: formData.requirements.trim() || undefined,
         },
@@ -502,7 +504,7 @@ const AddCustomerModal: React.FC<{
         startTimeline: "",
         budgetComfort: "",
         projectScope: "",
-        floorPlan: "",
+        floorPlanUrl: "",
         messageNotes: "",
         requirements: "",
       });
@@ -548,7 +550,7 @@ const AddCustomerModal: React.FC<{
         startTimeline: "",
         budgetComfort: "",
         projectScope: "",
-        floorPlan: "",
+        floorPlanUrl: "",
         messageNotes: "",
         requirements: "",
       });
@@ -1002,9 +1004,9 @@ const AddCustomerModal: React.FC<{
                 </label>
                 <input
                   type="text"
-                  value={formData.floorPlan}
+                  value={formData.floorPlanUrl}
                   onChange={(e) =>
-                    setFormData({ ...formData, floorPlan: e.target.value })
+                    setFormData({ ...formData, floorPlanUrl: e.target.value })
                   }
                   placeholder="Paste floor plan URL or reference"
                   disabled={isCreating}
@@ -1492,6 +1494,7 @@ const ViewCustomerModal: React.FC<{
             customer.startTimeline ||
             customer.budgetComfort ||
             customer.projectScope ||
+            customer.floorPlanUrl ||
             customer.floorPlan ||
             customer.messageNotes ||
             customer.requirements) && (
@@ -1561,12 +1564,14 @@ const ViewCustomerModal: React.FC<{
                     <p className="text-gray-900 font-medium">{customer.projectScope}</p>
                   </div>
                 )}
-                {customer.floorPlan && (
+                {(customer.floorPlanUrl || customer.floorPlan) && (
                   <div className="md:col-span-2">
                     <p className="text-xs text-gray-500 uppercase font-semibold">
-                      Floor Plan
+                      Floor plan URL
                     </p>
-                    <p className="text-gray-900 font-medium break-all">{customer.floorPlan}</p>
+                    <p className="text-gray-900 font-medium break-all">
+                      {customer.floorPlanUrl || customer.floorPlan}
+                    </p>
                   </div>
                 )}
                 {customer.messageNotes && (
@@ -3194,7 +3199,11 @@ export const Customers: React.FC = () => {
                 (typeof intake.projectScope === "string"
                   ? intake.projectScope
                   : undefined),
-              floorPlan:
+              floorPlanUrl:
+                (apiCustomer as any).floorPlanUrl ||
+                (typeof intake.floorPlanUrl === "string"
+                  ? intake.floorPlanUrl
+                  : undefined) ||
                 (apiCustomer as any).floorPlan ||
                 (typeof intake.floorPlan === "string"
                   ? intake.floorPlan
@@ -3297,7 +3306,7 @@ export const Customers: React.FC = () => {
         startTimeline: intake.startTimeline,
         budgetComfort: intake.budgetComfort,
         projectScope: intake.projectScope,
-        floorPlan: intake.floorPlan,
+        floorPlanUrl: intake.floorPlanUrl,
         messageNotes: intake.messageNotes,
         requirements: intake.requirements,
         notes: mergedNotes || undefined,

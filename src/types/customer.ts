@@ -106,6 +106,17 @@ export interface Customer {
   occupation?: string | null;
   /** Intake snapshot from create-customer flow or CRM */
   uiIntake?: Record<string, unknown> | null;
+  /** PUT /api/customers — project / intake fields (may be top-level on account) */
+  propertyType?: string | null;
+  projectType?: string | null;
+  area?: number | string | null;
+  city?: string | null;
+  projectStage?: string | null;
+  startTimeline?: string | null;
+  budgetComfort?: string | null;
+  projectScope?: string | null;
+  requirements?: string | null;
+  floorPlanUrl?: string | null;
 }
 
 export interface CustomerType {
