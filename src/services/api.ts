@@ -121,10 +121,10 @@ export async function fetchAPI<T>(
               refreshResponse,
             )) as Record<string, unknown> | undefined;
 
-            if (refreshResponse.ok && refreshData) {
+            if (refreshResponse.ok) {
               const newToken =
-                (refreshData.accessToken as string | undefined) ||
-                (refreshData.token as string | undefined);
+                (refreshData?.accessToken as string | undefined) ||
+                (refreshData?.token as string | undefined);
 
               if (newToken) {
                 localStorage.setItem("auth_token", newToken);

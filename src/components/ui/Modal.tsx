@@ -11,6 +11,11 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   showCloseButton?: boolean;
+  /**
+   * Backdrop z-index; content wrapper uses stackZIndex + 1.
+   * Use for overlays that must sit above app modals (e.g. z-[9999] drawers).
+   */
+  stackZIndex?: number;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -21,7 +26,10 @@ const Modal: React.FC<ModalProps> = ({
   children,
   footer,
   showCloseButton = true,
+  stackZIndex,
 }) => {
+  const backdropZ = stackZIndex ?? 9998;
+  const containerZ = stackZIndex != null ? stackZIndex + 1 : 9999;
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -73,7 +81,7 @@ const Modal: React.FC<ModalProps> = ({
               backgroundColor: "rgba(17, 24, 39, 0.6)",
               backdropFilter: "blur(8px)",
               WebkitBackdropFilter: "blur(8px)",
-              zIndex: 9998,
+              zIndex: backdropZ,
             }}
           />
           {/* Modal container */}
@@ -84,7 +92,7 @@ const Modal: React.FC<ModalProps> = ({
               left: 0,
               width: "100vw",
               height: "100vh",
-              zIndex: 9999,
+              zIndex: containerZ,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

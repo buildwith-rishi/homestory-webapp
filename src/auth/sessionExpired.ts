@@ -3,10 +3,13 @@
  * Dedupes so parallel 401s only trigger one modal.
  */
 
+import { useSessionExpiredStore } from "./sessionExpiredStore";
+
 let sessionExpiredEmitted = false;
 
 export function resetSessionExpiredGuard(): void {
   sessionExpiredEmitted = false;
+  useSessionExpiredStore.getState().hide();
 }
 
 export function notifySessionExpired(): void {
@@ -22,6 +25,7 @@ export function notifySessionExpired(): void {
     /* ignore */
   }
 
+  useSessionExpiredStore.getState().show();
   window.dispatchEvent(new CustomEvent("ghs:session-expired"));
 }
 

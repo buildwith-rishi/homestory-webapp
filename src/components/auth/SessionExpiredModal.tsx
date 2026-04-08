@@ -1,28 +1,47 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { Modal, Button } from "../ui";
 import { useAuthStore } from "../../stores/authStore";
 import { resetSessionExpiredGuard } from "../../auth/sessionExpired";
+import { useSessionExpiredStore } from "../../auth/sessionExpiredStore";
 
 /** Aligns with the whole-second countdown shown in the modal */
 const AUTO_REDIRECT_MS = 3000;
 
 /**
+ * Must sit above in-app overlays (many screens use z-[9999] / z-[10000]).
+ * See Modal stackZIndex prop.
+ */
+const SESSION_MODAL_STACK_Z = 100000;
+
+/**
  * Shown when APIs return 401 and the session cannot be refreshed.
  * Mounted once at app root (inside the router).
- * Automatically redirects to the login page after a short delay; user can go immediately.
+ * Visibility is driven by the session store (and notifySessionExpired) so the
+ * dialog always appears; CustomEvent alone is not relied on.
  */
 export const SessionExpiredModal: React.FC = () => {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
+  const visible = useSessionExpiredStore((s) => s.visible);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const redirectedRef = useRef(false);
+
+  /** Clear auth as soon as the store says session expired (before paint). */
+  useLayoutEffect(() => {
+    if (!visible) return;
+    useAuthStore.getState().setUser(null);
+  }, [visible]);
 
   const redirectToLogin = useCallback(() => {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
-    setOpen(false);
     resetSessionExpiredGuard();
     void useAuthStore.getState().logout().finally(() => {
       navigate("/login", { replace: true });
@@ -30,18 +49,12 @@ export const SessionExpiredModal: React.FC = () => {
   }, [navigate]);
 
   useEffect(() => {
-    const onExpired = () => {
+    if (!visible) {
       redirectedRef.current = false;
-      useAuthStore.getState().setUser(null);
-      setSecondsLeft(Math.ceil(AUTO_REDIRECT_MS / 1000));
-      setOpen(true);
-    };
-    window.addEventListener("ghs:session-expired", onExpired);
-    return () => window.removeEventListener("ghs:session-expired", onExpired);
-  }, []);
+      return;
+    }
 
-  useEffect(() => {
-    if (!open) return;
+    setSecondsLeft(Math.ceil(AUTO_REDIRECT_MS / 1000));
 
     const tick = window.setInterval(() => {
       setSecondsLeft((s) => Math.max(0, s - 1));
@@ -55,14 +68,15 @@ export const SessionExpiredModal: React.FC = () => {
       window.clearInterval(tick);
       window.clearTimeout(redirectTimer);
     };
-  }, [open, redirectToLogin]);
+  }, [visible, redirectToLogin]);
 
   return (
     <Modal
-      isOpen={open}
+      isOpen={visible}
       onClose={redirectToLogin}
       showCloseButton={false}
       size="sm"
+      stackZIndex={SESSION_MODAL_STACK_Z}
     >
       <div className="p-6 sm:p-8 max-w-md">
         <div className="flex items-start gap-4">
@@ -75,10 +89,7 @@ export const SessionExpiredModal: React.FC = () => {
               Your session is no longer valid. Please sign in again to continue
               using the CRM.
             </p>
-            <p
-              className="text-sm text-gray-500 mt-3"
-              aria-live="polite"
-            >
+            <p className="text-sm text-gray-500 mt-3" aria-live="polite">
               Redirecting to login in {secondsLeft}…
             </p>
           </div>
