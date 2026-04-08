@@ -39,6 +39,11 @@ import CustomerAPI, {
 } from "../../services/customerApi";
 import { listProjects } from "../../services/projectApi";
 import { ContactRoleBadge, PrimaryBadge } from "../../components/customers";
+import {
+  IMPORTANT_DATE_TYPE_OPTIONS,
+  getImportantDateDisplayTitle,
+  getImportantDateTypeLabel,
+} from "../../utils/importantDateTypes";
 
 interface FamilyMember {
   name: string;
@@ -52,6 +57,7 @@ interface ImportantDate {
   date: string;
   isRecurring?: boolean;
   notes?: string;
+  customLabel?: string;
 }
 
 interface Referral {
@@ -1667,11 +1673,8 @@ const ViewCustomerModal: React.FC<{
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {customer.importantDates.map((date, index) => {
-                  const dateType = date.dateType?.toUpperCase() || "OTHER";
-                  const label = date.dateType
-                    ? date.dateType.charAt(0).toUpperCase() +
-                      date.dateType.slice(1).toLowerCase().replace("_", " ")
-                    : "Date";
+                  const dateType = date.dateType?.toUpperCase() || "CUSTOM";
+                  const label = getImportantDateDisplayTitle(date);
 
                   return (
                     <div
@@ -1917,7 +1920,7 @@ const EditCustomerModal: React.FC<{
       ...formData,
       importantDates: [
         ...(formData.importantDates || []),
-        { dateType: "OTHER", date: "", notes: "" },
+        { dateType: "BIRTHDAY", date: "", notes: "", customLabel: "" },
       ],
     });
   };
@@ -1936,6 +1939,9 @@ const EditCustomerModal: React.FC<{
   ) => {
     const updated = [...(formData.importantDates || [])];
     updated[index] = { ...updated[index], [field]: value };
+    if (field === "dateType" && value !== "CUSTOM") {
+      updated[index].customLabel = "";
+    }
     setFormData({ ...formData, importantDates: updated });
   };
 
@@ -2417,14 +2423,13 @@ const EditCustomerModal: React.FC<{
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Title
+                            Type
                           </label>
-                          <input
-                            type="text"
-                            value={date.dateType}
+                          <select
+                            value={date.dateType || "BIRTHDAY"}
                             onChange={(e) =>
                               updateImportantDate(
                                 index,
@@ -2433,8 +2438,23 @@ const EditCustomerModal: React.FC<{
                               )
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            placeholder="e.g., Birthday"
-                          />
+                          >
+                            {IMPORTANT_DATE_TYPE_OPTIONS.map(
+                              ({ value, label }) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ),
+                            )}
+                            {date.dateType &&
+                              !IMPORTANT_DATE_TYPE_OPTIONS.some(
+                                (o) => o.value === date.dateType,
+                              ) && (
+                                <option value={date.dateType}>
+                                  {getImportantDateTypeLabel(date.dateType)}
+                                </option>
+                              )}
+                          </select>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2449,22 +2469,26 @@ const EditCustomerModal: React.FC<{
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                           />
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Type
-                          </label>
-                          <select
-                            value={date.dateType}
-                            onChange={(e) =>
-                              updateImportantDate(index, "dateType", e.target.value)
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          >
-                            <option value="BIRTHDAY">Birthday</option>
-                            <option value="ANNIVERSARY">Anniversary</option>
-                            <option value="OTHER">Other</option>
-                          </select>
-                        </div>
+                        {String(date.dateType).toUpperCase() === "CUSTOM" && (
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Custom label *
+                            </label>
+                            <input
+                              type="text"
+                              value={date.customLabel || ""}
+                              onChange={(e) =>
+                                updateImportantDate(
+                                  index,
+                                  "customLabel",
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="e.g. Birthday"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

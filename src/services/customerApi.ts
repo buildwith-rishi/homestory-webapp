@@ -433,6 +433,8 @@ export async function addImportantDate(
     isRecurring?: boolean;
     reminderDays?: number;
     notes?: string;
+    /** Required when `dateType` is CUSTOM (free-text label for the occasion). */
+    customLabel?: string;
   },
 ): Promise<CustomerImportantDate> {
   try {

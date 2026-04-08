@@ -75,6 +75,10 @@ import {
 import { useCustomerStore } from "../../stores/customerStore";
 import { listProjects } from "../../services/projectApi";
 import type { Project } from "../../types";
+import {
+  IMPORTANT_DATE_TYPE_OPTIONS,
+  getImportantDateDisplayTitle,
+} from "../../utils/importantDateTypes";
 
 interface FamilyMember {
   id?: string;
@@ -98,6 +102,7 @@ interface ImportantDate {
   isRecurring?: boolean;
   reminderDays?: number;
   notes?: string;
+  customLabel?: string;
 }
 
 interface Referral {
@@ -751,6 +756,7 @@ export const CustomerDetails: React.FC = () => {
     isRecurring: true,
     reminderDays: 7,
     notes: "",
+    customLabel: "",
   });
   const [referralForm, setReferralForm] = useState({ leadId: "" });
   const [allLeads, setAllLeads] = useState<LeadOption[]>([]);
@@ -1021,11 +1027,12 @@ export const CustomerDetails: React.FC = () => {
           apiCustomer.importantDates || []
         ).map((d: any) => ({
           id: d.id,
-          dateType: (d.dateType || d.type || "OTHER").toUpperCase(),
+          dateType: (d.dateType || d.type || "CUSTOM").toUpperCase(),
           date: d.date || "",
           isRecurring: d.isRecurring,
           reminderDays: d.reminderDays,
           notes: d.notes || d.title || "",
+          customLabel: d.customLabel ?? undefined,
         }));
 
         // Map projects from API
@@ -2255,13 +2262,16 @@ export const CustomerDetails: React.FC = () => {
 
     setIsSaving(true);
     try {
-      const payload = {
+      const payload: Parameters<typeof CustomerAPI.addImportantDate>[1] = {
         dateType: dateForm.dateType,
         date: dateForm.date,
         isRecurring: dateForm.isRecurring,
         reminderDays: Number(dateForm.reminderDays),
         notes: dateForm.notes,
       };
+      if (dateForm.dateType === "CUSTOM") {
+        payload.customLabel = dateForm.customLabel.trim();
+      }
 
       const result = await CustomerAPI.addImportantDate(
         String(customer.id),
@@ -2278,6 +2288,7 @@ export const CustomerDetails: React.FC = () => {
           isRecurring: result.isRecurring,
           reminderDays: result.reminderDays,
           notes: result.notes,
+          customLabel: result.customLabel ?? undefined,
         };
         return {
           ...prev,
@@ -2291,6 +2302,7 @@ export const CustomerDetails: React.FC = () => {
         isRecurring: true,
         reminderDays: 7,
         notes: "",
+        customLabel: "",
       });
       setShowDateModal(false);
       toast.success("Important date added successfully!");
@@ -3596,16 +3608,18 @@ export const CustomerDetails: React.FC = () => {
               {customer.importantDates && customer.importantDates.length > 0 ? (
                 <div className="space-y-3">
                   {customer.importantDates.map((date, index) => {
-                    const typeKey = date.dateType?.toLowerCase() || "other";
+                    const typeKey = date.dateType?.toLowerCase() || "custom";
                     const icons: Record<string, string> = {
                       birthday: "🎂",
                       anniversary: "💐",
+                      housewarming: "🏠",
+                      puja: "🪔",
+                      move_in: "📦",
+                      project_completion: "✅",
+                      custom: "📅",
                       other: "📅",
                     };
-                    const label = date.dateType
-                      ? date.dateType.charAt(0).toUpperCase() +
-                        date.dateType.slice(1).toLowerCase()
-                      : "Date";
+                    const label = getImportantDateDisplayTitle(date);
 
                     return (
                       <div
@@ -3614,7 +3628,7 @@ export const CustomerDetails: React.FC = () => {
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-2xl">
-                            {icons[typeKey] || icons.other}
+                            {icons[typeKey] || icons.custom}
                           </span>
                           <div>
                             <p className="font-semibold text-gray-900">
@@ -5461,16 +5475,43 @@ export const CustomerDetails: React.FC = () => {
                   </label>
                   <select
                     value={dateForm.dateType}
-                    onChange={(e) =>
-                      setDateForm({ ...dateForm, dateType: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const nextType = e.target.value;
+                      setDateForm((prev) => ({
+                        ...prev,
+                        dateType: nextType,
+                        customLabel:
+                          nextType === "CUSTOM" ? prev.customLabel : "",
+                      }));
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
-                    <option value="BIRTHDAY">Birthday</option>
-                    <option value="ANNIVERSARY">Anniversary</option>
-                    <option value="OTHER">Other</option>
+                    {IMPORTANT_DATE_TYPE_OPTIONS.map(({ value, label }) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                 </div>
+                {dateForm.dateType === "CUSTOM" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Custom label *
+                    </label>
+                    <input
+                      type="text"
+                      value={dateForm.customLabel}
+                      onChange={(e) =>
+                        setDateForm({
+                          ...dateForm,
+                          customLabel: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      placeholder="e.g. Birthday"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Date *
@@ -5551,6 +5592,7 @@ export const CustomerDetails: React.FC = () => {
                       isRecurring: true,
                       reminderDays: 7,
                       notes: "",
+                      customLabel: "",
                     });
                   }}
                   className="flex-1"
@@ -5560,7 +5602,13 @@ export const CustomerDetails: React.FC = () => {
                 <Button
                   onClick={handleAddDate}
                   className="flex-1 bg-orange-500 hover:bg-orange-600"
-                  disabled={!dateForm.dateType || !dateForm.date || isSaving}
+                  disabled={
+                    !dateForm.dateType ||
+                    !dateForm.date ||
+                    isSaving ||
+                    (dateForm.dateType === "CUSTOM" &&
+                      !dateForm.customLabel.trim())
+                  }
                 >
                   {isSaving ? "Adding..." : "Add Date"}
                 </Button>

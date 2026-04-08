@@ -44,6 +44,8 @@ export interface CustomerImportantDate {
   isRecurring?: boolean;
   reminderDays?: number;
   notes?: string;
+  /** When `dateType` is CUSTOM, user-defined label sent to the API. */
+  customLabel?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
