@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { UserRole } from "../../types";
 import type { RoleId } from "../../config/rbac";
+import { useSessionExpiredStore } from "../../auth/sessionExpiredStore";
 import PageLoader from "../ui/PageLoader";
 
 interface ProtectedRouteProps {
@@ -33,12 +34,16 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, user, roleId, can } = useAuth();
   const location = useLocation();
+  const sessionExpired = useSessionExpiredStore((s) => s.visible);
 
   if (isLoading) {
     return <PageLoader />;
   }
 
-  if (!isAuthenticated) {
+  // When the session-expired modal is visible, keep rendering the current page
+  // behind the modal instead of navigating to /login.  The modal itself handles
+  // the redirect once the user acknowledges or the countdown finishes.
+  if (!isAuthenticated && !sessionExpired) {
     return (
       <Navigate
         to={loginRedirect}

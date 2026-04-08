@@ -1,13 +1,23 @@
+import { notifySessionExpired } from "../auth/sessionExpired";
+
 const FETCH_NO_STORE_MARKER = "__ghs_fetch_no_store_installed__";
 
 type GlobalWithFetchMarker = typeof globalThis & {
   [FETCH_NO_STORE_MARKER]?: boolean;
 };
 
+const AUTH_PATH_RE = /\/api\/auth\//;
+
 /**
- * Ensures every browser fetch uses no-store so stale API/data responses are not reused.
- * Session expiry (401) is handled in fetchAPI and service-layer handleResponse helpers
- * so refresh-token retries are not interrupted.
+ * Wraps window.fetch so that:
+ *  1. Every request uses `cache: "no-store"` (avoids stale data).
+ *  2. Any 401 on a non-auth API endpoint fires `notifySessionExpired()` as a
+ *     last-resort safety-net.  Service-layer handlers already call it, but if
+ *     a code-path ever skips the handler the user will still see the popup.
+ *
+ * The 401 interception does NOT prevent the response from reaching the caller;
+ * `notifySessionExpired` dedupes internally so multiple parallel 401s only
+ * trigger the modal once.
  */
 export function installNoStoreFetch(): void {
   if (typeof window === "undefined" || typeof window.fetch !== "function") {
@@ -28,6 +38,19 @@ export function installNoStoreFetch(): void {
     };
 
     const response = await originalFetch(input, mergedInit);
+
+    if (response.status === 401) {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+
+      if (!AUTH_PATH_RE.test(url)) {
+        notifySessionExpired();
+      }
+    }
 
     return response;
   };
