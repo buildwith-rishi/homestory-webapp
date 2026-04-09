@@ -19,7 +19,6 @@ import {
   Award,
   MessageCircle,
   UserPlus,
-  Gift,
   Trash2,
   FileText,
   Clock,
@@ -2774,8 +2773,9 @@ export const CustomerDetails: React.FC = () => {
     }
   };
 
-  const handleDeleteImportantDate = async () => {
-    if (!customer || !editingImportantDate?.id) return;
+  /** Delete by id (list row or modal); closes modal if it was editing this id. */
+  const confirmDeleteImportantDate = async (id: string) => {
+    if (!customer || !id) return;
     if (
       !window.confirm(
         "Delete this important date? This cannot be undone.",
@@ -2786,17 +2786,19 @@ export const CustomerDetails: React.FC = () => {
 
     setIsSaving(true);
     try {
-      await CustomerAPI.deleteImportantDate(editingImportantDate.id);
+      await CustomerAPI.deleteImportantDate(id);
       setCustomerData((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
           importantDates: (prev.importantDates || []).filter(
-            (d) => d.id !== editingImportantDate.id,
+            (d) => d.id !== id,
           ),
         };
       });
-      closeDateModal();
+      if (editingImportantDate?.id === id) {
+        closeDateModal();
+      }
       toast.success("Important date deleted.");
     } catch (error: unknown) {
       toast.error(
@@ -2806,6 +2808,12 @@ export const CustomerDetails: React.FC = () => {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteImportantDate = () => {
+    if (editingImportantDate?.id) {
+      void confirmDeleteImportantDate(editingImportantDate.id);
     }
   };
 
@@ -4356,32 +4364,18 @@ export const CustomerDetails: React.FC = () => {
 
           {activeTab === "dates" && (
             <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-orange-500" />
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+                  <Calendar className="w-5 h-5 text-orange-500 shrink-0" />
                   Important Dates
                 </h3>
                 <button
-                  onClick={() => {
-                    if (editingTab === "dates") {
-                      setEditingTab(null);
-                      toast.success("Changes saved!");
-                    } else {
-                      setEditingTab("dates");
-                    }
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                    editingTab === "dates"
-                      ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
+                  type="button"
+                  onClick={openAddImportantDateModal}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all bg-orange-500 text-white border-orange-500 hover:bg-orange-600 shrink-0"
                 >
-                  {editingTab === "dates" ? (
-                    <Save className="w-3 h-3" />
-                  ) : (
-                    <Edit2 className="w-3 h-3" />
-                  )}
-                  {editingTab === "dates" ? "Save" : "Edit"}
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Date
                 </button>
               </div>
               {customer.importantDates && customer.importantDates.length > 0 ? (
@@ -4405,7 +4399,7 @@ export const CustomerDetails: React.FC = () => {
                         key={date.id || `date-${index}`}
                         className="p-4 bg-gray-50 rounded-xl flex items-center justify-between group gap-3"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
                           <span className="text-2xl shrink-0">
                             {icons[typeKey] || icons.custom}
                           </span>
@@ -4432,33 +4426,48 @@ export const CustomerDetails: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        {editingTab === "dates" && date.id && (
-                          <button
-                            type="button"
-                            onClick={() => openEditImportantDateModal(date)}
-                            className="shrink-0 p-2 rounded-lg text-gray-500 hover:text-orange-600 hover:bg-orange-50 transition-colors"
-                            title="Edit date"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        {date.id ? (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => openEditImportantDateModal(date)}
+                              disabled={isSaving}
+                              className="p-2 rounded-lg text-gray-500 hover:text-orange-600 hover:bg-orange-50 transition-colors disabled:opacity-50"
+                              title="Edit date"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void confirmDeleteImportantDate(date.id!)
+                              }
+                              disabled={isSaving}
+                              className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                              title="Delete date"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center py-8">
-                  No important dates added
-                </p>
-              )}
-              {editingTab === "dates" && (
-                <Button
-                  className="w-full mt-4 bg-orange-500 hover:bg-orange-600"
-                  onClick={openAddImportantDateModal}
-                >
-                  <Gift className="w-4 h-4" />
-                  Add Important Date
-                </Button>
+                <div className="text-center py-8 space-y-4">
+                  <p className="text-gray-500 text-sm">
+                    No important dates added
+                  </p>
+                  <Button
+                    type="button"
+                    className="bg-orange-500 hover:bg-orange-600"
+                    onClick={openAddImportantDateModal}
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Add Date
+                  </Button>
+                </div>
               )}
             </Card>
           )}
