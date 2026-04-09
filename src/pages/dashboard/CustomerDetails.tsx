@@ -938,7 +938,7 @@ export const CustomerDetails: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [validationAlert, setValidationAlert] = useState<{
     message: string;
-    field?: "email" | "phone";
+    field?: "email" | "phone" | "status";
   } | null>(null);
 
   // Contact info edit state
@@ -2313,7 +2313,7 @@ export const CustomerDetails: React.FC = () => {
 
   const getValidationDetails = (
     error: unknown,
-  ): { message: string; field?: "email" | "phone" } => {
+  ): { message: string; field?: "email" | "phone" | "status" } => {
     const message =
       error instanceof Error
         ? error.message
@@ -2327,6 +2327,13 @@ export const CustomerDetails: React.FC = () => {
     }
     if (lowered.includes("phone") && lowered.includes("exist")) {
       return { message, field: "phone" };
+    }
+    // PUT /api/customers/:id — cannot set inactive while projects exist
+    if (
+      lowered.includes("inactive") &&
+      (lowered.includes("project") || lowered.includes("projects"))
+    ) {
+      return { message, field: "status" };
     }
 
     return { message };
@@ -3106,6 +3113,14 @@ export const CustomerDetails: React.FC = () => {
                     </>
                   ) : (
                     <div className="space-y-3 pr-4">
+                      {validationAlert && (
+                        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
+                          <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                          <p className="text-sm text-red-700">
+                            {validationAlert.message}
+                          </p>
+                        </div>
+                      )}
                       <div>
                         <label className="text-xs font-medium text-gray-500 mb-1 block">
                           Customer Name
@@ -3130,13 +3145,20 @@ export const CustomerDetails: React.FC = () => {
                           </label>
                           <select
                             value={profileEditForm.status}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              if (validationAlert?.field === "status") {
+                                setValidationAlert(null);
+                              }
                               setProfileEditForm((prev) => ({
                                 ...prev,
                                 status: e.target.value,
-                              }))
-                            }
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                              }));
+                            }}
+                            className={`w-full px-3 py-2 text-sm border rounded-xl focus:outline-none focus:ring-2 bg-white ${
+                              validationAlert?.field === "status"
+                                ? "border-red-400 focus:ring-red-200 focus:border-red-500"
+                                : "border-gray-200 focus:ring-orange-200 focus:border-orange-400"
+                            }`}
                           >
                             {(customerStatuses.length > 0
                               ? customerStatuses
@@ -3195,7 +3217,10 @@ export const CustomerDetails: React.FC = () => {
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {editingTab === "profile" && (
                     <button
-                      onClick={() => setEditingTab(null)}
+                      onClick={() => {
+                        setValidationAlert(null);
+                        setEditingTab(null);
+                      }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-all"
                     >
                       <X className="w-3 h-3" />
