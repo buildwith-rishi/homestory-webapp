@@ -535,6 +535,29 @@ export async function updateImportantDate(
   }
 }
 
+/** DELETE /api/important-dates/:id — remove an important date */
+export async function deleteImportantDate(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/important-dates/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    },
+  );
+
+  if (!response.ok) {
+    onUnauthorizedResponse(response);
+    let errorMessage = `HTTP error! status: ${response.status}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.message || error.error || errorMessage;
+    } catch {
+      errorMessage = response.statusText || errorMessage;
+    }
+    throw new Error(errorMessage);
+  }
+}
+
 // ─── KYC & Bank Details ─────────────────────────────────────────────────────
 
 export type KycDocType = "AADHAR" | "PAN" | "GST_CERTIFICATE";
@@ -735,6 +758,7 @@ const CustomerAPI = {
   addImportantDate,
   getImportantDates,
   updateImportantDate,
+  deleteImportantDate,
 
   addFamilyMember,
   updateFamilyMember,

@@ -119,6 +119,27 @@ function getPushReason(taskId: string): string {
   return getPushReasons()[taskId] || "";
 }
 
+/**
+ * Label for grouping tasks: prefer nested API category, else resolve by
+ * categoryId from the matrix category list. "Uncategorized" only when the task
+ * has no category assignment (no id and no nested name).
+ */
+function resolveTaskCategoryDisplayName(
+  task: MatrixTask,
+  matrixCategories: MatrixCategory[],
+): string {
+  const nested = task.category?.name?.trim();
+  if (nested) return nested;
+
+  const id = task.categoryId?.trim();
+  if (id) {
+    const fromMatrix = matrixCategories.find((c) => c.id === id);
+    if (fromMatrix?.name?.trim()) return fromMatrix.name.trim();
+  }
+
+  return "Uncategorized";
+}
+
 export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   matrixId,
   projectId,
@@ -245,12 +266,18 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   }, []);
 
   const filteredTasks = tasks.filter((t) => {
-    if (
-      filterCategory &&
-      t.categoryId !== filterCategory &&
-      t.category?.name !== filterCategory
-    ) {
-      return false;
+    if (filterCategory) {
+      const selected = categories.find((c) => c.id === filterCategory);
+      if (selected) {
+        if (resolveTaskCategoryDisplayName(t, categories) !== selected.name) {
+          return false;
+        }
+      } else if (
+        t.categoryId !== filterCategory &&
+        t.category?.name !== filterCategory
+      ) {
+        return false;
+      }
     }
     if (filterStatus && t.status !== filterStatus) {
       return false;
@@ -302,10 +329,10 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     return null;
   };
 
-  // Group by category
+  // Group by category (resolve name from nested object or matrix categories by id)
   const tasksByCategory: Record<string, MatrixTask[]> = {};
   for (const task of filteredTasks) {
-    const catName = task.category?.name || "Uncategorized";
+    const catName = resolveTaskCategoryDisplayName(task, categories);
     if (!tasksByCategory[catName]) tasksByCategory[catName] = [];
     tasksByCategory[catName].push(task);
   }

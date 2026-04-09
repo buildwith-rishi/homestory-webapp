@@ -526,37 +526,47 @@ export const ViewTasksPage: React.FC = () => {
         showCloseButton={false}
         size="auto"
       >
-        <div className="w-[96vw] max-w-5xl max-h-[90vh] flex flex-col bg-white rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Shield className="w-5 h-5 text-orange-500" />
-                Tasks for {taskUser?.name || "User"}
+        <div className="w-[96vw] max-w-6xl h-[min(90vh,920px)] max-h-[90vh] flex flex-col bg-white rounded-2xl overflow-hidden shadow-xl">
+          <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 flex items-center justify-between gap-3 shrink-0">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2 truncate">
+                <Shield className="w-5 h-5 text-orange-500 shrink-0" />
+                <span className="truncate">
+                  Tasks for {taskUser?.name || "User"}
+                </span>
               </h2>
-              <p className="text-sm text-gray-500 mt-0.5">{taskUser?.email}</p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">
+                {taskUser?.email}
+              </p>
+              <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
                 Designation: {taskUser ? designationLabel(taskUser) : "—"}
               </p>
             </div>
             <button
               type="button"
               onClick={closeTasks}
-              className="text-sm text-gray-500 hover:text-gray-800 px-2 py-1 rounded-lg hover:bg-gray-100"
+              className="shrink-0 text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
             >
               Close
             </button>
           </div>
 
-          <div className="px-5 py-3 border-b border-gray-50 flex flex-wrap items-center gap-3">
+          <div className="px-4 sm:px-5 py-2.5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2 shrink-0 bg-gray-50/60">
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-xs font-medium text-gray-500">Status</label>
+              <label
+                htmlFor="view-tasks-status"
+                className="text-xs font-semibold text-gray-500 uppercase tracking-wide"
+              >
+                Status
+              </label>
               <select
+                id="view-tasks-status"
                 value={taskStatusFilter}
                 onChange={(e) => {
                   setTaskStatusFilter(e.target.value);
                   setListLimit(pageSize);
                 }}
-                className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
+                className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white shadow-sm min-w-[8rem]"
               >
                 <option value="">All</option>
                 <option value="PENDING">Pending</option>
@@ -573,57 +583,55 @@ export const ViewTasksPage: React.FC = () => {
                   setSelectedCalendarDate(null);
                   setListLimit(pageSize);
                 }}
-                className="text-xs font-medium text-orange-600 hover:text-orange-700 px-2 py-1 rounded-lg hover:bg-orange-50"
+                className="text-xs font-medium text-orange-600 hover:text-orange-700 px-2 py-1 rounded-md hover:bg-orange-50"
               >
                 Clear date filter
               </button>
             )}
           </div>
 
-          <div className="px-5 py-3 border-b border-gray-50 bg-gray-50/50">
-            <p className="text-xs font-medium text-gray-500 mb-2">
-              Calendar — days with a dot have at least one task (respects status
-              filter). Click a day to show only tasks on that date.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 items-start">
-              <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm w-full max-w-[320px]">
-                <div className="flex items-center justify-between mb-2">
+          {/* Calendar (left) + task list (right): uses horizontal space; tasks scroll independently */}
+          <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
+            <aside className="shrink-0 border-b lg:border-b-0 lg:border-r border-gray-100 bg-gradient-to-b from-gray-50/80 to-white lg:w-[min(100%,268px)] px-4 py-3 lg:py-4">
+              <p className="text-[11px] leading-snug text-gray-500 mb-2">
+                <span className="font-medium text-gray-600">Tip:</span> Orange dot
+                = task on that day (uses status filter). Click a day to filter the
+                list.
+              </p>
+              <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm max-w-[252px] mx-auto lg:mx-0">
+                <div className="flex items-center justify-between mb-1.5">
                   <button
                     type="button"
-                    onClick={() =>
-                      setCalendarMonth((m) => subMonths(m, 1))
-                    }
-                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
+                    onClick={() => setCalendarMonth((m) => subMonths(m, 1))}
+                    className="p-1 rounded-lg hover:bg-gray-100 text-gray-600"
                     aria-label="Previous month"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {format(calendarMonth, "MMMM yyyy")}
+                  <span className="text-xs font-semibold text-gray-900 tabular-nums">
+                    {format(calendarMonth, "MMM yyyy")}
                   </span>
                   <button
                     type="button"
-                    onClick={() =>
-                      setCalendarMonth((m) => addMonths(m, 1))
-                    }
-                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
+                    onClick={() => setCalendarMonth((m) => addMonths(m, 1))}
+                    className="p-1 rounded-lg hover:bg-gray-100 text-gray-600"
                     aria-label="Next month"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-gray-400 mb-1">
+                <div className="grid grid-cols-7 gap-px text-center text-[9px] font-semibold text-gray-400 mb-0.5 uppercase tracking-tighter">
                   {calendarWeekdays.map((d) => (
                     <div key={d}>{d}</div>
                   ))}
                 </div>
-                <div className="grid grid-cols-7 gap-0.5">
+                <div className="grid grid-cols-7 gap-px">
                   {monthGridCells.map((day, idx) => {
                     if (!day) {
                       return (
                         <div
                           key={`pad-${idx}`}
-                          className="aspect-square min-h-[2rem]"
+                          className="aspect-square min-h-[1.75rem] max-h-8"
                         />
                       );
                     }
@@ -646,11 +654,11 @@ export const ViewTasksPage: React.FC = () => {
                           }
                         }}
                         className={[
-                          "aspect-square min-h-[2rem] rounded-lg text-xs font-medium flex flex-col items-center justify-center gap-0.5 transition-colors",
+                          "aspect-square min-h-[1.75rem] max-h-8 rounded-md text-[11px] font-medium flex flex-col items-center justify-center gap-px transition-colors leading-none",
                           inMonth ? "text-gray-900" : "text-gray-300",
                           isSel
-                            ? "bg-orange-500 text-white"
-                            : "hover:bg-orange-50 text-gray-800",
+                            ? "bg-orange-500 text-white shadow-sm"
+                            : "hover:bg-orange-50/80 text-gray-800",
                         ].join(" ")}
                       >
                         <span>{format(day, "d")}</span>
@@ -669,26 +677,35 @@ export const ViewTasksPage: React.FC = () => {
                   })}
                 </div>
               </div>
-              {selectedCalendarDate && (
-                <p className="text-sm text-gray-600 pt-1">
-                  Showing tasks for{" "}
-                  <span className="font-semibold text-gray-900">
-                    {format(
-                      new Date(selectedCalendarDate + "T12:00:00"),
-                      "EEE, d MMM yyyy",
-                    )}
-                  </span>
-                  <span className="text-gray-500">
-                    {" "}
-                    ({filteredTasks.length} total
-                    {taskStatusFilter ? ", status filtered" : ""})
-                  </span>
-                </p>
-              )}
-            </div>
-          </div>
+            </aside>
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+            <div className="flex flex-1 min-h-0 min-w-0 flex-col">
+              <div className="shrink-0 px-4 sm:px-5 py-2 border-b border-gray-100 bg-amber-50/40">
+                {selectedCalendarDate ? (
+                  <p className="text-xs sm:text-sm text-gray-700">
+                    <span className="text-gray-500">Showing </span>
+                    <span className="font-semibold text-gray-900">
+                      {format(
+                        new Date(selectedCalendarDate + "T12:00:00"),
+                        "EEE, d MMM yyyy",
+                      )}
+                    </span>
+                    <span className="text-gray-500">
+                      {" "}
+                      · {filteredTasks.length} task
+                      {filteredTasks.length !== 1 ? "s" : ""}
+                      {taskStatusFilter ? " (status filter on)" : ""}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    No day selected — showing all loaded tasks below. Pick a
+                    calendar day to narrow by date.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3">
             {tasksLoading ? (
               <div className="flex flex-col items-center py-12 gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
@@ -719,19 +736,21 @@ export const ViewTasksPage: React.FC = () => {
                 return (
                   <div
                     key={task.id}
-                    className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                    className="rounded-xl border border-gray-200 bg-white p-3 sm:p-3.5 shadow-sm hover:border-gray-300/80 transition-colors"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
+                    <div className="flex flex-wrap items-start justify-between gap-2 gap-y-1">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-[15px] sm:text-base font-semibold text-gray-900 leading-snug">
                           {task.title}
                         </h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Project: {projectLabel} · Day {task.dayNumber}
+                        <p className="text-[11px] sm:text-xs text-gray-500 mt-1 leading-relaxed">
+                          <span className="text-gray-400">Project:</span>{" "}
+                          {projectLabel}
+                          <span className="mx-1 text-gray-300">·</span>
+                          Day {task.dayNumber}
                           {task.taskDate && (
                             <>
-                              {" "}
-                              ·{" "}
+                              <span className="mx-1 text-gray-300">·</span>
                               {new Date(task.taskDate).toLocaleDateString(
                                 "en-IN",
                                 {
@@ -747,31 +766,31 @@ export const ViewTasksPage: React.FC = () => {
                       <Badge
                         className={
                           String(task.status).toUpperCase() === "COMPLETED"
-                            ? "bg-green-100 text-green-800"
+                            ? "bg-green-100 text-green-800 shrink-0"
                             : String(task.status).toUpperCase() ===
                                 "IN_PROGRESS"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-gray-100 text-gray-700"
+                              ? "bg-amber-100 text-amber-800 shrink-0"
+                              : "bg-gray-100 text-gray-700 shrink-0"
                         }
                       >
                         {statusLabel(String(task.status))}
                       </Badge>
                     </div>
                     {task.completionNotes && (
-                      <p className="text-sm text-gray-600 mt-2 border-l-2 border-orange-200 pl-2">
+                      <p className="text-sm text-gray-600 mt-2 border-l-2 border-orange-300 pl-2.5 py-0.5 bg-orange-50/40 rounded-r-md">
                         {task.completionNotes}
                       </p>
                     )}
-                    <div className="mt-3">
-                      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    <div className="mt-2.5 pt-2.5 border-t border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                         Attachments
                       </p>
                       {atts.length === 0 ? (
-                        <p className="text-xs text-gray-400">
+                        <p className="text-[11px] text-gray-400">
                           No files uploaded.
                         </p>
                       ) : (
-                        <div className="grid sm:grid-cols-2 gap-2">
+                        <div className="flex flex-wrap gap-2">
                           {atts.map((att) => {
                             const openUrl =
                               resolvedUrls[att.id] ||
@@ -783,10 +802,10 @@ export const ViewTasksPage: React.FC = () => {
                             return (
                               <div
                                 key={att.id}
-                                className="rounded-lg border border-gray-100 bg-gray-50 p-2"
+                                className="rounded-lg border border-gray-100 bg-gray-50/50 p-1.5 max-w-[min(100%,200px)] flex-1 min-w-[140px]"
                               >
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-xs font-medium text-gray-800 truncate">
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <span className="text-[11px] font-medium text-gray-800 line-clamp-2 leading-snug">
                                     {att.fileName}
                                   </span>
                                   {openUrl && (
@@ -794,9 +813,9 @@ export const ViewTasksPage: React.FC = () => {
                                       href={openUrl}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="text-xs text-orange-600 flex items-center gap-1 shrink-0"
+                                      className="text-[11px] text-orange-600 flex items-center gap-0.5 shrink-0 font-medium"
                                     >
-                                      <ExternalLink className="w-3.5 h-3.5" />
+                                      <ExternalLink className="w-3 h-3" />
                                       Open
                                     </a>
                                   )}
@@ -806,19 +825,21 @@ export const ViewTasksPage: React.FC = () => {
                                     href={openUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="mt-2 block"
+                                    className="mt-1.5 block rounded-md overflow-hidden border border-gray-200 bg-white"
                                   >
                                     <img
                                       src={openUrl}
                                       alt=""
-                                      className="w-full h-32 object-cover rounded-md border border-gray-200"
+                                      className="w-full h-20 object-cover object-center"
                                     />
                                   </a>
                                 )}
                                 {!isImage && (
-                                  <div className="mt-1 flex items-center gap-1 text-[11px] text-gray-500">
-                                    <ImageIcon className="w-3 h-3" />
-                                    {att.attachmentType || att.fileType}
+                                  <div className="mt-1 flex items-center gap-1 text-[10px] text-gray-500">
+                                    <ImageIcon className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">
+                                      {att.attachmentType || att.fileType}
+                                    </span>
                                   </div>
                                 )}
                               </div>
@@ -849,6 +870,8 @@ export const ViewTasksPage: React.FC = () => {
                   </button>
                 </div>
               )}
+              </div>
+            </div>
           </div>
         </div>
       </Modal>

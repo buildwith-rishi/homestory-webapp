@@ -81,6 +81,14 @@ import {
   getImportantDateTypeLabel,
 } from "../../utils/importantDateTypes";
 
+/** YYYY-MM-DD in local timezone (for date input max / validation). */
+function formatLocalDateYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 interface FamilyMember {
   id?: string;
   firstName?: string;
@@ -2669,6 +2677,14 @@ export const CustomerDetails: React.FC = () => {
   const handleSaveImportantDate = async () => {
     if (!customer || !dateForm.dateType || !dateForm.date) return;
 
+    const today = formatLocalDateYMD(new Date());
+    if (dateForm.date > today) {
+      toast.error(
+        "Please choose today or a past date. Future dates are not allowed.",
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (editingImportantDate?.id) {
@@ -2752,6 +2768,41 @@ export const CustomerDetails: React.FC = () => {
           (editingImportantDate
             ? "Failed to update important date"
             : "Failed to add important date"),
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteImportantDate = async () => {
+    if (!customer || !editingImportantDate?.id) return;
+    if (
+      !window.confirm(
+        "Delete this important date? This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await CustomerAPI.deleteImportantDate(editingImportantDate.id);
+      setCustomerData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          importantDates: (prev.importantDates || []).filter(
+            (d) => d.id !== editingImportantDate.id,
+          ),
+        };
+      });
+      closeDateModal();
+      toast.success("Important date deleted.");
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete important date",
       );
     } finally {
       setIsSaving(false);
@@ -6266,12 +6317,16 @@ export const CustomerDetails: React.FC = () => {
                   </label>
                   <input
                     type="date"
+                    max={formatLocalDateYMD(new Date())}
                     value={dateForm.date}
                     onChange={(e) =>
                       setDateForm({ ...dateForm, date: e.target.value })
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    You can select today or a past date only.
+                  </p>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-2">
@@ -6329,33 +6384,51 @@ export const CustomerDetails: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="secondary"
-                  onClick={closeDateModal}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveImportantDate}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600"
-                  disabled={
-                    !dateForm.dateType ||
-                    !dateForm.date ||
-                    isSaving ||
-                    (dateForm.dateType === "CUSTOM" &&
-                      !dateForm.customLabel.trim())
-                  }
-                >
-                  {isSaving
-                    ? editingImportantDate
-                      ? "Saving..."
-                      : "Adding..."
-                    : editingImportantDate
-                      ? "Save changes"
-                      : "Add Date"}
-                </Button>
+              <div className="flex flex-col-reverse gap-3 mt-6 sm:flex-row sm:items-center sm:justify-between">
+                <div className="sm:min-w-[7rem]">
+                  {editingImportantDate?.id ? (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      onClick={handleDeleteImportantDate}
+                      disabled={isSaving}
+                      className="w-full sm:w-auto"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1.5 inline-block align-middle" />
+                      Delete
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="flex gap-3 flex-1 sm:justify-end">
+                  <Button
+                    variant="secondary"
+                    onClick={closeDateModal}
+                    disabled={isSaving}
+                    className="flex-1 sm:flex-initial sm:min-w-[7rem]"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveImportantDate}
+                    className="flex-1 sm:flex-initial sm:min-w-[8rem] bg-orange-500 hover:bg-orange-600"
+                    disabled={
+                      !dateForm.dateType ||
+                      !dateForm.date ||
+                      isSaving ||
+                      (dateForm.dateType === "CUSTOM" &&
+                        !dateForm.customLabel.trim()) ||
+                      dateForm.date > formatLocalDateYMD(new Date())
+                    }
+                  >
+                    {isSaving
+                      ? editingImportantDate
+                        ? "Saving..."
+                        : "Adding..."
+                      : editingImportantDate
+                        ? "Save changes"
+                        : "Add Date"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>,
