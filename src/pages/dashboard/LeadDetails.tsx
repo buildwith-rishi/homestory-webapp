@@ -26,14 +26,15 @@ import {
   Ruler,
   ArrowRight,
   Download,
-  Check,
-  X,
   Image as ImageIcon,
   Pencil,
   Layers,
   Wrench,
 
   Users,
+  UserPlus,
+  X,
+  Check,
 } from "lucide-react";
 import { Button, PageLoader } from "../../components/ui";
 import LeadAPI, {
@@ -75,9 +76,8 @@ const LeadDetails: React.FC = () => {
   const [leadSources] = useState<LeadSource[]>([]);
   const [teamUsers, setTeamUsers] = useState<AdminUser[]>([]);
 
-  // Convert to Customer state
-  const [showConvertModal, setShowConvertModal] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
+  const [showConvertModal, setShowConvertModal] = useState(false);
 
   // References state
   const [references, setReferences] = useState<LeadReference[]>([]);
@@ -300,22 +300,28 @@ const LeadDetails: React.FC = () => {
     fetchUsers();
   }, []);
 
-  const handleConvertToCustomer = async () => {
-    console.log("handleConvertToCustomer called");
-    console.log("Lead object:", lead);
-    console.log("Lead ID from state:", lead?.id);
-    console.log("Lead ID from URL:", id);
-
-    // Use lead ID from state, fallback to URL param
+  const openConvertModal = () => {
     const leadId = lead?.id || id;
-
     if (!leadId) {
-      console.log("No lead ID found, returning early");
+      toast.error("No lead ID found");
+      return;
+    }
+    if (lead?.convertedToAccount) {
+      toast.error(
+        `This lead has already been converted to customer "${lead.convertedToAccount.name || "Unknown"}".`,
+      );
+      return;
+    }
+    setShowConvertModal(true);
+  };
+
+  const handleConvertToCustomer = async () => {
+    const leadId = lead?.id || id;
+    if (!leadId) {
       toast.error("No lead ID found");
       return;
     }
 
-    // Guard: lead has already been converted
     if (lead?.convertedToAccount) {
       toast.error(
         `This lead has already been converted to customer "${lead.convertedToAccount.name || "Unknown"}".`,
@@ -324,34 +330,27 @@ const LeadDetails: React.FC = () => {
       return;
     }
 
-    const customerName = lead?.name || "Unknown Customer";
-    console.log("Customer name:", customerName);
+    const customerName = (lead?.name || "").trim() || "Unknown Customer";
 
     setIsConverting(true);
     try {
-      console.log("Making API call to convert lead...");
-      console.log("Request payload:", {
-        leadId: leadId,
-        name: customerName,
-      });
-
       const result = await CustomerAPI.convertLeadToCustomer(
         leadId,
         customerName,
       );
 
-      console.log("Conversion successful:", result);
       setShowConvertModal(false);
       toast.success(
         `Lead "${customerName}" converted to customer successfully!`,
       );
 
-      // Navigate to the customer detail page to see the new customer
-      setTimeout(() => {
-        navigate(`/dashboard/customers/${result.id}`);
-      }, 1500);
+      const customerId = result?.id;
+      if (customerId) {
+        navigate(`/dashboard/customers/${customerId}`);
+      } else {
+        navigate("/dashboard/customers");
+      }
     } catch (error) {
-      console.error("Conversion error:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -682,15 +681,12 @@ const LeadDetails: React.FC = () => {
                   Delete
                 </Button>
                 <Button
-                  onClick={() => {
-                    console.log("Convert to Customer button clicked!");
-                    console.log("Current lead state:", lead);
-                    console.log("Lead ID from state:", lead?.id);
-                    setShowConvertModal(true);
-                  }}
-                  className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-200/50"
+                  type="button"
+                  onClick={openConvertModal}
+                  disabled={Boolean(lead.convertedToAccount)}
+                  className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-200/50 disabled:opacity-60"
                 >
-                  <Building2 className="w-4 h-4" />
+                  <UserPlus className="w-4 h-4" />
                   Convert to Customer
                 </Button>
               </div>
@@ -1800,131 +1796,107 @@ const LeadDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* Convert to Account Modal */}
+      {/* Convert to Customer — confirmation modal */}
       {showConvertModal && lead && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="convert-lead-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            aria-label="Close dialog"
+            onClick={() => !isConverting && setShowConvertModal(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-5">
+            <div className="flex items-start gap-3 pb-4 border-b border-gray-100">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
                 <ArrowRight className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Convert Lead to Customer
+              <div className="min-w-0 flex-1">
+                <h2
+                  id="convert-lead-title"
+                  className="text-xl font-bold text-gray-900"
+                >
+                  Convert lead to customer
                 </h2>
-                <p className="text-sm text-gray-600">
-                  Transform this lead into a customer
+                <p className="text-sm text-gray-600 mt-0.5">
+                  {safeDisplay(lead.name, "This lead")} will become a customer
+                  record. Contact details will be copied across.
                 </p>
               </div>
               <button
-                onClick={() => {
-                  console.log("Close modal button clicked");
-                  setShowConvertModal(false);
-                }}
-                className="ml-auto p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                type="button"
+                onClick={() => !isConverting && setShowConvertModal(false)}
+                disabled={isConverting}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
               >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              {/* Lead Information */}
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <p className="text-xs font-semibold text-gray-600 uppercase mb-2">
-                  Current Lead Information
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                Lead summary
+              </p>
+              <div className="space-y-1 text-sm">
+                <p className="font-semibold text-gray-900">
+                  {safeDisplay(lead.name, "Unknown")}
                 </p>
-                <div className="space-y-1">
-                  <p className="font-semibold text-gray-900">
-                    {safeDisplay(lead.name, "Unknown")}
-                  </p>
-                  {lead.email &&
-                    lead.email !== "undefined" &&
-                    lead.email !== "null" && (
-                      <p className="text-sm text-gray-600 flex items-center gap-2">
-                        <Mail className="w-4 h-4" />
-                        {lead.email}
-                      </p>
-                    )}
-                  {lead.phone &&
-                    lead.phone !== "undefined" &&
-                    lead.phone !== "null" && (
-                      <p className="text-sm text-gray-600 flex items-center gap-2">
-                        <Phone className="w-4 h-4" />
-                        {lead.phone}
-                      </p>
-                    )}
-                  {lead.source && (
-                    <p className="text-sm text-gray-600">
-                      Source: {lead.source}
+                {lead.email &&
+                  lead.email !== "undefined" &&
+                  lead.email !== "null" && (
+                    <p className="text-gray-600 flex items-center gap-2">
+                      <Mail className="w-4 h-4 flex-shrink-0" />
+                      {lead.email}
                     </p>
                   )}
-                </div>
-              </div>
-
-              {/* Account Preview */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-                    <Building2 className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-blue-900 mb-1">
-                      New Customer Preview
+                {lead.phone &&
+                  lead.phone !== "undefined" &&
+                  lead.phone !== "null" && (
+                    <p className="text-gray-600 flex items-center gap-2">
+                      <Phone className="w-4 h-4 flex-shrink-0" />
+                      {lead.phone}
                     </p>
-                    <div className="space-y-1 text-sm">
-                      <p className="text-blue-800">
-                        <span className="font-medium">Customer Name:</span>{" "}
-                        {safeDisplay(lead.name, "Unknown Customer")}
-                      </p>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-blue-200">
-                      <p className="text-xs text-blue-700 flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        <span>
-                          This lead will be converted into a customer and
-                          removed from the leads list. All contact information
-                          will be preserved.
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  )}
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5 text-sm text-amber-900">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-600 mt-0.5" />
+              <span>
+                This action creates a customer from this lead. You can still
+                find the original lead history from the customer record where
+                applicable.
+              </span>
+            </div>
+
+            <div className="flex gap-3 pt-1">
               <button
                 type="button"
-                onClick={() => {
-                  console.log("Cancel button clicked");
-                  setShowConvertModal(false);
-                }}
+                onClick={() => setShowConvertModal(false)}
                 disabled={isConverting}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-medium transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  console.log("Convert button clicked!");
-                  console.log("Lead:", lead);
-                  console.log("Lead ID:", lead?.id);
-                  console.log("Lead Name:", lead?.name);
-                  handleConvertToCustomer();
-                }}
+                onClick={() => void handleConvertToCustomer()}
                 disabled={isConverting}
                 className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isConverting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Converting...
+                    Converting…
                   </>
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    Convert to Customer
+                    Convert to customer
                   </>
                 )}
               </button>
