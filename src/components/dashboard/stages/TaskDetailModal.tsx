@@ -447,6 +447,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       toast.error("Target day must be different from the current day");
       return;
     }
+    if (!pushReason.trim()) {
+      toast.error("Please enter a reason for rescheduling this task");
+      return;
+    }
     setPushing(true);
     try {
       const pushResult = await pushMatrixTask(
@@ -1368,7 +1372,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
-                            Reason (optional)
+                            Reason <span className="text-red-500">*</span>
                           </label>
                           <textarea
                             value={pushReason}
@@ -1376,6 +1380,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             placeholder="e.g. Material not delivered yet, rescheduling to Day 4"
                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400/50 resize-none"
                             rows={2}
+                            aria-required="true"
                           />
                         </div>
                         <Button
@@ -1384,7 +1389,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           disabled={
                             pushing ||
                             pushTargetDay < 1 ||
-                            pushTargetDay === task.dayNumber
+                            pushTargetDay === task.dayNumber ||
+                            !pushReason.trim()
                           }
                           className="bg-amber-500 hover:bg-amber-600 text-white w-full"
                         >

@@ -1,5 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { SessionExpiredModal } from "./components/auth/SessionExpiredModal";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AccessDeniedPage } from "./pages/auth/AccessDeniedPage";
@@ -54,10 +53,9 @@ import {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <SessionExpiredModal />
-        <Routes>
+    <>
+      <SessionExpiredModal />
+      <Routes>
           <Route
             path="/"
             element={
@@ -500,8 +498,7 @@ function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+    </>
   );
 }
 
