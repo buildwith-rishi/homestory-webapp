@@ -34,6 +34,7 @@ import { InstagramPage } from "./pages/instagram";
 import { MobileAppShell } from "./components/mobile/MobileAppShell";
 import {
   EngineerHome,
+  EngineerProjects,
   EngineerTasks,
   PhotoUpload,
   ReportIssue,
@@ -350,6 +351,30 @@ function App() {
               >
                 <MobileAppShell>
                   <EngineerHome />
+                </MobileAppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/projects"
+            element={
+              <ProtectedRoute
+                allowedRoleIds={["SITE_ENGINEER", "SUPER_ADMIN", "ADMIN"]}
+              >
+                <MobileAppShell>
+                  <EngineerProjects />
+                </MobileAppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/projects/:projectId"
+            element={
+              <ProtectedRoute
+                allowedRoleIds={["SITE_ENGINEER", "SUPER_ADMIN", "ADMIN"]}
+              >
+                <MobileAppShell>
+                  <ProjectDetails />
                 </MobileAppShell>
               </ProtectedRoute>
             }

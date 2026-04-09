@@ -136,7 +136,14 @@ export function normalizeTeamMembers(response: unknown): TeamMember[] {
     });
 }
 
+/**
+ * Team / vendor rows from GET /api/team often omit the literal word "VENDOR".
+ * Treat explicit non-CRM members, common subcontractor types, and legacy
+ * "VENDOR" substrings as assignable vendors.
+ */
 function isVendorTeamMember(member: TeamMember): boolean {
+  if (member.isCrmUser === false) return true;
+
   const memberType = String(member.memberType || "")
     .trim()
     .toUpperCase();
@@ -147,10 +154,35 @@ function isVendorTeamMember(member: TeamMember): boolean {
     .trim()
     .toUpperCase();
 
+  const haystack = `${memberType} ${role} ${department}`;
+  const vendorHints = [
+    "VENDOR",
+    "SUBCONTRACTOR",
+    "SUB_CONTRACTOR",
+    "CONTRACTOR",
+    "EXTERNAL",
+    "PARTNER",
+    "SUPPLIER",
+    "FREELANCER",
+    "AGENCY",
+    "OUTSOURCE",
+  ];
+  if (vendorHints.some((h) => haystack.includes(h))) return true;
+
   return (
     memberType.includes("VENDOR") ||
     role.includes("VENDOR") ||
     department.includes("VENDOR")
+  );
+}
+
+function isActiveTeamMember(member: TeamMember): boolean {
+  return (
+    member.isBanned !== true &&
+    member.isDeactivated !== true &&
+    member.isActive !== false &&
+    Boolean(String(member.id || "").trim()) &&
+    Boolean(String(member.name || "").trim())
   );
 }
 
@@ -204,16 +236,19 @@ export async function loadMatrixAssigneeData(): Promise<{
   // - Vendor dropdown must come only from team members marked as vendor.
   const users = crmUsers;
 
-  const vendors = teamMembers
-    .filter(
-      (member) =>
-        member.isBanned !== true &&
-        member.isDeactivated !== true &&
-        member.isActive !== false &&
-        isVendorTeamMember(member),
-    )
-    .filter((member) => Boolean(member.id) && Boolean(member.name))
+  const activeMembers = teamMembers.filter(isActiveTeamMember);
+
+  let vendors = activeMembers
+    .filter((member) => isVendorTeamMember(member))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  // If the API never tags rows as "vendor" but team members exist, still show
+  // them so the Vendor dropdown is usable (matrix tasks use member ids).
+  if (vendors.length === 0 && activeMembers.length > 0) {
+    vendors = [...activeMembers].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }
 
   return { users, vendors };
 }

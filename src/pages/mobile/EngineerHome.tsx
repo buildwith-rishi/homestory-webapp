@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   ArrowRight,
   RefreshCw,
+  Building2,
 } from "lucide-react";
 import { MobileHeader } from "../../components/mobile/MobileHeader";
 import { useProjectStore } from "../../stores/projectStore";
@@ -248,6 +249,20 @@ export function EngineerHome() {
               </div>
               <span className="text-sm font-semibold text-gray-900 text-center">
                 Submit DSR
+              </span>
+            </button>
+            <button
+              onClick={() => navigate("/app/projects")}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all hover:shadow-md min-h-[120px] col-span-2"
+            >
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-amber-700" />
+              </div>
+              <span className="text-sm font-semibold text-gray-900 text-center">
+                Projects — overview &amp; stages
+              </span>
+              <span className="text-[11px] text-gray-500 text-center leading-snug px-2">
+                No payment details are shown here
               </span>
             </button>
           </div>

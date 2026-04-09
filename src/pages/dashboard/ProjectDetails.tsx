@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useParams,
+  useNavigate,
+  useSearchParams,
+  useLocation,
+} from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { hasPermission, RoleId } from "../../config/rbac";
 import {
@@ -381,9 +386,18 @@ const getStatusDisplay = (
 export const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { roleId, user } = useAuth();
   const todayDateOnly = new Date().toISOString().split("T")[0];
+
+  /** Mobile site-engineer shell: list + detail live under /app/projects */
+  const isAppShellProjectView = location.pathname.startsWith("/app/projects");
+  const projectsListPath = isAppShellProjectView
+    ? "/app/projects"
+    : "/dashboard/projects";
+  const isSiteEngineerMobileApp =
+    roleId === "SITE_ENGINEER" && isAppShellProjectView;
   
   // Permissions
   const canCreatePayment = hasPermission(roleId as RoleId, "payments.create");
@@ -453,6 +467,30 @@ export const ProjectDetails: React.FC = () => {
 
   const canDeleteProject = hasPermission(roleId as RoleId, "projects.delete");
 
+  /** Site engineers on /app/projects/* only need Overview + Stages (no payments or other tabs). */
+  const projectDetailTabs = useMemo(() => {
+    if (isSiteEngineerMobileApp) {
+      return [
+        { id: "overview" as const, label: "Overview", icon: FileText },
+        { id: "stages" as const, label: "Stages", icon: CheckCircle2 },
+      ];
+    }
+    return [
+      { id: "overview" as const, label: "Overview", icon: FileText },
+      { id: "stages" as const, label: "Stages", icon: CheckCircle2 },
+      ...(!["DESIGNER", "SITE_ENGINEER"].includes(roleId || "")
+        ? [{ id: "payments" as const, label: "Payments", icon: CreditCard }]
+        : []),
+      { id: "references" as const, label: "References", icon: Image },
+      {
+        id: "testimonials" as const,
+        label: "Testimonials",
+        icon: MessageSquare,
+      },
+      { id: "handover" as const, label: "Handover", icon: Gift },
+    ];
+  }, [isSiteEngineerMobileApp, roleId]);
+
   // Project options from API
 
 
@@ -470,14 +508,16 @@ export const ProjectDetails: React.FC = () => {
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (!tab) return;
-    const validTabs: Array<typeof activeTab> = [
-      "overview",
-      "stages",
-      "payments",
-      "references",
-      "testimonials",
-      "handover",
-    ];
+    const validTabs: Array<typeof activeTab> = isSiteEngineerMobileApp
+      ? ["overview", "stages"]
+      : [
+          "overview",
+          "stages",
+          "payments",
+          "references",
+          "testimonials",
+          "handover",
+        ];
     if (!validTabs.includes(tab as typeof activeTab)) return;
     setActiveTab(tab as typeof activeTab);
     setSearchParams(
@@ -490,7 +530,14 @@ export const ProjectDetails: React.FC = () => {
       },
       { replace: true },
     );
-  }, [projectId, searchParams, setSearchParams]);
+  }, [projectId, searchParams, setSearchParams, isSiteEngineerMobileApp]);
+
+  useEffect(() => {
+    if (!isSiteEngineerMobileApp) return;
+    if (activeTab !== "overview" && activeTab !== "stages") {
+      setActiveTab("overview");
+    }
+  }, [isSiteEngineerMobileApp, activeTab]);
 
   // Stages are only available after the project has been started (not YET_TO_START)
   useEffect(() => {
@@ -842,13 +889,23 @@ export const ProjectDetails: React.FC = () => {
 
 
   // Fetch project data on mount (stages load only after project is started — see below)
+  const shouldFetchPayments =
+    roleId !== "SITE_ENGINEER" && roleId !== "DESIGNER";
+
   useEffect(() => {
     if (projectId) {
       fetchProjectById(projectId);
-      fetchProjectPayments(projectId);
+      if (shouldFetchPayments) {
+        fetchProjectPayments(projectId);
+      }
       fetchProjectAttachments(projectId);
     }
-  }, [projectId, fetchProjectById, fetchProjectPayments]);
+  }, [
+    projectId,
+    fetchProjectById,
+    fetchProjectPayments,
+    shouldFetchPayments,
+  ]);
 
   // Load stages only when the project is not "YET TO START" (aligns with locked Stages tab)
   useEffect(() => {
@@ -1622,7 +1679,7 @@ export const ProjectDetails: React.FC = () => {
     try {
       await deleteProject(projectId);
       toast.success("Project deleted successfully!");
-      navigate("/dashboard/projects");
+      navigate(projectsListPath);
     } catch {
       toast.error("Failed to delete project");
       setIsDeleting(false);
@@ -2357,7 +2414,7 @@ export const ProjectDetails: React.FC = () => {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => navigate("/dashboard/projects")}
+              onClick={() => navigate(projectsListPath)}
             >
               Back to Projects
             </Button>
@@ -2378,7 +2435,7 @@ export const ProjectDetails: React.FC = () => {
           <p className="text-gray-600 mb-4">
             The project you are looking for does not exist.
           </p>
-          <Button onClick={() => navigate("/dashboard/projects")}>
+          <Button onClick={() => navigate(projectsListPath)}>
             Back to Projects
           </Button>
         </div>
@@ -2403,7 +2460,7 @@ export const ProjectDetails: React.FC = () => {
       <div className="relative bg-gradient-to-br from-orange-100/60 via-orange-50/80 to-amber-50/60 border-b border-orange-200/60 px-4 sm:px-5 py-2.5 backdrop-blur-sm">
         <div className="w-full max-w-[1600px] mx-auto relative z-10">
           <button
-            onClick={() => navigate("/dashboard/projects")}
+            onClick={() => navigate(projectsListPath)}
             className="flex items-center gap-2 text-gray-700 hover:text-orange-600 mb-2 transition-colors group"
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
@@ -2428,23 +2485,30 @@ export const ProjectDetails: React.FC = () => {
                 </Badge>
               </div>
               <div className="flex items-center gap-4 text-gray-600">
-                {(project.account?.name || project.lead?.name) && (
-                  <button
-                    onClick={() => {
-                      if (project.account?.id) {
-                        navigate(`/dashboard/customers/${project.account.id}`);
-                      } else if (project.lead?.id) {
-                        navigate(`/dashboard/leads/${project.lead.id}`);
-                      }
-                    }}
-                    className="flex items-center gap-1.5 text-base font-semibold text-orange-600 hover:text-orange-700 hover:underline transition-colors group/customer"
-                    title="View customer details"
-                  >
-                    <UserCircle className="w-4 h-4" />
-                    {project.account?.name || project.lead?.name}
-                    <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover/customer:opacity-100 transition-opacity" />
-                  </button>
-                )}
+                {(project.account?.name || project.lead?.name) &&
+                  (isSiteEngineerMobileApp ? (
+                    <span className="flex items-center gap-1.5 text-base font-semibold text-gray-700">
+                      <UserCircle className="w-4 h-4" />
+                      {project.account?.name || project.lead?.name}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (project.account?.id) {
+                          navigate(`/dashboard/customers/${project.account.id}`);
+                        } else if (project.lead?.id) {
+                          navigate(`/dashboard/leads/${project.lead.id}`);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 text-base font-semibold text-orange-600 hover:text-orange-700 hover:underline transition-colors group/customer"
+                      title="View customer details"
+                    >
+                      <UserCircle className="w-4 h-4" />
+                      {project.account?.name || project.lead?.name}
+                      <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover/customer:opacity-100 transition-opacity" />
+                    </button>
+                  ))}
                 {project.propertyCity && (
                   <span className="flex items-center gap-1 text-sm">
                     <MapPin className="w-4 h-4" />
@@ -2604,21 +2668,7 @@ export const ProjectDetails: React.FC = () => {
       <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-20 shadow-sm">
         <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-5">
           <div className="flex gap-4 sm:gap-6 overflow-x-auto scrollbar-thin">
-            {[
-              { id: "overview", label: "Overview", icon: FileText },
-              { id: "stages", label: "Stages", icon: CheckCircle2 },
-              // Payments tab hidden from DESIGNER and SITE_ENGINEER roles (field roles)
-              ...(!["DESIGNER", "SITE_ENGINEER"].includes(roleId || "")
-                ? [{ id: "payments", label: "Payments", icon: CreditCard }]
-                : []),
-              { id: "references", label: "References", icon: Image },
-              {
-                id: "testimonials",
-                label: "Testimonials",
-                icon: MessageSquare,
-              },
-              { id: "handover", label: "Handover", icon: Gift },
-            ].map((tab) => {
+            {projectDetailTabs.map((tab) => {
               const isStagesTab = tab.id === "stages";
               const isLocked = isStagesTab && stagesTabLocked;
               return (

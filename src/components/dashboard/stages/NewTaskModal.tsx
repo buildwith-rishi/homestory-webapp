@@ -615,7 +615,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                                 {vendorsLoading
                                   ? "Loading vendors..."
                                   : vendors.length === 0
-                                    ? "No team members loaded"
+                                    ? "No vendors available"
                                     : "Select a vendor..."}
                               </option>
                               {vendorsForRole.map((vendor) => (

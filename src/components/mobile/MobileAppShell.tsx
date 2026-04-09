@@ -24,7 +24,15 @@ export function MobileAppShell({ children }: MobileAppShellProps) {
   const location = useLocation();
 
   const activeTab =
-    tabs.find((tab) => location.pathname === tab.path)?.id || "home";
+    tabs.find((tab) => {
+      if (tab.path === "/app") {
+        return (
+          location.pathname === "/app" ||
+          location.pathname.startsWith("/app/projects")
+        );
+      }
+      return location.pathname === tab.path;
+    })?.id || "home";
 
   const handleTabClick = (tab: Tab) => {
     navigate(tab.path);
