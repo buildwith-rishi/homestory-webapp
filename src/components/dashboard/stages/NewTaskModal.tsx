@@ -77,11 +77,15 @@ const formatDateForDisplay = (isoDate: string): string => {
 };
 
 // Format role enum → readable label
-const formatRole = (role: string): string =>
-  role
+const formatRole = (role: string): string => {
+  const normalized = String(role || "").trim().toUpperCase();
+  if (normalized === "DESIGN_HEAD") return "Lead Designer";
+
+  return normalized
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
+};
 
 const normalizeRoleValue = (role?: string): string =>
   String(role || "")

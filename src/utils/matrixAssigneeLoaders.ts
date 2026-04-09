@@ -136,22 +136,22 @@ export function normalizeTeamMembers(response: unknown): TeamMember[] {
     });
 }
 
-function teamMemberToAssignableUser(member: TeamMember): AdminUser | null {
-  const id = String(member.userId || member.id || "").trim();
-  const name = String(member.name || "").trim();
-  if (!id || !name) return null;
-  const roleRaw = String(member.role || "DESIGNER")
+function isVendorTeamMember(member: TeamMember): boolean {
+  const memberType = String(member.memberType || "")
     .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "_");
-  return {
-    id,
-    name,
-    email: String(member.email || "").trim(),
-    role: roleRaw as AdminUser["role"],
-    isBanned: member.isBanned === true,
-    isActive: member.isActive !== false,
-  } as AdminUser;
+    .toUpperCase();
+  const role = String(member.role || "")
+    .trim()
+    .toUpperCase();
+  const department = String(member.department || "")
+    .trim()
+    .toUpperCase();
+
+  return (
+    memberType.includes("VENDOR") ||
+    role.includes("VENDOR") ||
+    department.includes("VENDOR")
+  );
 }
 
 async function fetchCrmUsersList(): Promise<AdminUser[]> {
@@ -199,66 +199,21 @@ export async function loadMatrixAssigneeData(): Promise<{
     loadTeamMembersWithFallback(),
   ]);
 
-  const teamAsUsers = teamMembers
+  // STRICT SEGREGATION:
+  // - Role dropdown users must come only from CRM User Management users API.
+  // - Vendor dropdown must come only from team members marked as vendor.
+  const users = crmUsers;
+
+  const vendors = teamMembers
     .filter(
-      (m) =>
-        m.isBanned !== true && m.isDeactivated !== true && m.isActive !== false,
-    )
-    .map(teamMemberToAssignableUser)
-    .filter((u): u is AdminUser => u !== null);
-
-  const byId = new Map<string, AdminUser>();
-  for (const u of crmUsers) {
-    if (u.id) byId.set(u.id, u);
-  }
-  for (const u of teamAsUsers) {
-    if (!byId.has(u.id)) byId.set(u.id, u);
-  }
-  const mergedUsers = Array.from(byId.values());
-  const users =
-    mergedUsers.length > 0
-      ? mergedUsers
-      : crmUsers.length > 0
-        ? crmUsers
-        : teamAsUsers;
-
-  /** Team rows eligible for vendor assignment (not limited to names containing "VENDOR"). */
-  const assignableForVendor = (() => {
-    const strict = teamMembers.filter(
       (member) =>
         member.isBanned !== true &&
         member.isDeactivated !== true &&
-        member.isActive !== false,
-    );
-    if (strict.length > 0) return strict;
-    // Some APIs mark everyone inactive incorrectly; still show non-banned members.
-    return teamMembers.filter(
-      (m) =>
-        m.isBanned !== true &&
-        m.isDeactivated !== true &&
-        Boolean(m.id) &&
-        Boolean(m.name),
-    );
-  })();
-
-  const vendorKeyword = (m: TeamMember) => {
-    const type = String(m.memberType || "").toUpperCase();
-    const role = String(m.role || "").toUpperCase();
-    const department = String(m.department || "").toUpperCase();
-    return (
-      type.includes("VENDOR") ||
-      role.includes("VENDOR") ||
-      department.includes("VENDOR")
-    );
-  };
-
-  const vendors = assignableForVendor
+        member.isActive !== false &&
+        isVendorTeamMember(member),
+    )
     .filter((member) => Boolean(member.id) && Boolean(member.name))
-    .sort((a, b) => {
-      const pri = Number(vendorKeyword(b)) - Number(vendorKeyword(a));
-      if (pri !== 0) return pri;
-      return a.name.localeCompare(b.name);
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return { users, vendors };
 }

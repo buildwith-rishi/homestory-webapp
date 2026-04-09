@@ -1,4 +1,4 @@
-import { notifySessionExpired } from "../auth/sessionExpired";
+import { onUnauthorizedResponse } from "../auth/sessionExpired";
 
 const FETCH_NO_STORE_MARKER = "__ghs_fetch_no_store_installed__";
 
@@ -11,12 +11,13 @@ const AUTH_PATH_RE = /\/api\/auth\//;
 /**
  * Wraps window.fetch so that:
  *  1. Every request uses `cache: "no-store"` (avoids stale data).
- *  2. Any 401 on a non-auth API endpoint fires `notifySessionExpired()` as a
+ *  2. Any timeout-like auth failure on a non-auth API endpoint fires
+ *     session-expired UI as a
  *     last-resort safety-net.  Service-layer handlers already call it, but if
  *     a code-path ever skips the handler the user will still see the popup.
  *
- * The 401 interception does NOT prevent the response from reaching the caller;
- * `notifySessionExpired` dedupes internally so multiple parallel 401s only
+ * The interception does NOT prevent the response from reaching the caller;
+ * session-expired handling dedupes internally so multiple parallel failures only
  * trigger the modal once.
  */
 export function installNoStoreFetch(): void {
@@ -39,7 +40,7 @@ export function installNoStoreFetch(): void {
 
     const response = await originalFetch(input, mergedInit);
 
-    if (response.status === 401) {
+    if (response.status >= 400) {
       const url =
         typeof input === "string"
           ? input
@@ -48,7 +49,17 @@ export function installNoStoreFetch(): void {
             : input.url;
 
       if (!AUTH_PATH_RE.test(url)) {
-        notifySessionExpired();
+        let data: unknown;
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          try {
+            data = await response.clone().json();
+          } catch {
+            data = undefined;
+          }
+        }
+
+        onUnauthorizedResponse(response, data);
       }
     }
 

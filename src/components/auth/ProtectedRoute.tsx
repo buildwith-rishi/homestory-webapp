@@ -40,10 +40,14 @@ export function ProtectedRoute({
     return <PageLoader />;
   }
 
-  // When the session-expired modal is visible, keep rendering the current page
-  // behind the modal instead of navigating to /login.  The modal itself handles
-  // the redirect once the user acknowledges or the countdown finishes.
-  if (!isAuthenticated && !sessionExpired) {
+  // Session-expired overlay is active: render the current route shell and skip ALL
+  // RBAC checks. Otherwise requiredPermission + can() with null user/roleId
+  // redirects to /access-denied and the user never sees the modal.
+  if (sessionExpired) {
+    return <>{children}</>;
+  }
+
+  if (!isAuthenticated) {
     return (
       <Navigate
         to={loginRedirect}

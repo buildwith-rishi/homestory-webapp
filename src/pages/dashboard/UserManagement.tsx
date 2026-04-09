@@ -185,6 +185,7 @@ export const UserManagement: React.FC = () => {
   const { roleId } = useAuth();
   type UserListItem = AdminUser & {
     credentialName?: string;
+    credentialRoleKey?: string;
   };
 
   const [users, setUsers] = useState<UserListItem[]>([]);
@@ -326,6 +327,11 @@ export const UserManagement: React.FC = () => {
             (user.credentialTitle as string | undefined) ||
             (user.credential_name as string | undefined) ||
             credentialFromApi?.name,
+          credentialRoleKey:
+            (user.credentialRoleKey as string | undefined) ||
+            (user.credential_role_key as string | undefined) ||
+            (user.roleKey as string | undefined) ||
+            credentialFromApi?.roleKey,
         } as UserListItem;
       });
 
@@ -486,7 +492,7 @@ export const UserManagement: React.FC = () => {
   };
 
   const getUserRoleLabel = (user: UserListItem) => {
-    // Return role_title if available directly on priority
+    // DESIGNATION COLUMN: always prefer roleTitle from API/user payload.
     const directRoleTitle = String(user.roleTitle || "").trim();
     if (directRoleTitle && directRoleTitle !== "undefined" && directRoleTitle !== "null" && directRoleTitle !== "[object Object]") {
       return directRoleTitle;
@@ -502,29 +508,46 @@ export const UserManagement: React.FC = () => {
       }
     }
 
-    if (user.role) {
-      return getRoleDisplayName(user.role as RoleId);
+    // If user payload misses roleTitle/credentialId, infer designation by roleKey
+    // from /api/users/role-titles -> credential.roleKey mapping.
+    const normalizedRoleKey = String(
+      user.credentialRoleKey || user.role || "",
+    )
+      .trim()
+      .toUpperCase();
+    if (normalizedRoleKey) {
+      const titleByRoleKey = roleTitles.find(
+        (item) =>
+          String(item.credential?.roleKey || "")
+            .trim()
+            .toUpperCase() === normalizedRoleKey,
+      );
+      const matchedRoleTitle = String(titleByRoleKey?.roleTitle || "").trim();
+      if (
+        matchedRoleTitle &&
+        matchedRoleTitle !== "undefined" &&
+        matchedRoleTitle !== "null"
+      ) {
+        return matchedRoleTitle;
+      }
     }
 
+    // Explicitly avoid falling back to role display name in the designation column.
     return "N/A";
   };
 
   const getUserCredentialLabel = (user: UserListItem) => {
-    // 1. Role explicit check
-    if (user.role) {
-      const displayName = getRoleDisplayName(user.role as RoleId);
-      if (displayName && displayName !== "Unknown Role") {
-        return displayName;
-      }
+    // ACCESS LEVEL COLUMN: must show credential roleKey (e.g. DESIGNER, ADMIN, HR).
+    const directRoleKey = String(user.credentialRoleKey || "").trim().toUpperCase();
+    if (
+      directRoleKey &&
+      directRoleKey !== "UNDEFINED" &&
+      directRoleKey !== "NULL"
+    ) {
+      return directRoleKey;
     }
 
-    // 2. Direct credential name from the API user object
-    const directCredentialName = String(user.credentialName || "").trim();
-    if (directCredentialName && directCredentialName !== "undefined" && directCredentialName !== "null") {
-      return directCredentialName;
-    }
-
-    // 3. Fallback based on Role Title mapping
+    // Fallback via role-title config from /api/users/role-titles
     const roleTitleConfig = roleTitles.find((item) => {
       const normalizedUserRoleTitle = String(user.roleTitle || "").trim();
       if (normalizedUserRoleTitle && item.roleTitle === normalizedUserRoleTitle) {
@@ -538,21 +561,35 @@ export const UserManagement: React.FC = () => {
       return false;
     });
 
-    const roleTitleCredentialName = String(
-      roleTitleConfig?.credential?.name || "",
+    const roleTitleCredentialRoleKey = String(
+      roleTitleConfig?.credential?.roleKey || "",
     ).trim();
-    if (roleTitleCredentialName && roleTitleCredentialName !== "undefined" && roleTitleCredentialName !== "null") {
-      return roleTitleCredentialName;
+    if (
+      roleTitleCredentialRoleKey &&
+      roleTitleCredentialRoleKey !== "undefined" &&
+      roleTitleCredentialRoleKey !== "null"
+    ) {
+      return roleTitleCredentialRoleKey.toUpperCase();
     }
 
+    // Fallback via credential master list
     const credentialId = user.credentialId || roleTitleConfig?.credentialId;
     if (credentialId) {
-      const credentialName = String(
-        credentials.find((item) => item.id === credentialId)?.name || "",
+      const credentialRoleKey = String(
+        credentials.find((item) => item.id === credentialId)?.roleKey || "",
       ).trim();
-      if (credentialName && credentialName !== "undefined" && credentialName !== "null") {
-        return credentialName;
+      if (
+        credentialRoleKey &&
+        credentialRoleKey !== "undefined" &&
+        credentialRoleKey !== "null"
+      ) {
+        return credentialRoleKey.toUpperCase();
       }
+    }
+
+    // Final fallback: API user role enum is also a roleKey in most responses.
+    if (user.role) {
+      return String(user.role).toUpperCase();
     }
 
     return "N/A";

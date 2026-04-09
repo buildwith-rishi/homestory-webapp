@@ -47,6 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [setUser]);
 
+  // Note: do not setUser(null) on ghs:session-expired here — many dashboard
+  // components assume user is non-null. SessionExpiredModal clears auth only when
+  // redirecting to login. ProtectedRoute short-circuits while the modal is visible.
+
   // Get normalised RoleId
   const roleId: RoleId | null = user
     ? normalizeRole(user.apiRole || (user.role as string) || "BDR")

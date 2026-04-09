@@ -93,9 +93,12 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   };
 
   const accessLevel = roleId ? getRoleAccessLevel(roleId) : null;
+  const roleLabel =
+    roleId ? ROLES[roleId].name : user?.role?.replace(/_/g, " ") || "—";
   const designationLabel =
     user?.designation?.trim() ||
-    (roleId ? ROLES[roleId].name : user?.role?.replace(/_/g, " ") || "—");
+    (user?.id ? localStorage.getItem(`ghs_role_title_${user.id}`)?.trim() : "") ||
+    roleLabel;
 
   return (
     <aside
@@ -217,6 +220,12 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 <p className="text-xs font-semibold text-gray-900 truncate leading-tight">
                   {user.name || "User"}
                 </p>
+                <p
+                  className="text-[10px] text-gray-700 truncate leading-tight"
+                  title={designationLabel}
+                >
+                  {designationLabel}
+                </p>
                 <p className="text-[10px] text-gray-500 truncate leading-tight">
                   {user.email || ""}
                 </p>
@@ -225,7 +234,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             {/* One slim row: role name + access pill (tooltip carries full title if truncated) */}
             <div
               className="mb-1.5 flex items-center gap-1.5 rounded-md border border-gray-200/90 bg-gray-50/90 px-1.5 py-1"
-              aria-label={`Role: ${designationLabel}. Access: ${accessLevel ?? "—"}`}
+              aria-label={`Role: ${roleLabel}. Access: ${accessLevel ?? "—"}`}
             >
               <Shield
                 className="h-3 w-3 shrink-0 text-primary/75"
@@ -234,9 +243,9 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
               />
               <p
                 className="min-w-0 flex-1 text-[11px] font-semibold leading-tight text-gray-900 truncate"
-                title={designationLabel}
+                title={roleLabel}
               >
-                {designationLabel}
+                {roleLabel}
               </p>
               {accessLevel ? (
                 <span
