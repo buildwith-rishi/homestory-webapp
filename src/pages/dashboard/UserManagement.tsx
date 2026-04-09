@@ -26,6 +26,7 @@ import {
   getRoleDisplayName,
   type RoleId,
 } from "../../config/rbac";
+import { extractRoleTitle } from "../../utils/userProfileFields";
 
 interface ApiRoleTitle {
   id: string;
@@ -134,51 +135,6 @@ const getAccessLevelPillClasses = (accessLevel?: string): string => {
   if (normalized === "high") return "bg-orange-50 text-orange-700";
   if (normalized === "medium") return "bg-blue-50 text-blue-700";
   return "bg-gray-100 text-gray-700";
-};
-
-const toValidDisplayText = (value: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.trim();
-  if (
-    !normalized ||
-    normalized === "undefined" ||
-    normalized === "null" ||
-    normalized === "[object Object]"
-  ) {
-    return undefined;
-  }
-  return normalized;
-};
-
-const extractRoleTitle = (user: Record<string, unknown>): string | undefined => {
-  const roleTitleObject =
-    user.roleTitle && typeof user.roleTitle === "object"
-      ? (user.roleTitle as Record<string, unknown>)
-      : undefined;
-
-  const userRoleTitleObject =
-    user.userRoleTitle && typeof user.userRoleTitle === "object"
-      ? (user.userRoleTitle as Record<string, unknown>)
-      : undefined;
-
-  return (
-    toValidDisplayText(user.roleTitle) ||
-    toValidDisplayText(user.userRoleTitle) ||
-    toValidDisplayText(user.user_role_title) ||
-    toValidDisplayText(user.role_title) ||
-    toValidDisplayText((user.roleTitleData as Record<string, unknown> | undefined)?.roleTitle) ||
-    toValidDisplayText((user.roleTitleData as Record<string, unknown> | undefined)?.title) ||
-    toValidDisplayText((user.roleTitleData as Record<string, unknown> | undefined)?.name) ||
-    toValidDisplayText(roleTitleObject?.roleTitle) ||
-    toValidDisplayText(roleTitleObject?.title) ||
-    toValidDisplayText(roleTitleObject?.name) ||
-    toValidDisplayText(userRoleTitleObject?.roleTitle) ||
-    toValidDisplayText(userRoleTitleObject?.title) ||
-    toValidDisplayText(userRoleTitleObject?.name) ||
-    toValidDisplayText(user.title) ||
-    // Frontend cache fallback if backend drops it entirely
-    (user.id ? localStorage.getItem(`ghs_role_title_${user.id}`) || undefined : undefined)
-  );
 };
 
 export const UserManagement: React.FC = () => {

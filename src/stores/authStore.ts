@@ -3,6 +3,10 @@ import { User, UserRole } from "../types";
 import { authAPI, ApiError } from "../services/api";
 import { normalizeRole, ROLE_PERMISSIONS, RoleId } from "../config/rbac";
 import { resetSessionExpiredGuard } from "../auth/sessionExpired";
+import {
+  buildSessionUserPatchesFromApiPayload,
+  unwrapUserFromMeResponse,
+} from "../utils/userProfileFields";
 
 interface AuthState {
   user: User | null;
@@ -14,9 +18,11 @@ interface AuthState {
   updateProfile: (updates: Partial<User>) => void;
   setUser: (user: User | null) => void;
   clearError: () => void;
+  /** Merge designation / access level from GET /api/auth/me (same fields as User Management). */
+  refreshCurrentUserProfile: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
@@ -30,38 +36,28 @@ export const useAuthStore = create<AuthState>((set) => ({
       const response = await authAPI.login(email, password);
 
       if (response.user) {
-        // Normalise the API role to our canonical RoleId
-        const apiRole = response.user.role || "BDR";
+        const raw = response.user as unknown as Record<string, unknown>;
+        const apiRole =
+          (typeof raw.role === "string" && raw.role.trim()) || "BDR";
         const normalizedRoleId: RoleId = normalizeRole(apiRole);
-
-        // Map to UserRole enum value
         const userRole = normalizedRoleId as unknown as UserRole;
-
-        // Get permissions for the role
         const permissions = ROLE_PERMISSIONS[normalizedRoleId] || [];
 
-        const raw = response.user;
-        const designationFromApi = [
-          raw.designation,
-          raw.job_title,
-          raw.jobTitle,
-          raw.title,
-          raw.role_title,
-        ].find((v): v is string => typeof v === "string" && v.trim().length > 0);
+        const patches = buildSessionUserPatchesFromApiPayload(raw);
 
         const user: User = {
-          id: response.user.id,
-          email: response.user.email,
-          name: response.user.name,
+          id: String(raw.id ?? response.user.id),
+          email: String(raw.email ?? response.user.email),
+          name: String(raw.name ?? response.user.name),
           role: userRole,
-          apiRole: apiRole,
-          ...(designationFromApi ? { designation: designationFromApi.trim() } : {}),
+          apiRole,
           phone: response.user.phone || "",
           avatar:
             response.user.avatar ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user.name)}&background=DC5800&color=fff`,
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(String(response.user.name))}&background=DC5800&color=fff`,
           createdAt: new Date().toISOString(),
-          permissions: permissions,
+          permissions,
+          ...patches,
         };
 
         // Store user in localStorage
@@ -75,6 +71,9 @@ export const useAuthStore = create<AuthState>((set) => ({
           isLoading: false,
           error: null,
         });
+
+        // Enrich from /api/auth/me when login body omits nested roleTitle / credential (matches User Management).
+        void get().refreshCurrentUserProfile();
       } else {
         throw new Error("Login failed - no user data received");
       }
@@ -124,5 +123,28 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  refreshCurrentUserProfile: async () => {
+    const { user } = get();
+    if (!user?.id) return;
+    if (!localStorage.getItem("auth_token")) return;
+    try {
+      const data = await authAPI.getProfile();
+      const payload = unwrapUserFromMeResponse(data);
+      if (!payload) return;
+
+      const idFromApi = String(payload.id ?? "");
+      if (idFromApi && idFromApi !== user.id) return;
+
+      const patches = buildSessionUserPatchesFromApiPayload(payload);
+      if (Object.keys(patches).length === 0) return;
+
+      const merged: User = { ...user, ...patches };
+      localStorage.setItem("user", JSON.stringify(merged));
+      set({ user: merged });
+    } catch {
+      /* keep session user from login / localStorage */
+    }
   },
 }));

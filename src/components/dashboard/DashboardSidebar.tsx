@@ -92,13 +92,26 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     }
   };
 
-  const accessLevel = roleId ? getRoleAccessLevel(roleId) : null;
-  const roleLabel =
-    roleId ? ROLES[roleId].name : user?.role?.replace(/_/g, " ") || "—";
-  const designationLabel =
+  /** Matches User Management "Designation" (job title / role title). */
+  const sidebarDesignation =
     user?.designation?.trim() ||
-    (user?.id ? localStorage.getItem(`ghs_role_title_${user.id}`)?.trim() : "") ||
-    roleLabel;
+    user?.roleTitle?.trim() ||
+    (user?.id
+      ? localStorage.getItem(`ghs_role_title_${user.id}`)?.trim()
+      : "") ||
+    (roleId ? ROLES[roleId].name : "") ||
+    "—";
+
+  /** Matches User Management "Access level" (credential role key, e.g. DESIGNER). */
+  const accessLevelKey =
+    user?.credentialRoleKey?.trim().toUpperCase() ||
+    String(user?.apiRole || roleId || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "_") ||
+    "—";
+
+  const permissionTier = roleId ? getRoleAccessLevel(roleId) : null;
 
   return (
     <aside
@@ -220,42 +233,51 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 <p className="text-xs font-semibold text-gray-900 truncate leading-tight">
                   {user.name || "User"}
                 </p>
-                <p
-                  className="text-[10px] text-gray-700 truncate leading-tight"
-                  title={designationLabel}
-                >
-                  {designationLabel}
-                </p>
                 <p className="text-[10px] text-gray-500 truncate leading-tight">
                   {user.email || ""}
                 </p>
               </div>
             </div>
-            {/* One slim row: role name + access pill (tooltip carries full title if truncated) */}
+            {/* Designation + access level — aligned with User Management table */}
             <div
-              className="mb-1.5 flex items-center gap-1.5 rounded-md border border-gray-200/90 bg-gray-50/90 px-1.5 py-1"
-              aria-label={`Role: ${roleLabel}. Access: ${accessLevel ?? "—"}`}
+              className="mb-1.5 rounded-lg border border-gray-200/90 bg-gray-50/90 px-2 py-1.5 space-y-1.5"
+              aria-label={`Designation: ${sidebarDesignation}. Access level: ${accessLevelKey}.`}
             >
-              <Shield
-                className="h-3 w-3 shrink-0 text-primary/75"
-                strokeWidth={2}
-                aria-hidden
-              />
-              <p
-                className="min-w-0 flex-1 text-[11px] font-semibold leading-tight text-gray-900 truncate"
-                title={roleLabel}
-              >
-                {roleLabel}
-              </p>
-              {accessLevel ? (
-                <span
-                  className={`shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold leading-none ${ACCESS_LEVEL_BADGE_CLASSES[accessLevel]}`}
-                >
-                  {accessLevel}
+              <div className="grid grid-cols-[minmax(0,auto)_1fr] gap-x-2 gap-y-0.5 items-baseline text-[10px]">
+                <span className="text-gray-500 font-semibold uppercase tracking-wide shrink-0">
+                  Designation
                 </span>
-              ) : (
-                <span className="shrink-0 text-[9px] text-gray-400">—</span>
-              )}
+                <span
+                  className="text-gray-900 font-semibold text-right truncate min-w-0"
+                  title={sidebarDesignation}
+                >
+                  {sidebarDesignation}
+                </span>
+                <span className="text-gray-500 font-semibold uppercase tracking-wide shrink-0">
+                  Access level
+                </span>
+                <span
+                  className="text-right truncate min-w-0 font-mono text-[10px] font-bold text-primary"
+                  title={accessLevelKey}
+                >
+                  {accessLevelKey}
+                </span>
+              </div>
+              {permissionTier ? (
+                <div className="flex items-center justify-end gap-1 pt-0.5 border-t border-gray-200/80">
+                  <Shield
+                    className="h-3 w-3 shrink-0 text-primary/70"
+                    strokeWidth={2}
+                    aria-hidden
+                  />
+                  <span
+                    className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold leading-none ${ACCESS_LEVEL_BADGE_CLASSES[permissionTier]}`}
+                  >
+                    {permissionTier}
+                  </span>
+                  <span className="text-[9px] text-gray-500">permission tier</span>
+                </div>
+              ) : null}
             </div>
             <button
               onClick={handleLogout}

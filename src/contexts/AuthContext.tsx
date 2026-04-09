@@ -47,6 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [setUser]);
 
+  // Align designation + access level with User Management (GET /api/auth/me).
+  useEffect(() => {
+    if (!user?.id) return;
+    if (!localStorage.getItem("auth_token")) return;
+    void useAuthStore.getState().refreshCurrentUserProfile();
+  }, [user?.id]);
+
   // Note: do not setUser(null) on ghs:session-expired here — many dashboard
   // components assume user is non-null. SessionExpiredModal clears auth only when
   // redirecting to login. ProtectedRoute short-circuits while the modal is visible.

@@ -26,6 +26,10 @@ interface LoginResponse {
     jobTitle?: string;
     title?: string;
     role_title?: string;
+    roleTitle?: string;
+    credentialRoleKey?: string;
+    credential_role_key?: string;
+    credential?: { roleKey?: string; name?: string };
   };
   accessToken?: string;
   refreshToken?: string;
