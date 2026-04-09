@@ -316,13 +316,19 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         "",
     ).trim();
 
-    setEditAssigneeId(userId);
-    if (memberId && (!userId || memberId !== userId)) {
+    // CRM user vs team vendor are mutually exclusive. If both IDs exist and differ, prefer vendor.
+    const hasUser = Boolean(userId);
+    const hasMember = Boolean(memberId);
+    if (hasMember && hasUser && memberId !== userId) {
+      setEditAssigneeId("");
+      setEditAssigneeRole("");
       setEditVendorId(memberId);
-    } else {
-      setEditVendorId("");
-    }
-    if (userId) {
+    } else if (memberId && (!userId || memberId !== userId)) {
+      setEditAssigneeId("");
+      setEditAssigneeRole("");
+      setEditVendorId(memberId);
+    } else if (hasUser) {
+      setEditAssigneeId(userId);
       const u = users.find((x) => x.id === userId);
       const roleFromTask = task.assignedTo?.role;
       setEditAssigneeRole(
@@ -331,8 +337,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           .toUpperCase()
           .replace(/\s+/g, "_") || "",
       );
+      setEditVendorId("");
     } else {
+      setEditAssigneeId("");
       setEditAssigneeRole("");
+      setEditVendorId("");
     }
     setEditDayNumber(task.dayNumber || 1);
     // Normalize startDate to YYYY-MM-DD for date input
@@ -538,25 +547,20 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         ...(editCompletionNotes.trim() && {
           completionNotes: editCompletionNotes.trim(),
         }),
-        ...(editVendorId && editAssigneeId
+        ...(editVendorId
           ? {
-              assignedToUserId: editAssigneeId,
+              assignedToUserId: null,
               assignedToMemberId: editVendorId,
             }
-          : editVendorId
+          : editAssigneeId
             ? {
-                assignedToUserId: null,
-                assignedToMemberId: editVendorId,
+                assignedToUserId: editAssigneeId,
+                assignedToMemberId: null,
               }
-            : editAssigneeId
-              ? {
-                  assignedToUserId: editAssigneeId,
-                  assignedToMemberId: editAssigneeId,
-                }
-              : {
-                  assignedToUserId: null,
-                  assignedToMemberId: null,
-                }),
+            : {
+                assignedToUserId: null,
+                assignedToMemberId: null,
+              }),
       };
 
       const { task: updatedTask, conflictWarnings } = await updateMatrixTask(
@@ -1027,7 +1031,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             User (CRM)
                           </label>
                           <p className="text-[11px] text-gray-400 mb-1.5">
-                            Pick a role, then a user.
+                            Pick a role, then a user. CRM user and team vendor
+                            cannot both be assigned—clear one to use the other.
                           </p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <select
@@ -1037,7 +1042,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                 setEditAssigneeRole(nextRole);
                                 setEditAssigneeId("");
                               }}
-                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white"
+                              disabled={Boolean(editVendorId) || usersLoading}
+                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white disabled:bg-gray-50 disabled:text-gray-400"
                             >
                               <option value="">
                                 {usersLoading
@@ -1054,9 +1060,17 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             <select
                               value={editAssigneeId}
                               onChange={(e) => {
-                                setEditAssigneeId(e.target.value);
+                                const id = e.target.value;
+                                setEditAssigneeId(id);
+                                if (id) {
+                                  setEditVendorId("");
+                                }
                               }}
-                              disabled={!editAssigneeRole}
+                              disabled={
+                                !editAssigneeRole ||
+                                Boolean(editVendorId) ||
+                                usersLoading
+                              }
                               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white disabled:bg-gray-50 disabled:text-gray-400"
                             >
                               <option value="">
@@ -1081,14 +1095,20 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           </label>
                           <p className="text-[11px] text-gray-400 mb-1.5">
                             Team / vendor assignee (optional). Clear the
-                            dropdown to remove.
+                            dropdown to remove. Clear CRM user above to enable
+                            this.
                           </p>
                           <select
                             value={editVendorId}
                             onChange={(e) => {
-                              setEditVendorId(e.target.value);
+                              const v = e.target.value;
+                              setEditVendorId(v);
+                              if (v) {
+                                setEditAssigneeRole("");
+                                setEditAssigneeId("");
+                              }
                             }}
-                            disabled={vendorsLoading}
+                            disabled={vendorsLoading || Boolean(editAssigneeId)}
                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 bg-white disabled:bg-gray-50"
                           >
                             <option value="">
