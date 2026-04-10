@@ -301,34 +301,45 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     return assignedId === user.id;
   };
 
-  /** Resolve the display name for a task's assignee. */
+  /** Resolve the display name for a task's assignee (CRM user or team/vendor member). */
   const getAssigneeName = (task: MatrixTask): string | null => {
-    // 1. Prefer the nested object the API may return directly
-    if (task.assignedTo?.name) return task.assignedTo.name;
-
-    // 2. Collect every possible ID field the backend/API might use
-    //    MatrixTask type uses assignedToId but Prisma FK may be assignedToUserId
     const t = task as unknown as Record<string, unknown>;
-    const id =
+
+    const memberId =
+      task.assignedToMemberId ||
+      (t.assignedToMemberId as string | undefined) ||
+      (t.assigned_to_member_id as string | undefined) ||
+      task.assignedMember?.id ||
+      null;
+
+    const userId =
       task.assignedToId ||
       (t.assignedToUserId as string | undefined) ||
       (t.assigned_to_user_id as string | undefined) ||
       (t.assignedTo as Record<string, string> | null)?.id ||
       null;
 
-    if (!id) return null;
+    // Nested objects from API (vendor member vs CRM user)
+    const memberName = task.assignedMember?.name?.trim();
+    if (memberName) return memberName;
 
-    // 3. User table lookup  (assignedToUserId path)
-    const byUser = users.find((u) => u.id === id);
-    if (byUser?.name) return byUser.name;
+    const nestedUserName = task.assignedTo?.name?.trim();
+    if (nestedUserName) return nestedUserName;
 
-    // 4. TeamMember table lookup by PK  (assignedToMemberId path)
-    const byMemberId = teamMembers.find((m) => m.id === id);
-    if (byMemberId?.name) return byMemberId.name;
+    // Vendor / team member by primary key (assignedToMemberId) — must run even when userId is absent
+    if (memberId) {
+      const byMemberPk = teamMembers.find((m) => m.id === String(memberId));
+      if (byMemberPk?.name) return byMemberPk.name;
+    }
 
-    // 5. TeamMember table lookup via User FK
-    const byMemberUserId = teamMembers.find((m) => m.userId === id);
-    if (byMemberUserId?.name) return byMemberUserId.name;
+    // CRM user id → Admin users, then team member linked to same user
+    if (userId) {
+      const byUser = users.find((u) => u.id === String(userId));
+      if (byUser?.name) return byUser.name;
+
+      const byMemberUserId = teamMembers.find((m) => m.userId === String(userId));
+      if (byMemberUserId?.name) return byMemberUserId.name;
+    }
 
     return null;
   };
