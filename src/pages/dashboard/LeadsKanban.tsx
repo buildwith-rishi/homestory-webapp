@@ -24,6 +24,12 @@ import {
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import toast from "react-hot-toast";
+import LeadKanbanStatusWarningModal from "../../components/kanban/LeadKanbanStatusWarningModal";
+import {
+  toastLeadKanbanStatusFailure,
+  getLeadKanbanStatusErrorMessage,
+  isLeadActiveProjectsStatusConflict,
+} from "../../utils/leadKanbanToast";
 
 const LEAD_ASSIGNEES = [
   { id: "unassigned", name: "Unassigned" },
@@ -46,6 +52,10 @@ const LeadsKanban: React.FC = () => {
   const navigate = useNavigate();
   const { leads, isLoading, fetchLeads, moveLeadByStatus, addLead } =
     useLeadStore();
+
+  const [leadStatusBlockMessage, setLeadStatusBlockMessage] = useState<
+    string | null
+  >(null);
 
   // Generate lead selection options for the dropdown
   const leadSelectOptions = useMemo(() => {
@@ -205,8 +215,12 @@ const LeadsKanban: React.FC = () => {
         toast.success(`Lead moved from ${fromTitle} to ${toTitle}`);
       } catch (error) {
         console.error("Failed to update lead status:", error);
-        toast.error("Failed to update status. Reverting...");
-        // Refetch leads to revert local state
+        const msg = getLeadKanbanStatusErrorMessage(error);
+        if (isLeadActiveProjectsStatusConflict(msg)) {
+          setLeadStatusBlockMessage(msg);
+        } else {
+          toastLeadKanbanStatusFailure(error);
+        }
         fetchLeads();
       }
     },
@@ -493,6 +507,12 @@ const LeadsKanban: React.FC = () => {
           renderAddCardForm={renderAddCardForm}
         />
       </div>
+
+      <LeadKanbanStatusWarningModal
+        open={!!leadStatusBlockMessage}
+        message={leadStatusBlockMessage ?? ""}
+        onClose={() => setLeadStatusBlockMessage(null)}
+      />
     </div>
   );
 };

@@ -243,10 +243,17 @@ const getAuthHeaders = (): HeadersInit => {
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     onUnauthorizedResponse(response);
-    const error = await response
-      .json()
-      .catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    const body = await response.json().catch(() => ({}));
+    const err =
+      body && typeof body === "object"
+        ? (body as Record<string, unknown>)
+        : {};
+    const msg =
+      (typeof err.message === "string" && err.message) ||
+      (typeof err.error === "string" && err.error) ||
+      (typeof err.detail === "string" && err.detail) ||
+      `HTTP error! status: ${response.status}`;
+    throw new Error(msg);
   }
   return response.json();
 }
@@ -263,18 +270,22 @@ const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
   if (updates.phone !== undefined) payload.phone = updates.phone;
   if (updates.secondaryPhones !== undefined)
     payload.secondaryPhones = updates.secondaryPhones;
-  if (updates.companyName !== undefined) payload.companyName = updates.companyName;
+  if (updates.companyName !== undefined)
+    payload.companyName = updates.companyName;
   if (updates.source !== undefined) payload.source = updates.source;
   if (updates.status !== undefined) payload.status = updates.status;
   if (updates.stage !== undefined) payload.stage = updates.stage;
   if (updates.priority !== undefined) payload.priority = updates.priority;
   if (updates.score !== undefined) payload.score = updates.score;
-  if (updates.assignedToId !== undefined) payload.assignedToId = updates.assignedToId;
+  if (updates.assignedToId !== undefined)
+    payload.assignedToId = updates.assignedToId;
   if (updates.notes !== undefined) payload.notes = updates.notes;
 
   // Property & Project (current frontend)
-  if (updates.propertyType !== undefined) payload.propertyType = updates.propertyType;
-  if (updates.projectType !== undefined) payload.projectType = updates.projectType;
+  if (updates.propertyType !== undefined)
+    payload.propertyType = updates.propertyType;
+  if (updates.projectType !== undefined)
+    payload.projectType = updates.projectType;
   if (updates.propertyProjectType !== undefined)
     payload.propertyProjectType = updates.propertyProjectType;
   if (updates.homeType !== undefined) payload.homeType = updates.homeType;
@@ -284,27 +295,36 @@ const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
   if (updates.location !== undefined) payload.location = updates.location;
   if (updates.city !== undefined) payload.city = updates.city;
   if (updates.locality !== undefined) payload.locality = updates.locality;
-  if (updates.projectStage !== undefined) payload.projectStage = updates.projectStage;
+  if (updates.projectStage !== undefined)
+    payload.projectStage = updates.projectStage;
   if (updates.timeline !== undefined) payload.timeline = updates.timeline;
-  if (updates.startTimeline !== undefined) payload.startTimeline = updates.startTimeline;
+  if (updates.startTimeline !== undefined)
+    payload.startTimeline = updates.startTimeline;
   if (updates.expectedStartDate !== undefined)
     payload.expectedStartDate = updates.expectedStartDate;
   if (updates.moveinDate !== undefined) payload.moveinDate = updates.moveinDate;
   if (updates.budget !== undefined) payload.budget = updates.budget;
-  if (updates.budgetRange !== undefined) payload.budgetRange = updates.budgetRange;
-  if (updates.budgetComfort !== undefined) payload.budgetComfort = updates.budgetComfort;
+  if (updates.budgetRange !== undefined)
+    payload.budgetRange = updates.budgetRange;
+  if (updates.budgetComfort !== undefined)
+    payload.budgetComfort = updates.budgetComfort;
   if (updates.budgetTier !== undefined) payload.budgetTier = updates.budgetTier;
-  if (updates.projectScope !== undefined) payload.projectScope = updates.projectScope;
-  if (updates.scopeOfWork !== undefined) payload.scopeOfWork = updates.scopeOfWork;
+  if (updates.projectScope !== undefined)
+    payload.projectScope = updates.projectScope;
+  if (updates.scopeOfWork !== undefined)
+    payload.scopeOfWork = updates.scopeOfWork;
   if (updates.servicesInterested !== undefined)
     payload.servicesInterested = updates.servicesInterested;
   if (updates.serviceInterest !== undefined)
     payload.serviceInterest = updates.serviceInterest;
-  if (updates.designStyle !== undefined) payload.designStyle = updates.designStyle;
+  if (updates.designStyle !== undefined)
+    payload.designStyle = updates.designStyle;
   if (updates.colorPreferences !== undefined)
     payload.colorPreferences = updates.colorPreferences;
-  if (updates.referrerName !== undefined) payload.referrerName = updates.referrerName;
-  if (updates.referrerPhone !== undefined) payload.referrerPhone = updates.referrerPhone;
+  if (updates.referrerName !== undefined)
+    payload.referrerName = updates.referrerName;
+  if (updates.referrerPhone !== undefined)
+    payload.referrerPhone = updates.referrerPhone;
   if (updates.referrerProjectNumber !== undefined)
     payload.referrerProjectNumber = updates.referrerProjectNumber;
   if (updates.agentAgencyName !== undefined)
@@ -315,7 +335,8 @@ const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
     payload.householdOrCompany = updates.householdOrCompany;
   if (updates.wantsExperienceCenterVisit !== undefined)
     payload.wantsExperienceCenterVisit = updates.wantsExperienceCenterVisit;
-  if (updates.canWhatsApp !== undefined) payload.canWhatsApp = updates.canWhatsApp;
+  if (updates.canWhatsApp !== undefined)
+    payload.canWhatsApp = updates.canWhatsApp;
   if (updates.isPhoneVerified !== undefined)
     payload.isPhoneVerified = updates.isPhoneVerified;
   if (updates.verificationAttempts !== undefined)
@@ -323,10 +344,12 @@ const buildLeadUpdatePayload = (updates: Partial<Lead>): Partial<Lead> => {
 
   // Notes and uploads (current frontend)
   if (updates.message !== undefined) payload.message = updates.message;
-  if (updates.requirements !== undefined) payload.requirements = updates.requirements;
+  if (updates.requirements !== undefined)
+    payload.requirements = updates.requirements;
   if (updates.specialRequirements !== undefined)
     payload.specialRequirements = updates.specialRequirements;
-  if (updates.floorPlanUrl !== undefined) payload.floorPlanUrl = updates.floorPlanUrl;
+  if (updates.floorPlanUrl !== undefined)
+    payload.floorPlanUrl = updates.floorPlanUrl;
 
   return payload;
 };
@@ -701,9 +724,7 @@ export async function addLeadNote(
 /** When GET /api/leads/:id/notes returns 404, avoid repeating that request every load. */
 let leadNotesListGetUnavailable = false;
 
-const getLeadNotesFromActivities = async (
-  id: string,
-): Promise<LeadNote[]> => {
+const getLeadNotesFromActivities = async (id: string): Promise<LeadNote[]> => {
   const activities = await getLeadActivities(id);
   return activities
     .filter((a) => (a.activityType || a.type) === "NOTE_ADDED")

@@ -1,9 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-} from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -39,6 +34,12 @@ import ProjectAPI from "../../services/projectApi";
 import { convertLeadToCustomer } from "../../services/customerApi";
 import { Lead, LeadStage, LeadSource, Project } from "../../types";
 import toast from "react-hot-toast";
+import LeadKanbanStatusWarningModal from "../../components/kanban/LeadKanbanStatusWarningModal";
+import {
+  toastLeadKanbanStatusFailure,
+  getLeadKanbanStatusErrorMessage,
+  isLeadActiveProjectsStatusConflict,
+} from "../../utils/leadKanbanToast";
 
 type ViewType = "leads" | "projects";
 
@@ -70,8 +71,7 @@ const statusToColumn: Record<string, string> = {
   CONVERTED: "col-converted",
 };
 
-const isUnqualifiedLead = (lead: Lead) =>
-  lead.status === "UNQUALIFIED";
+const isUnqualifiedLead = (lead: Lead) => lead.status === "UNQUALIFIED";
 
 // Map column ID to API status
 const columnToStatus: Record<string, string> = {
@@ -97,6 +97,10 @@ const KanbanView: React.FC = () => {
     fromCol: string;
   } | null>(null);
   const [isConverting, setIsConverting] = useState(false);
+  /** API message when a converted lead cannot leave CONVERTED (active projects) */
+  const [leadStatusBlockMessage, setLeadStatusBlockMessage] = useState<
+    string | null
+  >(null);
 
   // Leads Kanban Data - Using API statuses
   const [leadsKanbanData, setLeadsKanbanData] = useState<KanbanData>({
@@ -252,31 +256,35 @@ const KanbanView: React.FC = () => {
   // Update Leads Kanban when leads change - using API status
   useEffect(() => {
     console.log("KanbanView: Leads changed:", leads.length, "leads");
-    
+
     // Deduplicate leads by ID first
     const uniqueLeadsMap = new Map<string, Lead>();
     let duplicatesFound = 0;
-    
+
     leads.forEach((lead: Lead) => {
       if (uniqueLeadsMap.has(lead.id)) {
         duplicatesFound++;
-        console.warn(`Duplicate lead found and removed: ${lead.name} (${lead.id})`);
+        console.warn(
+          `Duplicate lead found and removed: ${lead.name} (${lead.id})`,
+        );
       } else {
         uniqueLeadsMap.set(lead.id, lead);
       }
     });
-    
+
     const uniqueLeads = Array.from(uniqueLeadsMap.values());
-    
+
     if (duplicatesFound > 0) {
-      console.warn(`⚠️ Removed ${duplicatesFound} duplicate leads. Original: ${leads.length}, Unique: ${uniqueLeads.length}`);
+      console.warn(
+        `⚠️ Removed ${duplicatesFound} duplicate leads. Original: ${leads.length}, Unique: ${uniqueLeads.length}`,
+      );
     }
-    
+
     console.log("Unique leads data:", uniqueLeads);
-    
+
     const tasks: Record<string, KanbanTask> = {};
     const columns = { ...leadsKanbanData.columns };
-    
+
     let alreadyConvertedCount = 0;
     const seenLeadIds = new Set<string>();
 
@@ -289,20 +297,24 @@ const KanbanView: React.FC = () => {
     uniqueLeads.forEach((lead: Lead) => {
       // Skip if we've already processed this lead (extra safety check)
       if (seenLeadIds.has(lead.id)) {
-        console.warn(`Skipping duplicate lead in processing: ${lead.name} (${lead.id})`);
+        console.warn(
+          `Skipping duplicate lead in processing: ${lead.name} (${lead.id})`,
+        );
         return;
       }
       seenLeadIds.add(lead.id);
-      
+
       // Skip leads already converted to customers (shown as customers elsewhere)
       const leadMetadata = lead as any;
-      const isAlreadyConverted = !!(leadMetadata.convertedToAccount || leadMetadata.convertedToAccountId);
-      
+      const isAlreadyConverted = !!(
+        leadMetadata.convertedToAccount || leadMetadata.convertedToAccountId
+      );
+
       if (isAlreadyConverted) {
         alreadyConvertedCount++;
         return;
       }
-      
+
       // Use API status field, fallback to NEW if not set
       const apiStatus = lead.status || "NEW";
       const columnId = isUnqualifiedLead(lead)
@@ -323,9 +335,13 @@ const KanbanView: React.FC = () => {
     });
 
     console.log("KanbanView: Lead columns after processing:");
-    console.log(`  Filtered out ${alreadyConvertedCount} leads that are already converted to customers`);
+    console.log(
+      `  Filtered out ${alreadyConvertedCount} leads that are already converted to customers`,
+    );
     Object.keys(columns).forEach((colId) => {
-      console.log(`  ${colId} (${columns[colId].title}): ${columns[colId].taskIds.length} leads`);
+      console.log(
+        `  ${colId} (${columns[colId].title}): ${columns[colId].taskIds.length} leads`,
+      );
     });
 
     setLeadsKanbanData((prev) => ({
@@ -338,28 +354,32 @@ const KanbanView: React.FC = () => {
   // Update Projects Kanban when projects change
   useEffect(() => {
     console.log("KanbanView: Projects changed:", projects.length, "projects");
-    
+
     // Deduplicate projects by ID first
     const uniqueProjectsMap = new Map<string, Project>();
     let duplicatesFound = 0;
-    
+
     projects.forEach((project: Project) => {
       if (uniqueProjectsMap.has(project.id)) {
         duplicatesFound++;
-        console.warn(`Duplicate project found and removed: ${project.projectName || project.name} (${project.id})`);
+        console.warn(
+          `Duplicate project found and removed: ${project.projectName || project.name} (${project.id})`,
+        );
       } else {
         uniqueProjectsMap.set(project.id, project);
       }
     });
-    
+
     const uniqueProjects = Array.from(uniqueProjectsMap.values());
-    
+
     if (duplicatesFound > 0) {
-      console.warn(`⚠️ Removed ${duplicatesFound} duplicate projects. Original: ${projects.length}, Unique: ${uniqueProjects.length}`);
+      console.warn(
+        `⚠️ Removed ${duplicatesFound} duplicate projects. Original: ${projects.length}, Unique: ${uniqueProjects.length}`,
+      );
     }
-    
+
     console.log("Unique projects data:", uniqueProjects);
-    
+
     const tasks: Record<string, KanbanTask> = {};
     const columns = { ...projectsKanbanData.columns };
     const seenProjectIds = new Set<string>();
@@ -373,11 +393,13 @@ const KanbanView: React.FC = () => {
     uniqueProjects.forEach((project: Project) => {
       // Skip if we've already processed this project (extra safety check)
       if (seenProjectIds.has(project.id)) {
-        console.warn(`Skipping duplicate project in processing: ${project.projectName || project.name} (${project.id})`);
+        console.warn(
+          `Skipping duplicate project in processing: ${project.projectName || project.name} (${project.id})`,
+        );
         return;
       }
       seenProjectIds.add(project.id);
-      
+
       const columnId = mapProjectStageToColumn(project.currentStageCode);
       if (!columns[columnId]) return;
 
@@ -395,7 +417,9 @@ const KanbanView: React.FC = () => {
 
     console.log("KanbanView: Project columns after processing:");
     Object.keys(columns).forEach((colId) => {
-      console.log(`  ${colId} (${columns[colId].title}): ${columns[colId].taskIds.length} projects`);
+      console.log(
+        `  ${colId} (${columns[colId].title}): ${columns[colId].taskIds.length} projects`,
+      );
     });
 
     setProjectsKanbanData((prev) => ({
@@ -514,7 +538,9 @@ const KanbanView: React.FC = () => {
         const leadName = task?.content || taskId;
         // Guard: check if lead is already converted before even showing the modal
         const leadMeta = task?.metadata as any;
-        const alreadyConverted = !!(leadMeta?.convertedToAccount || leadMeta?.convertedToAccountId);
+        const alreadyConverted = !!(
+          leadMeta?.convertedToAccount || leadMeta?.convertedToAccountId
+        );
         if (alreadyConverted) {
           toast.error(
             `"${leadName}" has already been converted to a customer.`,
@@ -536,7 +562,12 @@ const KanbanView: React.FC = () => {
         fetchLeads();
       } catch (error) {
         console.error("Failed to update lead status:", error);
-        toast.error("Failed to update status. Reverting...");
+        const msg = getLeadKanbanStatusErrorMessage(error);
+        if (isLeadActiveProjectsStatusConflict(msg)) {
+          setLeadStatusBlockMessage(msg);
+        } else {
+          toastLeadKanbanStatusFailure(error);
+        }
         fetchLeads();
       }
     },
@@ -730,100 +761,97 @@ const KanbanView: React.FC = () => {
 
   // ─── Rich Card Renderers ─────────────────────────────────────────────────
 
-  const renderLeadCard = useCallback(
-    (task: KanbanTask) => {
-      const lead = task.metadata as unknown as Lead;
+  const renderLeadCard = useCallback((task: KanbanTask) => {
+    const lead = task.metadata as unknown as Lead;
 
-      if (!lead) {
-        return (
-          <div
-            className={`relative space-y-1.5 ${task.completed ? "opacity-60" : ""}`}
-          >
-            <h4
-              className={`font-semibold text-[13px] leading-tight ${
-                task.completed ? "line-through text-gray-500" : "text-gray-900"
-              }`}
-            >
-              {task.content}
-            </h4>
-            {task.assignedTo && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 text-[10px]">
-                <User size={10} />
-                {task.assignedTo}
-              </span>
-            )}
-          </div>
-        );
-      }
-
+    if (!lead) {
       return (
         <div
-          className={`relative space-y-1.5 group/card ${task.completed ? "opacity-60" : ""}`}
+          className={`relative space-y-1.5 ${task.completed ? "opacity-60" : ""}`}
         >
           <h4
-            className={`font-semibold text-[13px] leading-tight truncate ${
+            className={`font-semibold text-[13px] leading-tight ${
               task.completed ? "line-through text-gray-500" : "text-gray-900"
             }`}
           >
-            {lead.name}
+            {task.content}
           </h4>
-          {/* Unassigned lead indicator */}
-          {!lead.assignedTo && (
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
-              </span>
-              <span className="text-[10px] font-medium text-orange-600">
-                No BDR
-              </span>
-            </div>
-          )}
-          <div className="space-y-0.5 text-[11px] text-gray-500">
-            {lead.phone && (
-              <div className="flex items-center gap-1">
-                <Phone size={10} className="text-gray-400 flex-shrink-0" />
-                <span className="truncate">{lead.phone}</span>
-              </div>
-            )}
-            {lead.email && (
-              <div className="flex items-center gap-1">
-                <Mail size={10} className="text-gray-400 flex-shrink-0" />
-                <span className="truncate max-w-[180px]">{lead.email}</span>
-              </div>
-            )}
-            {lead.location && (
-              <div className="flex items-center gap-1">
-                <MapPin size={10} className="text-gray-400 flex-shrink-0" />
-                <span className="truncate">{lead.location}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2 pt-0.5">
-              {lead.budget && (
-                <div className="flex items-center gap-0.5">
-                  <DollarSign
-                    size={10}
-                    className="text-green-500 flex-shrink-0"
-                  />
-                  <span className="font-medium text-gray-700">
-                    \u20B9{lead.budget.toLocaleString()}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-          {lead.source && (
-            <div className="pt-1">
-              <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-md bg-orange-50 text-orange-600 border border-orange-200/50">
-                {lead.source}
-              </span>
-            </div>
+          {task.assignedTo && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 text-[10px]">
+              <User size={10} />
+              {task.assignedTo}
+            </span>
           )}
         </div>
       );
-    },
-    [],
-  );
+    }
+
+    return (
+      <div
+        className={`relative space-y-1.5 group/card ${task.completed ? "opacity-60" : ""}`}
+      >
+        <h4
+          className={`font-semibold text-[13px] leading-tight truncate ${
+            task.completed ? "line-through text-gray-500" : "text-gray-900"
+          }`}
+        >
+          {lead.name}
+        </h4>
+        {/* Unassigned lead indicator */}
+        {!lead.assignedTo && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+            </span>
+            <span className="text-[10px] font-medium text-orange-600">
+              No BDR
+            </span>
+          </div>
+        )}
+        <div className="space-y-0.5 text-[11px] text-gray-500">
+          {lead.phone && (
+            <div className="flex items-center gap-1">
+              <Phone size={10} className="text-gray-400 flex-shrink-0" />
+              <span className="truncate">{lead.phone}</span>
+            </div>
+          )}
+          {lead.email && (
+            <div className="flex items-center gap-1">
+              <Mail size={10} className="text-gray-400 flex-shrink-0" />
+              <span className="truncate max-w-[180px]">{lead.email}</span>
+            </div>
+          )}
+          {lead.location && (
+            <div className="flex items-center gap-1">
+              <MapPin size={10} className="text-gray-400 flex-shrink-0" />
+              <span className="truncate">{lead.location}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 pt-0.5">
+            {lead.budget && (
+              <div className="flex items-center gap-0.5">
+                <DollarSign
+                  size={10}
+                  className="text-green-500 flex-shrink-0"
+                />
+                <span className="font-medium text-gray-700">
+                  \u20B9{lead.budget.toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+        {lead.source && (
+          <div className="pt-1">
+            <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-md bg-orange-50 text-orange-600 border border-orange-200/50">
+              {lead.source}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }, []);
 
   const renderProjectCard = useCallback((task: KanbanTask) => {
     const project = task.metadata as unknown as Project;
@@ -1041,10 +1069,9 @@ const KanbanView: React.FC = () => {
                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
                   <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-amber-800">
-                    Converting this lead will create a{" "}
-                    <strong>Customer</strong> profile in the system. The lead
-                    will be removed from your pipeline and will appear in the
-                    Customers section.
+                    Converting this lead will create a <strong>Customer</strong>{" "}
+                    profile in the system. The lead will be removed from your
+                    pipeline and will appear in the Customers section.
                   </p>
                 </div>
               </div>
@@ -1080,6 +1107,12 @@ const KanbanView: React.FC = () => {
           </div>,
           document.body,
         )}
+
+      <LeadKanbanStatusWarningModal
+        open={!!leadStatusBlockMessage}
+        message={leadStatusBlockMessage ?? ""}
+        onClose={() => setLeadStatusBlockMessage(null)}
+      />
     </div>
   );
 };
