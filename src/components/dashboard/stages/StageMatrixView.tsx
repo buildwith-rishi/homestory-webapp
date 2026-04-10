@@ -79,6 +79,33 @@ const formatDayLabelDate = (d?: string | null) => {
   });
 };
 
+/** Calendar date for a day row — same source as the label (explicit date or start + day index). */
+const getEffectiveDayRowDate = (
+  dayDate: string | null | undefined,
+  matrixStartDate: string | null | undefined,
+  dayNumber: number,
+): Date | null => {
+  if (typeof dayDate === "string" && dayDate.trim()) {
+    const d = parseDate(dayDate);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const start = parseDate(matrixStartDate);
+  if (isNaN(start.getTime())) return null;
+  const d = new Date(start.getTime());
+  d.setDate(d.getDate() + dayNumber - 1);
+  return d;
+};
+
+const isDateTodayLocal = (d: Date | null): boolean => {
+  if (!d || isNaN(d.getTime())) return false;
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+};
+
 const getFallbackDateForDay = (startDate?: string | null, dayNumber?: number) => {
   if (typeof dayNumber !== "number") return "—";
   const d = parseDate(startDate);
@@ -190,6 +217,21 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
   stage,
   onBack,
 }) => {
+  /** Bumps on an interval + tab focus so the "Today" badge rolls forward at midnight without reload. */
+  const [, setTodayRolloverTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setTodayRolloverTick((n) => n + 1),
+      60_000,
+    );
+    const onVis = () => setTodayRolloverTick((n) => n + 1);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
   const [matrix, setMatrix] = useState<TaskMatrix | null>(null);
   const [stats, setStats] = useState<MatrixStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -909,6 +951,13 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             const deleteBusy = deletingDayNumber === dayNum;
             const insertBusy = insertingDayNumber === dayNum;
 
+            const effectiveDayDate = getEffectiveDayRowDate(
+              dayEntry.date,
+              matrix?.startDate ?? null,
+              dayNum,
+            );
+            const showTodayBadge = isDateTodayLocal(effectiveDayDate);
+
             return (
               <Card
                 key={dayNum}
@@ -987,11 +1036,21 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                           </div>
                         )}
                       </div>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        {dayEntry.date
-                          ? formatDayLabelDate(dayEntry.date)
-                          : getFallbackDateForDay(matrix.startDate, dayNum)}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <p className="text-[11px] text-gray-400">
+                          {dayEntry.date
+                            ? formatDayLabelDate(dayEntry.date)
+                            : getFallbackDateForDay(matrix?.startDate, dayNum)}
+                        </p>
+                        {showTodayBadge && (
+                          <span
+                            className="inline-flex shrink-0 items-center rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-700 ring-1 ring-orange-200/80"
+                            aria-label="This day is today"
+                          >
+                            Today
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

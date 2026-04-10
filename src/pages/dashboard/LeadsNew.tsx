@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import ReactDOM from "react-dom";
+import ReactDOM, { flushSync } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { LazyLeadCard } from "./LeadCard";
 import {
@@ -346,7 +346,12 @@ export const LeadModal: React.FC<{
         householdOrCompany: lead.householdOrCompany || "RESIDENTIAL",
         status: lead.status || "NEW",
         city: lead.city || "",
-        area: lead.area ?? null,
+        area:
+          lead.area != null &&
+          String(lead.area).trim() !== "" &&
+          Number(lead.area) > 0
+            ? Number(lead.area)
+            : null,
         message: lead.message || "",
         requirements: lead.requirements || "",
         floorPlanUrl: existingFloorPlanUrl,
@@ -393,49 +398,107 @@ export const LeadModal: React.FC<{
     setPendingFloorPlanFile(null);
   }, [lead, isOpen]);
 
-  const validate = (): Record<string, string> => {
+  const BASIC_ERROR_KEYS = new Set([
+    "name",
+    "email",
+    "phone",
+    "secondaryEmails",
+    "secondaryPhones",
+  ]);
+
+  /** DOM order for scrolling to the first invalid field after validation. */
+  const LEAD_FIELD_ERROR_ORDER = [
+    "name",
+    "email",
+    "phone",
+    "secondaryEmails",
+    "secondaryPhones",
+    "propertyType",
+    "projectType",
+    "city",
+    "area",
+    "startTimeline",
+    "budgetComfort",
+    "projectScope",
+  ] as const;
+
+  const scrollToFirstLeadFieldError = (fieldErrors: Record<string, string>) => {
+    const key = LEAD_FIELD_ERROR_ORDER.find((k) => fieldErrors[k]);
+    if (!key) return;
+    const el = document.getElementById(`lead-modal-field-${key}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const focusTarget =
+      el &&
+      (el.matches("input, select, textarea")
+        ? el
+        : el.querySelector("input, select, textarea"));
+    if (focusTarget instanceof HTMLElement) {
+      try {
+        focusTarget.focus({ preventScroll: true });
+      } catch {
+        focusTarget.focus();
+      }
+    }
+  };
+
+  const validate = (
+    mode: "basic" | "property" | "full" = "full",
+  ): Record<string, string> => {
     const newErrors: Record<string, string> = {};
-    if (!formData.name?.trim()) newErrors.name = "Name is required";
-    if (!formData.phone?.trim()) newErrors.phone = "Phone is required";
-    else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone))
-      newErrors.phone = "Invalid phone format";
-    if (!formData.email?.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Invalid email format";
-    if (!formData.propertyType?.trim())
-      newErrors.propertyType = "Property type is required";
-    if (!formData.projectType?.trim())
-      newErrors.projectType = "Project type is required";
-    if (!formData.city?.trim()) newErrors.city = "City is required";
-    if (!formData.startTimeline?.trim())
-      newErrors.startTimeline = "Start timeline is required";
-    if (!formData.budgetComfort?.trim())
-      newErrors.budgetComfort = "Budget comfort is required";
-    if (!formData.projectScope?.trim())
-      newErrors.projectScope = "Project scope is required";
-    if (
-      formData.area !== null &&
-      formData.area !== undefined &&
-      String(formData.area) !== "" &&
-      Number(formData.area) <= 0
-    ) {
-      newErrors.area = "Area must be greater than 0";
+
+    if (mode === "basic" || mode === "full") {
+      if (!formData.name?.trim()) newErrors.name = "Name is required";
+      if (!formData.phone?.trim()) newErrors.phone = "Phone is required";
+      else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone))
+        newErrors.phone = "Invalid phone format";
+      if (!formData.email?.trim()) newErrors.email = "Email is required";
+      else if (!/\S+@\S+\.\S+/.test(formData.email))
+        newErrors.email = "Invalid email format";
+
+      const hasInvalidSecondaryEmail = (formData.secondaryEmails || [])
+        .map((email) => email.trim())
+        .filter(Boolean)
+        .some((email) => !/\S+@\S+\.\S+/.test(email));
+      if (hasInvalidSecondaryEmail) {
+        newErrors.secondaryEmails =
+          "One or more secondary emails are invalid";
+      }
+
+      const hasInvalidSecondaryPhone = (formData.secondaryPhones || [])
+        .map((phone) => phone.trim())
+        .filter(Boolean)
+        .some((phone) => !/^\+?[\d\s-]{10,}$/.test(phone));
+      if (hasInvalidSecondaryPhone) {
+        newErrors.secondaryPhones =
+          "One or more secondary phone numbers are invalid";
+      }
     }
 
-    const hasInvalidSecondaryEmail = (formData.secondaryEmails || [])
-      .map((email) => email.trim())
-      .filter(Boolean)
-      .some((email) => !/\S+@\S+\.\S+/.test(email));
-    if (hasInvalidSecondaryEmail) {
-      newErrors.secondaryEmails = "One or more secondary emails are invalid";
-    }
+    if (mode === "property" || mode === "full") {
+      if (!formData.propertyType?.trim())
+        newErrors.propertyType = "Property type is required";
+      if (!formData.projectType?.trim())
+        newErrors.projectType = "Project type is required";
+      if (!formData.city?.trim()) newErrors.city = "City is required";
+      if (!formData.startTimeline?.trim())
+        newErrors.startTimeline = "Start timeline is required";
+      if (!formData.budgetComfort?.trim())
+        newErrors.budgetComfort = "Budget comfort is required";
+      if (!formData.projectScope?.trim())
+        newErrors.projectScope = "Project scope is required";
 
-    const hasInvalidSecondaryPhone = (formData.secondaryPhones || [])
-      .map((phone) => phone.trim())
-      .filter(Boolean)
-      .some((phone) => !/^\+?[\d\s-]{10,}$/.test(phone));
-    if (hasInvalidSecondaryPhone) {
-      newErrors.secondaryPhones = "One or more secondary phone numbers are invalid";
+      // Area is optional — only validate when user entered a non-empty value.
+      const areaRaw = formData.area;
+      const hasArea =
+        areaRaw !== null &&
+        areaRaw !== undefined &&
+        String(areaRaw).trim() !== "";
+      if (hasArea) {
+        const n = Number(areaRaw);
+        if (!Number.isFinite(n) || n <= 0) {
+          newErrors.area = "Area must be greater than 0";
+        }
+      }
     }
 
     setErrors(newErrors);
@@ -516,16 +579,28 @@ export const LeadModal: React.FC<{
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // On Basic Info tab, primary action should be "Next" and must not submit yet.
+    // Basic tab: validate required fields before Property & Project.
     if (activeTab === "basic") {
-      setErrors({});
+      const basicErrors = validate("basic");
+      if (Object.keys(basicErrors).length > 0) {
+        toast.error("Please fill in all required fields on Basic Info.");
+        setTimeout(() => scrollToFirstLeadFieldError(basicErrors), 0);
+        return;
+      }
       setActiveTab("property");
       return;
     }
 
-    const validationErrors = validate();
+    const validationErrors = validate("full");
     if (Object.keys(validationErrors).length > 0) {
-      setActiveTab("basic");
+      const firstBasic = Object.keys(validationErrors).find((k) =>
+        BASIC_ERROR_KEYS.has(k),
+      );
+      flushSync(() => {
+        setActiveTab(firstBasic ? "basic" : "property");
+      });
+      toast.error("Please complete all required fields before saving.");
+      setTimeout(() => scrollToFirstLeadFieldError(validationErrors), 0);
       return;
     }
 
@@ -714,11 +789,13 @@ export const LeadModal: React.FC<{
                     Full Name <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="lead-modal-field-name"
                     type="text"
                     value={formData.name || ""}
                     onChange={(e) => f("name", e.target.value)}
                     placeholder="e.g., Rahul Sharma"
                     className={inputClass(errors.name)}
+                    aria-invalid={!!errors.name}
                   />
                   {errors.name && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
@@ -732,12 +809,14 @@ export const LeadModal: React.FC<{
                     Email <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="lead-modal-field-email"
                     type="email"
                     value={formData.email || ""}
                     onChange={(e) => f("email", e.target.value)}
                     onBlur={() => void checkDuplicateField("email", formData.email)}
                     placeholder="rahul@example.com"
                     className={inputClass(errors.email)}
+                    aria-invalid={!!errors.email}
                   />
                   {checkingDuplicate.email && (
                     <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
@@ -757,12 +836,14 @@ export const LeadModal: React.FC<{
                     Phone <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="lead-modal-field-phone"
                     type="tel"
                     value={formData.phone || ""}
                     onChange={(e) => f("phone", e.target.value)}
                     onBlur={() => void checkDuplicateField("phone", formData.phone)}
                     placeholder="+91 98765 43210"
                     className={inputClass(errors.phone)}
+                    aria-invalid={!!errors.phone}
                   />
                   {checkingDuplicate.phone && (
                     <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
@@ -777,7 +858,10 @@ export const LeadModal: React.FC<{
                   )}
                 </div>
 
-                <div className="col-span-2 space-y-2">
+                <div
+                  id="lead-modal-field-secondaryEmails"
+                  className="col-span-2 space-y-2"
+                >
                   <div className="flex items-center justify-between">
                     <label className="block text-sm font-semibold text-gray-700">
                       Secondary Emails
@@ -822,7 +906,10 @@ export const LeadModal: React.FC<{
                   )}
                 </div>
 
-                <div className="col-span-2 space-y-2">
+                <div
+                  id="lead-modal-field-secondaryPhones"
+                  className="col-span-2 space-y-2"
+                >
                   <div className="flex items-center justify-between">
                     <label className="block text-sm font-semibold text-gray-700">
                       Secondary Phones
@@ -982,9 +1069,11 @@ export const LeadModal: React.FC<{
                     Property Type <span className="text-red-500">*</span>
                   </label>
                   <select
+                    id="lead-modal-field-propertyType"
                     value={formData.propertyType || ""}
                     onChange={(e) => f("propertyType", e.target.value)}
                     className={selectClass(errors.propertyType)}
+                    aria-invalid={!!errors.propertyType}
                   >
                     <option value="">Select...</option>
                     <option value="RESIDENTIAL">Residential</option>
@@ -1004,9 +1093,11 @@ export const LeadModal: React.FC<{
                     Project Type <span className="text-red-500">*</span>
                   </label>
                   <select
+                    id="lead-modal-field-projectType"
                     value={formData.projectType || ""}
                     onChange={(e) => f("projectType", e.target.value)}
                     className={selectClass(errors.projectType)}
+                    aria-invalid={!!errors.projectType}
                   >
                     <option value="">Select...</option>
                     <option value="APARTMENT">Apartment</option>
@@ -1032,6 +1123,7 @@ export const LeadModal: React.FC<{
                     Area
                   </label>
                   <input
+                    id="lead-modal-field-area"
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -1064,6 +1156,7 @@ export const LeadModal: React.FC<{
                     }}
                     placeholder="e.g., 1500"
                     className={inputClass(errors.area)}
+                    aria-invalid={!!errors.area}
                   />
                   {errors.area && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
@@ -1077,11 +1170,13 @@ export const LeadModal: React.FC<{
                     City <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="lead-modal-field-city"
                     type="text"
                     value={formData.city || ""}
                     onChange={(e) => f("city", e.target.value)}
                     placeholder="e.g., Bengaluru"
                     className={inputClass(errors.city)}
+                    aria-invalid={!!errors.city}
                   />
                   {errors.city && (
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
@@ -1113,9 +1208,11 @@ export const LeadModal: React.FC<{
                     Start Timeline <span className="text-red-500">*</span>
                   </label>
                   <select
+                    id="lead-modal-field-startTimeline"
                     value={formData.startTimeline || ""}
                     onChange={(e) => f("startTimeline", e.target.value)}
                     className={selectClass(errors.startTimeline)}
+                    aria-invalid={!!errors.startTimeline}
                   >
                     <option value="">Select...</option>
                     <option value="NOT_SURE">Not Sure</option>
@@ -1136,9 +1233,11 @@ export const LeadModal: React.FC<{
                     Budget Comfort <span className="text-red-500">*</span>
                   </label>
                   <select
+                    id="lead-modal-field-budgetComfort"
                     value={formData.budgetComfort || ""}
                     onChange={(e) => f("budgetComfort", e.target.value)}
                     className={selectClass(errors.budgetComfort)}
+                    aria-invalid={!!errors.budgetComfort}
                   >
                     <option value="">Select...</option>
                     <option value="NOT_SURE">Not Sure</option>
@@ -1159,9 +1258,11 @@ export const LeadModal: React.FC<{
                     Project Scope <span className="text-red-500">*</span>
                   </label>
                   <select
+                    id="lead-modal-field-projectScope"
                     value={formData.projectScope || ""}
                     onChange={(e) => f("projectScope", e.target.value)}
                     className={selectClass(errors.projectScope)}
+                    aria-invalid={!!errors.projectScope}
                   >
                     <option value="">Select...</option>
                     <option value="NOT_SURE">Not Sure</option>
@@ -1306,6 +1407,7 @@ export const LeadModal: React.FC<{
               Cancel
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
               className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-colors shadow-lg shadow-orange-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
