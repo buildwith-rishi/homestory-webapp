@@ -242,8 +242,8 @@ const getAuthHeaders = (): HeadersInit => {
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    onUnauthorizedResponse(response);
     const body = await response.json().catch(() => ({}));
+    onUnauthorizedResponse(response, body);
     const err =
       body && typeof body === "object"
         ? (body as Record<string, unknown>)

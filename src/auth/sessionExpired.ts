@@ -7,13 +7,27 @@ import { useSessionExpiredStore } from "./sessionExpiredStore";
 
 let sessionExpiredEmitted = false;
 
+/** Saved before tokens are cleared so "Log out" can still call POST /api/auth/logout */
+let capturedRefreshTokenForLogout: string | null = null;
+
 const SESSION_TIMEOUT_STATUSES = new Set([401, 419, 440]);
 const SESSION_TIMEOUT_MESSAGE_RE =
   /(session\s*expired|session\s*timeout|token\s*expired|jwt\s*expired|invalid\s*token|unauthorized|not\s*authenticated)/i;
 
 export function resetSessionExpiredGuard(): void {
   sessionExpiredEmitted = false;
+  capturedRefreshTokenForLogout = null;
   useSessionExpiredStore.getState().hide();
+}
+
+/**
+ * One-time read of the refresh token captured when the session-expired flow
+ * started. Clears the in-memory copy so it is not reused.
+ */
+export function takeRefreshTokenForSessionExpiredLogout(): string | null {
+  const t = capturedRefreshTokenForLogout;
+  capturedRefreshTokenForLogout = null;
+  return t;
 }
 
 export function notifySessionExpired(): void {
@@ -21,12 +35,33 @@ export function notifySessionExpired(): void {
   if (sessionExpiredEmitted) return;
   sessionExpiredEmitted = true;
 
+  try {
+    capturedRefreshTokenForLogout = localStorage.getItem("refresh_token");
+  } catch {
+    capturedRefreshTokenForLogout = null;
+  }
+
   // Show the overlay FIRST so ProtectedRoute can short-circuit before RBAC runs
   // (otherwise requiredPermission + can() with null roleId sends users to /access-denied).
-  try {
+  const showModal = () => {
     useSessionExpiredStore.getState().show();
-  } catch {
-    /* ignore */
+  };
+  try {
+    showModal();
+  } catch (e) {
+    console.error("[sessionExpired] failed to show modal", e);
+  }
+  // Second tick: recover if a concurrent render hid the store update (rare).
+  if (typeof window !== "undefined") {
+    queueMicrotask(() => {
+      if (!useSessionExpiredStore.getState().visible) {
+        try {
+          showModal();
+        } catch (e) {
+          console.error("[sessionExpired] retry show failed", e);
+        }
+      }
+    });
   }
 
   try {

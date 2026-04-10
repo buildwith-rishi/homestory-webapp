@@ -6,19 +6,49 @@ type GlobalWithFetchMarker = typeof globalThis & {
   [FETCH_NO_STORE_MARKER]?: boolean;
 };
 
-const AUTH_PATH_RE = /\/api\/auth\//;
+function getFetchInputUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
+/**
+ * Only skip the global session-expired popup for endpoints where 401 is
+ * expected (wrong password, bad refresh body). Do NOT skip /api/auth/me,
+ * /api/auth/validate, etc. — those 401s mean the session is dead.
+ */
+function isSkippableAuthFailureUrl(urlString: string): boolean {
+  try {
+    const u = urlString.includes("://")
+      ? new URL(urlString)
+      : new URL(urlString, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    const path = u.pathname.replace(/\/+$/, "") || "/";
+    const base = path.split("/").filter(Boolean);
+    // .../api/auth/<segment>
+    const i = base.indexOf("api");
+    if (i < 0 || base[i + 1] !== "auth") return false;
+    const segment = (base[i + 2] || "").toLowerCase();
+    return (
+      segment === "login" ||
+      segment === "refresh" ||
+      segment === "register" ||
+      segment === "admin-setup"
+    );
+  } catch {
+    return /\/api\/auth\/(login|refresh|register|admin-setup)(\/|\?|#|$)/i.test(
+      urlString,
+    );
+  }
+}
 
 /**
  * Wraps window.fetch so that:
  *  1. Every request uses `cache: "no-store"` (avoids stale data).
- *  2. Any timeout-like auth failure on a non-auth API endpoint fires
- *     session-expired UI as a
- *     last-resort safety-net.  Service-layer handlers already call it, but if
- *     a code-path ever skips the handler the user will still see the popup.
+ *  2. Auth/session failures fire session-expired UI. Service layers also call
+ *     `onUnauthorizedResponse`, but this is the safety net for any fetch path.
  *
- * The interception does NOT prevent the response from reaching the caller;
- * session-expired handling dedupes internally so multiple parallel failures only
- * trigger the modal once.
+ * 401 / 419 / 440 are handled synchronously (before awaiting JSON) so the
+ * modal cannot be blocked by a slow or stuck response body.
  */
 export function installNoStoreFetch(): void {
   if (typeof window === "undefined" || typeof window.fetch !== "function") {
@@ -41,25 +71,25 @@ export function installNoStoreFetch(): void {
     const response = await originalFetch(input, mergedInit);
 
     if (response.status >= 400) {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
+      const url = getFetchInputUrl(input);
 
-      if (!AUTH_PATH_RE.test(url)) {
-        let data: unknown;
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          try {
-            data = await response.clone().json();
-          } catch {
-            data = undefined;
+      if (!isSkippableAuthFailureUrl(url)) {
+        const st = response.status;
+
+        if (st === 401 || st === 419 || st === 440) {
+          onUnauthorizedResponse(response, undefined);
+        } else {
+          let data: unknown;
+          const contentType = response.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            try {
+              data = await response.clone().json();
+            } catch {
+              data = undefined;
+            }
           }
+          onUnauthorizedResponse(response, data);
         }
-
-        onUnauthorizedResponse(response, data);
       }
     }
 
