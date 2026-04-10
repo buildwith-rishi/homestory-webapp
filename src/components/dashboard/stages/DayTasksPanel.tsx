@@ -28,6 +28,12 @@ interface DayTasksPanelProps {
   projectId: string;
   dayNumber: number;
   startDate: string | null;
+  /**
+   * Calendar date for this day from matrix API (`matrixDayWise[].date`).
+   * When set, used instead of startDate + consecutive days (which breaks when
+   * Sundays/holidays are skipped in the backend schedule).
+   */
+  matrixDayDate?: string | null;
   categories: MatrixCategory[];
   onTaskClick: (taskId: string, task?: MatrixTask) => void;
   onStatusChange: (
@@ -145,6 +151,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   projectId,
   dayNumber,
   startDate,
+  matrixDayDate,
   categories,
   onTaskClick,
   onStatusChange,
@@ -214,12 +221,19 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   };
 
   const dayDisplayDate = (() => {
+    if (matrixDayDate) {
+      const fd = formatDisplayDate(matrixDayDate);
+      if (fd !== "—") return fd;
+    }
     const fromTask = tasks.find((t) => !!t.taskDate)?.taskDate;
     if (fromTask) return formatDisplayDate(fromTask);
     return getDateForDay(startDate, dayNumber);
   })();
 
   const getCurrentDayDateInput = (): string => {
+    const fromMatrix = toDateOnly(matrixDayDate);
+    if (fromMatrix) return fromMatrix;
+
     const fromTask = toDateOnly(tasks.find((t) => !!t.taskDate)?.taskDate);
     if (fromTask) return fromTask;
 
