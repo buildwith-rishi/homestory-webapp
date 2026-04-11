@@ -1161,6 +1161,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
                       onStatusChange={handleStatusChange}
                       updatingTaskId={updatingTaskId}
                       onDayDateUpdated={() => fetchMatrix(true)}
+                      onTaskDeleted={() => void fetchMatrix(true)}
                     />
                   </div>
                 )}

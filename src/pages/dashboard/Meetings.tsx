@@ -35,6 +35,7 @@ import {
   ScheduleMeetingModal,
   MeetingFormData,
 } from "../../components/dashboard/ScheduleMeetingModal";
+import { MeetingLinkEntitySelect } from "../../components/dashboard/MeetingLinkEntitySelect";
 import { listLeads } from "../../services/leadApi";
 import { listProjects } from "../../services/projectApi";
 import * as meetingAPI from "../../services/meetingApi";
@@ -312,6 +313,46 @@ export const MeetingsPage: React.FC = () => {
         }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [leads],
+  );
+
+  /** Link Meeting modal — searchable lead / project pickers */
+  const meetingLinkLeadOptions = useMemo(
+    () =>
+      leads
+        .map((lead) => ({
+          id: lead.id,
+          title: lead.name || "Unnamed lead",
+          subtitle: lead.email?.trim() || undefined,
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title)),
+    [leads],
+  );
+
+  const meetingLinkProjectOptions = useMemo(
+    () =>
+      projects
+        .map((project) => {
+          const title =
+            project.projectName || project.name || "Untitled project";
+          const subtitle = project.lead?.name
+            ? `Lead: ${project.lead.name}`
+            : undefined;
+          const matchText = [
+            project.lead?.name,
+            project.lead?.email,
+            project.projectNumber,
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return {
+            id: project.id,
+            title,
+            subtitle,
+            matchText: matchText || undefined,
+          };
+        })
+        .sort((a, b) => a.title.localeCompare(b.title)),
+    [projects],
   );
 
   const filteredMomProjects = useMemo(() => {
@@ -1794,19 +1835,14 @@ export const MeetingsPage: React.FC = () => {
                             <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
                           </div>
                         ) : leads.length > 0 ? (
-                          <select
+                          <MeetingLinkEntitySelect
                             value={selectedLeadId}
-                            onChange={(e) => setSelectedLeadId(e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          >
-                            <option value="">Select a lead...</option>
-                            {leads.map((lead) => (
-                              <option key={lead.id} value={lead.id}>
-                                {lead.name}{" "}
-                                {lead.email ? `(${lead.email})` : ""}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={setSelectedLeadId}
+                            options={meetingLinkLeadOptions}
+                            emptyLabel="Select a lead…"
+                            searchPlaceholder="Search leads by name or email…"
+                            ariaLabel="Choose a lead to link"
+                          />
                         ) : (
                           <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
                             <p className="text-sm text-gray-600 text-center">
@@ -1829,23 +1865,14 @@ export const MeetingsPage: React.FC = () => {
                             <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
                           </div>
                         ) : projects.length > 0 ? (
-                          <select
+                          <MeetingLinkEntitySelect
                             value={selectedProjectId}
-                            onChange={(e) =>
-                              setSelectedProjectId(e.target.value)
-                            }
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          >
-                            <option value="">Select a project...</option>
-                            {projects.map((project) => (
-                              <option key={project.id} value={project.id}>
-                                {project.projectName || project.name}{" "}
-                                {project.lead?.name
-                                  ? `- ${project.lead.name}`
-                                  : ""}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={setSelectedProjectId}
+                            options={meetingLinkProjectOptions}
+                            emptyLabel="Select a project…"
+                            searchPlaceholder="Search projects by name or lead…"
+                            ariaLabel="Choose a project to link"
+                          />
                         ) : (
                           <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
                             <p className="text-sm text-gray-600 text-center">

@@ -13,10 +13,15 @@ import {
   User,
   Upload,
   X,
+  Trash2,
 } from "lucide-react";
-import { Button } from "../../ui";
+import { Button, Modal } from "../../ui";
 import type { MatrixTask, MatrixCategory, AdminUser } from "../../../types";
-import { getMatrixDayTasks, uploadTaskAttachment } from "../../../services/projectApi";
+import {
+  getMatrixDayTasks,
+  uploadTaskAttachment,
+  deleteMatrixTask,
+} from "../../../services/projectApi";
 import { adminAPI } from "../../../services/api";
 import { getAllTeamMembers, TeamMember } from "../../../services/teamApi";
 import { NewTaskModal } from "./NewTaskModal";
@@ -45,6 +50,8 @@ interface DayTasksPanelProps {
   onDayDateUpdated?: () => void;
   /** Optional: Pass tasks directly instead of fetching */
   initialTasks?: MatrixTask[];
+  /** Called after a task is deleted so the parent matrix/day list can refresh */
+  onTaskDeleted?: () => void;
 }
 
 const taskStatusConfig: Record<
@@ -157,6 +164,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
   onStatusChange,
   updatingTaskId,
   initialTasks,
+  onTaskDeleted,
 }) => {
   const { user } = useAuth();
 
@@ -176,6 +184,47 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     uploading: boolean;
   } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [taskPendingDelete, setTaskPendingDelete] = useState<MatrixTask | null>(
+    null,
+  );
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+
+  const clearPushReasonForTask = useCallback((taskId: string) => {
+    try {
+      const raw = localStorage.getItem(PUSH_REASONS_KEY);
+      const stored = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+      if (stored && typeof stored === "object" && taskId in stored) {
+        delete stored[taskId];
+        localStorage.setItem(PUSH_REASONS_KEY, JSON.stringify(stored));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleConfirmDeleteTask = async () => {
+    if (!taskPendingDelete) return;
+    const id = taskPendingDelete.id;
+    setDeletingTaskId(id);
+    try {
+      await deleteMatrixTask(id);
+      if (completionDialog?.taskId === id) {
+        completionDialog.previews.forEach((url) => URL.revokeObjectURL(url));
+        setCompletionDialog(null);
+      }
+      clearPushReasonForTask(id);
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      setTaskPendingDelete(null);
+      toast.success("Task deleted");
+      onTaskDeleted?.();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to delete task. Try again.",
+      );
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
 
   /** Upload all staged images then commit the COMPLETED status change */
   const handleCompletionDone = async () => {
@@ -585,11 +634,25 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
 
                           {/* View detail */}
                           <button
+                            type="button"
                             onClick={() => onTaskClick(task.id, task)}
                             className="p-1 text-gray-300 hover:text-orange-500 opacity-0 group-hover:opacity-100 transition-all"
                             title="View details"
                           >
                             <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTaskPendingDelete(task);
+                            }}
+                            disabled={!!deletingTaskId}
+                            className="p-1 text-gray-300 opacity-0 group-hover:opacity-100 transition-all hover:text-red-600 disabled:opacity-40"
+                            title="Delete task"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Status dropdown */}
@@ -853,9 +916,56 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
           onSuccess={() => {
             setShowNewTaskModal(false);
             fetchDayTasks();
+            onTaskDeleted?.();
           }}
         />
       )}
+
+      <Modal
+        isOpen={!!taskPendingDelete}
+        onClose={() => {
+          if (!deletingTaskId) setTaskPendingDelete(null);
+        }}
+        title="Delete task?"
+        size="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              disabled={!!deletingTaskId}
+              onClick={() => setTaskPendingDelete(null)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!!deletingTaskId}
+              onClick={() => void handleConfirmDeleteTask()}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+            >
+              {deletingTaskId ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete"
+              )}
+            </button>
+          </>
+        }
+      >
+        <div className="px-6 py-4">
+          <p className="text-sm text-gray-600">
+            This will permanently remove{" "}
+            <span className="font-semibold text-gray-900">
+              {taskPendingDelete?.title || "this task"}
+            </span>{" "}
+            from the day plan. This action cannot be undone.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -2342,6 +2342,20 @@ export async function getMatrixTaskDetails(
   }
 }
 
+/**
+ * Delete a matrix (stage / day) task
+ * DELETE /api/matrix-tasks/:taskId
+ */
+export async function deleteMatrixTask(taskId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/matrix-tasks/${taskId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    await handleResponse(response);
+  }
+}
+
 export interface MatrixUserTasksQuery {
   status?: string;
   projectId?: string;
@@ -2407,6 +2421,26 @@ export async function getMatrixTasksForUser(
     console.error("Error fetching matrix tasks for user:", error);
     throw error;
   }
+}
+
+/** Paginate GET /api/matrices/user/:userId/tasks until all rows are loaded. */
+export async function fetchAllMatrixTasksForUser(
+  userId: string,
+): Promise<MatrixTask[]> {
+  const all: MatrixTask[] = [];
+  let offset = 0;
+  const limit = 100;
+  for (let guard = 0; guard < 80; guard++) {
+    const { tasks, total } = await getMatrixTasksForUser(userId, {
+      limit,
+      offset,
+    });
+    all.push(...tasks);
+    if (tasks.length < limit) break;
+    offset += limit;
+    if (total != null && offset >= total) break;
+  }
+  return all;
 }
 
 /**
@@ -2993,7 +3027,9 @@ const ProjectAPI = {
   updateMatrixTaskStatus,
   updateMatrixTask,
   getMatrixTaskDetails,
+  deleteMatrixTask,
   getMatrixTasksForUser,
+  fetchAllMatrixTasksForUser,
   getMatrixDayTasks,
   getCategoryTasks,
   uploadTaskAttachment,

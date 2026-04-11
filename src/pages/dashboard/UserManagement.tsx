@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Users,
   UserPlus,
@@ -16,9 +16,16 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
+  ClipboardList,
+  Loader2,
 } from "lucide-react";
 import { Card, Badge, Modal } from "../../components/ui";
-import { adminAPI } from "../../services/api";
+import { adminAPI, ApiError } from "../../services/api";
+import toast from "react-hot-toast";
+import {
+  deleteMatrixTask,
+  fetchAllMatrixTasksForUser,
+} from "../../services/projectApi";
 import { AdminUser, CreateUserRequest } from "../../types";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -27,6 +34,9 @@ import {
   type RoleId,
 } from "../../config/rbac";
 import { extractRoleTitle } from "../../utils/userProfileFields";
+import { parseUserDeleteBlockedMessage } from "../../utils/parseUserDeleteBlockedMessage";
+import type { ParsedTaskBlock } from "../../utils/parseUserDeleteBlockedMessage";
+import { extractBlockingMatrixTaskIdsFromPayload } from "../../utils/extractBlockingMatrixTaskIdsFromUserDeleteError";
 
 interface ApiRoleTitle {
   id: string;
@@ -163,6 +173,14 @@ export const UserManagement: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleteBlockedModal, setShowDeleteBlockedModal] = useState(false);
+  const [deleteBlockedMessage, setDeleteBlockedMessage] = useState<
+    string | null
+  >(null);
+  const [deleteBlockedPayload, setDeleteBlockedPayload] = useState<
+    unknown | null
+  >(null);
+  const [forceDeletingUser, setForceDeletingUser] = useState(false);
   const [showBanModal, setShowBanModal] = useState(false);
   const [showUnbanModal, setShowUnbanModal] = useState(false);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
@@ -196,6 +214,88 @@ export const UserManagement: React.FC = () => {
   const [newPassword, setNewPassword] = useState("");
   const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const parsedDeleteBlocked = useMemo(
+    () =>
+      deleteBlockedMessage
+        ? parseUserDeleteBlockedMessage(deleteBlockedMessage)
+        : null,
+    [deleteBlockedMessage],
+  );
+
+  const blockingMatrixTaskIds = useMemo(
+    () => extractBlockingMatrixTaskIdsFromPayload(deleteBlockedPayload),
+    [deleteBlockedPayload],
+  );
+
+  const canDeleteUserPermanently = Boolean(
+    selectedUser &&
+      deleteBlockedMessage &&
+      (/assigned to\s+\d+\s+task/i.test(deleteBlockedMessage) ||
+        blockingMatrixTaskIds.length > 0 ||
+        (parsedDeleteBlocked?.tasks?.length ?? 0) > 0),
+  );
+
+  const closeDeleteBlockedModal = useCallback(() => {
+    setShowDeleteBlockedModal(false);
+    setDeleteBlockedMessage(null);
+    setDeleteBlockedPayload(null);
+    setForceDeletingUser(false);
+  }, []);
+
+  const handleDeleteTasksAndUserPermanently = async () => {
+    if (!selectedUser || !deleteBlockedMessage) return;
+    setForceDeletingUser(true);
+    try {
+      let taskIds = [...blockingMatrixTaskIds];
+      if (taskIds.length === 0) {
+        const tasks = await fetchAllMatrixTasksForUser(selectedUser.id);
+        taskIds = tasks.map((t) => t.id).filter(Boolean);
+      }
+      taskIds = [...new Set(taskIds)];
+
+      if (taskIds.length === 0) {
+        toast.error(
+          "No matrix tasks could be loaded for this user. Remove assignments manually, then try again.",
+        );
+        return;
+      }
+
+      let failCount = 0;
+      for (const taskId of taskIds) {
+        try {
+          await deleteMatrixTask(taskId);
+        } catch (err) {
+          failCount += 1;
+          console.error("[deleteMatrixTask]", taskId, err);
+        }
+      }
+
+      if (failCount > 0) {
+        toast.error(
+          `Only ${taskIds.length - failCount} of ${taskIds.length} task(s) were deleted. Fix the errors, then retry or remove the rest manually.`,
+        );
+        return;
+      }
+
+      await adminAPI.deleteUser(selectedUser.id);
+      setShowDeleteBlockedModal(false);
+      setShowDeleteModal(false);
+      setDeleteBlockedMessage(null);
+      setDeleteBlockedPayload(null);
+      setSelectedUser(null);
+      await loadUsers();
+      toast.success("Matrix tasks removed and user deleted.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to delete the user after removing tasks.",
+      );
+    } finally {
+      setForceDeletingUser(false);
+    }
+  };
 
   // Check if user has admin role
   const isAdmin =
@@ -777,7 +877,11 @@ export const UserManagement: React.FC = () => {
       console.error("Failed to delete user:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Failed to delete user";
-      alert(errorMessage);
+      setDeleteBlockedMessage(errorMessage);
+      setDeleteBlockedPayload(
+        error instanceof ApiError ? error.data ?? null : null,
+      );
+      setShowDeleteBlockedModal(true);
     } finally {
       setActionLoading(false);
     }
@@ -1816,6 +1920,188 @@ export const UserManagement: React.FC = () => {
           >
             {actionLoading ? "Deleting..." : "Delete User"}
           </button>
+        </div>
+      </Modal>
+
+      {/* Delete failed (e.g. user still assigned to tasks) — in-app dialog above delete modal */}
+      <Modal
+        isOpen={showDeleteBlockedModal}
+        onClose={() => {
+          if (!forceDeletingUser) closeDeleteBlockedModal();
+        }}
+        showCloseButton={false}
+        stackZIndex={10000}
+        size="md"
+      >
+        <div className="border-b border-gray-100 bg-gradient-to-r from-amber-50 to-orange-50/80 px-6 py-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <AlertTriangle className="h-6 w-6" strokeWidth={2} />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {parsedDeleteBlocked && parsedDeleteBlocked.tasks.length > 0
+                    ? "Can't delete user"
+                    : "Unable to delete user"}
+                </h2>
+                {selectedUser ? (
+                  <p className="mt-0.5 text-sm text-gray-600">
+                    <span className="font-medium text-gray-800">
+                      {selectedUser.name}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!forceDeletingUser) closeDeleteBlockedModal();
+              }}
+              disabled={forceDeletingUser}
+              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/80 hover:text-gray-600 disabled:opacity-40"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-[min(420px,65vh)] overflow-y-auto px-6 py-5">
+          {parsedDeleteBlocked ? (
+            <>
+              <p className="text-sm leading-relaxed text-gray-800">
+                {parsedDeleteBlocked.summary}
+              </p>
+
+              {parsedDeleteBlocked.tasks.length > 0 ? (
+                <div className="mt-5 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Blocking assignments
+                  </p>
+                  <ul className="space-y-3">
+                    {parsedDeleteBlocked.tasks.map((t: ParsedTaskBlock, idx) => (
+                      <li
+                        key={`${idx}-${t.raw.slice(0, 64)}`}
+                        className="rounded-xl border border-amber-200/90 bg-amber-50/50 p-4"
+                      >
+                        {t.title ? (
+                          <div className="flex gap-3">
+                            <ClipboardList
+                              className="mt-0.5 h-5 w-5 shrink-0 text-amber-700"
+                              strokeWidth={2}
+                            />
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-amber-800/70">
+                                  Task
+                                </p>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {t.title}
+                                </p>
+                              </div>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                {t.project ? (
+                                  <div>
+                                    <p className="text-xs font-medium text-gray-500">
+                                      Project
+                                    </p>
+                                    <p className="text-sm text-gray-900">
+                                      {t.project}
+                                    </p>
+                                  </div>
+                                ) : null}
+                                {t.stage ? (
+                                  <div>
+                                    <p className="text-xs font-medium text-gray-500">
+                                      Stage
+                                    </p>
+                                    <p className="text-sm text-gray-900">
+                                      {t.stage}
+                                    </p>
+                                  </div>
+                                ) : null}
+                                {t.status ? (
+                                  <div>
+                                    <p className="text-xs font-medium text-gray-500">
+                                      Status
+                                    </p>
+                                    <p className="text-sm text-gray-900">
+                                      {t.status}
+                                    </p>
+                                  </div>
+                                ) : null}
+                                {t.date ? (
+                                  <div>
+                                    <p className="text-xs font-medium text-gray-500">
+                                      Date
+                                    </p>
+                                    <p className="text-sm tabular-nums text-gray-900">
+                                      {t.date}
+                                    </p>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap text-sm text-gray-800">
+                            {t.raw}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {parsedDeleteBlocked.instruction ? (
+                <div className="mt-6 border-t border-gray-100 pt-4">
+                  <p className="text-sm leading-relaxed text-gray-600">
+                    {parsedDeleteBlocked.instruction}
+                  </p>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+
+        <div className="border-t border-gray-100 px-6 py-4 space-y-3">
+          {canDeleteUserPermanently ? (
+            <p className="text-xs leading-relaxed text-amber-900/90 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
+              <span className="font-semibold">Delete permanently</span> removes
+              every matrix day task tied to this user (or those listed above),
+              then deletes the user. This cannot be undone.
+            </p>
+          ) : null}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
+            <button
+              type="button"
+              disabled={forceDeletingUser}
+              onClick={closeDeleteBlockedModal}
+              className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            >
+              Got it
+            </button>
+            {canDeleteUserPermanently ? (
+              <button
+                type="button"
+                disabled={forceDeletingUser}
+                onClick={() => void handleDeleteTasksAndUserPermanently()}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {forceDeletingUser ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting…
+                  </>
+                ) : (
+                  "Delete permanently"
+                )}
+              </button>
+            ) : null}
+          </div>
         </div>
       </Modal>
 
