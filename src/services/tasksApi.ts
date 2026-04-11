@@ -8,9 +8,7 @@ import type {
   TaskCategory,
   TaskConflictUserWarning,
 } from "../types";
-import {
-  normalizeConflictWarnings,
-} from "../utils/taskConflictWarnings";
+import { extractWarningsFromMutationJson } from "../utils/taskConflictWarnings";
 import { onUnauthorizedResponse } from "../auth/sessionExpired";
 
 const API_BASE_URL =
@@ -53,14 +51,15 @@ export interface TaskMutationResult {
 }
 
 function parseTaskMutationResponse(json: unknown): TaskMutationResult {
+  const conflictWarnings = extractWarningsFromMutationJson(json);
   if (json && typeof json === "object" && json !== null && "task" in json) {
     const o = json as Record<string, unknown>;
     return {
       task: o.task as Task,
-      conflictWarnings: normalizeConflictWarnings(o.conflictWarnings),
+      conflictWarnings,
     };
   }
-  return { task: json as Task };
+  return { task: json as Task, conflictWarnings };
 }
 
 /**

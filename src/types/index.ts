@@ -137,13 +137,20 @@ export interface UpdateTaskRequest {
   completed?: boolean;
 }
 
-/** Overlapping task returned with POST/PUT /api/tasks (and matrix task endpoints when supported). */
+/** Overlapping task returned with POST/PUT /api/tasks and matrix task endpoints. */
 export interface TaskConflictItem {
   taskId: string;
   taskTitle: string;
-  project: string;
-  dueDate: string;
-  taskType: string;
+  /** Legacy / generic tasks API */
+  project?: string;
+  dueDate?: string;
+  taskType?: string;
+  /** Matrix / assignmentWarnings API */
+  matrixId?: string;
+  projectName?: string;
+  stageName?: string;
+  dayNumber?: number;
+  taskDate?: string;
 }
 
 /** Per-assignee conflict groups from API (non-blocking warnings). */

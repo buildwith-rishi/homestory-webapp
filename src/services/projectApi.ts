@@ -49,7 +49,9 @@ import type {
   TaskConflictUserWarning,
 } from "../types";
 import { onUnauthorizedResponse } from "../auth/sessionExpired";
-import { normalizeConflictWarnings } from "../utils/taskConflictWarnings";
+import {
+  extractWarningsFromMutationJson,
+} from "../utils/taskConflictWarnings";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -2202,14 +2204,24 @@ export interface MatrixTaskMutationResult {
 }
 
 function parseMatrixTaskResponse(result: unknown): MatrixTaskMutationResult {
+  const conflictWarnings = extractWarningsFromMutationJson(result);
   if (result && typeof result === "object" && result !== null && "task" in result) {
     const o = result as Record<string, unknown>;
     return {
       task: o.task as MatrixTask,
-      conflictWarnings: normalizeConflictWarnings(o.conflictWarnings),
+      conflictWarnings,
     };
   }
-  return { task: result as MatrixTask };
+  if (result && typeof result === "object" && result !== null) {
+    const o = { ...(result as Record<string, unknown>) };
+    delete o.assignmentWarnings;
+    delete o.conflictWarnings;
+    return {
+      task: o as unknown as MatrixTask,
+      conflictWarnings,
+    };
+  }
+  return { task: result as MatrixTask, conflictWarnings };
 }
 
 /**
@@ -2302,7 +2314,7 @@ export async function pushMatrixDayTasks(
     const result = await handleResponse<Record<string, unknown>>(response);
     return {
       ...result,
-      conflictWarnings: normalizeConflictWarnings(result.conflictWarnings),
+      conflictWarnings: extractWarningsFromMutationJson(result),
     };
   } catch (error) {
     console.error("Error bulk pushing day tasks:", error);

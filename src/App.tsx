@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import { SessionExpiredModal } from "./components/auth/SessionExpiredModal";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AccessDeniedPage } from "./pages/auth/AccessDeniedPage";
@@ -55,6 +56,14 @@ import {
 function App() {
   return (
     <>
+      <Toaster
+        position="top-center"
+        containerStyle={{ zIndex: 100002 }}
+        toastOptions={{
+          duration: 4000,
+          style: { zIndex: 100002 },
+        }}
+      />
       <SessionExpiredModal />
       <Routes>
           <Route
