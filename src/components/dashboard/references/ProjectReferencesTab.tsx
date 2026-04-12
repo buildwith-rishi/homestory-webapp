@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   Link2,
@@ -24,6 +30,7 @@ import {
 } from "lucide-react";
 import { SectionLoader } from "../../ui";
 import { Button } from "../../ui";
+import { MeetingLinkEntitySelect } from "../MeetingLinkEntitySelect";
 import toast from "react-hot-toast";
 import type { ProjectReference } from "../../../types";
 import {
@@ -132,12 +139,14 @@ type ViewMode = "grid" | "list";
 type AddMode = "link" | "upload" | "quotation" | null;
 
 const CATEGORY_COLORS: Record<string, string> = {
+  Quotation: "bg-emerald-100 text-emerald-800",
   REFERENCES: "bg-blue-100 text-blue-700",
   ESTIMATION_VALUE: "bg-amber-100 text-amber-700",
   DESIGN_PRESENTATION: "bg-violet-100 text-violet-700",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  Quotation: "Quotation",
   REFERENCES: "References",
   ESTIMATION_VALUE: "Estimation Value",
   DESIGN_PRESENTATION: "Design Presentation",
@@ -182,6 +191,68 @@ const getReferenceNotes = (reference: ReferenceRow): string => {
   return text?.trim() || "";
 };
 
+function splitCommaTags(s: string): string[] {
+  return s.split(",").map((t) => t.trim()).filter(Boolean);
+}
+
+const QUOTATION_TAG = "quotation";
+
+function isQuotationCategory(cat: string | null | undefined): boolean {
+  return (cat || "").trim().toLowerCase() === "quotation";
+}
+
+/** Ensures quotation uploads stay identifiable via tags (API category is also "Quotation"). */
+function ensureQuotationTag(tags: string[]): string[] {
+  const normalized = tags.map((t) => t.trim()).filter(Boolean);
+  if (normalized.some((t) => t.toLowerCase() === QUOTATION_TAG)) {
+    return normalized;
+  }
+  return [QUOTATION_TAG, ...normalized];
+}
+
+/** Dedupe case-insensitively; preserve first-seen casing; sort A–Z. */
+function uniqueReferenceTagsFromList(refs: ReferenceRow[]): string[] {
+  const seen = new Map<string, string>();
+  for (const ref of refs) {
+    for (const raw of ref.tags || []) {
+      const t = typeof raw === "string" ? raw.trim() : "";
+      if (!t) continue;
+      const key = t.toLowerCase();
+      if (!seen.has(key)) seen.set(key, t);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" }),
+  );
+}
+
+const REFERENCE_CATEGORIES: { value: string; label: string }[] = [
+  { value: "REFERENCES", label: "References" },
+  { value: "ESTIMATION_VALUE", label: "Estimation Value" },
+  { value: "DESIGN_PRESENTATION", label: "Design Presentation" },
+];
+
+const REFERENCE_SUBCATEGORIES: { value: string; label: string }[] = [
+  { value: "Living Room", label: "Living Room" },
+  { value: "Bedroom", label: "Bedroom" },
+  { value: "Kitchen", label: "Kitchen" },
+  { value: "Bathroom", label: "Bathroom" },
+  { value: "Dining Room", label: "Dining Room" },
+  { value: "Study/Office", label: "Study/Office" },
+  { value: "Kids Room", label: "Kids Room" },
+  { value: "Balcony/Terrace", label: "Balcony/Terrace" },
+  { value: "Entryway/Foyer", label: "Entryway/Foyer" },
+  { value: "Color Palette", label: "Color Palette" },
+  { value: "Furniture Style", label: "Furniture Style" },
+  { value: "Lighting", label: "Lighting" },
+  { value: "Flooring", label: "Flooring" },
+  { value: "Wall Treatment", label: "Wall Treatment" },
+  { value: "Storage", label: "Storage" },
+  { value: "Outdoor", label: "Outdoor" },
+  { value: "General Inspiration", label: "General Inspiration" },
+  { value: "Other", label: "Other" },
+];
+
 export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   projectId,
   accountId,
@@ -194,33 +265,8 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
   const [addMode, setAddMode] = useState<AddMode>(null);
-  const categories: { value: string; label: string }[] = [
-    { value: "REFERENCES", label: "References" },
-    { value: "ESTIMATION_VALUE", label: "Estimation Value" },
-    { value: "DESIGN_PRESENTATION", label: "Design Presentation" },
-  ];
-
-  const subCategories: { value: string; label: string }[] = [
-    { value: "Living Room", label: "Living Room" },
-    { value: "Bedroom", label: "Bedroom" },
-    { value: "Kitchen", label: "Kitchen" },
-    { value: "Bathroom", label: "Bathroom" },
-    { value: "Dining Room", label: "Dining Room" },
-    { value: "Study/Office", label: "Study/Office" },
-    { value: "Kids Room", label: "Kids Room" },
-    { value: "Balcony/Terrace", label: "Balcony/Terrace" },
-    { value: "Entryway/Foyer", label: "Entryway/Foyer" },
-    { value: "Color Palette", label: "Color Palette" },
-    { value: "Furniture Style", label: "Furniture Style" },
-    { value: "Lighting", label: "Lighting" },
-    { value: "Flooring", label: "Flooring" },
-    { value: "Wall Treatment", label: "Wall Treatment" },
-    { value: "Storage", label: "Storage" },
-    { value: "Outdoor", label: "Outdoor" },
-    { value: "General Inspiration", label: "General Inspiration" },
-    { value: "Other", label: "Other" },
-  ];
   const [referenceTypes, setReferenceTypes] = useState<
     OptionItemWithDescription[]
   >([]);
@@ -235,8 +281,8 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   });
   const [isAddingLink, setIsAddingLink] = useState(false);
 
-  // Upload form
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  // Upload form (multiple files share category, notes, tags)
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadForm, setUploadForm] = useState({
     category: "",
     subCategory: "",
@@ -249,12 +295,15 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   // Quotation upload
   const [quotationFile, setQuotationFile] = useState<File | null>(null);
   const [quotationNotes, setQuotationNotes] = useState("");
+  const [quotationTags, setQuotationTags] = useState("");
   const [isUploadingQuotation, setIsUploadingQuotation] = useState(false);
   const quotationFileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit modal
   const [editingRef, setEditingRef] = useState<ReferenceRow | null>(null);
   const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
     notes: "",
     category: "",
     subCategory: "",
@@ -262,7 +311,33 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     linkTitle: "",
     tags: "",
   });
+  const [editReplaceFile, setEditReplaceFile] = useState<File | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const subCategorySelectOptions = useMemo(() => {
+    const base = REFERENCE_SUBCATEGORIES.map((s) => ({
+      id: s.value,
+      title: s.label,
+    }));
+    const cur = editForm.subCategory?.trim();
+    if (cur && !base.some((o) => o.id === cur)) {
+      return [{ id: cur, title: cur }, ...base];
+    }
+    return base;
+  }, [editForm.subCategory]);
+
+  /** Includes Quotation (upload-quotation flow) plus standard reference categories. */
+  const referenceCategoryEditOptions = useMemo(
+    () => [
+      { id: "Quotation", title: "Quotation" },
+      ...REFERENCE_CATEGORIES.map((c) => ({
+        id: c.value,
+        title: c.label,
+      })),
+    ],
+    [],
+  );
 
   // Delete confirm
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -358,21 +433,52 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     fetchReferences();
   }, [fetchReferences]);
 
+  const uniqueReferenceTags = useMemo(
+    () => uniqueReferenceTagsFromList(references),
+    [references],
+  );
+
+  useEffect(() => {
+    if (tagFilter === "all") return;
+    const stillValid = uniqueReferenceTags.some(
+      (t) => t.toLowerCase() === tagFilter.toLowerCase(),
+    );
+    if (!stillValid) setTagFilter("all");
+  }, [uniqueReferenceTags, tagFilter]);
+
   // ── Filter references ──
-  const filteredReferences = references.filter((ref) => {
-    const matchesSearch =
-      !searchQuery ||
-      (ref.linkTitle || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (ref.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (ref.fileName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (ref.linkUrl || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (ref.category || "").toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      categoryFilter === "all" || ref.category === categoryFilter;
-    const matchesType =
-      typeFilter === "all" || ref.referenceType === typeFilter;
-    return matchesSearch && matchesCategory && matchesType;
-  });
+  const filteredReferences = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return references.filter((ref) => {
+      const matchesSearch =
+        !q ||
+        (ref.linkTitle || "").toLowerCase().includes(q) ||
+        (ref.title || "").toLowerCase().includes(q) ||
+        (ref.fileName || "").toLowerCase().includes(q) ||
+        (ref.linkUrl || "").toLowerCase().includes(q) ||
+        (ref.category || "").toLowerCase().includes(q) ||
+        (ref.tags || []).some((t) =>
+          (t || "").toLowerCase().includes(q),
+        );
+      const matchesCategory =
+        categoryFilter === "all" || ref.category === categoryFilter;
+      const matchesType =
+        typeFilter === "all" || ref.referenceType === typeFilter;
+      const matchesTag =
+        tagFilter === "all" ||
+        (ref.tags || []).some(
+          (t) =>
+            (t || "").trim().toLowerCase() === tagFilter.trim().toLowerCase(),
+        );
+      return matchesSearch && matchesCategory && matchesType && matchesTag;
+    });
+  }, [
+    references,
+    searchQuery,
+    categoryFilter,
+    typeFilter,
+    tagFilter,
+  ]);
 
   // ── Category summary ──
   const categoryCounts = references.reduce(
@@ -424,41 +530,79 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     }
   };
 
-  // ── Upload file reference ──
+  // ── Upload file reference(s) ──
   const handleUpload = async () => {
-    if (!uploadFile || !uploadForm.category) {
-      toast.error("Please select a file and category");
+    if (uploadFiles.length === 0 || !uploadForm.category) {
+      toast.error("Please select at least one file and a category");
       return;
     }
+    const tags = splitCommaTags(uploadForm.tags);
+    const tagsOpt = tags.length > 0 ? tags : undefined;
+    const notes = uploadForm.notes || undefined;
+    const sub = uploadForm.subCategory || undefined;
+    const cat = uploadForm.category;
+    const total = uploadFiles.length;
+
     setIsUploading(true);
-    try {
-      const tags = uploadForm.tags
-        ? uploadForm.tags
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean)
-        : undefined;
-      await uploadFileReference(
-        projectId,
-        uploadFile,
-        uploadForm.category,
-        uploadForm.notes || undefined,
-        tags,
-        uploadForm.subCategory || undefined,
-      );
-      toast.success("File uploaded successfully!");
-      setUploadFile(null);
+    const failed: { name: string; message: string }[] = [];
+    let ok = 0;
+
+    for (const file of uploadFiles) {
+      try {
+        await uploadFileReference(
+          projectId,
+          file,
+          cat,
+          notes,
+          tagsOpt,
+          sub,
+        );
+        ok++;
+      } catch (error) {
+        failed.push({
+          name: file.name,
+          message: error instanceof Error ? error.message : "Upload failed",
+        });
+      }
+    }
+
+    setIsUploading(false);
+
+    const resetUploadForm = () => {
+      setUploadFiles([]);
       setUploadForm({ category: "", subCategory: "", notes: "", tags: "" });
       setAddMode(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      fetchReferences();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to upload file",
+    };
+
+    if (ok === total) {
+      toast.success(
+        total === 1
+          ? "File uploaded successfully!"
+          : `${total} files uploaded successfully!`,
       );
-    } finally {
-      setIsUploading(false);
+      resetUploadForm();
+      fetchReferences();
+      return;
     }
+
+    if (ok > 0) {
+      toast.success(`${ok} of ${total} file(s) uploaded.`);
+      const detail =
+        failed.length <= 2
+          ? failed.map((f) => `${f.name}: ${f.message}`).join(" · ")
+          : `${failed.length} failed (e.g. ${failed[0].name})`;
+      toast.error(detail);
+      resetUploadForm();
+      fetchReferences();
+      return;
+    }
+
+    toast.error(
+      failed.length === 1
+        ? failed[0].message
+        : `Failed to upload ${failed.length} file(s).`,
+    );
   };
 
   // ── Upload quotation ──
@@ -469,16 +613,18 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     }
     setIsUploadingQuotation(true);
     try {
+      const tags = ensureQuotationTag(splitCommaTags(quotationTags));
       await uploadFileReference(
         projectId,
         quotationFile,
         "Quotation",
         quotationNotes || undefined,
-        undefined,
+        tags,
       );
       toast.success("Quotation uploaded successfully!");
       setQuotationFile(null);
       setQuotationNotes("");
+      setQuotationTags("");
       setAddMode(null);
       if (quotationFileInputRef.current)
         quotationFileInputRef.current.value = "";
@@ -490,6 +636,12 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     } finally {
       setIsUploadingQuotation(false);
     }
+  };
+
+  const closeEditModal = () => {
+    setEditingRef(null);
+    setEditReplaceFile(null);
+    if (editFileInputRef.current) editFileInputRef.current.value = "";
   };
 
   // ── Update reference ──
@@ -504,7 +656,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
 
     if (editingRef.referenceType === "LINK") {
       if (!editForm.linkUrl || !editForm.linkTitle || !editForm.category) {
-        toast.error("Please fill in URL, title, and category");
+        toast.error("Please fill in URL, link title, and category");
         return;
       }
     } else {
@@ -514,24 +666,64 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       }
     }
 
+    let tags = splitCommaTags(editForm.tags);
+    if (isQuotationCategory(editForm.category)) {
+      tags = ensureQuotationTag(tags);
+    }
+    const categoryValue =
+      editForm.category || editingRef.category || "REFERENCES";
+
     setIsSavingEdit(true);
     try {
+      if (editReplaceFile && editingRef.referenceType !== "LINK") {
+        const uploadNotes =
+          editForm.description.trim() ||
+          editForm.notes.trim() ||
+          undefined;
+        const newRef = await uploadFileReference(
+          projectId,
+          editReplaceFile,
+          categoryValue,
+          uploadNotes,
+          tags.length > 0 ? tags : undefined,
+          editForm.subCategory || undefined,
+        );
+        await updateProjectReference(projectId, newRef.id, {
+          title: editForm.title.trim() || undefined,
+          description: editForm.description || undefined,
+          notes: editForm.notes || undefined,
+          category: editForm.category || undefined,
+          subCategory: editForm.subCategory || undefined,
+          tags: tags.length > 0 ? tags : undefined,
+        });
+        await deleteProjectReference(projectId, editingRef.id);
+        toast.success("Reference updated!");
+        closeEditModal();
+        fetchReferences();
+        return;
+      }
+
+      const titleForLink =
+        editForm.title.trim() || editForm.linkTitle.trim() || undefined;
+
       await updateProjectReference(projectId, editingRef.id, {
+        ...(editingRef.referenceType === "LINK"
+          ? {
+              linkUrl: editForm.linkUrl,
+              linkTitle: editForm.linkTitle,
+              title: titleForLink,
+            }
+          : {
+              title: editForm.title.trim() || undefined,
+            }),
+        description: editForm.description || undefined,
         notes: editForm.notes || undefined,
-        description: editForm.notes || undefined,
         category: editForm.category || undefined,
         subCategory: editForm.subCategory || undefined,
-        ...(editingRef.referenceType === "LINK" && {
-          linkUrl: editForm.linkUrl,
-          linkTitle: editForm.linkTitle,
-          title: editForm.linkTitle,
-          tags: editForm.tags
-            ? editForm.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
-            : [],
-        }),
+        tags: tags.length > 0 ? tags : undefined,
       });
       toast.success("Reference updated!");
-      setEditingRef(null);
+      closeEditModal();
       fetchReferences();
     } catch (error) {
       toast.error(
@@ -688,8 +880,16 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       return;
     }
     setEditingRef(ref);
+    setEditReplaceFile(null);
+    if (editFileInputRef.current) editFileInputRef.current.value = "";
     setEditForm({
-      notes: ref.notes || ref.description || "",
+      title:
+        ref.title ||
+        ref.linkTitle ||
+        ref.fileName ||
+        "",
+      description: ref.description || "",
+      notes: ref.notes || "",
       category: ref.category || "",
       subCategory: ref.subCategory || "",
       linkUrl: ref.linkUrl || "",
@@ -866,6 +1066,29 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm resize-none"
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Tags{" "}
+                      <span className="text-gray-400 font-normal">
+                        (comma-separated, optional)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={quotationTags}
+                      onChange={(e) => setQuotationTags(e.target.value)}
+                      placeholder="e.g., v2, GST, kitchen package"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      Saved as category{" "}
+                      <span className="font-medium text-gray-700">Quotation</span>
+                      . The tag{" "}
+                      <span className="font-medium text-gray-700">quotation</span>{" "}
+                      is always added so these files are easy to filter.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex gap-3 mt-6">
@@ -940,18 +1163,34 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
           />
         </div>
 
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-orange-500 min-w-[140px]"
-        >
-          <option value="all">All Types</option>
-          {referenceTypes.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap gap-2 sm:items-center">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-orange-500 min-w-[140px] flex-1 sm:flex-initial"
+            aria-label="Filter by reference type"
+          >
+            <option value="all">All types</option>
+            {referenceTypes.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+            className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-orange-500 min-w-[160px] flex-1 sm:flex-initial max-w-full"
+            aria-label="Filter by tag"
+          >
+            <option value="all">All tags</option>
+            {uniqueReferenceTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div className="flex rounded-xl border border-gray-200 overflow-hidden">
           <button
@@ -976,16 +1215,25 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
             <Image className="w-8 h-8 text-orange-500" />
           </div>
           <h3 className="text-lg font-bold text-gray-900 mb-1">
-            {searchQuery || categoryFilter !== "all" || typeFilter !== "all"
+            {searchQuery ||
+            categoryFilter !== "all" ||
+            typeFilter !== "all" ||
+            tagFilter !== "all"
               ? "No matching references"
               : "No references yet"}
           </h3>
           <p className="text-gray-500 text-sm mb-6 max-w-sm mx-auto">
-            {searchQuery || categoryFilter !== "all" || typeFilter !== "all"
+            {searchQuery ||
+            categoryFilter !== "all" ||
+            typeFilter !== "all" ||
+            tagFilter !== "all"
               ? "Try changing your search or filter criteria."
               : "Add design inspirations, Pinterest links, mood board images and documents for this project."}
           </p>
-          {!searchQuery && categoryFilter === "all" && typeFilter === "all" && (
+          {!searchQuery &&
+            categoryFilter === "all" &&
+            typeFilter === "all" &&
+            tagFilter === "all" && (
             <div className="flex items-center justify-center gap-3">
               <Button
                 onClick={() => setAddMode("link")}
@@ -1136,7 +1384,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                     >
                       <option value="">Select category</option>
-                      {categories.map((c) => (
+                      {REFERENCE_CATEGORIES.map((c) => (
                         <option key={c.value} value={c.value}>
                           {c.label}
                         </option>
@@ -1162,7 +1410,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                     >
                       <option value="">Select sub category</option>
-                      {subCategories.map((s) => (
+                      {REFERENCE_SUBCATEGORIES.map((s) => (
                         <option key={s.value} value={s.value}>
                           {s.label}
                         </option>
@@ -1221,88 +1469,119 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       {addMode === "upload" &&
         createPortal(
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="p-6 pb-4 shrink-0 border-b border-gray-100">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
                       <Upload className="w-5 h-5 text-orange-600" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="text-lg font-bold text-gray-900">
                         Upload File
                       </h3>
                       <p className="text-xs text-gray-500">
-                        Images, PDFs, documents
+                        Images, PDFs, documents — multiple files at once
                       </p>
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setAddMode(null)}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
+                    className="p-2 hover:bg-gray-100 rounded-lg shrink-0"
                   >
                     <X className="w-5 h-5 text-gray-500" />
                   </button>
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  {/* Drop zone */}
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-all"
-                  >
-                    {uploadFile ? (
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
-                          {uploadFile.type.startsWith("image/") ? (
-                            <Image className="w-5 h-5 text-orange-600" />
-                          ) : uploadFile.type === "application/pdf" ? (
-                            <FileText className="w-5 h-5 text-red-600" />
-                          ) : (
-                            <File className="w-5 h-5 text-purple-600" />
-                          )}
-                        </div>
-                        <div className="text-left flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {uploadFile.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatFileSize(uploadFile.size)}
-                          </p>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setUploadFile(null);
-                            if (fileInputRef.current)
-                              fileInputRef.current.value = "";
-                          }}
-                          className="p-1.5 hover:bg-gray-100 rounded-lg"
-                        >
-                          <X className="w-4 h-4 text-gray-400" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm font-medium text-gray-700">
-                          Click to select a file
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          JPG, PNG, WebP, PDF, DOC, XLSX
-                        </p>
-                      </>
-                    )}
+              <div className="px-6 py-4 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-4 [scrollbar-gutter:stable]">
+                  {/* Drop zone + file list */}
+                  <div>
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-all"
+                    >
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-gray-700">
+                        Click to add files
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        JPG, PNG, WebP, PDF, DOC, XLSX — hold Ctrl/Cmd to pick
+                        several
+                      </p>
+                    </div>
                     <input
                       ref={fileInputRef}
                       type="file"
+                      multiple
                       className="hidden"
                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) setUploadFile(file);
+                        const picked = Array.from(e.target.files || []);
+                        if (picked.length === 0) return;
+                        setUploadFiles((prev) => {
+                          const next = [...prev];
+                          for (const f of picked) {
+                            const dup = next.some(
+                              (x) =>
+                                x.name === f.name &&
+                                x.size === f.size &&
+                                x.lastModified === f.lastModified,
+                            );
+                            if (!dup) next.push(f);
+                          }
+                          return next;
+                        });
+                        e.target.value = "";
                       }}
                     />
+                    {uploadFiles.length > 0 && (
+                      <ul className="mt-3 max-h-36 sm:max-h-44 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-100">
+                        {uploadFiles.map((file, index) => (
+                          <li
+                            key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                            className="flex items-center gap-3 px-3 py-2.5 bg-white first:rounded-t-xl last:rounded-b-xl"
+                          >
+                            <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                              {file.type.startsWith("image/") ? (
+                                <Image className="w-4 h-4 text-orange-600" />
+                              ) : file.type === "application/pdf" ? (
+                                <FileText className="w-4 h-4 text-red-600" />
+                              ) : (
+                                <File className="w-4 h-4 text-purple-600" />
+                              )}
+                            </div>
+                            <div className="text-left flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {file.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatFileSize(file.size)}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setUploadFiles((prev) =>
+                                  prev.filter((_, i) => i !== index),
+                                )
+                              }
+                              className="p-1.5 hover:bg-gray-100 rounded-lg shrink-0"
+                              aria-label={`Remove ${file.name}`}
+                            >
+                              <X className="w-4 h-4 text-gray-400" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {uploadFiles.length > 1 && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        {uploadFiles.length} files — same category, notes, and
+                        tags apply to each.
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1320,7 +1599,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                     >
                       <option value="">Select category</option>
-                      {categories.map((c) => (
+                      {REFERENCE_CATEGORIES.map((c) => (
                         <option key={c.value} value={c.value}>
                           {c.label}
                         </option>
@@ -1346,7 +1625,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                     >
                       <option value="">Select sub category</option>
-                      {subCategories.map((s) => (
+                      {REFERENCE_SUBCATEGORIES.map((s) => (
                         <option key={s.value} value={s.value}>
                           {s.label}
                         </option>
@@ -1386,9 +1665,9 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                     />
                   </div>
-                </div>
+              </div>
 
-                <div className="flex gap-3 mt-6">
+              <div className="p-6 pt-4 shrink-0 border-t border-gray-100 flex gap-3 bg-white">
                   <Button
                     variant="secondary"
                     className="flex-1"
@@ -1400,16 +1679,17 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
                   <Button
                     className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
                     onClick={handleUpload}
-                    disabled={isUploading || !uploadFile}
+                    disabled={isUploading || uploadFiles.length === 0}
                   >
                     {isUploading ? (
                       <Loader2 className="w-4 h-4 animate-spin mr-2" />
                     ) : (
                       <Upload className="w-4 h-4 mr-2" />
                     )}
-                    Upload
+                    {uploadFiles.length > 1
+                      ? `Upload (${uploadFiles.length})`
+                      : "Upload"}
                   </Button>
-                </div>
               </div>
             </div>
           </div>,
@@ -1420,172 +1700,288 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       {editingRef &&
         createPortal(
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="p-6 pb-4 shrink-0 border-b border-gray-100">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     {editingRef.referenceType === "LINK" && (
-                      <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
                         <Link2 className="w-5 h-5 text-blue-600" />
                       </div>
                     )}
-                    <div>
+                    {editingRef.referenceType === "PHOTO" && (
+                      <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+                        <Image className="w-5 h-5 text-purple-600" />
+                      </div>
+                    )}
+                    {editingRef.referenceType === "PDF" && (
+                      <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5 text-red-600" />
+                      </div>
+                    )}
+                    {editingRef.referenceType === "DOCUMENT" && (
+                      <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                        <File className="w-5 h-5 text-amber-700" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
                       <h3 className="text-lg font-bold text-gray-900">
                         Edit Reference
                       </h3>
-                      {editingRef.referenceType === "LINK" && (
+                      {editingRef.referenceType === "LINK" ? (
                         <p className="text-xs text-gray-500">
-                          Pinterest, Instagram, websites
+                          Link URL, titles, description, tags, and category
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-500 truncate">
+                          {editingRef.fileName || "File reference"}
                         </p>
                       )}
                     </div>
                   </div>
                   <button
-                    onClick={() => setEditingRef(null)}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
+                    type="button"
+                    onClick={closeEditModal}
+                    className="p-2 hover:bg-gray-100 rounded-lg shrink-0"
                   >
                     <X className="w-5 h-5 text-gray-500" />
                   </button>
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  {editingRef.referenceType === "LINK" && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          URL <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="url"
-                          value={editForm.linkUrl}
-                          onChange={(e) =>
-                            setEditForm({ ...editForm, linkUrl: e.target.value })
-                          }
-                          placeholder="https://pinterest.com/pin/..."
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Title <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={editForm.linkTitle}
-                          onChange={(e) =>
-                            setEditForm({ ...editForm, linkTitle: e.target.value })
-                          }
-                          placeholder="e.g., Modern Kitchen Idea"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Category {editingRef.referenceType === "LINK" && <span className="text-red-500">*</span>}
-                    </label>
-                    <select
-                      value={editForm.category}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, category: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                    >
-                      <option value="">Select category</option>
-                      {categories.map((c) => (
-                        <option key={c.value} value={c.value}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Sub Category{" "}
-                      <span className="text-gray-400 font-normal">
-                        (optional)
-                      </span>
-                    </label>
-                    <select
-                      value={editForm.subCategory}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          subCategory: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                    >
-                      <option value="">Select sub category</option>
-                      {subCategories.map((s) => (
-                        <option key={s.value} value={s.value}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {editingRef.referenceType === "LINK" ? (
+              <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0 space-y-4">
+                {editingRef.referenceType === "LINK" && (
+                  <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Tags{" "}
+                        URL <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="url"
+                        value={editForm.linkUrl}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, linkUrl: e.target.value })
+                        }
+                        placeholder="https://..."
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Link title <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.linkTitle}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            linkTitle: e.target.value,
+                          })
+                        }
+                        placeholder="Short label for the link"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Display title{" "}
                         <span className="text-gray-400 font-normal">
-                          (comma-separated)
+                          (optional)
                         </span>
                       </label>
                       <input
                         type="text"
-                        value={editForm.tags}
+                        value={editForm.title}
                         onChange={(e) =>
-                          setEditForm({ ...editForm, tags: e.target.value })
+                          setEditForm({ ...editForm, title: e.target.value })
                         }
-                        placeholder="modern, minimalist, white"
+                        placeholder="Same as link title if empty"
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                       />
                     </div>
-                  ) : (
+                  </>
+                )}
+
+                {editingRef.referenceType !== "LINK" && (
+                  <>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs font-medium text-gray-500 mb-1">
+                        Current file
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 break-all">
+                        {editingRef.fileName || "—"}
+                      </p>
+                      {editingRef.fileSize != null && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {formatFileSize(editingRef.fileSize)}
+                        </p>
+                      )}
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                          Replace file
+                        </label>
+                        <input
+                          ref={editFileInputRef}
+                          type="file"
+                          accept="image/*,.pdf,.doc,.docx"
+                          className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] ?? null;
+                            setEditReplaceFile(f);
+                          }}
+                        />
+                        {editReplaceFile && (
+                          <p className="text-xs text-orange-700 mt-2">
+                            New file: {editReplaceFile.name} — saving will
+                            upload this and remove the previous file.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Notes
+                        Title
                       </label>
-                      <textarea
-                        value={editForm.notes}
+                      <input
+                        type="text"
+                        value={editForm.title}
                         onChange={(e) =>
-                          setEditForm({ ...editForm, notes: e.target.value })
+                          setEditForm({ ...editForm, title: e.target.value })
                         }
-                        rows={3}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-none"
+                        placeholder="Name shown in the list"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                       />
                     </div>
-                  )}
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Category{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <MeetingLinkEntitySelect
+                    value={editForm.category}
+                    onChange={(id) =>
+                      setEditForm({ ...editForm, category: id })
+                    }
+                    options={referenceCategoryEditOptions}
+                    emptyLabel="Select category"
+                    searchPlaceholder="Search categories…"
+                    ariaLabel="Category"
+                  />
                 </div>
 
-                <div className="flex gap-3 mt-6">
-                  <Button
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => setEditingRef(null)}
-                    disabled={isSavingEdit}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                    onClick={handleSaveEdit}
-                    disabled={isSavingEdit}
-                  >
-                    {isSavingEdit ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    ) : (
-                      <Save className="w-4 h-4 mr-2" />
-                    )}
-                    Save Changes
-                  </Button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Sub category{" "}
+                    <span className="text-gray-400 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <MeetingLinkEntitySelect
+                    value={editForm.subCategory}
+                    onChange={(id) =>
+                      setEditForm({ ...editForm, subCategory: id })
+                    }
+                    options={subCategorySelectOptions}
+                    emptyLabel="Select sub category"
+                    searchPlaceholder="Search sub categories…"
+                    ariaLabel="Sub category"
+                  />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Description{" "}
+                    <span className="text-gray-400 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, description: e.target.value })
+                    }
+                    rows={3}
+                    placeholder="Longer description for this reference"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-y min-h-[80px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Notes{" "}
+                    <span className="text-gray-400 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, notes: e.target.value })
+                    }
+                    rows={3}
+                    placeholder="Internal notes"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm resize-y min-h-[80px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Tags{" "}
+                    <span className="text-gray-400 font-normal">
+                      (comma-separated)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.tags}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, tags: e.target.value })
+                    }
+                    placeholder="modern, kitchen"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                  />
+                  {isQuotationCategory(editForm.category) ? (
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      Category is{" "}
+                      <span className="font-medium text-gray-700">
+                        Quotation
+                      </span>
+                      . On save, the{" "}
+                      <span className="font-medium text-gray-700">
+                        quotation
+                      </span>{" "}
+                      tag is kept (and re-added if removed) so this stays
+                      identifiable as a quotation.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="p-6 pt-4 shrink-0 border-t border-gray-100 flex gap-3">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={closeEditModal}
+                  disabled={isSavingEdit}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={handleSaveEdit}
+                  disabled={isSavingEdit}
+                >
+                  {isSavingEdit ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  Save changes
+                </Button>
               </div>
             </div>
           </div>,
