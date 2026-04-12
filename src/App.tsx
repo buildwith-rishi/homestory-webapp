@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { SessionExpiredModal } from "./components/auth/SessionExpiredModal";
+import { SessionPingOnNavigate } from "./components/auth/SessionPingOnNavigate";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AccessDeniedPage } from "./pages/auth/AccessDeniedPage";
 import LandingPage from "./pages/LandingPage";
@@ -65,6 +66,7 @@ function App() {
         }}
       />
       <SessionExpiredModal />
+      <SessionPingOnNavigate />
       <Routes>
           <Route
             path="/"
