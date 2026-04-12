@@ -354,6 +354,14 @@ const AddCustomerModal: React.FC<{
   // Debounce timer ref
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  /** First number in the area string; used to reject 0 / 0 sq ft / etc. */
+  const getFirstAreaNumber = (raw: string): number | null => {
+    const m = raw.trim().match(/(\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    const n = parseFloat(m[1]);
+    return Number.isFinite(n) ? n : null;
+  };
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
@@ -393,6 +401,14 @@ const AddCustomerModal: React.FC<{
       newErrors.budgetComfort = "Budget comfort is required";
     if (!formData.projectScope)
       newErrors.projectScope = "Project scope is required";
+
+    const areaTrimmed = formData.area.trim();
+    if (areaTrimmed) {
+      const n = getFirstAreaNumber(areaTrimmed);
+      if (n !== null && n === 0) {
+        newErrors.area = "Area cannot be zero";
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -866,8 +882,15 @@ const AddCustomerModal: React.FC<{
                   }
                   placeholder="e.g., 2400 sq ft"
                   disabled={isCreating}
-                  className="w-full px-4 py-3.5 border-2 border-gray-200 bg-white hover:border-gray-300 rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full px-4 py-3.5 border-2 bg-white rounded-2xl focus:outline-none focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-200 placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    errors.area
+                      ? "border-red-300 bg-red-50/50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 />
+                {errors.area && (
+                  <p className="text-xs text-red-600 mt-1">{errors.area}</p>
+                )}
               </div>
 
               <div className="space-y-2">
