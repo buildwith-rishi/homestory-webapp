@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { X, Activity, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import {
   AreaChart,
@@ -9,80 +9,26 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { format, subDays, parseISO } from "date-fns";
 import { WidgetProps } from "./index";
-import { getAllPayments } from "../../../services/projectApi";
-import type { ProjectPayment } from "../../../types";
+import { useDashboardStats } from "../../../contexts/DashboardStatsContext";
 
 const MonthlyTrendWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const [payments, setPayments] = useState<ProjectPayment[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const today = new Date();
-    const thirtyDaysAgo = subDays(today, 29);
-    getAllPayments({
-      dateFrom: format(thirtyDaysAgo, "yyyy-MM-dd"),
-      dateTo: format(today, "yyyy-MM-dd"),
-      limit: 1000,
-    })
-      .then((res) => setPayments(res.payments || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const { stats, loading } = useDashboardStats();
 
   const data = useMemo(() => {
-    const today = new Date();
-    // Build 30-day bucket map
-    const buckets: Record<string, number> = {};
-    for (let i = 29; i >= 0; i--) {
-      buckets[format(subDays(today, i), "yyyy-MM-dd")] = 0;
-    }
-    // Sum collected/partially-paid amounts into buckets
-    for (const p of payments) {
-      const dateStr = p.collectedAt
-        ? format(parseISO(p.collectedAt), "yyyy-MM-dd")
-        : p.updatedAt
-          ? format(parseISO(p.updatedAt), "yyyy-MM-dd")
-          : null;
-      if (
-        dateStr &&
-        Object.prototype.hasOwnProperty.call(buckets, dateStr) &&
-        (p.status === "COLLECTED" ||
-          p.status === "PAID" ||
-          p.status === "PARTIALLY_PAID")
-      ) {
-        const amt =
-          typeof p.actualAmount === "string"
-            ? parseFloat(p.actualAmount) || 0
-            : typeof p.actualAmount === "number"
-              ? p.actualAmount
-              : typeof p.expectedAmount === "string"
-                ? parseFloat(p.expectedAmount) || 0
-                : typeof p.expectedAmount === "number"
-                  ? p.expectedAmount
-                  : 0;
-        buckets[dateStr] += amt;
-      }
-    }
-    return Object.entries(buckets).map(([dateStr, revenue]) => {
-      const d = parseISO(dateStr);
-      return { day: d.getDate(), date: format(d, "M/d"), revenue };
-    });
-  }, [payments]);
+    return (stats?.revenue.monthlyBreakdown.value ?? []).map((m) => ({
+      month: m.month,
+      revenue: m.amount,
+    }));
+  }, [stats]);
 
-  const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
-  const avgRevenue = data.length > 0 ? totalRevenue / data.length : 0;
-  const lastWeekRevenue = data.slice(-7).reduce((sum, d) => sum + d.revenue, 0);
-  const prevWeekRevenue = data
-    .slice(-14, -7)
-    .reduce((sum, d) => sum + d.revenue, 0);
-  const weekGrowth =
-    prevWeekRevenue > 0
-      ? ((lastWeekRevenue - prevWeekRevenue) / prevWeekRevenue) * 100
-      : 0;
-  const maxDay = Math.max(...data.map((d) => d.revenue), 0);
-  const minDay = Math.min(
+  const totalRevenue = stats?.revenue.thisYear.value ?? 0;
+  const growth = stats?.revenue.growth.value ?? 0;
+  const avgRevenue = data.length > 0
+    ? data.reduce((sum, d) => sum + d.revenue, 0) / data.length
+    : 0;
+  const maxMonth = Math.max(...data.map((d) => d.revenue), 0);
+  const minMonth = Math.min(
     ...data.filter((d) => d.revenue > 0).map((d) => d.revenue),
     0,
   );
@@ -133,7 +79,7 @@ const MonthlyTrendWidget: React.FC<WidgetProps> = ({ onRemove }) => {
               <h3 className="font-bold text-gray-900 text-sm">
                 Monthly Revenue Trend
               </h3>
-              <p className="text-xs text-gray-400 font-medium">Last 30 days</p>
+              <p className="text-xs text-gray-400 font-medium">This year</p>
             </div>
           </div>
           <div className="text-right">
@@ -146,16 +92,16 @@ const MonthlyTrendWidget: React.FC<WidgetProps> = ({ onRemove }) => {
                 </p>
                 <div
                   className={`flex items-center justify-end gap-1 mt-1 text-xs font-semibold ${
-                    weekGrowth >= 0 ? "text-emerald-600" : "text-red-600"
+                    growth >= 0 ? "text-emerald-600" : "text-red-600"
                   }`}
                 >
-                  {weekGrowth >= 0 ? (
+                  {growth >= 0 ? (
                     <TrendingUp className="w-3 h-3" />
                   ) : (
                     <TrendingDown className="w-3 h-3" />
                   )}
-                  {weekGrowth >= 0 ? "+" : ""}
-                  {weekGrowth.toFixed(1)}% vs last week
+                  {growth >= 0 ? "+" : ""}
+                  {growth.toFixed(1)}% vs last month
                 </div>
               </>
             )}
@@ -188,7 +134,7 @@ const MonthlyTrendWidget: React.FC<WidgetProps> = ({ onRemove }) => {
               strokeDasharray="3 3"
             />
             <XAxis
-              dataKey="day"
+              dataKey="month"
               axisLine={false}
               tickLine={false}
               tick={{ fill: "#9CA3AF", fontSize: 10, fontWeight: 500 }}
@@ -225,10 +171,10 @@ const MonthlyTrendWidget: React.FC<WidgetProps> = ({ onRemove }) => {
         </div>
         <div className="text-center py-3">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-            Best Day
+            Best Month
           </p>
           <p className="text-sm font-bold text-emerald-600 mt-0.5">
-            ₹{(maxDay / 1000).toFixed(0)}K
+            ₹{(maxMonth / 1000).toFixed(0)}K
           </p>
         </div>
         <div className="text-center py-3">
@@ -236,7 +182,7 @@ const MonthlyTrendWidget: React.FC<WidgetProps> = ({ onRemove }) => {
             Lowest
           </p>
           <p className="text-sm font-bold text-orange-500 mt-0.5">
-            ₹{(minDay / 1000).toFixed(0)}K
+            ₹{(minMonth / 1000).toFixed(0)}K
           </p>
         </div>
       </div>

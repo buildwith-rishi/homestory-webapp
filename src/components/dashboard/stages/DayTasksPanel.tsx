@@ -14,13 +14,21 @@ import {
   Upload,
   X,
   Trash2,
+  Mail,
+  Send,
 } from "lucide-react";
 import { Button, Modal } from "../../ui";
-import type { MatrixTask, MatrixCategory, AdminUser } from "../../../types";
+import type {
+  MatrixTask,
+  MatrixCategory,
+  AdminUser,
+  NotifyCustomerRequest,
+} from "../../../types";
 import {
   getMatrixDayTasks,
   uploadTaskAttachment,
   deleteMatrixTask,
+  notifyCustomerTaskComplete,
 } from "../../../services/projectApi";
 import { adminAPI } from "../../../services/api";
 import { getAllTeamMembers, TeamMember } from "../../../services/teamApi";
@@ -88,6 +96,12 @@ const taskStatusConfig: Record<
     text: "text-amber-700",
     label: "Overdue",
   },
+};
+
+/** Eligible for bulk “notify customer” selection on the day task list */
+const isNotifySelectable = (task: MatrixTask): boolean => {
+  const s = String(task.status || "").toUpperCase();
+  return s === "IN_PROGRESS" || s === "COMPLETED";
 };
 
 const toDateOnly = (value?: string | null): string | null => {
@@ -188,6 +202,13 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     null,
   );
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+
+  const [notifySelectionIds, setNotifySelectionIds] = useState<string[]>([]);
+  const [showNotifyCustomerModal, setShowNotifyCustomerModal] = useState(false);
+  const [notifyMessage, setNotifyMessage] = useState("");
+  const [notifyIncludeAttachments, setNotifyIncludeAttachments] =
+    useState(true);
+  const [notifyingCustomer, setNotifyingCustomer] = useState(false);
 
   const clearPushReasonForTask = useCallback((taskId: string) => {
     try {
@@ -305,6 +326,15 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     }
   }, [fetchDayTasks, initialTasks]);
 
+  useEffect(() => {
+    setNotifySelectionIds((prev) =>
+      prev.filter((id) => {
+        const t = tasks.find((x) => x.id === id);
+        return t != null && isNotifySelectable(t);
+      }),
+    );
+  }, [tasks]);
+
   // Fetch users and team members once so we can resolve assignee names by ID
   useEffect(() => {
     adminAPI
@@ -408,6 +438,47 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
     pending: tasks.filter((t) => t.status === "PENDING").length,
   };
 
+  const handleBulkNotifyCustomer = async () => {
+    if (notifySelectionIds.length === 0) return;
+    setNotifyingCustomer(true);
+    const payload: NotifyCustomerRequest = {
+      includeAttachments: notifyIncludeAttachments,
+    };
+    if (notifyMessage.trim()) {
+      payload.customMessage = notifyMessage.trim();
+    }
+    let ok = 0;
+    let failed = 0;
+    for (const id of notifySelectionIds) {
+      try {
+        await notifyCustomerTaskComplete(id, payload);
+        ok++;
+      } catch {
+        failed++;
+      }
+    }
+    setNotifyingCustomer(false);
+    if (ok > 0) {
+      toast.success(
+        ok === 1
+          ? "Completion email sent to the customer"
+          : `Sent ${ok} notification(s) to the customer`,
+      );
+    }
+    if (failed > 0) {
+      toast.error(
+        failed === 1
+          ? "One notification failed to send"
+          : `${failed} notifications failed to send`,
+      );
+    }
+    if (failed === 0) {
+      setShowNotifyCustomerModal(false);
+      setNotifyMessage("");
+      setNotifySelectionIds([]);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -447,6 +518,18 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
           >
             <Plus className="w-3.5 h-3.5 mr-1" />
             Add Task
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            disabled={notifySelectionIds.length === 0 || notifyingCustomer}
+            onClick={() => setShowNotifyCustomerModal(true)}
+            className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Mail className="w-3.5 h-3.5 mr-1" />
+            Notify Customer
           </Button>
 
           {/* Status filter */}
@@ -549,6 +632,28 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                     return (
                       <div key={task.id} className="rounded-lg overflow-hidden">
                         <div className="flex items-center gap-3 py-2.5 px-3 hover:bg-gray-50 transition-colors group">
+                          {isNotifySelectable(task) ? (
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400 flex-shrink-0"
+                              checked={notifySelectionIds.includes(task.id)}
+                              onChange={() => {
+                                setNotifySelectionIds((prev) =>
+                                  prev.includes(task.id)
+                                    ? prev.filter((id) => id !== task.id)
+                                    : [...prev, task.id],
+                                );
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label={`Select for customer notification: ${task.title || "task"}`}
+                            />
+                          ) : (
+                            <span
+                              className="w-4 h-4 flex-shrink-0"
+                              aria-hidden
+                            />
+                          )}
+
                           {/* Status icon */}
                           <span className={`flex-shrink-0 ${cfg.text}`}>
                             {cfg.icon}
@@ -837,7 +942,7 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
                                     setCompletionDialog(null);
                                   }
                                 }}
-                                placeholder="Completion notes (Compulsory)"
+                                placeholder="Completion notes (optional)"
                                 className="flex-1 text-xs border border-green-200 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-400/40 bg-white"
                               />
                               <button
@@ -920,6 +1025,84 @@ export const DayTasksPanel: React.FC<DayTasksPanelProps> = ({
           }}
         />
       )}
+
+      <Modal
+        isOpen={showNotifyCustomerModal}
+        onClose={() => {
+          if (!notifyingCustomer) setShowNotifyCustomerModal(false);
+        }}
+        title="Notify customer"
+        size="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              disabled={notifyingCustomer}
+              onClick={() => setShowNotifyCustomerModal(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={
+                notifySelectionIds.length === 0 || notifyingCustomer
+              }
+              onClick={() => void handleBulkNotifyCustomer()}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+            >
+              {notifyingCustomer ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Send emails
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <div className="px-6 py-4 space-y-3">
+          <p className="text-sm text-gray-600">
+            Sending completion email for{" "}
+            <span className="font-semibold text-gray-900">
+              {notifySelectionIds.length}
+            </span>{" "}
+            selected task{notifySelectionIds.length !== 1 ? "s" : ""}.
+          </p>
+          <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            Sends a task completion email to the customer for each selected
+            task. You can optionally include attachments from each task.
+          </p>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+              Custom message (optional)
+            </label>
+            <textarea
+              value={notifyMessage}
+              onChange={(e) => setNotifyMessage(e.target.value)}
+              placeholder="e.g. We have completed the site survey. Please find the attached photos."
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 resize-none"
+              rows={3}
+            />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notifyIncludeAttachments}
+              onChange={(e) =>
+                setNotifyIncludeAttachments(e.target.checked)
+              }
+              className="w-4 h-4 rounded accent-emerald-600"
+            />
+            <span className="text-sm text-gray-700">Include attachments</span>
+          </label>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={!!taskPendingDelete}

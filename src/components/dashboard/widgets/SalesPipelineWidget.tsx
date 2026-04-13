@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { X, BarChart3, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { WidgetProps } from "./index";
-import { listAllLeads, Lead } from "../../../services/leadApi";
+import { useDashboardStats } from "../../../contexts/DashboardStatsContext";
 
 interface FunnelStage {
   name: string;
@@ -60,45 +60,31 @@ const STAGE_CONFIG: Array<{
 
 const SalesPipelineWidget: React.FC<WidgetProps> = ({ onRemove }) => {
   const navigate = useNavigate();
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchAll = async () => {
-      try {
-        const results = await listAllLeads();
-        if (!cancelled) setLeads(results);
-      } catch {
-        if (!cancelled) setLeads([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    fetchAll();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { stats, loading } = useDashboardStats();
 
   const stages: FunnelStage[] = useMemo(() => {
-    const total = leads.length;
-    const counts = STAGE_CONFIG.map((cfg) => {
-      const count = leads.filter((l) => {
-        const val = ((l.stage || l.status || "") as string).toUpperCase();
-        return cfg.keys.some((k) => val === k || val.startsWith(k));
-      }).length;
-      return { ...cfg, count };
-    });
-    return counts.map((s) => ({
-      ...s,
-      name: s.label,
-      percentage:
-        total > 0 ? Math.min(100, Math.round((s.count / total) * 100)) : 0,
-    }));
-  }, [leads]);
+    const byStatus = stats?.leads.byStatus.value ?? [];
+    const total = byStatus.reduce((sum, s) => sum + s.count, 0);
 
-  const totalLeads = leads.length;
+    return STAGE_CONFIG.map((cfg) => {
+      const count = byStatus
+        .filter((s) => {
+          const val = s.status.toUpperCase();
+          return cfg.keys.some((k) => val === k || val.startsWith(k));
+        })
+        .reduce((sum, s) => sum + s.count, 0);
+
+      return {
+        ...cfg,
+        name: cfg.label,
+        count,
+        percentage:
+          total > 0 ? Math.min(100, Math.round((count / total) * 100)) : 0,
+      };
+    });
+  }, [stats]);
+
+  const totalLeads = stats?.leads.total.value ?? 0;
   const wonCount = stages[4]?.count ?? 0;
   const conversionRate =
     totalLeads > 0 ? Math.round((wonCount / totalLeads) * 100) : 0;

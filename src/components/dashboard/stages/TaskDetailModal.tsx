@@ -20,8 +20,6 @@ import {
   Save,
   UserCheck,
   ChevronsRight,
-  Mail,
-  Send,
 } from "lucide-react";
 import { Button } from "../../ui";
 import type {
@@ -29,7 +27,6 @@ import type {
   TaskAttachment,
   UpdateMatrixTaskRequest,
   AdminUser,
-  NotifyCustomerRequest,
 } from "../../../types";
 import type { TeamMember } from "../../../services/teamApi";
 import { loadMatrixAssigneeData } from "../../../utils/matrixAssigneeLoaders";
@@ -42,7 +39,6 @@ import {
   updateMatrixTask,
   pushMatrixTask,
   pushMatrixDayTasks,
-  notifyCustomerTaskComplete,
 } from "../../../services/projectApi";
 import {
   notifyTaskConflictWarnings,
@@ -275,13 +271,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [bulkReason, setBulkReason] = useState("");
   const [bulkPushing, setBulkPushing] = useState(false);
 
-  // Notify customer
-  const [showNotifyPanel, setShowNotifyPanel] = useState(false);
-  const [notifyMessage, setNotifyMessage] = useState("");
-  const [notifyIncludeAttachments, setNotifyIncludeAttachments] =
-    useState(true);
-  const [notifying, setNotifying] = useState(false);
-
   // Task editing
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -393,34 +382,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     isCompletingNow,
   ]);
 
-  const handleNotifyCustomer = async () => {
-    setNotifying(true);
-    try {
-      const payload: NotifyCustomerRequest = {
-        includeAttachments: notifyIncludeAttachments,
-      };
-      if (notifyMessage.trim()) payload.customMessage = notifyMessage.trim();
-      const res = await notifyCustomerTaskComplete(taskId, payload);
-      toast.success(
-        res.sent
-          ? `Email sent to ${res.customerEmail}${
-              res.attachmentsCount > 0
-                ? ` with ${res.attachmentsCount} attachment(s)`
-                : ""
-            }`
-          : "Notification triggered",
-      );
-      setShowNotifyPanel(false);
-      setNotifyMessage("");
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to send notification",
-      );
-    } finally {
-      setNotifying(false);
-    }
-  };
-
   const handleBulkPushTasks = async () => {
     if (!matrixId || bulkFromDay < 1 || bulkToDay < 1) return;
     if (bulkFromDay === bulkToDay) {
@@ -500,10 +461,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
     const nextStatus = editStatus || task.status;
     if (String(nextStatus).toUpperCase() === "COMPLETED") {
-      if (!editCompletionNotes.trim()) {
-        toast.error("Completion notes are required when marking a task complete");
-        return;
-      }
       const wasCompleted =
         String(task.status || "").toUpperCase() === "COMPLETED";
       if (
@@ -1012,7 +969,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       <div>
                         <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
                           Completion Notes
-                          <span className="text-red-500 ml-0.5">*</span>
+                          <span className="font-normal normal-case text-gray-400 ml-1">
+                            (optional)
+                          </span>
                         </label>
                         <textarea
                           value={editCompletionNotes}
@@ -1021,8 +980,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           }
                           className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400/50 resize-none"
                           rows={3}
-                          placeholder="Completion notes (required)"
-                          required
+                          placeholder="Add completion notes if helpful"
                         />
                       </div>
                       <div className="space-y-3">
@@ -1530,86 +1488,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             <>
                               <ChevronsRight className="w-4 h-4 mr-1" />
                               Push Day {bulkFromDay} → Day {bulkToDay}
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Notify customer — send task completion email */}
-                  <div className="border-t border-gray-100 pt-5">
-                    <button
-                      onClick={() => setShowNotifyPanel((p) => !p)}
-                      className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 uppercase hover:text-emerald-600 transition-colors"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Mail className="w-3.5 h-3.5" />
-                        Notify Customer
-                      </span>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full ${
-                          showNotifyPanel
-                            ? "bg-emerald-100 text-emerald-600"
-                            : "bg-gray-100 text-gray-400"
-                        }`}
-                      >
-                        {showNotifyPanel ? "Hide" : "Show"}
-                      </span>
-                    </button>
-
-                    {showNotifyPanel && (
-                      <div className="mt-3 space-y-3 bg-emerald-50/50 border border-emerald-200 rounded-xl p-4">
-                        <p className="text-xs text-emerald-700 bg-emerald-100 rounded-lg px-3 py-2">
-                          Sends a task completion email to the customer.
-                          Optionally attach uploaded files.
-                        </p>
-                        <div>
-                          <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
-                            Custom Message (optional)
-                          </label>
-                          <textarea
-                            value={notifyMessage}
-                            onChange={(e) => setNotifyMessage(e.target.value)}
-                            placeholder="e.g. We have completed the site survey. Please find the attached photos."
-                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 resize-none"
-                            rows={3}
-                          />
-                        </div>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={notifyIncludeAttachments}
-                            onChange={(e) =>
-                              setNotifyIncludeAttachments(e.target.checked)
-                            }
-                            className="w-4 h-4 rounded accent-emerald-500"
-                          />
-                          <span className="text-sm text-gray-700">
-                            Include attachments
-                            {attachments.length > 0 && (
-                              <span className="ml-1 text-xs text-gray-400">
-                                ({attachments.length} file
-                                {attachments.length !== 1 ? "s" : ""})
-                              </span>
-                            )}
-                          </span>
-                        </label>
-                        <Button
-                          size="sm"
-                          onClick={handleNotifyCustomer}
-                          disabled={notifying}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-white w-full"
-                        >
-                          {notifying ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                              Sending email...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="w-4 h-4 mr-1" />
-                              Send Completion Email
                             </>
                           )}
                         </Button>

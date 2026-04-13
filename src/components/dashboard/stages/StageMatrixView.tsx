@@ -10,9 +10,9 @@ import {
   Trash2,
   LayoutGrid,
   Settings,
-  Layers,
   Tag,
   Pencil,
+  AlertTriangle,
 } from "lucide-react";
 import { Button, Card } from "../../ui";
 import { CreateMatrixModal } from "./CreateMatrixModal";
@@ -21,7 +21,6 @@ import { AddDayModal } from "./AddDayModal";
 import { AddCategoryModal } from "./AddCategoryModal";
 import { DayTasksPanel } from "./DayTasksPanel";
 import { TaskDetailModal } from "./TaskDetailModal";
-import { CategoryTasksView } from "./CategoryTasksView";
 import type {
   TaskMatrix,
   MatrixTask,
@@ -246,9 +245,8 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     null,
   );
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
-  const [matrixViewMode, setMatrixViewMode] = useState<"days" | "categories">(
-    "days",
-  );
+  const [showDeletePlanModal, setShowDeletePlanModal] = useState(false);
+  const [deletingPlan, setDeletingPlan] = useState(false);
   const [markingHolidayDay, setMarkingHolidayDay] = useState<number | null>(
     null,
   );
@@ -388,24 +386,21 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
     fetchMatrix();
   }, [fetchMatrix]);
 
-  const handleDeleteMatrix = async () => {
+  const handleConfirmDeletePlan = async () => {
     if (!matrix) return;
-    if (
-      !confirm(
-        "Delete this entire day plan? All tasks and attachments will be removed. This cannot be undone.",
-      )
-    )
-      return;
-
+    setDeletingPlan(true);
     try {
       await deleteMatrix(matrix.id);
       toast.success("Day plan deleted");
+      setShowDeletePlanModal(false);
       setMatrix(null);
       setStats(null);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to delete matrix",
       );
+    } finally {
+      setDeletingPlan(false);
     }
   };
 
@@ -793,7 +788,7 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={handleDeleteMatrix}
+            onClick={() => setShowDeletePlanModal(true)}
             className="text-red-500 border-red-200 hover:bg-red-50"
           >
             <Trash2 className="w-4 h-4 mr-1" />
@@ -844,8 +839,8 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
         </div>
       )}
 
-      {/* Info Bar + View Toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-y-2 text-sm">
+      {/* Info Bar */}
+      <div className="flex flex-wrap items-center gap-y-2 text-sm">
         <div className="flex items-center gap-3 text-gray-500">
           <span className="flex items-center gap-1">
             <Calendar className="w-4 h-4" />
@@ -860,82 +855,35 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           </span>
           <span>{matrix.includeSundays ? "Sundays included" : "Sundays excluded"}</span>
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* View mode toggle */}
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setMatrixViewMode("days")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                matrixViewMode === "days"
-                  ? "bg-white text-orange-600 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Days
-            </button>
-            <button
-              onClick={() => setMatrixViewMode("categories")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                matrixViewMode === "categories"
-                  ? "bg-white text-orange-600 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              Categories
-            </button>
-          </div>
-
-        </div>
       </div>
 
-      {/* Category Legend (day view only) */}
-      {matrixViewMode === "days" && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {categories.map((cat) => (
-            <div
-              key={cat.id}
-              className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200"
-            >
-              <div
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: cat.color }}
-              />
-              <span className="text-xs font-medium text-gray-700">
-                {cat.name}
-              </span>
-            </div>
-          ))}
-          <button
-            onClick={() => setShowAddCategoryModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-dashed border-purple-300 text-xs font-medium text-purple-500 hover:bg-purple-50 hover:border-purple-400 transition-colors"
+      {/* Category Legend */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {categories.map((cat) => (
+          <div
+            key={cat.id}
+            className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200"
           >
-            <Plus className="w-3 h-3" />
-            Add Category
-          </button>
-        </div>
-      )}
-
-      {/* Category View */}
-      {matrixViewMode === "categories" && (
-        <CategoryTasksView
-          categories={categories}
-          stats={stats}
-          matrixId={matrix?.id || ""}
-          onTaskClick={(taskId, task) => {
-            setSelectedTaskId(taskId);
-            setSelectedTaskData(task || null);
-          }}
-          onStatusChange={handleStatusChange}
-          updatingTaskId={updatingTaskId}
-        />
-      )}
+            <div
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: cat.color }}
+            />
+            <span className="text-xs font-medium text-gray-700">
+              {cat.name}
+            </span>
+          </div>
+        ))}
+        <button
+          onClick={() => setShowAddCategoryModal(true)}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-dashed border-purple-300 text-xs font-medium text-purple-500 hover:bg-purple-50 hover:border-purple-400 transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+          Add Category
+        </button>
+      </div>
 
       {/* Day-wise Grid */}
-      {matrixViewMode === "days" && (
-        <div className="space-y-3">
+      <div className="space-y-3">
           {visibleDays.map((dayEntry, visibleIndex) => {
             const dayNum = dayEntry.dayNumber;
             const displayDayNumber = visibleIndex + 1;
@@ -1170,21 +1118,18 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           })}
 
           {/* Add Next Day card */}
-          {matrixViewMode === "days" && (
-            <Card
-              className="bg-white/60 border-dashed border-2 border-gray-200 hover:border-orange-300 hover:bg-orange-50/30 transition-all cursor-pointer"
-              onClick={() => setShowAddDayModal(true)}
-            >
-              <button className="w-full flex items-center justify-center gap-2 px-4 py-4">
-                <Plus className="w-5 h-5 text-orange-400" />
-                <span className="text-sm font-medium text-gray-500">
-                  Add Day {totalDays + 1}
-                </span>
-              </button>
-            </Card>
-          )}
+          <Card
+            className="bg-white/60 border-dashed border-2 border-gray-200 hover:border-orange-300 hover:bg-orange-50/30 transition-all cursor-pointer"
+            onClick={() => setShowAddDayModal(true)}
+          >
+            <button className="w-full flex items-center justify-center gap-2 px-4 py-4">
+              <Plus className="w-5 h-5 text-orange-400" />
+              <span className="text-sm font-medium text-gray-500">
+                Add Day {totalDays + 1}
+              </span>
+            </button>
+          </Card>
         </div>
-      )}
 
       {/* Edit Matrix Modal */}
       {showEditModal && matrix && (
@@ -1201,6 +1146,77 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
           }}
         />
       )}
+
+      {showDeletePlanModal &&
+        matrix &&
+        createPortal(
+          <div className="fixed inset-0 z-[74] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              aria-hidden
+              onClick={() => {
+                if (!deletingPlan) setShowDeletePlanModal(false);
+              }}
+            />
+            <div
+              className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-plan-title"
+              aria-describedby="delete-plan-desc"
+            >
+              <div className="px-5 py-4 border-b border-gray-100">
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-red-600" aria-hidden />
+                  </div>
+                  <div className="min-w-0">
+                    <h3
+                      id="delete-plan-title"
+                      className="text-base font-semibold text-gray-900"
+                    >
+                      Delete day plan?
+                    </h3>
+                    <p
+                      id="delete-plan-desc"
+                      className="text-sm text-gray-600 mt-1.5 leading-relaxed"
+                    >
+                      Delete this entire day plan? All tasks and attachments will
+                      be removed. This cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 border-t border-gray-100 flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDeletePlanModal(false)}
+                  disabled={deletingPlan}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => void handleConfirmDeletePlan()}
+                  disabled={deletingPlan}
+                  className="bg-red-600 hover:bg-red-700 text-white border-0"
+                >
+                  {deletingPlan ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    "Delete plan"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {holidayDraft &&
         createPortal(

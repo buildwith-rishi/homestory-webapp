@@ -687,6 +687,180 @@ export const adminAPI = {
   },
 };
 
+// ─── Dashboard Stats ───────────────────────────────────────────────────────
+
+export interface DashboardStatValue<T> {
+  value: T;
+  description: string;
+}
+
+export interface DashboardStatsResponse {
+  meta: {
+    generatedAt: string;
+    period: {
+      today: string;
+      startOfWeek: string;
+      startOfMonth: string;
+      startOfYear: string;
+    };
+  };
+  projects: {
+    description: string;
+    total: DashboardStatValue<number>;
+    active: DashboardStatValue<number>;
+    completed: DashboardStatValue<number>;
+    paused: DashboardStatValue<number>;
+    cancelled: DashboardStatValue<number>;
+    yetToStart: DashboardStatValue<number>;
+    recent: DashboardStatValue<
+      Array<{
+        id: string;
+        projectName: string;
+        status: string;
+        currentStageCode: string;
+        createdAt: string;
+        totalValue: string;
+        account: { id: string; name: string };
+      }>
+    >;
+  };
+  customers: {
+    description: string;
+    total: DashboardStatValue<number>;
+    active: DashboardStatValue<number>;
+    byType: DashboardStatValue<Array<{ type: string; count: number }>>;
+    byStatus: DashboardStatValue<Array<{ status: string; count: number }>>;
+    totalNotes: DashboardStatValue<number>;
+    notesThisMonth: DashboardStatValue<number>;
+  };
+  leads: {
+    description: string;
+    total: DashboardStatValue<number>;
+    newToday: DashboardStatValue<number>;
+    newThisWeek: DashboardStatValue<number>;
+    newThisMonth: DashboardStatValue<number>;
+    convertedThisMonth: DashboardStatValue<number>;
+    byStatus: DashboardStatValue<Array<{ status: string; count: number }>>;
+    bySource: DashboardStatValue<Array<{ source: string; count: number }>>;
+    byCity: DashboardStatValue<Array<{ city: string; count: number }>>;
+    byAssignee: DashboardStatValue<
+      Array<{ userId: string | null; name: string; count: number }>
+    >;
+  };
+  contacts: {
+    description: string;
+    total: DashboardStatValue<number>;
+    totalFamilyMembers: DashboardStatValue<number>;
+  };
+  meetings: {
+    description: string;
+    today: DashboardStatValue<number>;
+    todayList: DashboardStatValue<
+      Array<{
+        id: string;
+        title?: string;
+        scheduledAt?: string;
+        type?: string;
+        status?: string;
+      }>
+    >;
+    upcoming: DashboardStatValue<number>;
+    completedThisMonth: DashboardStatValue<number>;
+    totalThisMonth: DashboardStatValue<number>;
+    avgPerWeek: DashboardStatValue<number>;
+    byStatus: DashboardStatValue<Array<{ status: string; count: number }>>;
+    byType: DashboardStatValue<Array<{ type: string; count: number }>>;
+  };
+  activities: {
+    description: string;
+    total: DashboardStatValue<number>;
+    today: DashboardStatValue<number>;
+    thisWeek: DashboardStatValue<number>;
+    thisMonth: DashboardStatValue<number>;
+    byType: DashboardStatValue<Array<{ type: string; count: number }>>;
+  };
+  revenue: {
+    description: string;
+    thisMonth: DashboardStatValue<number>;
+    lastMonth: DashboardStatValue<number>;
+    thisYear: DashboardStatValue<number>;
+    totalReceived: DashboardStatValue<number>;
+    totalPending: DashboardStatValue<number>;
+    totalOverdue: DashboardStatValue<number>;
+    growth: DashboardStatValue<number>;
+    avgPaymentAmount: DashboardStatValue<number>;
+    paymentsThisMonth: DashboardStatValue<number>;
+    monthlyBreakdown: DashboardStatValue<
+      Array<{ month: string; amount: number }>
+    >;
+    recentPayments: DashboardStatValue<unknown[]>;
+  };
+  tasks: {
+    description: string;
+    total: DashboardStatValue<number>;
+    pending: DashboardStatValue<number>;
+    inProgress: DashboardStatValue<number>;
+    completedThisMonth: DashboardStatValue<number>;
+    overdue: DashboardStatValue<number>;
+    today: DashboardStatValue<number>;
+    upcoming: DashboardStatValue<number>;
+    topPerformers: DashboardStatValue<
+      Array<{ userId: string; name: string; tasksCompleted: number }>
+    >;
+  };
+  team: {
+    description: string;
+    total: DashboardStatValue<number>;
+    active: DashboardStatValue<number>;
+    inactive: DashboardStatValue<number>;
+    newThisMonth: DashboardStatValue<number>;
+    byRole: DashboardStatValue<Array<{ role: string; count: number }>>;
+    byDepartment: DashboardStatValue<
+      Array<{ departmentId: string; count: number }>
+    >;
+  };
+  conversations: {
+    description: string;
+    total: DashboardStatValue<number>;
+    totalMessages: DashboardStatValue<number>;
+    messagesThisWeek: DashboardStatValue<number>;
+    activeThisWeek: DashboardStatValue<number>;
+  };
+  attachments: {
+    description: string;
+    total: DashboardStatValue<number>;
+    thisMonth: DashboardStatValue<number>;
+    byType: DashboardStatValue<Array<{ type: string; count: number }>>;
+  };
+  importantDates: {
+    description: string;
+    total: DashboardStatValue<number>;
+    upcoming: DashboardStatValue<number>;
+    birthdaysThisMonth: DashboardStatValue<number>;
+    anniversariesThisMonth: DashboardStatValue<number>;
+  };
+  products: {
+    description: string;
+    total: DashboardStatValue<number>;
+    active: DashboardStatValue<number>;
+  };
+  testimonials: {
+    description: string;
+    total: DashboardStatValue<number>;
+    published: DashboardStatValue<number>;
+    totalPhotos: DashboardStatValue<number>;
+  };
+  handovers: {
+    description: string;
+    total: DashboardStatValue<number>;
+    completedThisMonth: DashboardStatValue<number>;
+    pending: DashboardStatValue<number>;
+  };
+}
+
+export const getDashboardStats = (): Promise<DashboardStatsResponse> =>
+  fetchAPI<DashboardStatsResponse>("/api/dashboard/stats");
+
 export default {
   auth: authAPI,
   projects: projectsAPI,

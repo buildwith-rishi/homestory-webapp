@@ -336,10 +336,17 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError("Please enter your email.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await login(email, password);
+      await login(trimmedEmail, password);
       // Successful login will redirect via AuthContext
     } catch (err) {
       // Display specific error message from API
@@ -385,7 +392,7 @@ export function LoginPage() {
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-900 mb-2"
               >
-                Email or Phone Number <span className="text-red-500">*</span>
+                Email  <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -393,10 +400,13 @@ export function LoginPage() {
                   id="email"
                   type="text"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setError("");
+                  }}
                   placeholder="EX. user@example.com"
+                  autoComplete="username"
                   className="w-full h-12 pl-11 pr-4 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-                  required
                 />
               </div>
             </div>
@@ -415,7 +425,10 @@ export function LoginPage() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError("");
+                  }}
                   placeholder="Enter password"
                   className="w-full h-12 pl-11 pr-12 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                   required

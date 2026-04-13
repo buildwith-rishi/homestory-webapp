@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo } from "react";
 import {
   Globe,
   Instagram,
@@ -10,11 +10,17 @@ import {
   Megaphone,
 } from "lucide-react";
 import Card from "../ui/Card";
-import { listLeads } from "../../services/leadApi";
+import { useDashboardStats } from "../../contexts/DashboardStatsContext";
 
 const SOURCE_CONFIG: Record<
   string,
-  { label: string; color: string; bgColor: string; barColor: string; icon: any }
+  {
+    label: string;
+    color: string;
+    bgColor: string;
+    barColor: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }
 > = {
   website: {
     label: "Website",
@@ -74,74 +80,41 @@ const SOURCE_CONFIG: Record<
   },
 };
 
+const normalizeSource = (raw: string): string => {
+  const src = raw.toLowerCase();
+  if (src.includes("insta")) return "instagram";
+  if (src.includes("facebook")) return "facebook";
+  if (src.includes("refer")) return "referral";
+  if (src.includes("walk")) return "walk_in";
+  if (src.includes("site") || src.includes("web")) return "website";
+  if (src.includes("phone") || src.includes("call")) return "phone";
+  if (src.includes("email")) return "email";
+  return SOURCE_CONFIG[src] ? src : "other";
+};
+
 export const LeadSourceChart: React.FC = () => {
-  const [data, setData] = useState<
-    {
-      key: string;
-      name: string;
-      value: number;
-      percentage: number;
-      config: any;
-    }[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const [totalLeads, setTotalLeads] = useState(0);
+  const { stats, loading } = useDashboardStats();
 
-  useEffect(() => {
-    const fetchLeads = async () => {
-      setLoading(true);
-      try {
-        const res = await listLeads({ limit: 1000 });
-        const leads = res.leads || [];
-        setTotalLeads(leads.length);
+  const totalLeads = stats?.leads.total.value ?? 0;
 
-        const counts: Record<string, number> = {};
-        leads.forEach((lead) => {
-          const src = (lead.source || "other").toLowerCase();
-          // Normalize common variations
-          const normalized = src.includes("insta")
-            ? "instagram"
-            : src.includes("facebook")
-              ? "facebook"
-              : src.includes("refer")
-                ? "referral"
-                : src.includes("walk")
-                  ? "walk_in"
-                  : src.includes("site") || src.includes("web")
-                    ? "website"
-                    : src.includes("phone") || src.includes("call")
-                      ? "phone"
-                      : src.includes("email")
-                        ? "email"
-                        : SOURCE_CONFIG[src]
-                          ? src
-                          : "other";
-          counts[normalized] = (counts[normalized] || 0) + 1;
-        });
+  const data = useMemo(() => {
+    const bySource = stats?.leads.bySource.value ?? [];
+    const total = bySource.reduce((sum, s) => sum + s.count, 0);
 
-        const total = leads.length;
-        const processedData = Object.entries(counts)
-          .map(([key, value]) => {
-            const config = SOURCE_CONFIG[key] || SOURCE_CONFIG["other"];
-            return {
-              key,
-              name: config.label,
-              value,
-              percentage: total > 0 ? (value / total) * 100 : 0,
-              config,
-            };
-          })
-          .sort((a, b) => b.value - a.value);
-
-        setData(processedData);
-      } catch (err) {
-        console.error("Failed to fetch lead sources", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLeads();
-  }, []);
+    return bySource
+      .map((s) => {
+        const key = normalizeSource(s.source);
+        const config = SOURCE_CONFIG[key] || SOURCE_CONFIG["other"];
+        return {
+          key,
+          name: config.label,
+          value: s.count,
+          percentage: total > 0 ? (s.count / total) * 100 : 0,
+          config,
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+  }, [stats]);
 
   return (
     <Card className="h-full min-h-[450px] flex flex-col overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -151,13 +124,19 @@ export const LeadSourceChart: React.FC = () => {
             <h3 className="text-xl font-bold text-gray-900 tracking-tight">
               Lead Sources
             </h3>
-            <p className="text-sm text-gray-500 mt-1 font-medium">Distribution by channel</p>
+            <p className="text-sm text-gray-500 mt-1 font-medium">
+              Distribution by channel
+            </p>
           </div>
           <div className="text-right flex flex-col items-end justify-center">
-             <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-bold text-gray-900 leading-none tracking-tight">{totalLeads}</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-3xl font-bold text-gray-900 leading-none tracking-tight">
+                {totalLeads}
+              </p>
             </div>
-            <p className="text-sm font-semibold text-gray-500 bg-gray-50 px-3 py-1 rounded-full mt-2">Total Leads</p>
+            <p className="text-sm font-semibold text-gray-500 bg-gray-50 px-3 py-1 rounded-full mt-2">
+              Total Leads
+            </p>
           </div>
         </div>
       </div>
@@ -216,9 +195,7 @@ export const LeadSourceChart: React.FC = () => {
                   <div className="relative h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${item.config.barColor}`}
-                      style={{
-                        width: `${item.percentage}%`,
-                      }}
+                      style={{ width: `${item.percentage}%` }}
                     />
                   </div>
                 </div>
@@ -230,13 +207,21 @@ export const LeadSourceChart: React.FC = () => {
 
       {!loading && data.length > 0 && (
         <div className="px-6 py-5 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between shrink-0">
-           <div className="flex flex-col">
-            <span className="text-gray-500 font-medium text-sm">Top Source</span>
-            <span className="font-bold text-gray-900 text-lg mt-0.5">{data[0].name}</span>
+          <div className="flex flex-col">
+            <span className="text-gray-500 font-medium text-sm">
+              Top Source
+            </span>
+            <span className="font-bold text-gray-900 text-lg mt-0.5">
+              {data[0].name}
+            </span>
           </div>
           <div className="flex flex-col text-right">
-             <span className="text-gray-500 font-medium text-sm">Conversion Share</span>
-            <span className="font-bold text-gray-900 text-lg mt-0.5">{data[0].percentage.toFixed(0)}%</span>
+            <span className="text-gray-500 font-medium text-sm">
+              Conversion Share
+            </span>
+            <span className="font-bold text-gray-900 text-lg mt-0.5">
+              {data[0].percentage.toFixed(0)}%
+            </span>
           </div>
         </div>
       )}

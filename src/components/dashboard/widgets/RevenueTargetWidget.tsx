@@ -1,117 +1,23 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React from "react";
 import { X, Target, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { WidgetProps } from "./index";
-import { getAllPayments } from "../../../services/projectApi";
-import type { ProjectPayment } from "../../../types";
-
-const normalizePayments = (input: unknown): ProjectPayment[] => {
-  if (Array.isArray(input)) return input as ProjectPayment[];
-  if (
-    input &&
-    typeof input === "object" &&
-    "payments" in input &&
-    Array.isArray((input as { payments?: unknown }).payments)
-  ) {
-    return (input as { payments: ProjectPayment[] }).payments;
-  }
-  return [];
-};
+import { useDashboardStats } from "../../../contexts/DashboardStatsContext";
 
 const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const [thisMonthPayments, setThisMonthPayments] = useState<ProjectPayment[]>(
-    [],
-  );
-  const [lastMonthPayments, setLastMonthPayments] = useState<ProjectPayment[]>(
-    [],
-  );
-  const [loading, setLoading] = useState(true);
+  const { stats, loading } = useDashboardStats();
 
-  useEffect(() => {
-    let cancelled = false;
-    const today = new Date();
-    const thisStart = format(startOfMonth(today), "yyyy-MM-dd");
-    const thisEnd = format(endOfMonth(today), "yyyy-MM-dd");
-    const lastMonthDate = subMonths(today, 1);
-    const lastStart = format(startOfMonth(lastMonthDate), "yyyy-MM-dd");
-    const lastEnd = format(endOfMonth(lastMonthDate), "yyyy-MM-dd");
-
-    Promise.all([
-      getAllPayments({ dateFrom: thisStart, dateTo: thisEnd, limit: 500 }),
-      getAllPayments({ dateFrom: lastStart, dateTo: lastEnd, limit: 500 }),
-    ])
-      .then(([thisP, lastP]) => {
-        if (!cancelled) {
-          setThisMonthPayments(normalizePayments(thisP));
-          setLastMonthPayments(normalizePayments(lastP));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setThisMonthPayments([]);
-          setLastMonthPayments([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const COLLECTED_STATUSES = ["COLLECTED", "PAID"];
-
-  const currentRevenue = useMemo(() => {
-    return thisMonthPayments
-      .filter((p) =>
-        COLLECTED_STATUSES.includes((p.status || "").toUpperCase()),
-      )
-      .reduce(
-        (sum, p) =>
-          sum +
-          (parseFloat(String(p.actualAmount || p.expectedAmount || 0)) || 0),
-        0,
-      );
-  }, [thisMonthPayments]);
-
-  const targetRevenue = useMemo(() => {
-    const total = thisMonthPayments.reduce(
-      (sum, p) =>
-        sum +
-        (parseFloat(String(p.expectedAmount || p.actualAmount || 0)) || 0),
-      0,
-    );
-    // target = max of pipeline total or current, minimum ₹1L to avoid division by zero
-    return Math.max(total, currentRevenue, 100000);
-  }, [thisMonthPayments, currentRevenue]);
-
-  const lastMonthRevenue = useMemo(() => {
-    return lastMonthPayments
-      .filter((p) =>
-        COLLECTED_STATUSES.includes((p.status || "").toUpperCase()),
-      )
-      .reduce(
-        (sum, p) =>
-          sum +
-          (parseFloat(String(p.actualAmount || p.expectedAmount || 0)) || 0),
-        0,
-      );
-  }, [lastMonthPayments]);
+  const currentRevenue = stats?.revenue.thisMonth.value ?? 0;
+  const lastMonthRevenue = stats?.revenue.lastMonth.value ?? 0;
+  // Target = max of last month or current, minimum ₹1L to avoid division by zero
+  const targetRevenue = Math.max(lastMonthRevenue, currentRevenue, 100000);
 
   const percentage = Math.min(
     100,
     Math.round((currentRevenue / targetRevenue) * 100),
   );
-  const growth =
-    lastMonthRevenue > 0
-      ? (
-          ((currentRevenue - lastMonthRevenue) / lastMonthRevenue) *
-          100
-        ).toFixed(1)
-      : null;
+  const growthValue = stats?.revenue.growth.value ?? null;
+  const growth = growthValue !== null ? growthValue.toFixed(1) : null;
 
   // SVG semi-circle gauge
   const radius = 54;
@@ -252,7 +158,7 @@ const RevenueTargetWidget: React.FC<WidgetProps> = ({ onRemove }) => {
           <p className="text-base font-extrabold text-gray-800 leading-tight mt-0.5">
             {lastMonthRevenue > 0
               ? `₹${(lastMonthRevenue / 100000).toFixed(1)}L`
-              : "—"}
+              : "₹0"}
           </p>
         </div>
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">

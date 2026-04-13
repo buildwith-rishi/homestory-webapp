@@ -1,14 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  differenceInDays,
-  parseISO,
-  format,
-  startOfDay,
-  endOfDay,
-  startOfMonth,
-  endOfMonth,
-} from "date-fns";
+import { differenceInDays, parseISO } from "date-fns";
 import {
   FolderKanban,
   Users,
@@ -38,23 +30,23 @@ import { Card, Button, Badge, Progress } from "../../components/ui";
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuth } from "../../contexts/AuthContext";
-import { getAllPayments } from "../../services/projectApi";
-import { listMeetings } from "../../services/meetingApi";
-import { listLeads } from "../../services/leadApi";
-import { getUpcomingTasks } from "../../services/tasksApi";
+import {
+  DashboardStatsProvider,
+  useDashboardStats,
+} from "../../contexts/DashboardStatsContext";
 import { useProjectStore } from "../../stores/projectStore";
-import type { Meeting } from "../../types";
 
-export const DashboardOverview: React.FC = () => {
+const DashboardOverviewContent: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const { openWidgetLibrary, dashboardWidgets } = useUIStore();
   const { can, canAny, roleId } = useAuth();
   const navigate = useNavigate();
+  const { stats, loading: statsLoading } = useDashboardStats();
   // Use the shared project store so Dashboard and Projects page always see the same data
+  // (still needed for the full project objects in the Deadlines list)
   const {
     projects,
     fetchProjects: fetchProjectsFromStore,
-    isLoading: projectsLoading,
   } = useProjectStore();
 
   // DESIGNER role: redirect away from Dashboard overview to Projects
@@ -71,15 +63,15 @@ export const DashboardOverview: React.FC = () => {
   const [projectCategoryFilter, setProjectCategoryFilter] =
     useState<string>("all");
   const [showAllDeadlines, setShowAllDeadlines] = useState(false);
-  const [todaysMeetings, setTodaysMeetings] = useState<Meeting[]>([]);
-  const [meetingsLoading, setMeetingsLoading] = useState(false);
-  const [totalLeads, setTotalLeads] = useState<number>(0);
-  const [leadsLoading, setLeadsLoading] = useState(false);
-  const [revenueThisMonth, setRevenueThisMonth] = useState<number>(0);
-  const [revenueLoading, setRevenueLoading] = useState(false);
-  const [tasksDueToday, setTasksDueToday] = useState<number>(0);
-  const [tasksLoading, setTasksLoading] = useState(false);
-  const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number>(0);
+
+  // Derived values from the single dashboard stats API call
+  const totalProjectsCount = stats?.projects.total.value ?? 0;
+  const totalLeads = stats?.leads.total.value ?? 0;
+  const revenueThisMonth = stats?.revenue.thisMonth.value ?? 0;
+  const meetingsToday = stats?.meetings.today.value ?? 0;
+  const tasksDueToday = stats?.tasks.today.value ?? 0;
+  const pendingAmount = stats?.revenue.totalPending.value ?? 0;
+  const revenueGrowth = stats?.revenue.growth.value ?? 0;
 
   const normalizeEnumValue = (value?: string | null): string =>
     typeof value === "string" ? value.trim().toUpperCase() : "";
@@ -110,7 +102,7 @@ export const DashboardOverview: React.FC = () => {
   };
 
   useEffect(() => {
-    // Use the shared store fetch (same call as the Projects page)
+    // Still fetch full project objects for the Deadlines list
     fetchProjectsFromStore();
   }, [fetchProjectsFromStore]);
 
@@ -134,107 +126,12 @@ export const DashboardOverview: React.FC = () => {
   const revenueSparkline = [38, 41, 39, 43, 42, 44, 45];
   const meetingsSparkline = [4, 6, 5, 7, 6, 4, 5];
 
-  // Derive stats from projects — same logic as the Projects page
-  const totalProjectsCount = projects.length;
-
-  // Fetch total leads count
-  useEffect(() => {
-    const fetchLeads = async () => {
-      setLeadsLoading(true);
-      try {
-        const res = await listLeads({ limit: 1 });
-        setTotalLeads(res.total || 0);
-      } catch (err) {
-        console.error("Failed to fetch leads count", err);
-      } finally {
-        setLeadsLoading(false);
-      }
-    };
-    fetchLeads();
-  }, []);
-
-  // Fetch revenue this month
-  useEffect(() => {
-    const fetchRevenue = async () => {
-      setRevenueLoading(true);
-      try {
-        const today = new Date();
-        const res = await getAllPayments({
-          dateFrom: startOfMonth(today).toISOString(),
-          dateTo: endOfMonth(today).toISOString(),
-          limit: 500,
-        });
-        const payments = res.payments || [];
-        const total = payments.reduce((sum, p) => {
-          const s = (p.status || "").toUpperCase();
-          if (s !== "COLLECTED" && s !== "PARTIALLY_PAID") return sum;
-          return (
-            sum + Number(p.actualAmount ?? p.invoiceAmount ?? p.amount ?? 0)
-          );
-        }, 0);
-        setRevenueThisMonth(total);
-        // Count pending/overdue payments for ACCOUNTS role
-        const pending = payments.filter((p) => {
-          const s = (p.status || "").toUpperCase();
-          return s === "PENDING" || s === "OVERDUE";
-        }).length;
-        setPendingPaymentsCount(pending);
-      } catch (err) {
-        console.error("Failed to fetch revenue", err);
-      } finally {
-        setRevenueLoading(false);
-      }
-    };
-    fetchRevenue();
-  }, []);
-
-  // Fetch tasks due today
-  useEffect(() => {
-    const fetchTasks = async () => {
-      setTasksLoading(true);
-      try {
-        const tasks = await getUpcomingTasks();
-        const todayStr = format(new Date(), "yyyy-MM-dd");
-        const dueToday = tasks.filter((t) =>
-          t.dueDate ? t.dueDate.slice(0, 10) === todayStr : false,
-        ).length;
-        setTasksDueToday(dueToday);
-      } catch (err) {
-        console.error("Failed to fetch tasks", err);
-      } finally {
-        setTasksLoading(false);
-      }
-    };
-    fetchTasks();
-  }, []);
-
-  // Format revenue for display
   const formatRevenue = (amount: number): string => {
     if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)}Cr`;
     if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
     if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
     return `₹${amount}`;
   };
-  useEffect(() => {
-    const fetchTodaysMeetings = async () => {
-      setMeetingsLoading(true);
-      try {
-        const today = new Date();
-        const response = await listMeetings({
-          dateFrom: startOfDay(today).toISOString(),
-          dateTo: endOfDay(today).toISOString(),
-          limit: 50,
-        });
-        setTodaysMeetings(response.meetings);
-      } catch (err) {
-        console.error("Failed to fetch today's meetings", err);
-        setTodaysMeetings([]);
-      } finally {
-        setMeetingsLoading(false);
-      }
-    };
-    fetchTodaysMeetings();
-  }, []);
 
   // All deadlines data
   const allDeadlines = useMemo(() => {
@@ -568,8 +465,7 @@ export const DashboardOverview: React.FC = () => {
                 icon={FolderKanban}
                 label="Total Projects"
                 value={totalProjectsCount}
-                loading={projectsLoading}
-                change={{ value: 12, isPositive: true }}
+                loading={statsLoading}
                 iconColor="primary"
                 sparklineData={projectsSparkline}
                 animated={true}
@@ -582,8 +478,7 @@ export const DashboardOverview: React.FC = () => {
                 icon={Users}
                 label="Total Leads"
                 value={totalLeads}
-                loading={leadsLoading}
-                change={{ value: 8, isPositive: true }}
+                loading={statsLoading}
                 iconColor="teal"
                 sparklineData={leadsSparkline}
                 animated={true}
@@ -596,8 +491,11 @@ export const DashboardOverview: React.FC = () => {
                 icon={TrendingUp}
                 label="Revenue This Month"
                 value={formatRevenue(revenueThisMonth)}
-                loading={revenueLoading}
-                change={{ value: 15, isPositive: true }}
+                loading={statsLoading}
+                change={{
+                  value: Math.abs(revenueGrowth),
+                  isPositive: revenueGrowth >= 0,
+                }}
                 iconColor="olive"
                 sparklineData={revenueSparkline}
               />
@@ -608,8 +506,8 @@ export const DashboardOverview: React.FC = () => {
               <StatCard
                 icon={Calendar}
                 label="Meetings Today"
-                value={todaysMeetings.length}
-                loading={meetingsLoading}
+                value={meetingsToday}
+                loading={statsLoading}
                 iconColor="rose"
                 sparklineData={meetingsSparkline}
                 animated={true}
@@ -622,8 +520,7 @@ export const DashboardOverview: React.FC = () => {
                 icon={CheckCircle}
                 label="Tasks Due Today"
                 value={tasksDueToday}
-                loading={tasksLoading}
-                change={{ value: 3, isPositive: false }}
+                loading={statsLoading}
                 iconColor="primary"
                 sparklineData={[3, 5, 4, 7, 6, 8, 7]}
                 animated={true}
@@ -634,10 +531,9 @@ export const DashboardOverview: React.FC = () => {
             {roleId === "ACCOUNTS" && (
               <StatCard
                 icon={DollarSign}
-                label="Pending Payments"
-                value={pendingPaymentsCount}
-                loading={revenueLoading}
-                change={{ value: 2, isPositive: false }}
+                label="Pending Amount"
+                value={formatRevenue(pendingAmount)}
+                loading={statsLoading}
                 iconColor="teal"
                 sparklineData={[5, 8, 7, 9, 10, 11, 12]}
                 animated={true}
@@ -678,22 +574,30 @@ export const DashboardOverview: React.FC = () => {
                       {[
                         {
                           label: "Received",
-                          count: "₹18.4L",
+                          count: formatRevenue(
+                            stats?.revenue.totalReceived.value ?? 0,
+                          ),
                           color: "text-green-600",
                         },
                         {
                           label: "Pending",
-                          count: "₹7.2L",
+                          count: formatRevenue(
+                            stats?.revenue.totalPending.value ?? 0,
+                          ),
                           color: "text-orange-500",
                         },
                         {
                           label: "Overdue",
-                          count: "₹2.1L",
+                          count: formatRevenue(
+                            stats?.revenue.totalOverdue.value ?? 0,
+                          ),
                           color: "text-red-500",
                         },
                         {
                           label: "This Month",
-                          count: "₹9.8L",
+                          count: formatRevenue(
+                            stats?.revenue.thisMonth.value ?? 0,
+                          ),
                           color: "text-blue-600",
                         },
                       ].map((item, i) => (
@@ -1027,3 +931,9 @@ export const DashboardOverview: React.FC = () => {
     </div>
   );
 };
+
+export const DashboardOverview: React.FC = () => (
+  <DashboardStatsProvider>
+    <DashboardOverviewContent />
+  </DashboardStatsProvider>
+);

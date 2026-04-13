@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { X, TrendingUp, Loader2 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { WidgetProps } from "./index";
-import { listAllLeads, Lead } from "../../../services/leadApi";
+import { useDashboardStats } from "../../../contexts/DashboardStatsContext";
 
 const SOURCE_CONFIG: Array<{ label: string; keys: string[]; color: string }> = [
   { label: "Website", keys: ["WEBSITE", "WEB", "ONLINE"], color: "#DC5800" },
@@ -24,52 +24,38 @@ const SOURCE_CONFIG: Array<{ label: string; keys: string[]; color: string }> = [
 ];
 
 const LeadSourceWidget: React.FC<WidgetProps> = ({ onRemove }) => {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetch = async () => {
-      try {
-        const results = await listAllLeads();
-        if (!cancelled) setLeads(results);
-      } catch {
-        if (!cancelled) setLeads([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    fetch();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { stats, loading } = useDashboardStats();
 
   const data = useMemo(() => {
+    const bySource = stats?.leads.bySource.value ?? [];
     const counts: Record<string, number> = {};
     let othersCount = 0;
-    leads.forEach((l) => {
-      const src = (l.source || "").toUpperCase();
+
+    bySource.forEach((s) => {
+      const src = s.source.toUpperCase();
       const cfg = SOURCE_CONFIG.find((c) =>
         c.keys.some((k) => src === k || src.includes(k)),
       );
       if (cfg) {
-        counts[cfg.label] = (counts[cfg.label] || 0) + 1;
+        counts[cfg.label] = (counts[cfg.label] || 0) + s.count;
       } else {
-        othersCount++;
+        othersCount += s.count;
       }
     });
+
     const result = SOURCE_CONFIG.map((c) => ({
       name: c.label,
       value: counts[c.label] || 0,
       color: c.color,
     })).filter((d) => d.value > 0);
+
     if (othersCount > 0)
       result.push({ name: "Others", value: othersCount, color: "#8B5CF6" });
-    return result.sort((a, b) => b.value - a.value);
-  }, [leads]);
 
-  const total = data.reduce((s, d) => s + d.value, 0) || leads.length;
+    return result.sort((a, b) => b.value - a.value);
+  }, [stats]);
+
+  const total = stats?.leads.total.value ?? data.reduce((s, d) => s + d.value, 0);
 
   interface TooltipProps {
     active?: boolean;
