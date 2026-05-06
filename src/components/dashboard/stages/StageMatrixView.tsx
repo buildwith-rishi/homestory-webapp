@@ -1154,9 +1154,6 @@ export const StageMatrixView: React.FC<StageMatrixViewProps> = ({
             <div
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               aria-hidden
-              onClick={() => {
-                if (!deletingPlan) setShowDeletePlanModal(false);
-              }}
             />
             <div
               className="relative w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200"

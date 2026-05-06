@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+
+import { FileText, ExternalLink } from "lucide-react";
+
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -860,6 +863,57 @@ const SectionTitle: React.FC<{ title: string }> = ({ title }) => (
 
 // ─── Page Component ──────────────────────────────────────────────────────────
 
+
+const KYC_URL_FIELDS: { field: keyof TeamMember; label: string }[] = [
+  { field: "aadhaarUrl", label: "Aadhaar" },
+  { field: "panUrl", label: "PAN" },
+  { field: "gstCertificateUrl", label: "GST Certificate" },
+  { field: "msmeCertificateUrl", label: "MSME Certificate" },
+];
+
+const MemberKycPanel = ({ member }: { member: TeamMember }) => {
+  const docs = KYC_URL_FIELDS.filter(
+    ({ field }) => !!(member as unknown as Record<string, unknown>)[field],
+  );
+
+  return (
+    <Card className="rounded-2xl p-6">
+      <SectionTitle title="KYC & Compliance Documents" />
+      {docs.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-4">No KYC documents on file.</p>
+      ) : (
+        <div className="space-y-3">
+          {docs.map(({ field, label }) => {
+            const url = (member as unknown as Record<string, unknown>)[field] as string;
+            return (
+              <div
+                key={field}
+                className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-100 hover:border-orange-200 hover:bg-orange-50/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">{label}</span>
+                </div>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View
+                </a>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+};
+
 export const EngineerDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -938,6 +992,10 @@ export const EngineerDetails: React.FC = () => {
       role: member.role,
       department: member.department,
       isActive: member.isActive !== false,
+      aadhaarUrl: member.aadhaarUrl ?? "",
+      panUrl: member.panUrl ?? "",
+      gstCertificateUrl: member.gstCertificateUrl ?? "",
+      msmeCertificateUrl: member.msmeCertificateUrl ?? "",
     });
     setIsEditing(true);
   };
@@ -1274,6 +1332,9 @@ export const EngineerDetails: React.FC = () => {
           </div>
         </Card>
 
+        {/* KYC Panel */}
+        <MemberKycPanel member={member} />
+        
         {/* Role & Department */}
         <Card className="rounded-2xl p-6">
           <SectionTitle title="Role & Department" />
@@ -1343,6 +1404,34 @@ export const EngineerDetails: React.FC = () => {
             </div>
           </div>
         </Card>
+
+        {/* KYC Document URLs — editable when in edit mode */}
+        {isEditing && (
+          <Card className="rounded-2xl p-6 lg:col-span-2">
+            <SectionTitle title="KYC & Compliance Document URLs" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {KYC_URL_FIELDS.map(({ field, label }) => (
+                <div key={field} className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                    {label} URL
+                  </label>
+                  <input
+                    type="url"
+                    value={(editForm[field as keyof UpdateTeamMemberPayload] as string) ?? ""}
+                    onChange={(e) =>
+                      setEditForm((p) => ({
+                        ...p,
+                        [field]: e.target.value || null,
+                      }))
+                    }
+                    placeholder="https://storage.example.com/doc.pdf"
+                    className="w-full text-sm text-gray-900 bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* ── Tasks Section — tasks from GET /api/team/:id (dayTasks) ────── */}

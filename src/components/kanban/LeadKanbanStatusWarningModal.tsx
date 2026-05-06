@@ -25,11 +25,9 @@ const LeadKanbanStatusWarningModal: React.FC<Props> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="lead-kanban-status-warning-title"
-      onClick={onClose}
     >
       <div
         className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 p-6 border-b border-amber-100 bg-amber-50/80">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center flex-shrink-0 shadow-sm">

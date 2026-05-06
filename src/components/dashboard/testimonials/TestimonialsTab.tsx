@@ -35,6 +35,7 @@ import {
   CreateTestimonialRequest,
   UpdateTestimonialRequest,
 } from "../../../types";
+import { createActivity } from "../../../services/activitiesApi";
 import {
   getProjectTestimonials,
   getProjectTestimonial,
@@ -210,6 +211,13 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
         : 0,
   };
 
+  const withActorMetadata = (metadata: Record<string, unknown>) => ({
+    ...metadata,
+    performedById: user?.id || undefined,
+    performedByName: user?.name || undefined,
+    performedAt: new Date().toISOString(),
+  });
+
   // ==========================================
   // Handlers
   // ==========================================
@@ -238,9 +246,32 @@ export const TestimonialsTab: React.FC<TestimonialsTabProps> = ({
   const handleDelete = async () => {
     if (!deletingId) return;
     try {
+      const testimonialToDelete = testimonials.find((t) => t.id === deletingId);
       await deleteTestimonial(projectId, deletingId);
       setTestimonials((prev) => prev.filter((t) => t.id !== deletingId));
       toast.success("Testimonial deleted");
+
+      // Log testimonial deletion activity
+      if (testimonialToDelete) {
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Testimonial deleted: "${testimonialToDelete.customerName || "Anonymous"}"`,
+            metadata: withActorMetadata({
+              testimonialId: deletingId,
+              customerName: testimonialToDelete.customerName,
+              customerDesignation: testimonialToDelete.customerDesignation,
+            }),
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log testimonial deletion activity:",
+            activityError,
+          );
+        }
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to delete");
     } finally {
@@ -801,6 +832,30 @@ const AddTestimonialModal: React.FC<AddTestimonialModalProps> = ({
 
       toast.success("Testimonial created successfully");
       onCreated(finalTestimonial);
+
+      // Log testimonial creation activity
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `Testimonial added: "${form.customerName || "Anonymous"}" (${form.rating}/5 stars)`,
+          metadata: withActorMetadata({
+            testimonialId: created.id,
+            customerName: form.customerName || "Anonymous",
+            rating: form.rating,
+            canSharePublicly: form.canSharePublicly,
+            canUseName: form.canUseName,
+            canUsePhoto: form.canUsePhoto,
+            mediaCount: mediaFiles.length,
+          }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log testimonial creation activity:",
+          activityError,
+        );
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to create testimonial");
     } finally {
@@ -1113,6 +1168,31 @@ const EditTestimonialModal: React.FC<EditTestimonialModalProps> = ({
       );
       toast.success("Testimonial updated");
       onUpdated(updated);
+
+      // Log testimonial update activity
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `Testimonial updated: "${form.customerName || "Anonymous"}" (${form.rating}/5 stars)`,
+          metadata: withActorMetadata({
+            testimonialId: testimonial.id,
+            customerName: form.customerName || "Anonymous",
+            rating: form.rating,
+            customerDesignation: form.customerDesignation,
+            customerCompany: form.customerCompany,
+            canSharePublicly: form.canSharePublicly,
+            canUseName: form.canUseName,
+            canUsePhoto: form.canUsePhoto,
+          }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log testimonial update activity:",
+          activityError,
+        );
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to update");
     } finally {

@@ -144,7 +144,6 @@ export const WidgetLibraryModal: React.FC = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={closeWidgetLibrary}
             style={{
               position: "fixed",
               top: 0,

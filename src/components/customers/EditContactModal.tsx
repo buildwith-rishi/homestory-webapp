@@ -157,7 +157,6 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fade-in">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-md"
-        onClick={handleClose}
       />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden animate-scale-in">
         {/* Header */}

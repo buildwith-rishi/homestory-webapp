@@ -17,6 +17,8 @@ import {
   Trash2,
   User,
   Clock,
+  FileText,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "../ui";
 import {
@@ -131,6 +133,10 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
       department: member.department,
       memberType: member.memberType,
       isActive: member.isActive !== false,
+      aadhaarUrl: member.aadhaarUrl ?? "",
+      panUrl: member.panUrl ?? "",
+      gstCertificateUrl: member.gstCertificateUrl ?? "",
+      msmeCertificateUrl: member.msmeCertificateUrl ?? "",
     });
     setIsEditing(true);
   };
@@ -493,6 +499,59 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                           </p>
                         )}
                       </div>
+                    </div>
+                  </section>
+
+                  {/* ── KYC / Compliance Documents ──────────────────────── */}
+                  <section>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                      KYC &amp; Compliance Documents
+                    </h3>
+                    <div className="space-y-3">
+                      {([
+                        { key: "aadhaarUrl" as const, label: "Aadhaar" },
+                        { key: "panUrl" as const, label: "PAN" },
+                        { key: "gstCertificateUrl" as const, label: "GST Certificate" },
+                        { key: "msmeCertificateUrl" as const, label: "MSME Certificate" },
+                      ]).map(({ key, label }) => (
+                        <div
+                          key={key}
+                          className="flex items-center gap-3 p-3 rounded-xl bg-gray-50"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4 text-purple-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+                            {isEditing ? (
+                              <input
+                                type="url"
+                                value={(editForm[key] as string) ?? ""}
+                                onChange={(e) =>
+                                  setEditForm((p) => ({
+                                    ...p,
+                                    [key]: e.target.value || null,
+                                  }))
+                                }
+                                placeholder="https://storage.example.com/doc.pdf"
+                                className="w-full text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                              />
+                            ) : member[key] ? (
+                              <a
+                                href={member[key]!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-purple-600 hover:text-purple-800 flex items-center gap-1 truncate"
+                              >
+                                <span className="truncate">View Document</span>
+                                <ExternalLink className="w-3 h-3 shrink-0" />
+                              </a>
+                            ) : (
+                              <span className="text-sm text-gray-400">Not provided</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </section>
 

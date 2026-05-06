@@ -1064,7 +1064,7 @@ export function BDRLeads() {
                     />
                   </label>
                   <p className="mt-1 text-[11px] text-gray-500">
-                    Supported formats: PDF, PNG, JPG (Max 10MB)
+                    Supported formats: PDF, PNG, JPG (Max 1GB)
                   </p>
                 </div>
 

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Card, Badge } from "../../ui";
 import { useProjectStore } from "../../../stores/projectStore";
+import { createActivity } from "../../../services/activitiesApi";
 import type {
   ProjectStageData,
   UpdateStageRequest,
@@ -117,15 +118,29 @@ export const ProjectStagesTableView: React.FC<Props> = ({
       const data: UpdateStageRequest = {
         status: editForm.status as StageStatus,
       };
+      const changes: string[] = [];
+
       if (editForm.tentativeEndDate)
         data.tentativeEndDate = editForm.tentativeEndDate;
+      if (editForm.tentativeEndDate && stage.tentativeEndDate !== editForm.tentativeEndDate) {
+        changes.push(`Tentative date updated to ${editForm.tentativeEndDate}`);
+      }
+
       if (editForm.completedDate)
         data.endDate = editForm.completedDate;
+      if (editForm.completedDate && stage.endDate !== editForm.completedDate) {
+        changes.push(`Completion date updated to ${editForm.completedDate}`);
+      }
+
       if (editForm.remarks) data.remarks = editForm.remarks;
+      if (editForm.remarks && stage.remarks !== editForm.remarks) {
+        changes.push("Remarks updated");
+      }
 
       // Auto-set endDate to today when marking as COMPLETED and no date entered
       if (editForm.status === "COMPLETED" && stage.status !== "COMPLETED" && !editForm.completedDate) {
         data.endDate = new Date().toISOString().split("T")[0];
+        changes.push(`Stage marked as completed on ${data.endDate}`);
       }
 
       // Auto-set startDate to today when moving to ONGOING
@@ -135,10 +150,45 @@ export const ProjectStagesTableView: React.FC<Props> = ({
         !stage.startDate
       ) {
         data.startDate = new Date().toISOString().split("T")[0];
+        changes.push(`Stage status changed from ${stage.status} to ONGOING`);
+      }
+
+      // Track status change
+      if (editForm.status !== stage.status) {
+        if (!changes.some(c => c.includes("status changed"))) {
+          changes.push(`Stage status changed from ${stage.status} to ${editForm.status}`);
+        }
       }
 
       await updateProjectStage(projectId, stage.stageCode, data);
       toast.success(`Stage "${stage.stageName}" updated`);
+
+      // Log stage update activity
+      if (changes.length > 0) {
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "STAGE_CHANGE",
+            description: `${stage.stageName}: ${changes.join(", ")}`,
+            metadata: {
+              stageCode: stage.stageCode,
+              stageName: stage.stageName,
+              statusChange: {
+                from: stage.status,
+                to: editForm.status,
+              },
+              changes,
+            },
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log stage update activity:",
+            activityError,
+          );
+        }
+      }
+
       setEditingId(null);
     } catch {
       toast.error("Failed to update stage");

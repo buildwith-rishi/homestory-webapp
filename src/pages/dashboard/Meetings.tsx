@@ -1336,7 +1336,6 @@ export const MeetingsPage: React.FC = () => {
           <>
             {/* Backdrop - covers entire viewport */}
             <div
-              onClick={() => setSelectedMeeting(null)}
               style={{
                 position: "fixed",
                 top: 0,

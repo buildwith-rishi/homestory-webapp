@@ -167,14 +167,22 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
 
   // ── DESIGN_HEAD (Lead Designer) ──────────────────────────────────────────
   DESIGN_HEAD: [
-    "projects.*",
-    "meetings.*",
-    "contacts.read",
-    "tasks.*",
-    "users.read",
-    "reports.view",
+    "users.*",
+    "dashboard.*",
+    "reports.*",
+    "leads.*",
+    "accounts.*",
+    "contacts.*",
+    "deals.*",
+    "payments.*",
     "activity.*",
+    "meetings.*",
+    "projects.*",
+    "tasks.*",
+    "products.*",
     "attachments.*",
+    "emails.*",
+    "roles.read",
   ],
 
   // ── BDR ──────────────────────────────────────────────────────────────────
@@ -338,7 +346,7 @@ export interface NavItemConfig {
   allowedRoles?: RoleId[];
   /** Show badge; e.g. 'NEW' */
   badge?: string;
-  section: "main" | "business" | "account";
+  section: "main" | "business" | "reports" | "account";
 }
 
 export const NAV_ITEMS: NavItemConfig[] = [
@@ -415,6 +423,15 @@ export const NAV_ITEMS: NavItemConfig[] = [
       "SALES",
     ],
   },
+  // ── Reports ────────────────────────────────────────────────
+  {
+    id: "analytics",
+    label: "Reports",
+    path: "/dashboard/analytics",
+    icon: "BarChart3",
+    section: "reports",
+    allowedRoles: ["SUPER_ADMIN"],
+  },
   // ── Account ────────────────────────────────────────────────
   {
     id: "team",
@@ -445,7 +462,15 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/view-tasks",
     icon: "ClipboardList",
     section: "account",
-    allowedRoles: ["SUPER_ADMIN", "ADMIN", "LEAD_PROJECT_MANAGER", "HR"],
+    allowedRoles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "LEAD_PROJECT_MANAGER",
+      "PROJECT_MANAGER",
+      "DESIGNER",
+      "DESIGN_HEAD",
+      "HR",
+    ],
   },
 ];
 
@@ -475,6 +500,7 @@ export function getVisibleNavItems(role: RoleId): NavItemConfig[] {
 export const NAV_SECTIONS: Record<string, string> = {
   main: "Main Menu",
   business: "Business Tools",
+  reports: "Reports",
   account: "Account",
 };
 

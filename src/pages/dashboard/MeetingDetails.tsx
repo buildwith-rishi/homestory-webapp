@@ -324,7 +324,6 @@ const ParticipantModal: React.FC<{
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         style={{ WebkitBackdropFilter: "blur(4px)" }}
-        onClick={onClose}
       />
 
       {/* Modal card */}

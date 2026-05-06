@@ -157,7 +157,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           minHeight: 0,
         }}
       >
-        {(["main", "business", "account"] as const).map(
+        {(["main", "business", "reports", "account"] as const).map(
           (sectionKey, sectionIndex) => {
             const items = sections[sectionKey];
             if (!items || items.length === 0) return null;

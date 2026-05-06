@@ -251,6 +251,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               aria-label="Notifications"
             >
               <Bell size={20} className="text-gray-600" />
+              <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-[#FF6B35] border-2 border-white rounded-full flex items-center justify-center"></span>
             </button>
 
             {/* Dropdown panel */}

@@ -316,6 +316,9 @@ function App() {
                     "SUPER_ADMIN",
                     "ADMIN",
                     "LEAD_PROJECT_MANAGER",
+                    "PROJECT_MANAGER",
+                    "DESIGNER",
+                    "DESIGN_HEAD",
                     "HR",
                   ]}
                 >

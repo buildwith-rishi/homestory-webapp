@@ -20,6 +20,11 @@ export interface TeamMember {
   status?: string;
   createdAt?: string;
   updatedAt?: string;
+  // KYC / compliance document URLs
+  aadhaarUrl?: string | null;
+  panUrl?: string | null;
+  gstCertificateUrl?: string | null;
+  msmeCertificateUrl?: string | null;
 }
 
 export interface CreateTeamMemberPayload {
@@ -30,6 +35,11 @@ export interface CreateTeamMemberPayload {
   department: string;
   memberType: string;
   isActive?: boolean;
+  // KYC / compliance document URLs (optional)
+  aadhaarUrl?: string;
+  panUrl?: string;
+  gstCertificateUrl?: string;
+  msmeCertificateUrl?: string;
 }
 
 export interface UpdateTeamMemberPayload {
@@ -40,6 +50,11 @@ export interface UpdateTeamMemberPayload {
   department?: string;
   memberType?: string;
   isActive?: boolean;
+  // KYC / compliance document URLs (optional)
+  aadhaarUrl?: string | null;
+  panUrl?: string | null;
+  gstCertificateUrl?: string | null;
+  msmeCertificateUrl?: string | null;
 }
 
 /** A single day-plan task as returned by GET /api/team/:id */

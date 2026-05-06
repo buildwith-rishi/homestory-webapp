@@ -192,6 +192,8 @@ export const LeadModal: React.FC<{
   }, [selectedRoleFilter, users]);
 
   const [formData, setFormData] = useState<Omit<Lead, "id">>(emptyForm);
+  const [propertyTypeOther, setPropertyTypeOther] = useState<string>("");
+  const [projectTypeOther, setProjectTypeOther] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [checkingDuplicate, setCheckingDuplicate] = useState<{
@@ -323,6 +325,31 @@ export const LeadModal: React.FC<{
   useEffect(() => {
     if (lead) {
       const existingFloorPlanUrl = getExistingFloorPlanUrl(lead);
+      const knownPropertyTypes = new Set([
+        "RESIDENTIAL",
+        "COMMERCIAL",
+        "MIXED_USE",
+        "OTHERS",
+      ]);
+      const knownProjectTypes = new Set([
+        "APARTMENT",
+        "VILLA",
+        "ROW_HOUSE",
+        "PENTHOUSE",
+        "DUPLEX",
+        "STUDIO",
+        "OFFICE",
+        "RETAIL",
+        "WAREHOUSE",
+        "OTHER",
+      ]);
+
+      const resolvedPropertyType = lead.propertyType || "";
+      const resolvedProjectType = lead.projectType || "";
+      const isCustomPropertyType =
+        resolvedPropertyType && !knownPropertyTypes.has(resolvedPropertyType);
+      const isCustomProjectType =
+        resolvedProjectType && !knownProjectTypes.has(resolvedProjectType);
 
       // Initialize role filter based on assigned user
       if (lead.assignedToId) {
@@ -366,8 +393,8 @@ export const LeadModal: React.FC<{
         scopeType: lead.scopeType || "",
         propertySubtype: lead.propertySubtype || "",
         propertyBHK: lead.propertyBHK || "",
-        propertyType: lead.propertyType || "",
-        projectType: lead.projectType || "",
+        propertyType: isCustomPropertyType ? "OTHERS" : resolvedPropertyType,
+        projectType: isCustomProjectType ? "OTHER" : resolvedProjectType,
         projectStage: lead.projectStage || "",
         startTimeline: lead.startTimeline || "",
         budgetComfort: lead.budgetComfort || "",
@@ -389,9 +416,13 @@ export const LeadModal: React.FC<{
         wantsExperienceCenterVisit: lead.wantsExperienceCenterVisit ?? false,
         canWhatsApp: lead.canWhatsApp ?? true,
       });
+      setPropertyTypeOther(isCustomPropertyType ? resolvedPropertyType : "");
+      setProjectTypeOther(isCustomProjectType ? resolvedProjectType : "");
     } else {
       setFormData(emptyForm);
       setSelectedRoleFilter("");
+      setPropertyTypeOther("");
+      setProjectTypeOther("");
     }
     setErrors({});
     setActiveTab("basic");
@@ -416,6 +447,8 @@ export const LeadModal: React.FC<{
     "propertyType",
     "projectType",
     "city",
+    "propertyTypeOther",
+    "projectTypeOther",
     "area",
     "startTimeline",
     "budgetComfort",
@@ -479,6 +512,12 @@ export const LeadModal: React.FC<{
         newErrors.propertyType = "Property type is required";
       if (!formData.projectType?.trim())
         newErrors.projectType = "Project type is required";
+      if (formData.propertyType === "OTHERS" && !propertyTypeOther.trim()) {
+        newErrors.propertyTypeOther = "Please specify the property type";
+      }
+      if (formData.projectType === "OTHER" && !projectTypeOther.trim()) {
+        newErrors.projectTypeOther = "Please specify the project type";
+      }
       if (!formData.city?.trim()) newErrors.city = "City is required";
       if (!formData.startTimeline?.trim())
         newErrors.startTimeline = "Start timeline is required";
@@ -656,8 +695,14 @@ export const LeadModal: React.FC<{
         companyName: formData.companyName?.trim() || null,
         assignedToId: formData.assignedToId?.trim() || null,
 
-        propertyType: formData.propertyType || null,
-        projectType: formData.projectType || null,
+        propertyType:
+          formData.propertyType === "OTHERS"
+            ? propertyTypeOther.trim() || null
+            : formData.propertyType || null,
+        projectType:
+          formData.projectType === "OTHER"
+            ? projectTypeOther.trim() || null
+            : formData.projectType || null,
         city: formData.city?.trim() || null,
         area:
           formData.area !== null &&
@@ -732,7 +777,6 @@ export const LeadModal: React.FC<{
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
       />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
         {/* Header */}
@@ -1071,7 +1115,13 @@ export const LeadModal: React.FC<{
                   <select
                     id="lead-modal-field-propertyType"
                     value={formData.propertyType || ""}
-                    onChange={(e) => f("propertyType", e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      f("propertyType", value);
+                      if (value !== "OTHERS") {
+                        setPropertyTypeOther("");
+                      }
+                    }}
                     className={selectClass(errors.propertyType)}
                     aria-invalid={!!errors.propertyType}
                   >
@@ -1086,6 +1136,24 @@ export const LeadModal: React.FC<{
                       <AlertCircle className="w-3.5 h-3.5" /> {errors.propertyType}
                     </p>
                   )}
+                  {formData.propertyType === "OTHERS" && (
+                    <div className="mt-3">
+                      <input
+                        type="text"
+                        value={propertyTypeOther}
+                        onChange={(e) => setPropertyTypeOther(e.target.value)}
+                        className={inputClass(errors.propertyTypeOther)}
+                        placeholder="Enter property type"
+                        aria-invalid={!!errors.propertyTypeOther}
+                      />
+                      {errors.propertyTypeOther && (
+                        <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          {errors.propertyTypeOther}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1095,7 +1163,13 @@ export const LeadModal: React.FC<{
                   <select
                     id="lead-modal-field-projectType"
                     value={formData.projectType || ""}
-                    onChange={(e) => f("projectType", e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      f("projectType", value);
+                      if (value !== "OTHER") {
+                        setProjectTypeOther("");
+                      }
+                    }}
                     className={selectClass(errors.projectType)}
                     aria-invalid={!!errors.projectType}
                   >
@@ -1115,6 +1189,24 @@ export const LeadModal: React.FC<{
                     <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5" /> {errors.projectType}
                     </p>
+                  )}
+                  {formData.projectType === "OTHER" && (
+                    <div className="mt-3">
+                      <input
+                        type="text"
+                        value={projectTypeOther}
+                        onChange={(e) => setProjectTypeOther(e.target.value)}
+                        className={inputClass(errors.projectTypeOther)}
+                        placeholder="Enter project type"
+                        aria-invalid={!!errors.projectTypeOther}
+                      />
+                      {errors.projectTypeOther && (
+                        <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          {errors.projectTypeOther}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1346,7 +1438,7 @@ export const LeadModal: React.FC<{
                     )}
                   </div>
                   <p className="mt-1.5 text-xs text-gray-500">
-                    Supported formats: PDF, PNG, JPG (Max 10MB)
+                    Supported formats: PDF, PNG, JPG (Max 1GB)
                   </p>
                 </div>
 
@@ -1470,7 +1562,6 @@ const PhoneInputModal: React.FC<{
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
       />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="p-6">
@@ -1572,7 +1663,6 @@ const OTPModal: React.FC<{
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
       />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="p-6">
@@ -2892,7 +2982,6 @@ const handleBulkDelete = () => {
         ReactDOM.createPortal(
           <>
             <div
-              onClick={() => setSelectedLead(null)}
               style={{
                 position: "fixed",
                 top: 0,

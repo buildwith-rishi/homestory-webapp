@@ -29,8 +29,13 @@ import { hasPermission, RoleId } from "../../config/rbac";
 
 import { useProjectFilter } from "../../contexts/ProjectFilterContext";
 import { useProjectStore } from "../../stores/projectStore";
-import type { Project, CreateProjectRequest } from "../../types";
-import { deleteProject as deleteProjectApi } from "../../services/projectApi";
+import type { Project, CreateProjectRequest, CreatePaymentRequest } from "../../types";
+import {
+  deleteProject as deleteProjectApi,
+  getProjectPayments,
+  deleteProjectPayment,
+  createProjectPayment,
+} from "../../services/projectApi";
 import toast from "react-hot-toast";
 
 // --- Helper functions ---
@@ -324,6 +329,56 @@ export const ProjectsPage: React.FC = () => {
   const { selectedProject } = useProjectFilter();
   const canCreateProject = hasPermission(roleId as RoleId, "projects.create");
   const canDeleteProject = hasPermission(roleId as RoleId, "projects.delete");
+  const canManagePayments =
+    hasPermission(roleId as RoleId, "payments.create") &&
+    hasPermission(roleId as RoleId, "payments.delete");
+
+  const normalizeInitialPayments = async (
+    projectId: string,
+    request: CreateProjectRequest,
+  ) => {
+    if (!projectId || !canManagePayments) return;
+
+    const totalValueRaw =
+      request.totalValue ??
+      Number(request.designValue || 0) + Number(request.executionValue || 0);
+    const totalValue = Number(totalValueRaw || 0);
+    if (!Number.isFinite(totalValue) || totalValue <= 0) return;
+
+    const phaseType = String(request.pipelineType || "")
+      .toUpperCase()
+      .includes("EXECUTION") &&
+      !String(request.pipelineType || "")
+        .toUpperCase()
+        .includes("DESIGN")
+      ? "EXECUTION"
+      : "DESIGN";
+
+    const paymentsResponse = await getProjectPayments(projectId);
+    const payments = paymentsResponse?.payments || [];
+    if (payments.length <= 1) return;
+
+    const hasCollected = payments.some((payment) => {
+      const status = String(payment.status || "").toUpperCase();
+      const actual = Number(payment.actualAmount || 0);
+      return status === "COLLECTED" || actual > 0;
+    });
+    if (hasCollected) return;
+
+    await Promise.all(payments.map((payment) => deleteProjectPayment(payment.id)));
+
+    const payload: CreatePaymentRequest = {
+      projectId,
+      title: "Project Payment 1",
+      phaseType,
+      paymentStage: 1,
+      percentage: 100,
+      expectedAmount: totalValue,
+      invoiceAmount: totalValue,
+      status: "PENDING",
+    };
+    await createProjectPayment(projectId, payload);
+  };
 
   // Initial data fetch
   useEffect(() => {
@@ -407,7 +462,12 @@ export const ProjectsPage: React.FC = () => {
       // Duplicate name for this customer is already validated in NewProjectModal
       // via listProjects before submit; avoid a second identical API round-trip here.
 
-      await addProject(request);
+      const createdProject = await addProject(request);
+      try {
+        await normalizeInitialPayments(createdProject.id, request);
+      } catch (error) {
+        console.warn("Failed to normalize initial payments:", error);
+      }
       toast.success("Project created successfully!");
       setIsModalOpen(false);
     } catch (error) {

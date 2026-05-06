@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, User, Phone, Mail, Plus, Loader2, Briefcase } from "lucide-react";
+import { X, User, Phone, Mail, Plus, Loader2, Briefcase, FileText } from "lucide-react";
 import { Button, Input } from "../ui";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -18,6 +18,10 @@ export interface NewEngineer {
   role: string;
   department: string;
   memberType: string;
+  aadhaarUrl?: string;
+  panUrl?: string;
+  gstCertificateUrl?: string;
+  msmeCertificateUrl?: string;
 }
 
 const roleOptions = [
@@ -58,6 +62,10 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
     role: "",
     department: "",
     memberType: "VENDOR",
+    aadhaarUrl: "",
+    panUrl: "",
+    gstCertificateUrl: "",
+    msmeCertificateUrl: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,6 +145,10 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
       role: "",
       department: "",
       memberType: "VENDOR",
+      aadhaarUrl: "",
+      panUrl: "",
+      gstCertificateUrl: "",
+      msmeCertificateUrl: "",
     });
     setErrors({});
     onClose();
@@ -332,6 +344,82 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                         {errors.department}
                       </p>
                     )}
+                  </div>
+                </div>
+              </div>
+
+              {/* KYC / Compliance Documents */}
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                  </div>
+                  KYC &amp; Compliance Documents
+                  <span className="text-xs font-normal text-gray-400">(optional)</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Aadhaar URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Aadhaar URL
+                    </label>
+                    <Input
+                      type="url"
+                      placeholder="https://storage.example.com/aadhaar.pdf"
+                      value={formData.aadhaarUrl ?? ""}
+                      onChange={(e) =>
+                        handleInputChange("aadhaarUrl", e.target.value)
+                      }
+                      className="rounded-xl"
+                    />
+                  </div>
+
+                  {/* PAN URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      PAN URL
+                    </label>
+                    <Input
+                      type="url"
+                      placeholder="https://storage.example.com/pan.pdf"
+                      value={formData.panUrl ?? ""}
+                      onChange={(e) =>
+                        handleInputChange("panUrl", e.target.value)
+                      }
+                      className="rounded-xl"
+                    />
+                  </div>
+
+                  {/* GST Certificate URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      GST Certificate URL
+                    </label>
+                    <Input
+                      type="url"
+                      placeholder="https://storage.example.com/gst.pdf"
+                      value={formData.gstCertificateUrl ?? ""}
+                      onChange={(e) =>
+                        handleInputChange("gstCertificateUrl", e.target.value)
+                      }
+                      className="rounded-xl"
+                    />
+                  </div>
+
+                  {/* MSME Certificate URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      MSME Certificate URL
+                    </label>
+                    <Input
+                      type="url"
+                      placeholder="https://storage.example.com/msme.pdf"
+                      value={formData.msmeCertificateUrl ?? ""}
+                      onChange={(e) =>
+                        handleInputChange("msmeCertificateUrl", e.target.value)
+                      }
+                      className="rounded-xl"
+                    />
                   </div>
                 </div>
               </div>

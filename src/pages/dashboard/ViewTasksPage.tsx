@@ -24,6 +24,7 @@ import {
   eachDayOfInterval,
   format,
   isSameMonth,
+  isToday,
 } from "date-fns";
 import { Card, Badge, Modal } from "../../components/ui";
 import { adminAPI } from "../../services/api";
@@ -33,6 +34,7 @@ import {
 } from "../../services/projectApi";
 import { getAttachment } from "../../services/attachmentApi";
 import type { AdminUser, MatrixTask, TaskAttachment } from "../../types";
+import { useAuth } from "../../contexts/AuthContext";
 import {
   getRoleBadgeClasses,
   getRoleDisplayName,
@@ -137,6 +139,7 @@ async function fetchAllMatrixTasksForUserId(
 }
 
 export const ViewTasksPage: React.FC = () => {
+  const { user: currentUser, roleId } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -151,12 +154,49 @@ export const ViewTasksPage: React.FC = () => {
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>("");
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<
     string | null
-  >(null);
+  >(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  });
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [listLimit, setListLimit] = useState(50);
   const pageSize = 50;
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const resolvedAttachmentIdsRef = useRef<Set<string>>(new Set());
+  const didAutoOpenRef = useRef(false);
+
+  const isSelfOnlyRole = useMemo(() => {
+    if (!roleId) return false;
+    return new Set<RoleId>([
+      "DESIGNER",
+      "DESIGN_HEAD",
+      "LEAD_PROJECT_MANAGER",
+      "PROJECT_MANAGER",
+    ]).has(roleId);
+  }, [roleId]);
+
+  const selfUserRow = useMemo<UserRow | null>(() => {
+    if (!currentUser?.id) return null;
+    const normalizedRole = String(
+      roleId || currentUser.apiRole || currentUser.role || "BDR",
+    ).toUpperCase();
+    return {
+      id: String(currentUser.id),
+      name: String(currentUser.name || ""),
+      email: String(currentUser.email || ""),
+      role: normalizedRole as AdminUser["role"],
+      roleTitle: currentUser.roleTitle || currentUser.designation || undefined,
+      phone: currentUser.phone || undefined,
+      avatar: currentUser.avatar || undefined,
+      isActive: true,
+      isBanned: false,
+      createdAt: currentUser.createdAt || new Date().toISOString(),
+      updatedAt: currentUser.createdAt || new Date().toISOString(),
+    };
+  }, [currentUser, roleId]);
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -167,6 +207,15 @@ export const ViewTasksPage: React.FC = () => {
         const credentialFromApi = user.credential as
           | { id?: string; roleKey?: string; name?: string }
           | undefined;
+        const resolvedId =
+          String(
+            user.id ||
+              user.userId ||
+              user.user_id ||
+              user.credentialId ||
+              credentialFromApi?.id ||
+              "",
+          ) || "";
         const roleFromApi =
           user.role ||
           credentialFromApi?.roleKey ||
@@ -175,7 +224,7 @@ export const ViewTasksPage: React.FC = () => {
         const roleTitleFromApi = extractRoleTitle(user);
         return {
           ...user,
-          id: String(user.id || ""),
+          id: resolvedId,
           name: String(user.name || ""),
           email: String(user.email || ""),
           role: String(roleFromApi).toUpperCase() as AdminUser["role"],
@@ -195,8 +244,15 @@ export const ViewTasksPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (isSelfOnlyRole) {
+      if (selfUserRow) {
+        setUsers([selfUserRow]);
+        setLoadingUsers(false);
+      }
+      return;
+    }
     void loadUsers();
-  }, [loadUsers]);
+  }, [loadUsers, isSelfOnlyRole, selfUserRow]);
 
   const roleOptions = useMemo(() => {
     const set = new Set<string>();
@@ -278,6 +334,10 @@ export const ViewTasksPage: React.FC = () => {
   };
 
   const openTasks = (user: UserRow) => {
+    if (!user.id) {
+      toast.error("Missing user id for this account");
+      return;
+    }
     setTaskUser(user);
     setTasksOpen(true);
     setTaskStatusFilter("");
@@ -289,6 +349,13 @@ export const ViewTasksPage: React.FC = () => {
     setResolvedUrls({});
     void loadAllTasksForUser(user);
   };
+
+  useEffect(() => {
+    if (!isSelfOnlyRole || !selfUserRow) return;
+    if (didAutoOpenRef.current) return;
+    didAutoOpenRef.current = true;
+    openTasks(selfUserRow);
+  }, [isSelfOnlyRole, selfUserRow]);
 
   const closeTasks = () => {
     setTasksOpen(false);
@@ -639,6 +706,7 @@ export const ViewTasksPage: React.FC = () => {
                     const inMonth = isSameMonth(day, calendarMonth);
                     const hasTask = datesWithTasks.has(key);
                     const isSel = selectedCalendarDate === key;
+                    const isCurrentDay = isToday(day);
                     return (
                       <button
                         key={key}
@@ -658,7 +726,9 @@ export const ViewTasksPage: React.FC = () => {
                           inMonth ? "text-gray-900" : "text-gray-300",
                           isSel
                             ? "bg-orange-500 text-white shadow-sm"
-                            : "hover:bg-orange-50/80 text-gray-800",
+                            : isCurrentDay
+                              ? "bg-orange-100 text-orange-900 font-bold border border-orange-200"
+                              : "hover:bg-orange-50/80 text-gray-800",
                         ].join(" ")}
                       >
                         <span>{format(day, "d")}</span>

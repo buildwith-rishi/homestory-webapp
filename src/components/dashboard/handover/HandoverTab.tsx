@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { Button, Card, SectionLoader, Spinner } from "../../ui";
 import toast from "react-hot-toast";
+import { createActivity } from "../../../services/activitiesApi";
+import { useAuth } from "../../../contexts/AuthContext";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
@@ -92,6 +94,7 @@ interface HandoverTabProps {
 // ==========================================
 
 export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
+  const { user } = useAuth();
   // State
   const [activities, setActivities] = useState<HandoverActivity[]>([]);
   const [photos, setPhotos] = useState<HandoverPhoto[]>([]);
@@ -129,6 +132,13 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
   const [lightboxPhoto, setLightboxPhoto] = useState<HandoverPhoto | null>(
     null,
   );
+
+  const withActorMetadata = (metadata: Record<string, unknown>) => ({
+    ...metadata,
+    performedById: user?.id || undefined,
+    performedByName: user?.name || undefined,
+    performedAt: new Date().toISOString(),
+  });
 
   // ==========================================
   // Data Fetching
@@ -224,6 +234,26 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
         };
         await updateHandoverActivity(projectId, editingActivity.id, updateData);
         toast.success("Activity updated");
+
+        // Log handover activity update
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Handover activity updated: ${formData.name.trim()}`,
+            metadata: withActorMetadata({
+              activityId: editingActivity.id,
+              activityName: formData.name.trim(),
+              cost: parseFloat(formData.cost) || 0,
+            }),
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log handover activity update:",
+            activityError,
+          );
+        }
       } else {
         const createData: CreateHandoverActivityRequest = {
           name: formData.name.trim(),
@@ -232,6 +262,25 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
         };
         await createHandoverActivity(projectId, createData);
         toast.success("Activity created");
+
+        // Log handover activity creation
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Handover activity added: ${formData.name.trim()}`,
+            metadata: withActorMetadata({
+              activityName: formData.name.trim(),
+              cost: parseFloat(formData.cost) || 0,
+            }),
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log handover activity creation:",
+            activityError,
+          );
+        }
       }
       closeForm();
       await fetchActivities();
@@ -247,9 +296,31 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
   const handleDeleteActivity = async (activityId: string) => {
     if (!confirm("Delete this activity? This cannot be undone.")) return;
     try {
+      const activityToDelete = activities.find((a) => a.id === activityId);
       await deleteHandoverActivity(projectId, activityId);
       toast.success("Activity deleted");
       await fetchActivities();
+
+      // Log handover activity deletion
+      if (activityToDelete) {
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Handover activity deleted: ${activityToDelete.name}`,
+            metadata: withActorMetadata({
+              activityId: activityId,
+              activityName: activityToDelete.name,
+            }),
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log handover activity deletion:",
+            activityError,
+          );
+        }
+      }
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to delete activity",
@@ -280,6 +351,7 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
 
   const handleConfirmComplete = async (activityId: string) => {
     try {
+      const activityToComplete = activities.find((a) => a.id === activityId);
       await updateHandoverActivity(projectId, activityId, {
         isCompleted: true,
         completedAt: new Date().toISOString(),
@@ -289,6 +361,29 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
       setCompletingId(null);
       setCompletionNotes("");
       await fetchActivities();
+
+      // Log handover activity completion
+      if (activityToComplete) {
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Handover activity completed: ${activityToComplete.name}`,
+            metadata: withActorMetadata({
+              activityId: activityId,
+              activityName: activityToComplete.name,
+              completedAt: new Date().toISOString(),
+              notes: completionNotes.trim() || undefined,
+            }),
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log handover activity completion:",
+            activityError,
+          );
+        }
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to complete");
     }
@@ -330,6 +425,26 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
       setSelectedPhotoFile(null);
       setShowPhotoUpload(false);
       await fetchPhotos();
+
+      // Log handover photo upload
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `Handover photo uploaded: ${selectedPhotoFile.name}`,
+            metadata: withActorMetadata({
+            fileName: selectedPhotoFile.name,
+            caption: photoCaption.trim() || undefined,
+            isPublic: photoIsPublic,
+            }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log handover photo upload:",
+          activityError,
+        );
+      }
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to upload photo",
@@ -342,10 +457,32 @@ export const HandoverTab: React.FC<HandoverTabProps> = ({ projectId }) => {
   const handleDeletePhoto = async (photoId: string) => {
     if (!confirm("Delete this photo?")) return;
     try {
+      const photoToDelete = photos.find((p) => p.id === photoId);
       await deleteHandoverPhoto(projectId, photoId);
       toast.success("Photo deleted");
       if (lightboxPhoto?.id === photoId) setLightboxPhoto(null);
       await fetchPhotos();
+
+      // Log handover photo deletion
+      if (photoToDelete) {
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Handover photo deleted: ${photoToDelete.caption || "Untitled"}`,
+            metadata: withActorMetadata({
+              photoId: photoId,
+              caption: photoToDelete.caption || undefined,
+            }),
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log handover photo deletion:",
+            activityError,
+          );
+        }
+      }
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to delete photo",

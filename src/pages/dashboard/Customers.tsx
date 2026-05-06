@@ -1255,7 +1255,6 @@ const ViewCustomerModal: React.FC<{
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
       />
 
       {/* Modal */}

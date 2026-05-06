@@ -33,6 +33,8 @@ import { Button } from "../../ui";
 import { MeetingLinkEntitySelect } from "../MeetingLinkEntitySelect";
 import toast from "react-hot-toast";
 import type { ProjectReference } from "../../../types";
+import { createActivity } from "../../../services/activitiesApi";
+import { useAuth } from "../../../contexts/AuthContext";
 import {
   getProjectReferences,
   getProjectReference,
@@ -258,6 +260,7 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
   accountId,
   leadId,
 }) => {
+  const { user } = useAuth();
   const [references, setReferences] = useState<ReferenceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -438,6 +441,13 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     [references],
   );
 
+  const withActorMetadata = (metadata: Record<string, unknown>) => ({
+    ...metadata,
+    performedById: user?.id || undefined,
+    performedByName: user?.name || undefined,
+    performedAt: new Date().toISOString(),
+  });
+
   useEffect(() => {
     if (tagFilter === "all") return;
     const stillValid = uniqueReferenceTags.some(
@@ -521,6 +531,28 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       });
       setAddMode(null);
       fetchReferences();
+
+      // Log reference addition activity
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `Reference added: ${linkForm.linkTitle} (${linkForm.category})`,
+          metadata: withActorMetadata({
+            referenceType: "link",
+            title: linkForm.linkTitle,
+            category: linkForm.category,
+            subCategory: linkForm.subCategory || undefined,
+            tags,
+          }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log reference addition activity:",
+          activityError,
+        );
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to add link",
@@ -583,6 +615,31 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       );
       resetUploadForm();
       fetchReferences();
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description:
+            total === 1
+              ? `Reference uploaded: ${uploadFiles[0]?.name || "File"}`
+              : `${total} references uploaded`,
+          metadata: withActorMetadata({
+            referenceType: "file",
+            count: total,
+            category: cat,
+            subCategory: sub,
+            tags: tagsOpt,
+            fileNames:
+              total <= 5 ? uploadFiles.map((f) => f.name) : undefined,
+          }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log reference upload activity:",
+          activityError,
+        );
+      }
       return;
     }
 
@@ -595,6 +652,27 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       toast.error(detail);
       resetUploadForm();
       fetchReferences();
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `${ok} reference(s) uploaded (partial success)`,
+          metadata: withActorMetadata({
+            referenceType: "file",
+            count: ok,
+            failedCount: failed.length,
+            category: cat,
+            subCategory: sub,
+            tags: tagsOpt,
+          }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log reference upload activity:",
+          activityError,
+        );
+      }
       return;
     }
 
@@ -629,6 +707,25 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       if (quotationFileInputRef.current)
         quotationFileInputRef.current.value = "";
       fetchReferences();
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `Quotation uploaded: ${quotationFile.name}`,
+          metadata: withActorMetadata({
+            referenceType: "quotation",
+            fileName: quotationFile.name,
+            category: "Quotation",
+            tags: ensureQuotationTag(splitCommaTags(quotationTags)),
+          }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log quotation upload activity:",
+          activityError,
+        );
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to upload quotation",
@@ -700,6 +797,26 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
         toast.success("Reference updated!");
         closeEditModal();
         fetchReferences();
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Reference updated: ${newRef.title || newRef.fileName || "Reference"}`,
+            metadata: withActorMetadata({
+              referenceId: newRef.id,
+              title: newRef.title || newRef.fileName,
+              category: categoryValue,
+              subCategory: editForm.subCategory || undefined,
+              tags: tags.length > 0 ? tags : undefined,
+            }),
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log reference update activity:",
+            activityError,
+          );
+        }
         return;
       }
 
@@ -725,6 +842,26 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
       toast.success("Reference updated!");
       closeEditModal();
       fetchReferences();
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `Reference updated: ${titleForLink || editForm.title || "Reference"}`,
+          metadata: withActorMetadata({
+            referenceId: editingRef.id,
+            title: titleForLink || editForm.title || undefined,
+            category: editForm.category || editingRef.category || undefined,
+            subCategory: editForm.subCategory || undefined,
+            tags: tags.length > 0 ? tags : undefined,
+          }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log reference update activity:",
+          activityError,
+        );
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to update reference",
@@ -747,10 +884,31 @@ export const ProjectReferencesTab: React.FC<ProjectReferencesTabProps> = ({
     }
     setIsDeleting(true);
     try {
+      const refTitle = target?.title || target?.linkTitle || "Reference";
       await deleteProjectReference(projectId, deletingId);
       toast.success("Reference deleted");
       setDeletingId(null);
       fetchReferences();
+
+      // Log reference deletion activity
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `Reference deleted: ${refTitle}`,
+          metadata: withActorMetadata({
+            referenceId: deletingId,
+            title: refTitle,
+            referenceType: target?.referenceType || "unknown",
+          }),
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log reference deletion activity:",
+          activityError,
+        );
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to delete reference",

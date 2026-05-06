@@ -47,6 +47,7 @@ import {
   ExternalLink,
   ChevronDown,
   Lock,
+  Activity as ActivityIcon,
 } from "lucide-react";
 import {
   Button,
@@ -58,6 +59,7 @@ import { ProjectStagesSection } from "../../components/dashboard/stages";
 import { TestimonialsTab } from "../../components/dashboard/testimonials";
 import { ProjectReferencesTab } from "../../components/dashboard/references";
 import { HandoverTab } from "../../components/dashboard/handover";
+import { LogsTab } from "../../components/dashboard/logs";
 import toast from "react-hot-toast";
 import { useProjectStore } from "../../stores/projectStore";
 import {
@@ -266,6 +268,7 @@ const calculateTotalValue = (designValue: string, executionValue: string): strin
 };
 
 type PaymentDocumentListItem = {
+  id?: string;
   url: string;
   fileName: string;
   documentType: string;
@@ -284,6 +287,98 @@ const mergeUniquePaymentDocuments = (
     }
   });
   return merged;
+};
+
+const PAYMENT_DOC_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://ghs.oneweekmvps.com";
+
+const resolvePaymentDocUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("//") ||
+    url.startsWith("data:") ||
+    url.startsWith("blob:")
+  ) {
+    return url;
+  }
+  try {
+    const normalized = url.startsWith("/") ? url : `/${url}`;
+    return new URL(normalized, PAYMENT_DOC_BASE_URL).toString();
+  } catch {
+    return null;
+  }
+};
+
+const isPdfDocument = (doc: PaymentDocumentListItem): boolean => {
+  const fileName = String(doc.fileName || doc.url || "").toLowerCase();
+  return fileName.endsWith(".pdf");
+};
+
+const isImageDocument = (doc: PaymentDocumentListItem): boolean => {
+  const fileName = String(doc.fileName || doc.url || "").toLowerCase();
+  return (".png,.jpg,.jpeg,.gif,.webp,.bmp,.svg").split(",").some((ext) =>
+    fileName.endsWith(ext),
+  );
+};
+
+const getAttachmentIdFromDoc = (doc: PaymentDocumentListItem): string | null => {
+  if (doc.id) return doc.id;
+  const raw = String(doc.url || "");
+  if (!raw) return null;
+  if (raw.startsWith("attachment-")) return raw;
+  const marker = "/api/attachments/";
+  if (raw.includes(marker)) {
+    return raw.split(marker).pop() || null;
+  }
+  return null;
+};
+
+
+const PARTIAL_PAYMENT_HISTORY_MARKER = "\n---PARTIAL_HISTORY---\n";
+
+type PartialPaymentHistoryEntry = {
+  amount: number;
+  method?: string;
+  transactionRef?: string;
+  note?: string;
+  recordedAt: string;
+};
+
+const parsePaymentNotesHistory = (notes?: string | null) => {
+  const raw = String(notes || "");
+  if (!raw.includes(PARTIAL_PAYMENT_HISTORY_MARKER)) {
+    return { userNotes: raw.trim(), history: [] as PartialPaymentHistoryEntry[] };
+  }
+
+  const [userNotesPart, historyPart] = raw.split(
+    PARTIAL_PAYMENT_HISTORY_MARKER,
+  );
+  const userNotes = (userNotesPart || "").trim();
+  let history: PartialPaymentHistoryEntry[] = [];
+  if (historyPart?.trim()) {
+    try {
+      const parsed = JSON.parse(historyPart.trim());
+      if (Array.isArray(parsed)) {
+        history = parsed.filter(Boolean) as PartialPaymentHistoryEntry[];
+      }
+    } catch {
+      history = [];
+    }
+  }
+
+  return { userNotes, history };
+};
+
+const buildPaymentNotesWithHistory = (
+  userNotes: string,
+  history: PartialPaymentHistoryEntry[],
+) => {
+  if (!history.length) return userNotes.trim();
+  const trimmedNotes = userNotes.trim();
+  const serialized = JSON.stringify(history);
+  return `${trimmedNotes}${PARTIAL_PAYMENT_HISTORY_MARKER}${serialized}`;
 };
 
 // Helper function to format date
@@ -488,6 +583,7 @@ export const ProjectDetails: React.FC = () => {
         icon: MessageSquare,
       },
       { id: "handover" as const, label: "Handover", icon: Gift },
+      { id: "logs" as const, label: "Logs", icon: ActivityIcon },
     ];
   }, [isSiteEngineerMobileApp, roleId]);
 
@@ -502,7 +598,9 @@ export const ProjectDetails: React.FC = () => {
     | "references"
     | "testimonials"
     | "handover"
+    | "logs"
   >("overview");
+  const [showLogsModal, setShowLogsModal] = useState(false);
 
   // Notification deep-links: ?tab=payments|stages|…&paymentId=&taskId=
   useEffect(() => {
@@ -517,6 +615,7 @@ export const ProjectDetails: React.FC = () => {
           "references",
           "testimonials",
           "handover",
+          "logs",
         ];
     if (!validTabs.includes(tab as typeof activeTab)) return;
     setActiveTab(tab as typeof activeTab);
@@ -561,6 +660,12 @@ export const ProjectDetails: React.FC = () => {
     paymentMethod: "" as string,
     transactionRef: "",
     notes: "",
+  });
+  const [paymentUpdateErrors, setPaymentUpdateErrors] = useState({
+    status: "",
+    actualAmount: "",
+    paymentMethod: "",
+    transactionRef: "",
   });
 
   // Payment phase sub-tab
@@ -632,23 +737,25 @@ export const ProjectDetails: React.FC = () => {
     [sendInvoiceForm.ccEmails],
   );
 
-  /** Invoice & proforma send both require recipient + bank details */
+  /** Invoice requires bank details; proforma only requires recipient. */
   const canSubmitSendInvoice = useMemo(() => {
     const to = sendInvoiceForm.toEmail.trim();
     const name = sendInvoiceForm.toName.trim();
     if (!to || !name || !EMAIL_REGEX.test(to)) return false;
-    if (
-      !sendInvoiceForm.accountName.trim() ||
-      !sendInvoiceForm.accountNumber.trim() ||
-      !sendInvoiceForm.ifscCode.trim() ||
-      !sendInvoiceForm.bankName.trim()
-    ) {
-      return false;
+    if (invoiceSendMode === "invoice") {
+      if (
+        !sendInvoiceForm.accountName.trim() ||
+        !sendInvoiceForm.accountNumber.trim() ||
+        !sendInvoiceForm.ifscCode.trim() ||
+        !sendInvoiceForm.bankName.trim()
+      ) {
+        return false;
+      }
     }
     const rawCc = parseEmailList(sendInvoiceForm.ccEmails);
     if (rawCc.some((email) => !EMAIL_REGEX.test(email))) return false;
     return true;
-  }, [sendInvoiceForm]);
+  }, [invoiceSendMode, sendInvoiceForm]);
 
   const filteredCcUsers = useMemo(() => {
     const query = ccEmailSearch.trim().toLowerCase();
@@ -942,6 +1049,7 @@ export const ProjectDetails: React.FC = () => {
             const item = doc as Partial<PaymentDocumentListItem>;
             if (!item.url || typeof item.url !== "string") return null;
             return {
+              id: typeof item.id === "string" && item.id ? item.id : undefined,
               url: item.url,
               fileName:
                 typeof item.fileName === "string" && item.fileName
@@ -1002,6 +1110,7 @@ export const ProjectDetails: React.FC = () => {
         if (payment.documents?.length) {
           payment.documents.forEach((d) => {
             apiDocs.push({
+              id: d.id,
               url: d.url,
               fileName: d.fileName || "Document",
               documentType: d.documentType,
@@ -1102,6 +1211,27 @@ export const ProjectDetails: React.FC = () => {
         fileBase64: "",
         notes: "",
       });
+
+      // Log document upload activity
+      try {
+        await createActivity({
+          entityType: "PROJECT",
+          entityId: projectId,
+          type: "DOCUMENT_UPLOAD",
+          description: `Document uploaded: ${attachmentUploadForm.fileName}`,
+          metadata: {
+            attachmentId: attachment.id,
+            fileName: attachment.fileName,
+            attachmentType: attachment.attachmentType,
+            fileType: attachment.fileType,
+          },
+        });
+      } catch (activityError) {
+        console.error(
+          "⚠️ Failed to log document upload activity:",
+          activityError,
+        );
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to upload document",
@@ -1124,6 +1254,28 @@ export const ProjectDetails: React.FC = () => {
       );
       toast.success("Document updated successfully!");
       setEditingAttachment(null);
+
+      // Log document update activity
+      if (projectId) {
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Document updated: ${updated.fileName}`,
+            metadata: {
+              attachmentId: updated.id,
+              fileName: updated.fileName,
+              attachmentType: updated.attachmentType,
+            },
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log document update activity:",
+            activityError,
+          );
+        }
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to update document",
@@ -1136,9 +1288,34 @@ export const ProjectDetails: React.FC = () => {
   const handleDeleteAttachment = async (id: string) => {
     if (!confirm("Are you sure you want to delete this document?")) return;
     try {
+      // Get the attachment details before deletion for logging
+      const attachmentToDelete = projectAttachments.find((a) => a.id === id);
+      
       await deleteAttachment(id);
       setProjectAttachments((prev) => prev.filter((a) => a.id !== id));
       toast.success("Document deleted successfully!");
+
+      // Log document deletion activity
+      if (projectId && attachmentToDelete) {
+        try {
+          await createActivity({
+            entityType: "PROJECT",
+            entityId: projectId,
+            type: "DOCUMENT_UPLOAD",
+            description: `Document deleted: ${attachmentToDelete.fileName}`,
+            metadata: {
+              attachmentId: id,
+              fileName: attachmentToDelete.fileName,
+              attachmentType: attachmentToDelete.attachmentType,
+            },
+          });
+        } catch (activityError) {
+          console.error(
+            "⚠️ Failed to log document deletion activity:",
+            activityError,
+          );
+        }
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to delete document",
@@ -1190,6 +1367,61 @@ export const ProjectDetails: React.FC = () => {
       } else {
         toast.error("Failed to open document", { id: toastId });
       }
+    }
+  };
+
+  const handleOpenPaymentDocument = async (doc: PaymentDocumentListItem) => {
+    const toastId = toast.loading("Opening document...");
+    const shouldDownload = isPdfDocument(doc);
+    const previewWindow = shouldDownload
+      ? null
+      : window.open("", "_blank", "noopener,noreferrer");
+    try {
+      const attachmentId = getAttachmentIdFromDoc(doc);
+      let url: string | null = null;
+      if (attachmentId) {
+        const attachment = await getAttachment(attachmentId);
+        url =
+          attachment.downloadUrl ||
+          attachment.url ||
+          attachment.fileUrl ||
+          attachment.storageUrl ||
+          null;
+      }
+      if (!url) {
+        url = resolvePaymentDocUrl(doc.url);
+      }
+      if (!url) {
+        toast.error("Could not find a valid document link", { id: toastId });
+        if (previewWindow) {
+          previewWindow.close();
+        }
+        return;
+      }
+
+      if (shouldDownload) {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = doc.fileName || "document.pdf";
+        link.rel = "noopener noreferrer";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } else {
+        if (previewWindow) {
+          previewWindow.location.href = url;
+        } else {
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+      }
+
+      toast.dismiss(toastId);
+    } catch (error) {
+      console.error("Failed to open payment document:", error);
+      if (previewWindow) {
+        previewWindow.close();
+      }
+      toast.error("Failed to open document", { id: toastId });
     }
   };
 
@@ -1440,11 +1672,13 @@ export const ProjectDetails: React.FC = () => {
     const accNum = sendInvoiceForm.accountNumber.trim();
     const ifsc = sendInvoiceForm.ifscCode.trim();
     const bank = sendInvoiceForm.bankName.trim();
-    if (!accName || !accNum || !ifsc || !bank) {
-      toast.error(
-        "Please fill in account name, account number, IFSC code, and bank name",
-      );
-      return;
+    if (invoiceSendMode === "invoice") {
+      if (!accName || !accNum || !ifsc || !bank) {
+        toast.error(
+          "Please fill in account name, account number, IFSC code, and bank name",
+        );
+        return;
+      }
     }
     setIsSendingInvoice(true);
     try {
@@ -1454,18 +1688,68 @@ export const ProjectDetails: React.FC = () => {
         customMessage: sendInvoiceForm.customMessage || undefined,
         cc: ccEmails,
         attachments,
-        bankDetails: {
-          accountName: accName,
-          accountNumber: accNum,
-          ifscCode: ifsc,
-          bankName: bank,
-          upiId: sendInvoiceForm.upiId.trim() || undefined,
-        },
+        ...(invoiceSendMode === "invoice"
+          ? {
+              bankDetails: {
+                accountName: accName,
+                accountNumber: accNum,
+                ifscCode: ifsc,
+                bankName: bank,
+                upiId: sendInvoiceForm.upiId.trim() || undefined,
+              },
+            }
+          : {}),
       };
       const response = await sendPaymentInvoice(
         invoiceTargetPayment.id,
         invoicePayload,
       );
+      if (attachments.length > 0) {
+        const collectedDocs: PaymentDocumentListItem[] = [];
+        for (const file of attachments) {
+          const updated = await uploadPaymentDocument(invoiceTargetPayment.id, {
+            fileName: file.fileName,
+            fileType: file.fileType,
+            fileBase64: file.fileBase64,
+            documentType: "invoice",
+          });
+          mergePaymentUpdate(updated);
+          if (updated.documents?.length) {
+            updated.documents.forEach((doc) => {
+              if (!collectedDocs.some((cd) => cd.url === doc.url)) {
+                collectedDocs.push({
+                  id: doc.id,
+                  url: doc.url,
+                  fileName: doc.fileName || file.fileName,
+                  documentType: doc.documentType || "invoice",
+                });
+              }
+            });
+          }
+          if (
+            updated.receiptUrl &&
+            !collectedDocs.some((cd) => cd.url === updated.receiptUrl)
+          ) {
+            collectedDocs.push({
+              url: updated.receiptUrl,
+              fileName: updated.receiptFileName || file.fileName,
+              documentType: "invoice",
+            });
+          }
+        }
+        if (collectedDocs.length > 0) {
+          setPaymentDocumentsMap((prev) => {
+            const existing = prev[invoiceTargetPayment.id] || [];
+            return {
+              ...prev,
+              [invoiceTargetPayment.id]: mergeUniquePaymentDocuments(
+                existing,
+                collectedDocs,
+              ),
+            };
+          });
+        }
+      }
       setInvoiceSentSuccessMessage(
         response.message ||
           (invoiceSendMode === "proforma"
@@ -1474,6 +1758,7 @@ export const ProjectDetails: React.FC = () => {
       );
       setShowInvoiceSentSuccessModal(true);
       setShowSendInvoiceModal(false);
+      setSendInvoiceForm((prev) => ({ ...prev, attachments: [] }));
     } catch {
       toast.error(
         invoiceSendMode === "proforma"
@@ -1537,6 +1822,7 @@ export const ProjectDetails: React.FC = () => {
           updated.documents.forEach((d) => {
             if (!collectedDocs.some((cd) => cd.url === d.url)) {
               collectedDocs.push({
+                id: d.id,
                 url: d.url,
                 fileName: d.fileName || file.fileName,
                 documentType: d.documentType || uploadDocForm.documentType,
@@ -1635,29 +1921,85 @@ export const ProjectDetails: React.FC = () => {
 
   // Handle payment update
   const handleEditPayment = (payment: ProjectPayment) => {
+    const parsedNotes = parsePaymentNotesHistory(payment.notes);
     setEditingPayment(payment);
     setPaymentForm({
       status: payment.status || "COLLECTED",
       actualAmount: payment.actualAmount?.toString() || "",
       paymentMethod: payment.paymentMethod || "",
       transactionRef: payment.transactionRef || "",
-      notes: payment.notes || "",
+      notes: parsedNotes.userNotes,
+    });
+    setPaymentUpdateErrors({
+      status: "",
+      actualAmount: "",
+      paymentMethod: "",
+      transactionRef: "",
     });
     setShowPaymentModal(true);
   };
 
   const handleSavePayment = async () => {
     if (!projectId || !editingPayment) return;
+    const nextErrors = {
+      status: "",
+      actualAmount: "",
+      paymentMethod: "",
+      transactionRef: "",
+    };
+    if (!paymentForm.status?.trim()) {
+      nextErrors.status = "Status is required";
+    }
+    const actualAmountValue = paymentForm.actualAmount
+      ? parseFloat(paymentForm.actualAmount)
+      : NaN;
+    if (!Number.isFinite(actualAmountValue) || actualAmountValue <= 0) {
+      nextErrors.actualAmount = "Actual amount is required";
+    }
+    if (!paymentForm.paymentMethod?.trim()) {
+      nextErrors.paymentMethod = "Payment method is required";
+    }
+    if (!paymentForm.transactionRef?.trim()) {
+      nextErrors.transactionRef = "Transaction reference is required";
+    }
+    if (Object.values(nextErrors).some(Boolean)) {
+      setPaymentUpdateErrors(nextErrors);
+      toast.error("Please fill all required fields");
+      return;
+    }
+
     setIsSavingPayment(true);
     try {
+      const parsedNotes = parsePaymentNotesHistory(editingPayment.notes);
+      const nextHistory = [...parsedNotes.history];
+      const actualAmountValue = parseFloat(paymentForm.actualAmount);
+      const currentActualAmount = Number(editingPayment.actualAmount || 0);
+      const nextActualAmount =
+        paymentForm.status === "PARTIALLY_PAID" && actualAmountValue
+          ? currentActualAmount + actualAmountValue
+          : actualAmountValue;
+
+      if (paymentForm.status === "PARTIALLY_PAID" && actualAmountValue) {
+        nextHistory.unshift({
+          amount: actualAmountValue,
+          method: paymentForm.paymentMethod || undefined,
+          transactionRef: paymentForm.transactionRef || undefined,
+          note: paymentForm.notes?.trim() || undefined,
+          recordedAt: new Date().toISOString(),
+        });
+      }
+
+      const mergedNotes = buildPaymentNotesWithHistory(
+        paymentForm.notes || "",
+        nextHistory,
+      );
+
       await updateProjectPayment(projectId, editingPayment.id, {
         status: paymentForm.status,
-        actualAmount: paymentForm.actualAmount
-          ? parseFloat(paymentForm.actualAmount)
-          : undefined,
+        actualAmount: nextActualAmount,
         paymentMethod: paymentForm.paymentMethod || undefined,
         transactionRef: paymentForm.transactionRef || undefined,
-        notes: paymentForm.notes || undefined,
+        notes: mergedNotes || undefined,
       });
       toast.success("Payment updated successfully!");
       setShowPaymentModal(false);
@@ -3025,6 +3367,20 @@ export const ProjectDetails: React.FC = () => {
 
             {/* Right Column */}
             <div className="space-y-3">
+              {/* Logs Modal Trigger Button */}
+              <button
+                onClick={() => setShowLogsModal(true)}
+                className="w-full p-3 rounded-lg border border-blue-200/50 bg-gradient-to-br from-blue-50 to-blue-50/50 hover:from-blue-100 hover:to-blue-50/70 transition-all duration-200 flex items-center gap-2 group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 group-hover:shadow-lg transition-shadow">
+                  <ActivityIcon className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span className="flex-1 text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors text-left">
+                  View Activity Logs
+                </span>
+                <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+              </button>
+
               {/* Customer */}
               {(project.account?.name || project.account?.email || project.account?.phone) && (
                 <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
@@ -3052,6 +3408,45 @@ export const ProjectDetails: React.FC = () => {
                 </Card>
               )}
 
+            </div>
+          </div>
+        )}
+
+        {/* Logs Modal */}
+        {showLogsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-200"
+              onClick={() => setShowLogsModal(false)}
+              aria-hidden="true"
+            />
+
+            {/* Modal Content */}
+            <div className="relative z-50 w-full max-w-2xl max-h-[80vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-gray-200/80 animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/50 bg-gradient-to-r from-blue-50/80 to-blue-50/40">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                    <ActivityIcon className="w-4 h-4 text-white" />
+                  </div>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    Activity Logs
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setShowLogsModal(false)}
+                  className="p-2 hover:bg-white/80 rounded-lg transition-colors text-gray-500 hover:text-gray-700"
+                  aria-label="Close logs modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto bg-slate-50/60">
+                {project && <LogsTab projectId={project.id} />}
+              </div>
             </div>
           </div>
         )}
@@ -3249,7 +3644,7 @@ export const ProjectDetails: React.FC = () => {
                     </button>
                     )}
                     <button
-                      onClick={() => handleOpenSendInvoice(payment)}
+                      onClick={() => handleOpenSendInvoice(payment, "proforma")}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
                       title="Send proforma invoice"
                     >
@@ -3257,7 +3652,7 @@ export const ProjectDetails: React.FC = () => {
                       Send Proforma Invoice
                     </button>
                     <button
-                      onClick={() => handleOpenSendInvoice(payment, "proforma")}
+                      onClick={() => handleOpenSendInvoice(payment, "invoice")}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
                       title="Send invoice"
                     >
@@ -3622,6 +4017,11 @@ export const ProjectDetails: React.FC = () => {
         {/* Handover & Goodwill Tab */}
         {activeTab === "handover" && project && (
           <HandoverTab projectId={project.id} />
+        )}
+
+        {/* Logs Tab */}
+        {activeTab === "logs" && project && (
+          <LogsTab projectId={project.id} />
         )}
       </div>
 
@@ -4071,6 +4471,47 @@ export const ProjectDetails: React.FC = () => {
               </div>
 
               <div className="space-y-4">
+                {(() => {
+                  const parsed = parsePaymentNotesHistory(editingPayment.notes);
+                  if (!parsed.history.length) return null;
+                  return (
+                    <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3">
+                      <p className="text-xs font-semibold text-amber-700 mb-2">
+                        Partial Payment History
+                      </p>
+                      <div className="space-y-2">
+                        {parsed.history.map((entry, idx) => (
+                          <div
+                            key={`${entry.recordedAt}-${idx}`}
+                            className="flex items-start justify-between gap-3 text-xs text-amber-900"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-semibold">
+                                {formatCurrency(entry.amount || 0)}
+                              </p>
+                              <p className="text-amber-800/80">
+                                {entry.method
+                                  ? entry.method.replace(/_/g, " ")
+                                  : "Payment"}
+                                {entry.transactionRef
+                                  ? ` · ${entry.transactionRef}`
+                                  : ""}
+                              </p>
+                              {entry.note && (
+                                <p className="text-amber-800/70">
+                                  {entry.note}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-amber-800/70 whitespace-nowrap">
+                              {new Date(entry.recordedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {/* Status */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -4081,7 +4522,7 @@ export const ProjectDetails: React.FC = () => {
                     onChange={(e) =>
                       setPaymentForm({ ...paymentForm, status: e.target.value })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentUpdateErrors.status ? "border-red-400" : "border-gray-200"}`}
                   >
                     <option value="PENDING">Pending</option>
                     <option value="COLLECTED">Collected</option>
@@ -4089,15 +4530,17 @@ export const ProjectDetails: React.FC = () => {
                     <option value="WAIVED">Waived</option>
                     <option value="PARTIALLY_PAID">Partially Paid</option>
                   </select>
+                  {paymentUpdateErrors.status && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {paymentUpdateErrors.status}
+                    </p>
+                  )}
                 </div>
 
                 {/* Actual Amount */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Actual Amount Collected (₹)
-                    <span className="text-gray-400 font-normal ml-1">
-                      (optional)
-                    </span>
+                    Actual Amount Collected (₹) *
                   </label>
                   <input
                     type="number"
@@ -4108,18 +4551,20 @@ export const ProjectDetails: React.FC = () => {
                         actualAmount: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentUpdateErrors.actualAmount ? "border-red-400" : "border-gray-200"}`}
                     placeholder="e.g. 59000"
                   />
+                  {paymentUpdateErrors.actualAmount && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {paymentUpdateErrors.actualAmount}
+                    </p>
+                  )}
                 </div>
 
                 {/* Payment Method */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Method
-                    <span className="text-gray-400 font-normal ml-1">
-                      (optional)
-                    </span>
+                    Payment Method *
                   </label>
                   <select
                     value={paymentForm.paymentMethod}
@@ -4129,7 +4574,7 @@ export const ProjectDetails: React.FC = () => {
                         paymentMethod: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentUpdateErrors.paymentMethod ? "border-red-400" : "border-gray-200"}`}
                   >
                     <option value="">Select method...</option>
                     <option value="UPI">UPI</option>
@@ -4140,15 +4585,17 @@ export const ProjectDetails: React.FC = () => {
                     <option value="DEBIT_CARD">Debit Card</option>
                     <option value="OTHER">Other</option>
                   </select>
+                  {paymentUpdateErrors.paymentMethod && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {paymentUpdateErrors.paymentMethod}
+                    </p>
+                  )}
                 </div>
 
                 {/* Transaction Reference */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Transaction Reference
-                    <span className="text-gray-400 font-normal ml-1">
-                      (optional)
-                    </span>
+                    Transaction Reference *
                   </label>
                   <input
                     type="text"
@@ -4159,9 +4606,14 @@ export const ProjectDetails: React.FC = () => {
                         transactionRef: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none"
+                    className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none ${paymentUpdateErrors.transactionRef ? "border-red-400" : "border-gray-200"}`}
                     placeholder="e.g. UTR123456789"
                   />
+                  {paymentUpdateErrors.transactionRef && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {paymentUpdateErrors.transactionRef}
+                    </p>
+                  )}
                 </div>
 
                 {/* Notes */}
@@ -4471,7 +4923,8 @@ export const ProjectDetails: React.FC = () => {
                     Selected files will be sent as attachments with this invoice email.
                   </p>
                 </div>
-                <>
+                {invoiceSendMode === "invoice" && (
+                  <>
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">
                       Bank Details
                     </p>
@@ -4567,7 +5020,8 @@ export const ProjectDetails: React.FC = () => {
                         />
                       </div>
                     </div>
-                </>
+                  </>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Custom Message{" "}
@@ -4603,7 +5057,9 @@ export const ProjectDetails: React.FC = () => {
                   disabled={isSendingInvoice || !canSubmitSendInvoice}
                   title={
                     !canSubmitSendInvoice
-                      ? "Fill recipient email, name, and all required bank fields"
+                      ? invoiceSendMode === "invoice"
+                        ? "Fill recipient email, name, and all required bank fields"
+                        : "Fill recipient email and name"
                       : undefined
                   }
                 >
@@ -4826,12 +5282,14 @@ export const ProjectDetails: React.FC = () => {
                     (p) => p.id === viewReceiptsPayment.id,
                   ) ?? viewReceiptsPayment;
                 const apiDocs: Array<{
+                  id?: string;
                   url: string;
                   fileName: string;
                   documentType: string;
                 }> =
                   livePayment.documents && livePayment.documents.length > 0
                     ? livePayment.documents.map((d) => ({
+                        id: d.id,
                         url: d.url,
                         fileName: d.fileName || "Document",
                         documentType: d.documentType,
@@ -4927,11 +5385,12 @@ export const ProjectDetails: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    {merged.map((doc, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl hover:bg-teal-50 hover:border-teal-200 transition-colors"
-                      >
+                    {merged.map((doc, idx) => {
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl hover:bg-teal-50 hover:border-teal-200 transition-colors"
+                        >
                         <FileText className="w-5 h-5 text-teal-500 flex-shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-800 truncate">
@@ -4941,19 +5400,24 @@ export const ProjectDetails: React.FC = () => {
                             {doc.documentType}
                           </p>
                         </div>
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={doc.fileName}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPaymentDocument(doc)}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-100 hover:bg-teal-200 rounded-lg transition-colors flex-shrink-0"
-                          title="Open / download"
+                          title={
+                            isPdfDocument(doc)
+                              ? "Download PDF"
+                              : isImageDocument(doc)
+                                ? "Open in new tab"
+                                : "Open"
+                          }
                         >
                           <Eye className="w-3.5 h-3.5" />
                           View
-                        </a>
-                      </div>
-                    ))}
+                        </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })()}

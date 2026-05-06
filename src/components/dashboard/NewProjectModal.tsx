@@ -613,7 +613,6 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const modalContent = (
     <>
       <div
-        onClick={onClose}
         style={{
           position: "fixed",
           top: 0,

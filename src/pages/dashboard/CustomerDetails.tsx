@@ -989,6 +989,9 @@ export const CustomerDetails: React.FC = () => {
     useState<ImportantDate | null>(null);
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | number | null>(
+    null,
+  );
 
   // Form states
   const [familyForm, setFamilyForm] = useState({
@@ -2850,6 +2853,24 @@ export const CustomerDetails: React.FC = () => {
   const handleAddNote = async () => {
     if (!customer || !noteForm.content) return;
 
+    if (editingNoteId) {
+      const updatedNotes = (customer.notes || []).map((note) =>
+        note.id === editingNoteId
+          ? { ...note, content: noteForm.content }
+          : note,
+      );
+
+      const success = await handleSaveCustomer({ notes: updatedNotes });
+
+      if (success) {
+        setNoteForm({ content: "" });
+        setEditingNoteId(null);
+        setShowNoteModal(false);
+        toast.success("Note updated successfully!");
+      }
+      return;
+    }
+
     const newNote = {
       id: Date.now(),
       content: noteForm.content,
@@ -2857,13 +2878,14 @@ export const CustomerDetails: React.FC = () => {
       createdAt: new Date().toISOString(),
     };
 
-    const updatedNotes = [...(customer.notes || []), newNote];
+    const updatedNotes = [newNote, ...(customer.notes || [])];
 
     const success = await handleSaveCustomer({ notes: updatedNotes });
 
     if (success) {
       setNoteForm({ content: "" });
       setShowNoteModal(false);
+      setEditingNoteId(null);
       toast.success("Note added successfully!");
     }
   };
@@ -3905,331 +3927,6 @@ export const CustomerDetails: React.FC = () => {
                 )}
               </div>
 
-              {/* Project fields — PUT /api/customers/:id (aligned with CRM API) */}
-              <div className="bg-white border border-gray-200/80 rounded-2xl p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                      <Home className="w-4 h-4 text-orange-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                        Project details
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        propertyType, projectType, area, city, timelines, scope,
-                        requirements, floorPlanUrl — same fields as the update
-                        customer API. Name, type, status, and contacts are edited
-                        above.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {editingProjectIntake && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingProjectIntake(false);
-                          setIntakeEditForm(
-                            buildIntakeEditFormFromCustomer(customer),
-                          );
-                        }}
-                        disabled={isSaving}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        Cancel
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (editingProjectIntake) {
-                          const success = await handleSaveCustomer({
-                            customerIntake: {
-                              propertyType: intakeEditForm.propertyType,
-                              projectType: intakeEditForm.projectType,
-                              area: intakeEditForm.area,
-                              city: intakeEditForm.city,
-                              startTimeline: intakeEditForm.startTimeline,
-                              budgetComfort: intakeEditForm.budgetComfort,
-                              projectScope: intakeEditForm.projectScope,
-                              requirements: intakeEditForm.requirements,
-                              floorPlanUrl: intakeEditForm.floorPlanUrl,
-                            },
-                          });
-                          if (success !== false) setEditingProjectIntake(false);
-                        } else {
-                          setIntakeEditForm(
-                            buildIntakeEditFormFromCustomer(customer),
-                          );
-                          setEditingProjectIntake(true);
-                        }
-                      }}
-                      disabled={isSaving}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all disabled:opacity-50 ${
-                        editingProjectIntake
-                          ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                          : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      {isSaving && editingProjectIntake ? (
-                        <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : editingProjectIntake ? (
-                        <Save className="w-3.5 h-3.5" />
-                      ) : (
-                        <Edit2 className="w-3.5 h-3.5" />
-                      )}
-                      {editingProjectIntake ? "Save" : "Edit"}
-                    </button>
-                  </div>
-                </div>
-
-                {editingProjectIntake ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Property type
-                        </label>
-                        <select
-                          value={intakeEditForm.propertyType}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              propertyType: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
-                        >
-                          {mergeIntakeSelectOptions(
-                            INTAKE_PROPERTY_TYPE_OPTIONS,
-                            intakeEditForm.propertyType,
-                          ).map((o) => (
-                            <option key={o.value || "empty"} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Project type
-                        </label>
-                        <select
-                          value={intakeEditForm.projectType}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              projectType: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
-                        >
-                          {mergeIntakeSelectOptions(
-                            INTAKE_PROJECT_TYPE_OPTIONS,
-                            intakeEditForm.projectType,
-                          ).map((o) => (
-                            <option key={o.value || "empty-p"} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Area (e.g. sq.ft)
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={intakeEditForm.area}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              area: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-                          placeholder="3000"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          City
-                        </label>
-                        <input
-                          type="text"
-                          value={intakeEditForm.city}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              city: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-                          placeholder="Bangalore"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Start timeline
-                        </label>
-                        <select
-                          value={intakeEditForm.startTimeline}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              startTimeline: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
-                        >
-                          {mergeIntakeSelectOptions(
-                            INTAKE_START_TIMELINE_OPTIONS,
-                            intakeEditForm.startTimeline,
-                          ).map((o) => (
-                            <option key={o.value || "empty-t"} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Budget comfort
-                        </label>
-                        <select
-                          value={intakeEditForm.budgetComfort}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              budgetComfort: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
-                        >
-                          {mergeIntakeSelectOptions(
-                            INTAKE_BUDGET_COMFORT_OPTIONS,
-                            intakeEditForm.budgetComfort,
-                          ).map((o) => (
-                            <option key={o.value || "empty-b"} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Project scope
-                        </label>
-                        <select
-                          value={intakeEditForm.projectScope}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              projectScope: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
-                        >
-                          {mergeIntakeSelectOptions(
-                            INTAKE_PROJECT_SCOPE_OPTIONS,
-                            intakeEditForm.projectScope,
-                          ).map((o) => (
-                            <option key={o.value || "empty-sc"} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Floor plan URL
-                        </label>
-                        <input
-                          type="url"
-                          value={intakeEditForm.floorPlanUrl}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              floorPlanUrl: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-                          placeholder="https://…"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Requirements
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={intakeEditForm.requirements}
-                          onChange={(e) =>
-                            setIntakeEditForm((p) => ({
-                              ...p,
-                              requirements: e.target.value,
-                            }))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 resize-y min-h-[72px]"
-                          placeholder="What the customer is looking for"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  (() => {
-                    const intake = customer.customerIntake || {};
-                    const rowEntries: [string, string][] = [];
-                    for (const k of PUT_PROJECT_INTAKE_KEYS) {
-                      const val = intake[k];
-                      if (val && String(val).trim())
-                        rowEntries.push([k as string, String(val)]);
-                    }
-                    if (rowEntries.length === 0) {
-                      return (
-                        <p className="text-sm text-gray-500 py-2">
-                          No project details yet. Click Edit to add fields (matches
-                          PUT /api/customers).
-                        </p>
-                      );
-                    }
-                    return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {rowEntries.map(([key, value]) => (
-                          <div
-                            key={key}
-                            className="flex items-start gap-3 p-3 bg-gray-50/80 rounded-xl"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs text-gray-400 font-medium">
-                                {formatCustomerIntakeLabel(key)}
-                              </p>
-                              <p className="text-sm font-medium text-gray-900 mt-0.5 whitespace-pre-wrap break-words">
-                                {key === "floorPlanUrl" &&
-                                /^https?:\/\//i.test(value) ? (
-                                  <a
-                                    href={value}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-orange-600 hover:underline"
-                                  >
-                                    {value}
-                                  </a>
-                                ) : (
-                                  formatCustomerIntakeDisplayValue(key, value)
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()
-                )}
-              </div>
             </>
           )}
 
@@ -4635,40 +4332,48 @@ export const CustomerDetails: React.FC = () => {
                 </h3>
                 <button
                   onClick={() => {
-                    if (editingTab === "notes") {
-                      setEditingTab(null);
-                      toast.success("Changes saved!");
-                    } else {
-                      setEditingTab("notes");
-                    }
+                    setEditingNoteId(null);
+                    setNoteForm({ content: "" });
+                    setShowNoteModal(true);
                   }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                    editingTab === "notes"
-                      ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                 >
-                  {editingTab === "notes" ? (
-                    <Save className="w-3 h-3" />
-                  ) : (
-                    <Edit2 className="w-3 h-3" />
-                  )}
-                  {editingTab === "notes" ? "Save" : "Edit"}
+                  <Plus className="w-3 h-3" />
+                  Add Note
                 </button>
               </div>
-              {customer.notes && customer.notes.length > 0 ? (
+              {(() => {
+                const sortedNotes = (customer.notes || []).slice().sort(
+                  (a, b) =>
+                    new Date(b.createdAt || 0).getTime() -
+                    new Date(a.createdAt || 0).getTime(),
+                );
+                return sortedNotes.length > 0 ? (
                 <div className="space-y-3">
-                  {customer.notes.map((note) => (
+                  {sortedNotes.map((note) => (
                     <div key={note.id} className="p-4 bg-gray-50/80 rounded-xl">
                       <p className="text-sm text-gray-900 leading-relaxed">
                         {note.content}
                       </p>
-                      <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
-                        <span className="font-medium">{note.createdBy}</span>
-                        <span>&middot;</span>
-                        <span>
-                          {new Date(note.createdAt).toLocaleDateString()}
-                        </span>
+                      <div className="flex items-center justify-between mt-3 text-xs text-gray-400">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{note.createdBy}</span>
+                          <span>&middot;</span>
+                          <span>
+                            {new Date(note.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditingNoteId(note.id);
+                            setNoteForm({ content: note.content });
+                            setShowNoteModal(true);
+                          }}
+                          className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-700"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          Edit
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -4678,16 +4383,8 @@ export const CustomerDetails: React.FC = () => {
                   <MessageCircle className="w-8 h-8 text-gray-200 mx-auto mb-2" />
                   <p className="text-sm text-gray-400">No notes added</p>
                 </div>
-              )}
-              {editingTab === "notes" && (
-                <button
-                  onClick={() => setShowNoteModal(true)}
-                  className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-orange-600 border border-dashed border-orange-300 rounded-xl hover:bg-orange-50 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Note
-                </button>
-              )}
+              );
+              })()}
             </div>
           )}
 
@@ -6283,7 +5980,6 @@ export const CustomerDetails: React.FC = () => {
             {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={closeDateModal}
             />
             {/* Modal */}
             <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 animate-scale-in">
@@ -6549,7 +6245,7 @@ export const CustomerDetails: React.FC = () => {
             <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 animate-scale-in">
               <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <StickyNote className="w-6 h-6 text-orange-500" />
-                Add Note
+                {editingNoteId ? "Edit Note" : "Add Note"}
               </h3>
               <div className="space-y-6">
                 <div>
@@ -6571,6 +6267,7 @@ export const CustomerDetails: React.FC = () => {
                   onClick={() => {
                     setShowNoteModal(false);
                     setNoteForm({ content: "" });
+                    setEditingNoteId(null);
                   }}
                   className="flex-1"
                 >
@@ -6581,7 +6278,7 @@ export const CustomerDetails: React.FC = () => {
                   className="flex-1 bg-orange-500 hover:bg-orange-600"
                   disabled={!noteForm.content}
                 >
-                  Add Note
+                  {editingNoteId ? "Save Note" : "Add Note"}
                 </Button>
               </div>
             </div>
