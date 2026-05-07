@@ -23,6 +23,7 @@ import {
   CustomerDetails,
   Marketing,
   Analytics,
+  ReportsPage,
   UserManagement,
   ViewTasksPage,
   KanbanView,
@@ -264,6 +265,25 @@ function App() {
                   ]}
                 >
                   <Analytics />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Reports – Generate & Download Design/Execution/Accounts PDFs */}
+            <Route
+              path="reports"
+              element={
+                <ProtectedRoute
+                  allowedRoleIds={[
+                    "SUPER_ADMIN",
+                    "ADMIN",
+                    "DESIGN_HEAD",
+                    "LEAD_PROJECT_MANAGER",
+                    "PROJECT_MANAGER",
+                    "ACCOUNTS",
+                  ]}
+                >
+                  <ReportsPage />
                 </ProtectedRoute>
               }
             />

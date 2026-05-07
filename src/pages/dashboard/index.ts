@@ -13,6 +13,7 @@ export { Customers } from "./Customers";
 export { CustomerDetails } from "./CustomerDetails";
 export { Marketing } from "./Marketing";
 export { Analytics } from "./Analytics";
+export { ReportsPage } from "./Reports";
 export { UserManagement } from "./UserManagement";
 export { ViewTasksPage } from "./ViewTasksPage";
 export { default as KanbanView } from "./KanbanView";

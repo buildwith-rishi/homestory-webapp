@@ -425,12 +425,19 @@ export const NAV_ITEMS: NavItemConfig[] = [
   },
   // ── Reports ────────────────────────────────────────────────
   {
-    id: "analytics",
+    id: "reports",
     label: "Reports",
-    path: "/dashboard/analytics",
-    icon: "BarChart3",
+    path: "/dashboard/reports",
+    icon: "FileText",
     section: "reports",
-    allowedRoles: ["SUPER_ADMIN"],
+    allowedRoles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "DESIGN_HEAD",
+      "LEAD_PROJECT_MANAGER",
+      "PROJECT_MANAGER",
+      "ACCOUNTS",
+    ],
   },
   // ── Account ────────────────────────────────────────────────
   {
