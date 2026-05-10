@@ -11,7 +11,7 @@ The website logo has been properly configured for Netlify deployment.
    - This ensures Vite copies it to the `dist` folder during build
 
 2. **Netlify Configuration** (`netlify.toml`)
-   - Added cache headers for logo file for optimal performance
+   - Added cache headers for logo file for optimal 
    - Logo will be cached for 1 year (immutable)
 
 3. **Build Output**
