@@ -59,7 +59,7 @@ import { ProjectStagesSection } from "../../components/dashboard/stages";
 import { TestimonialsTab } from "../../components/dashboard/testimonials";
 import { ProjectReferencesTab } from "../../components/dashboard/references";
 import { HandoverTab } from "../../components/dashboard/handover";
-import { LogsTab } from "../../components/dashboard/logs";
+import { ActivitiesTab } from "../../components/dashboard/activities";
 import toast from "react-hot-toast";
 import { useProjectStore } from "../../stores/projectStore";
 import {
@@ -3596,7 +3596,7 @@ export const ProjectDetails: React.FC = () => {
 
               {/* Modal Body */}
               <div className="flex-1 overflow-y-auto bg-slate-50/60">
-                {project && <LogsTab projectId={project.id} />}
+                {project && <ActivitiesTab projectId={project.id} />}
               </div>
             </div>
           </div>
@@ -4172,7 +4172,7 @@ export const ProjectDetails: React.FC = () => {
 
         {/* Logs Tab */}
         {activeTab === "logs" && project && (
-          <LogsTab projectId={project.id} />
+          <ActivitiesTab projectId={project.id} />
         )}
       </div>
 
