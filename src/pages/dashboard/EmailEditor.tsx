@@ -44,6 +44,7 @@ import {
 } from "../../components/email/UserEmailCombobox";
 import { adminAPI } from "../../services/api";
 import { getAllTeamMembers } from "../../services/teamApi";
+import { parsePaymentEmailTemplateDescription } from "../../utils/paymentEmailTemplates";
 
 function parseEmailDirectoryUsers(response: unknown): DirectoryUser[] {
   let usersList: unknown[] = [];
@@ -535,6 +536,22 @@ export const EmailEditor: React.FC = () => {
     const rawSubject = template.subject || "";
     setAppliedTemplateRawHtml(rawHtml);
     setAppliedTemplateRawSubject(rawSubject);
+
+    const paymentPayload = parsePaymentEmailTemplateDescription(
+      template.description,
+    );
+    if (paymentPayload) {
+      setTo(paymentPayload.toEmail.trim());
+      setToName(paymentPayload.toName.trim());
+      if (paymentPayload.kind === "proforma" || paymentPayload.kind === "invoice") {
+        const ccJoined = paymentPayload.cc.join(", ").trim();
+        setCc(ccJoined);
+        setShowCc(ccJoined.length > 0);
+      } else {
+        setCc("");
+        setShowCc(false);
+      }
+    }
 
     // 2. Build vars: start from project data (if available), overlay template var defaults
     const projectVars = selectedProject

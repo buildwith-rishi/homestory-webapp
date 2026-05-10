@@ -1037,11 +1037,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   fetchPaymentById: async (paymentId: string) => {
     try {
       const payment = await projectAPI.getPaymentById(paymentId);
-      // Synthesise documents[] from receiptUrl if the API still returns none
+      // Synthesise documents[] from receiptUrl if the API still returns none.
+      // Carry the attachment id so the View action can request a fresh signed
+      // URL from the attachments service after the original signature expires.
       if (!payment.documents?.length && payment.receiptUrl) {
+        const synthesizedId =
+          payment.attachmentId ||
+          payment.receiptAttachmentIds?.[0] ||
+          undefined;
         payment.documents = [
           {
-            id: undefined,
+            id: synthesizedId,
             url: payment.receiptUrl,
             fileName: payment.receiptFileName || "Receipt",
             documentType: "receipt",

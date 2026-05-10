@@ -635,6 +635,8 @@ export interface UploadPaymentDocumentRequest {
 export interface SendReminderRequest {
   toEmail: string;
   toName: string;
+  /** When set, used as the outbound reminder email subject line. */
+  subject?: string;
   customMessage?: string;
 }
 

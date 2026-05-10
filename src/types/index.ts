@@ -1253,6 +1253,13 @@ export interface ProjectPayment {
   // Receipt / document
   receiptUrl?: string | null;
   receiptFileName?: string | null;
+  // Attachment metadata returned by /upload-document and /payments/:id endpoints.
+  // The backend may return any (or all) of these depending on version — we keep
+  // them so the UI can re-fetch a fresh signed URL from the attachments service
+  // once the original signed URL expires.
+  attachmentId?: string | null;
+  receiptAttachmentIds?: string[] | null;
+  downloadUrl?: string | null;
   // Multiple documents (returned by API if backend supports it)
   documents?: Array<{
     id?: string;

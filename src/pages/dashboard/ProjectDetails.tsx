@@ -74,6 +74,15 @@ import {
   uploadPaymentDocument,
   sendPaymentReminder,
 } from "../../services/projectApi";
+import EmailTemplateAPI from "../../services/emailTemplateApi";
+import {
+  buildInvoiceOrProformaTemplatePayload,
+  buildPaymentEmailTemplateHtml,
+  paymentEmailTemplateName,
+  paymentEmailTemplateSubject,
+  serializePaymentEmailTemplateDescription,
+  type PaymentReminderTemplatePayload,
+} from "../../utils/paymentEmailTemplates";
 import { getLeadById } from "../../services/leadApi";
 import {
   createActivity,
@@ -282,9 +291,21 @@ const mergeUniquePaymentDocuments = (
   const merged = [...existing];
   incoming.forEach((doc) => {
     if (!doc.url) return;
-    if (!merged.some((existingDoc) => existingDoc.url === doc.url)) {
+    const existingIdx = merged.findIndex((d) => d.url === doc.url);
+    if (existingIdx === -1) {
       merged.push(doc);
+      return;
     }
+    // Upgrade the existing entry with any newly-known metadata (e.g. attachment
+    // id, file name) so View can re-fetch a fresh signed URL once the originally
+    // returned one expires.
+    const prev = merged[existingIdx];
+    merged[existingIdx] = {
+      ...prev,
+      id: prev.id || doc.id,
+      fileName: prev.fileName || doc.fileName,
+      documentType: prev.documentType || doc.documentType,
+    };
   });
   return merged;
 };
@@ -731,6 +752,8 @@ export const ProjectDetails: React.FC = () => {
       fileBase64: string;
     }>,
   });
+  const [saveInvoiceEmailAsTemplate, setSaveInvoiceEmailAsTemplate] =
+    useState(false);
 
   const selectedCcEmails = useMemo(
     () => Array.from(new Set(parseEmailList(sendInvoiceForm.ccEmails).map((e) => e.toLowerCase()))),
@@ -802,8 +825,11 @@ export const ProjectDetails: React.FC = () => {
   const [sendReminderForm, setSendReminderForm] = useState({
     toEmail: "",
     toName: "",
+    subject: "",
     customMessage: "",
   });
+  const [saveReminderEmailAsTemplate, setSaveReminderEmailAsTemplate] =
+    useState(false);
 
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -1122,6 +1148,10 @@ export const ProjectDetails: React.FC = () => {
           !apiDocs.some((d) => d.url === payment.receiptUrl)
         ) {
           apiDocs.push({
+            id:
+              payment.attachmentId ||
+              payment.receiptAttachmentIds?.[0] ||
+              undefined,
             url: payment.receiptUrl,
             fileName: payment.receiptFileName || "Receipt",
             documentType: "receipt",
@@ -1371,31 +1401,63 @@ export const ProjectDetails: React.FC = () => {
   };
 
   const handleOpenPaymentDocument = async (doc: PaymentDocumentListItem) => {
-    const toastId = toast.loading("Opening document...");
     const shouldDownload = isPdfDocument(doc);
-    const previewWindow = shouldDownload
-      ? null
-      : window.open("", "_blank", "noopener,noreferrer");
+    const attachmentId = getAttachmentIdFromDoc(doc);
+
+    // Pre-open a placeholder tab from the user gesture so the popup blocker
+    // does not kill it after the async getAttachment() call below. Note: we
+    // intentionally omit "noopener" here because that flag forces window.open
+    // to return null, which would defeat the pre-open trick. We close the
+    // tab on failure paths to avoid leaving a blank tab around.
+    const previewWindow = shouldDownload ? null : window.open("", "_blank");
+    if (previewWindow) {
+      try {
+        previewWindow.opener = null;
+        previewWindow.document.title = doc.fileName || "Loading document…";
+      } catch {
+        // Some browsers may restrict cross-origin writes; safe to ignore.
+      }
+    }
+
+    // Fast path: the document URL is already a usable absolute link and we
+    // have nothing async to do. Open synchronously so popup blockers stay
+    // happy even when no attachment id is available.
+    if (!attachmentId) {
+      const directUrl = resolvePaymentDocUrl(doc.url);
+      if (!directUrl) {
+        if (previewWindow) previewWindow.close();
+        toast.error("Could not find a valid document link");
+        return;
+      }
+      if (shouldDownload) {
+        const link = document.createElement("a");
+        link.href = directUrl;
+        link.download = doc.fileName || "document.pdf";
+        link.rel = "noopener noreferrer";
+        link.target = "_blank";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } else if (previewWindow) {
+        previewWindow.location.href = directUrl;
+      } else {
+        window.open(directUrl, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+
+    const toastId = toast.loading("Opening document...");
     try {
-      const attachmentId = getAttachmentIdFromDoc(doc);
-      let url: string | null = null;
-      if (attachmentId) {
-        const attachment = await getAttachment(attachmentId);
-        url =
-          attachment.downloadUrl ||
-          attachment.url ||
-          attachment.fileUrl ||
-          attachment.storageUrl ||
-          null;
-      }
-      if (!url) {
-        url = resolvePaymentDocUrl(doc.url);
-      }
+      const attachment = await getAttachment(attachmentId);
+      const url =
+        attachment.downloadUrl ||
+        attachment.url ||
+        attachment.fileUrl ||
+        attachment.storageUrl ||
+        resolvePaymentDocUrl(doc.url);
       if (!url) {
         toast.error("Could not find a valid document link", { id: toastId });
-        if (previewWindow) {
-          previewWindow.close();
-        }
+        if (previewWindow) previewWindow.close();
         return;
       }
 
@@ -1404,23 +1466,31 @@ export const ProjectDetails: React.FC = () => {
         link.href = url;
         link.download = doc.fileName || "document.pdf";
         link.rel = "noopener noreferrer";
+        link.target = "_blank";
         document.body.appendChild(link);
         link.click();
         link.remove();
+      } else if (previewWindow) {
+        previewWindow.location.href = url;
       } else {
-        if (previewWindow) {
-          previewWindow.location.href = url;
-        } else {
-          window.open(url, "_blank", "noopener,noreferrer");
-        }
+        window.open(url, "_blank", "noopener,noreferrer");
       }
-
       toast.dismiss(toastId);
     } catch (error) {
       console.error("Failed to open payment document:", error);
-      if (previewWindow) {
-        previewWindow.close();
+      // Fall back to whatever direct URL we had — the cached signed URL may
+      // still be valid even if the attachments lookup failed.
+      const fallbackUrl = resolvePaymentDocUrl(doc.url);
+      if (fallbackUrl) {
+        if (previewWindow) {
+          previewWindow.location.href = fallbackUrl;
+        } else {
+          window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        }
+        toast.dismiss(toastId);
+        return;
       }
+      if (previewWindow) previewWindow.close();
       toast.error("Failed to open document", { id: toastId });
     }
   };
@@ -1511,6 +1581,7 @@ export const ProjectDetails: React.FC = () => {
       payment.actualAmount ??
       payment.amount ??
       "";
+    setSaveInvoiceEmailAsTemplate(false);
     setSendInvoiceForm((prev) => ({
       ...prev,
       toEmail,
@@ -1731,6 +1802,10 @@ export const ProjectDetails: React.FC = () => {
             !collectedDocs.some((cd) => cd.url === updated.receiptUrl)
           ) {
             collectedDocs.push({
+              id:
+                updated.attachmentId ||
+                updated.receiptAttachmentIds?.[0] ||
+                undefined,
               url: updated.receiptUrl,
               fileName: updated.receiptFileName || file.fileName,
               documentType: "invoice",
@@ -1750,6 +1825,42 @@ export const ProjectDetails: React.FC = () => {
           });
         }
       }
+
+      const paymentTitle =
+        invoiceTargetPayment.title ||
+        `Stage ${invoiceTargetPayment.paymentStage}`;
+      if (saveInvoiceEmailAsTemplate) {
+        try {
+          const payload = buildInvoiceOrProformaTemplatePayload({
+            mode: invoiceSendMode,
+            toEmail,
+            toName,
+            cc: ccEmails,
+            customMessage: sendInvoiceForm.customMessage || "",
+            bankDetails:
+              invoiceSendMode === "invoice"
+                ? {
+                    accountName: accName,
+                    accountNumber: accNum,
+                    ifscCode: ifsc,
+                    bankName: bank,
+                    upiId: sendInvoiceForm.upiId.trim() || undefined,
+                  }
+                : undefined,
+          });
+          await EmailTemplateAPI.createTemplate({
+            name: paymentEmailTemplateName(payload, paymentTitle),
+            subject: paymentEmailTemplateSubject(payload, paymentTitle),
+            htmlBody: buildPaymentEmailTemplateHtml(payload),
+            category: "PAYMENT",
+            description: serializePaymentEmailTemplateDescription(payload),
+          });
+          toast.success("Saved as email template — open Email Editor → Templates");
+        } catch {
+          toast.error("Email sent, but saving the template failed");
+        }
+      }
+
       setInvoiceSentSuccessMessage(
         response.message ||
           (invoiceSendMode === "proforma"
@@ -1836,6 +1947,10 @@ export const ProjectDetails: React.FC = () => {
           !collectedDocs.some((cd) => cd.url === updated.receiptUrl)
         ) {
           collectedDocs.push({
+            id:
+              updated.attachmentId ||
+              updated.receiptAttachmentIds?.[0] ||
+              undefined,
             url: updated.receiptUrl,
             fileName: updated.receiptFileName || file.fileName,
             documentType: uploadDocForm.documentType,
@@ -1889,28 +2004,64 @@ export const ProjectDetails: React.FC = () => {
       payment.actualAmount ??
       payment.amount ??
       "";
+    const paymentLabel = payment.title || `Stage ${payment.paymentStage}`;
+    setSaveReminderEmailAsTemplate(false);
     setSendReminderForm({
       toEmail,
       toName,
-      customMessage: `Gentle reminder: Payment of ₹${displayAmount} for "${payment.title || `Stage ${payment.paymentStage}`}" is pending. Kindly complete the payment at your earliest convenience.`,
+      subject: `Payment reminder — ${paymentLabel}`,
+      customMessage: `Gentle reminder: Payment of ₹${displayAmount} for "${paymentLabel}" is pending. Kindly complete the payment at your earliest convenience.`,
     });
     setShowSendReminderModal(true);
   };
 
   const handleSendReminder = async () => {
     if (!reminderTargetPayment) return;
-    if (!sendReminderForm.toEmail || !sendReminderForm.toName) {
+    const toEmailRm = sendReminderForm.toEmail.trim();
+    const toNameRm = sendReminderForm.toName.trim();
+    if (!toEmailRm || !toNameRm) {
       toast.error("Please fill in recipient email and name");
+      return;
+    }
+    if (!EMAIL_REGEX.test(toEmailRm)) {
+      toast.error("Please enter a valid recipient email");
       return;
     }
     setIsSendingReminder(true);
     try {
       await sendPaymentReminder(reminderTargetPayment.id, {
-        toEmail: sendReminderForm.toEmail,
-        toName: sendReminderForm.toName,
+        toEmail: toEmailRm,
+        toName: toNameRm,
+        subject: sendReminderForm.subject.trim() || undefined,
         customMessage: sendReminderForm.customMessage || undefined,
       });
       toast.success("Reminder sent successfully!");
+
+      if (saveReminderEmailAsTemplate) {
+        const paymentTitle =
+          reminderTargetPayment.title ||
+          `Stage ${reminderTargetPayment.paymentStage}`;
+        const payload: PaymentReminderTemplatePayload = {
+          kind: "reminder",
+          toEmail: toEmailRm,
+          toName: toNameRm,
+          subject: sendReminderForm.subject.trim(),
+          customMessage: sendReminderForm.customMessage || "",
+        };
+        try {
+          await EmailTemplateAPI.createTemplate({
+            name: paymentEmailTemplateName(payload, paymentTitle),
+            subject: paymentEmailTemplateSubject(payload, paymentTitle),
+            htmlBody: buildPaymentEmailTemplateHtml(payload),
+            category: "PAYMENT",
+            description: serializePaymentEmailTemplateDescription(payload),
+          });
+          toast.success("Saved as email template — open Email Editor → Templates");
+        } catch {
+          toast.error("Reminder sent, but saving the template failed");
+        }
+      }
+
       setShowSendReminderModal(false);
     } catch {
       toast.error("Failed to send reminder");
@@ -5042,6 +5193,29 @@ export const ProjectDetails: React.FC = () => {
                     placeholder="Thank you for choosing GoodHomeStory!..."
                   />
                 </div>
+                <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={saveInvoiceEmailAsTemplate}
+                    onChange={(e) =>
+                      setSaveInvoiceEmailAsTemplate(e.target.checked)
+                    }
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    <span className="font-medium text-gray-900">
+                      Save as email template
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      Saves recipient details, CC, custom message
+                      {invoiceSendMode === "invoice"
+                        ? ", and bank details"
+                        : ""}{" "}
+                      (not file attachments) to Email Editor → Templates for
+                      editing and reuse.
+                    </span>
+                  </span>
+                </label>
               </div>
               <div className="flex gap-3 mt-6">
                 <Button
@@ -5315,6 +5489,10 @@ export const ProjectDetails: React.FC = () => {
                   !merged.some((d) => d.url === livePayment.receiptUrl)
                 ) {
                   merged.push({
+                    id:
+                      livePayment.attachmentId ||
+                      livePayment.receiptAttachmentIds?.[0] ||
+                      undefined,
                     url: livePayment.receiptUrl,
                     fileName: livePayment.receiptFileName || "Receipt",
                     documentType: "receipt",
@@ -5796,6 +5974,23 @@ export const ProjectDetails: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subject
+                  </label>
+                  <input
+                    type="text"
+                    value={sendReminderForm.subject}
+                    onChange={(e) =>
+                      setSendReminderForm({
+                        ...sendReminderForm,
+                        subject: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none text-sm"
+                    placeholder="Payment reminder — milestone title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Custom Message{" "}
                     <span className="text-gray-400 font-normal">
                       (optional)
@@ -5814,6 +6009,25 @@ export const ProjectDetails: React.FC = () => {
                     placeholder="Gentle reminder to complete the payment..."
                   />
                 </div>
+                <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={saveReminderEmailAsTemplate}
+                    onChange={(e) =>
+                      setSaveReminderEmailAsTemplate(e.target.checked)
+                    }
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    <span className="font-medium text-gray-900">
+                      Save as email template
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      Saves recipient, subject, and message body to Email Editor
+                      → Templates as an editable template.
+                    </span>
+                  </span>
+                </label>
               </div>
               <div className="flex gap-3 mt-6">
                 <Button
