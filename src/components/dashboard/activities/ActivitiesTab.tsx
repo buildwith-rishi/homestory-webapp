@@ -211,16 +211,8 @@ export const ActivitiesTab: React.FC<ActivitiesTabProps> = ({ projectId }) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getActivitiesByEntity("PROJECT", projectId);
-      // API may return { data: [...] }, { activities: [...] }, or a raw array
-      const list = Array.isArray(data)
-        ? data
-        : Array.isArray((data as any)?.data)
-          ? (data as any).data
-          : Array.isArray((data as any)?.activities)
-            ? (data as any).activities
-            : [];
-      setActivities(list);
+      const list = await getActivitiesByEntity("PROJECT", projectId);
+      setActivities(Array.isArray(list) ? list : []);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load activities";
@@ -250,13 +242,23 @@ export const ActivitiesTab: React.FC<ActivitiesTabProps> = ({ projectId }) => {
   // Filtering
   // ==========================================
 
+  const activityMatchesSearch = (a: Activity): boolean => {
+    if (!debouncedSearch.trim()) return true;
+    const q = debouncedSearch.toLowerCase();
+    const hay = [
+      a.description ?? "",
+      a.type,
+      a.createdBy ?? "",
+      ACTIVITY_TYPE_CONFIG[a.type]?.label ?? "",
+    ]
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  };
+
   const filteredActivities = activities
     .filter((a) => activeFilter === "ALL" || a.type === activeFilter)
-    .filter(
-      (a) =>
-        !debouncedSearch ||
-        a.description.toLowerCase().includes(debouncedSearch.toLowerCase()),
-    )
+    .filter(activityMatchesSearch)
     .sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -681,8 +683,10 @@ export const ActivitiesTab: React.FC<ActivitiesTabProps> = ({ projectId }) => {
                               </div>
                             </div>
 
-                            <p className="mt-2 text-sm text-gray-700 leading-relaxed line-clamp-2">
-                              {activity.description}
+                            <p className="mt-2 text-sm text-gray-800 leading-relaxed whitespace-pre-wrap break-words min-h-[1.25rem]">
+                              {activity.description?.trim()
+                                ? activity.description
+                                : "—"}
                             </p>
 
                             <div className="mt-3 flex items-center gap-3 text-xs text-gray-400">
@@ -927,8 +931,8 @@ export const ActivitiesTab: React.FC<ActivitiesTabProps> = ({ projectId }) => {
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                         Description
                       </label>
-                      <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">
-                        {selectedActivity.description}
+                      <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100 whitespace-pre-wrap break-words">
+                        {selectedActivity.description?.trim() || "—"}
                       </p>
                     </div>
 

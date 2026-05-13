@@ -63,6 +63,7 @@ import { ActivitiesTab } from "../../components/dashboard/activities";
 import toast from "react-hot-toast";
 import { useProjectStore } from "../../stores/projectStore";
 import {
+  Activity,
   Project,
   ProjectPayment,
   PaymentStatus,
@@ -76,16 +77,19 @@ import {
 } from "../../services/projectApi";
 import EmailTemplateAPI from "../../services/emailTemplateApi";
 import {
-  buildInvoiceOrProformaTemplatePayload,
-  buildPaymentEmailTemplateHtml,
-  paymentEmailTemplateName,
-  paymentEmailTemplateSubject,
-  serializePaymentEmailTemplateDescription,
-  type PaymentReminderTemplatePayload,
+  parsePaymentEmailTemplateDescription,
+  resolvePaymentModalCustomMessage,
+  resolvePaymentReminderModalDefaults,
+  selectLatestPaymentEmailTemplate,
 } from "../../utils/paymentEmailTemplates";
+import {
+  PAYMENT_CUSTOM_MESSAGE_VARIABLE_OPTIONS,
+  replacePaymentCustomMessageVariables,
+} from "../../utils/paymentEmailPlaceholders";
 import { getLeadById } from "../../services/leadApi";
 import {
   createActivity,
+  getActivitiesByEntity,
 } from "../../services/activitiesApi";
 import {
   getAttachment,
@@ -499,6 +503,247 @@ const getStatusDisplay = (
   };
 };
 
+// --- Requirements & Notes (overview): compact rows + timestamps from activities API ---
+type ParsedNoteRow = {
+  line: string;
+  createdAt?: string;
+  createdBy?: string;
+};
+
+function parseMultilineNotes(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function isLikelyAutomatedNoteLine(line: string): boolean {
+  const t = line.trim();
+  if (!t) return false;
+  const patterns = [
+    /^new lead created from/i,
+    /^lead (converted|created)/i,
+    /^customer created/i,
+    /^project (started|paused|resumed|marked|cancel)/i,
+    /^status changed/i,
+    /^converted from lead/i,
+  ];
+  return patterns.some((re) => re.test(t));
+}
+
+function formatCompactNoteDate(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Match stored lines to project activities by description so we can show real timestamps.
+ * Pool is newest-first; each activity is consumed at most once.
+ */
+function attachActivityTimestampsToLines(
+  lines: string[],
+  activities: Activity[],
+): ParsedNoteRow[] {
+  const pool = activities
+    .filter((a) => (a.description || "").trim().length > 0)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    .map((a) => ({
+      description: a.description.trim(),
+      createdAt: a.createdAt,
+      createdBy: a.createdBy,
+    }));
+
+  return lines.map((line) => {
+    const trimmed = line.trim();
+    let idx = pool.findIndex((p) => p.description === trimmed);
+    if (idx === -1) {
+      idx = pool.findIndex(
+        (p) =>
+          trimmed.startsWith(p.description) &&
+          p.description.length >= 12 &&
+          trimmed.length >= p.description.length,
+      );
+    }
+    if (idx === -1) {
+      idx = pool.findIndex(
+        (p) =>
+          trimmed.includes(p.description) && p.description.length >= 14,
+      );
+    }
+    if (idx !== -1) {
+      const hit = pool.splice(idx, 1)[0];
+      return {
+        line,
+        createdAt: hit.createdAt,
+        createdBy: hit.createdBy,
+      };
+    }
+    return { line };
+  });
+}
+
+const CompactNoteRows: React.FC<{
+  rows: ParsedNoteRow[];
+  emptyLabel: string;
+}> = ({ rows, emptyLabel }) => {
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-md border border-dashed border-gray-200 bg-gray-50/70 px-2 py-2.5 text-center text-[11px] text-gray-500">
+        {emptyLabel}
+      </p>
+    );
+  }
+  return (
+    <ul className="space-y-1" role="list" aria-label="Note entries">
+      {rows.map((row, idx) => {
+        const automated = isLikelyAutomatedNoteLine(row.line);
+        const when = formatCompactNoteDate(row.createdAt);
+        return (
+          <li
+            key={`nr-${idx}-${row.line.slice(0, 40)}`}
+            className={`rounded-md border px-2 py-1.5 ${
+              automated
+                ? "border-amber-100/90 bg-amber-50/35"
+                : "border-gray-100 bg-gray-50/40"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-1 gap-1.5">
+                {automated ? (
+                  <RefreshCw
+                    className="mt-0.5 h-3 w-3 shrink-0 text-amber-600"
+                    aria-hidden
+                  />
+                ) : (
+                  <MessageSquare
+                    className="mt-0.5 h-3 w-3 shrink-0 text-gray-400"
+                    aria-hidden
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-[11px] leading-snug text-gray-800 whitespace-pre-wrap">
+                    {row.line}
+                  </p>
+                  {row.createdBy && (
+                    <p className="mt-0.5 truncate text-[10px] text-gray-400">
+                      {row.createdBy}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                {when ? (
+                  <p className="flex items-center justify-end gap-0.5 text-[10px] leading-tight text-gray-500 tabular-nums">
+                    <Clock className="h-2.5 w-2.5 shrink-0 opacity-70" aria-hidden />
+                    <span>{when}</span>
+                  </p>
+                ) : (
+                  <span className="text-[10px] text-gray-300" title="No matching activity log">
+                    —
+                  </span>
+                )}
+                {automated && (
+                  <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-800/90">
+                    Auto
+                  </p>
+                )}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
+
+const CompactProjectNotesSection: React.FC<{
+  projectId: string;
+  specialRequirements: string | null | undefined;
+  remarks: string | null | undefined;
+}> = ({ projectId, specialRequirements, remarks }) => {
+  const [stampActivities, setStampActivities] = useState<Activity[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await getActivitiesByEntity("PROJECT", projectId);
+        if (cancelled) return;
+        setStampActivities(Array.isArray(list) ? list : []);
+      } catch {
+        if (!cancelled) setStampActivities([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const specLines = useMemo(
+    () => parseMultilineNotes(specialRequirements),
+    [specialRequirements],
+  );
+  const remLines = useMemo(() => parseMultilineNotes(remarks), [remarks]);
+
+  const specRows = useMemo(
+    () => attachActivityTimestampsToLines(specLines, stampActivities),
+    [specLines, stampActivities],
+  );
+  const remRows = useMemo(
+    () => attachActivityTimestampsToLines(remLines, stampActivities),
+    [remLines, stampActivities],
+  );
+
+  return (
+    <Card className="border-gray-200/50 bg-white/80 p-3 shadow-sm backdrop-blur-sm sm:p-4">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-amber-500 to-orange-600">
+          <FileText className="h-3.5 w-3.5 text-white" />
+        </div>
+        Requirements & Notes
+      </h2>
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
+        <div className="space-y-1.5 sm:border-r sm:border-gray-100 sm:pr-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              <MessageSquare className="h-3 w-3 shrink-0 text-orange-500" />
+              Special requirements
+            </h3>
+            {specLines.length > 1 && (
+              <span className="tabular-nums text-[9px] text-gray-400">
+                {specLines.length}
+              </span>
+            )}
+          </div>
+          <CompactNoteRows
+            rows={specRows}
+            emptyLabel="No special requirements recorded."
+          />
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+            <FileText className="h-3 w-3 shrink-0 text-gray-400" />
+            Remarks
+          </h3>
+          <CompactNoteRows rows={remRows} emptyLabel="No remarks yet." />
+        </div>
+      </div>
+    </Card>
+  );
+};
+
 export const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
@@ -736,6 +981,8 @@ export const ProjectDetails: React.FC = () => {
   const [showCcDropdown, setShowCcDropdown] = useState(false);
   const [ccEmailSearch, setCcEmailSearch] = useState("");
   const ccDropdownRef = useRef<HTMLDivElement | null>(null);
+  const invoiceCustomMessageRef = useRef<HTMLTextAreaElement | null>(null);
+  const reminderCustomMessageRef = useRef<HTMLTextAreaElement | null>(null);
   const [sendInvoiceForm, setSendInvoiceForm] = useState({
     toEmail: "",
     ccEmails: "",
@@ -752,9 +999,6 @@ export const ProjectDetails: React.FC = () => {
       fileBase64: string;
     }>,
   });
-  const [saveInvoiceEmailAsTemplate, setSaveInvoiceEmailAsTemplate] =
-    useState(false);
-
   const selectedCcEmails = useMemo(
     () => Array.from(new Set(parseEmailList(sendInvoiceForm.ccEmails).map((e) => e.toLowerCase()))),
     [sendInvoiceForm.ccEmails],
@@ -828,9 +1072,6 @@ export const ProjectDetails: React.FC = () => {
     subject: "",
     customMessage: "",
   });
-  const [saveReminderEmailAsTemplate, setSaveReminderEmailAsTemplate] =
-    useState(false);
-
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -1581,19 +1822,55 @@ export const ProjectDetails: React.FC = () => {
       payment.actualAmount ??
       payment.amount ??
       "";
-    setSaveInvoiceEmailAsTemplate(false);
+    const defaultMsg =
+      mode === "proforma"
+        ? `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`
+        : `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`;
+
     setSendInvoiceForm((prev) => ({
       ...prev,
       toEmail,
       ccEmails: "",
       toName,
       attachments: [],
-      customMessage:
-        mode === "proforma"
-          ? `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`
-          : `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`,
+      customMessage: defaultMsg,
     }));
     setShowSendInvoiceModal(true);
+
+    void (async () => {
+      try {
+        const list = await EmailTemplateAPI.listTemplates();
+        const kind = mode === "proforma" ? "proforma" : "invoice";
+        const msg = resolvePaymentModalCustomMessage({
+          templates: list,
+          kind,
+          fallback: defaultMsg,
+        });
+        const picked = selectLatestPaymentEmailTemplate(list, kind);
+        const payload = picked
+          ? parsePaymentEmailTemplateDescription(picked.description)
+          : null;
+
+        setSendInvoiceForm((prev) => {
+          const next = { ...prev, customMessage: msg };
+          if (
+            mode === "invoice" &&
+            payload?.kind === "invoice" &&
+            payload.bankDetails
+          ) {
+            const b = payload.bankDetails;
+            next.accountName = b.accountName || prev.accountName;
+            next.accountNumber = b.accountNumber || prev.accountNumber;
+            next.ifscCode = b.ifscCode || prev.ifscCode;
+            next.bankName = b.bankName || prev.bankName;
+            next.upiId = b.upiId ?? prev.upiId;
+          }
+          return next;
+        });
+      } catch {
+        /* keep defaults */
+      }
+    })();
   };
 
   const toggleCcEmail = (email: string) => {
@@ -1753,10 +2030,18 @@ export const ProjectDetails: React.FC = () => {
     }
     setIsSendingInvoice(true);
     try {
+      const resolvedCustomMessage = sendInvoiceForm.customMessage.trim()
+        ? replacePaymentCustomMessageVariables(
+            sendInvoiceForm.customMessage,
+            currentProject,
+            sendInvoiceForm.toName,
+          )
+        : "";
+
       const invoicePayload = {
         toEmail,
         toName,
-        customMessage: sendInvoiceForm.customMessage || undefined,
+        customMessage: resolvedCustomMessage || undefined,
         cc: ccEmails,
         attachments,
         ...(invoiceSendMode === "invoice"
@@ -1823,41 +2108,6 @@ export const ProjectDetails: React.FC = () => {
               ),
             };
           });
-        }
-      }
-
-      const paymentTitle =
-        invoiceTargetPayment.title ||
-        `Stage ${invoiceTargetPayment.paymentStage}`;
-      if (saveInvoiceEmailAsTemplate) {
-        try {
-          const payload = buildInvoiceOrProformaTemplatePayload({
-            mode: invoiceSendMode,
-            toEmail,
-            toName,
-            cc: ccEmails,
-            customMessage: sendInvoiceForm.customMessage || "",
-            bankDetails:
-              invoiceSendMode === "invoice"
-                ? {
-                    accountName: accName,
-                    accountNumber: accNum,
-                    ifscCode: ifsc,
-                    bankName: bank,
-                    upiId: sendInvoiceForm.upiId.trim() || undefined,
-                  }
-                : undefined,
-          });
-          await EmailTemplateAPI.createTemplate({
-            name: paymentEmailTemplateName(payload, paymentTitle),
-            subject: paymentEmailTemplateSubject(payload, paymentTitle),
-            htmlBody: buildPaymentEmailTemplateHtml(payload),
-            category: "PAYMENT",
-            description: serializePaymentEmailTemplateDescription(payload),
-          });
-          toast.success("Saved as email template — open Email Editor → Templates");
-        } catch {
-          toast.error("Email sent, but saving the template failed");
         }
       }
 
@@ -2005,14 +2255,34 @@ export const ProjectDetails: React.FC = () => {
       payment.amount ??
       "";
     const paymentLabel = payment.title || `Stage ${payment.paymentStage}`;
-    setSaveReminderEmailAsTemplate(false);
+    const defaultSubject = `Payment reminder — ${paymentLabel}`;
+    const defaultMessage = `Gentle reminder: Payment of ₹${displayAmount} for "${paymentLabel}" is pending. Kindly complete the payment at your earliest convenience.`;
+
     setSendReminderForm({
       toEmail,
       toName,
-      subject: `Payment reminder — ${paymentLabel}`,
-      customMessage: `Gentle reminder: Payment of ₹${displayAmount} for "${paymentLabel}" is pending. Kindly complete the payment at your earliest convenience.`,
+      subject: defaultSubject,
+      customMessage: defaultMessage,
     });
     setShowSendReminderModal(true);
+
+    void (async () => {
+      try {
+        const list = await EmailTemplateAPI.listTemplates();
+        const resolved = resolvePaymentReminderModalDefaults({
+          templates: list,
+          fallbackSubject: defaultSubject,
+          fallbackMessage: defaultMessage,
+        });
+        setSendReminderForm((prev) => ({
+          ...prev,
+          subject: resolved.subject,
+          customMessage: resolved.customMessage,
+        }));
+      } catch {
+        /* keep defaults */
+      }
+    })();
   };
 
   const handleSendReminder = async () => {
@@ -2029,38 +2299,21 @@ export const ProjectDetails: React.FC = () => {
     }
     setIsSendingReminder(true);
     try {
+      const resolvedReminderMessage = sendReminderForm.customMessage.trim()
+        ? replacePaymentCustomMessageVariables(
+            sendReminderForm.customMessage,
+            currentProject,
+            sendReminderForm.toName,
+          )
+        : "";
+
       await sendPaymentReminder(reminderTargetPayment.id, {
         toEmail: toEmailRm,
         toName: toNameRm,
         subject: sendReminderForm.subject.trim() || undefined,
-        customMessage: sendReminderForm.customMessage || undefined,
+        customMessage: resolvedReminderMessage || undefined,
       });
       toast.success("Reminder sent successfully!");
-
-      if (saveReminderEmailAsTemplate) {
-        const paymentTitle =
-          reminderTargetPayment.title ||
-          `Stage ${reminderTargetPayment.paymentStage}`;
-        const payload: PaymentReminderTemplatePayload = {
-          kind: "reminder",
-          toEmail: toEmailRm,
-          toName: toNameRm,
-          subject: sendReminderForm.subject.trim(),
-          customMessage: sendReminderForm.customMessage || "",
-        };
-        try {
-          await EmailTemplateAPI.createTemplate({
-            name: paymentEmailTemplateName(payload, paymentTitle),
-            subject: paymentEmailTemplateSubject(payload, paymentTitle),
-            htmlBody: buildPaymentEmailTemplateHtml(payload),
-            category: "PAYMENT",
-            description: serializePaymentEmailTemplateDescription(payload),
-          });
-          toast.success("Saved as email template — open Email Editor → Templates");
-        } catch {
-          toast.error("Reminder sent, but saving the template failed");
-        }
-      }
 
       setShowSendReminderModal(false);
     } catch {
@@ -3258,34 +3511,12 @@ export const ProjectDetails: React.FC = () => {
                 </div>
               </Card>
 
-              {(project.specialRequirements ||
-                project.remarks) && (
-                <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
-                  <h2 className="text-base font-bold text-gray-900 mb-2.5 flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-white" />
-                    </div>
-                    Requirements & Notes
-                  </h2>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                        Special Requirements
-                      </p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-2 border border-gray-100">
-                        {project.specialRequirements || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                        Remarks
-                      </p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap rounded-lg bg-gray-50 p-2 border border-gray-100">
-                        {project.remarks || "N/A"}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
+              {(project.specialRequirements || project.remarks) && (
+                <CompactProjectNotesSection
+                  projectId={project.id}
+                  specialRequirements={project.specialRequirements}
+                  remarks={project.remarks}
+                />
               )}
 
               {/* Client/Lead Information */}
@@ -3595,7 +3826,7 @@ export const ProjectDetails: React.FC = () => {
               </div>
 
               {/* Modal Body */}
-              <div className="flex-1 overflow-y-auto bg-slate-50/60">
+              <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/60">
                 {project && <ActivitiesTab projectId={project.id} />}
               </div>
             </div>
@@ -5174,13 +5405,49 @@ export const ProjectDetails: React.FC = () => {
                   </>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Custom Message{" "}
-                    <span className="text-gray-400 font-normal">
-                      (optional)
-                    </span>
-                  </label>
+                  <div className="flex flex-wrap items-end justify-between gap-2 mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Custom Message{" "}
+                      <span className="text-gray-400 font-normal">
+                        (optional)
+                      </span>
+                    </label>
+                    <select
+                      aria-label="Insert variable into custom message"
+                      defaultValue=""
+                      className="text-xs font-medium rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-gray-700 shadow-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20 shrink-0"
+                      onChange={(e) => {
+                        const token = e.target.value;
+                        if (!token) return;
+                        const el = invoiceCustomMessageRef.current;
+                        setSendInvoiceForm((prev) => {
+                          const v = prev.customMessage;
+                          const start = el?.selectionStart ?? v.length;
+                          const end = el?.selectionEnd ?? v.length;
+                          const next = v.slice(0, start) + token + v.slice(end);
+                          const pos = start + token.length;
+                          queueMicrotask(() => {
+                            const node = invoiceCustomMessageRef.current;
+                            if (node) {
+                              node.focus();
+                              node.setSelectionRange(pos, pos);
+                            }
+                          });
+                          return { ...prev, customMessage: next };
+                        });
+                        e.target.selectedIndex = 0;
+                      }}
+                    >
+                      <option value="">+ Variable</option>
+                      {PAYMENT_CUSTOM_MESSAGE_VARIABLE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <textarea
+                    ref={invoiceCustomMessageRef}
                     value={sendInvoiceForm.customMessage}
                     onChange={(e) =>
                       setSendInvoiceForm({
@@ -5192,30 +5459,18 @@ export const ProjectDetails: React.FC = () => {
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 focus-visible:outline-none resize-none text-sm"
                     placeholder="Thank you for choosing GoodHomeStory!..."
                   />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    <code className="text-[10px] bg-gray-100 px-1 rounded">
+                      {"{{firstName}}"}
+                    </code>
+                    ,{" "}
+                    <code className="text-[10px] bg-gray-100 px-1 rounded">
+                      {"{{projectName}}}"}
+                    </code>
+                    , etc. are filled from To Name and this project when you
+                    send.
+                  </p>
                 </div>
-                <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-3">
-                  <input
-                    type="checkbox"
-                    checked={saveInvoiceEmailAsTemplate}
-                    onChange={(e) =>
-                      setSaveInvoiceEmailAsTemplate(e.target.checked)
-                    }
-                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    <span className="font-medium text-gray-900">
-                      Save as email template
-                    </span>
-                    <span className="block text-xs text-gray-500 mt-0.5">
-                      Saves recipient details, CC, custom message
-                      {invoiceSendMode === "invoice"
-                        ? ", and bank details"
-                        : ""}{" "}
-                      (not file attachments) to Email Editor → Templates for
-                      editing and reuse.
-                    </span>
-                  </span>
-                </label>
               </div>
               <div className="flex gap-3 mt-6">
                 <Button
@@ -5990,13 +6245,49 @@ export const ProjectDetails: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Custom Message{" "}
-                    <span className="text-gray-400 font-normal">
-                      (optional)
-                    </span>
-                  </label>
+                  <div className="flex flex-wrap items-end justify-between gap-2 mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Custom Message{" "}
+                      <span className="text-gray-400 font-normal">
+                        (optional)
+                      </span>
+                    </label>
+                    <select
+                      aria-label="Insert variable into custom message"
+                      defaultValue=""
+                      className="text-xs font-medium rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-gray-700 shadow-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20 shrink-0"
+                      onChange={(e) => {
+                        const token = e.target.value;
+                        if (!token) return;
+                        const el = reminderCustomMessageRef.current;
+                        setSendReminderForm((prev) => {
+                          const v = prev.customMessage;
+                          const start = el?.selectionStart ?? v.length;
+                          const end = el?.selectionEnd ?? v.length;
+                          const next = v.slice(0, start) + token + v.slice(end);
+                          const pos = start + token.length;
+                          queueMicrotask(() => {
+                            const node = reminderCustomMessageRef.current;
+                            if (node) {
+                              node.focus();
+                              node.setSelectionRange(pos, pos);
+                            }
+                          });
+                          return { ...prev, customMessage: next };
+                        });
+                        e.target.selectedIndex = 0;
+                      }}
+                    >
+                      <option value="">+ Variable</option>
+                      {PAYMENT_CUSTOM_MESSAGE_VARIABLE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <textarea
+                    ref={reminderCustomMessageRef}
                     value={sendReminderForm.customMessage}
                     onChange={(e) =>
                       setSendReminderForm({
@@ -6008,26 +6299,14 @@ export const ProjectDetails: React.FC = () => {
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus-visible:outline-none resize-none text-sm"
                     placeholder="Gentle reminder to complete the payment..."
                   />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Variables insert as{" "}
+                    <code className="text-[10px] bg-gray-100 px-1 rounded">
+                      {"{{token}}"}
+                    </code>{" "}
+                    and are replaced from To Name and project when sending.
+                  </p>
                 </div>
-                <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-3">
-                  <input
-                    type="checkbox"
-                    checked={saveReminderEmailAsTemplate}
-                    onChange={(e) =>
-                      setSaveReminderEmailAsTemplate(e.target.checked)
-                    }
-                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    <span className="font-medium text-gray-900">
-                      Save as email template
-                    </span>
-                    <span className="block text-xs text-gray-500 mt-0.5">
-                      Saves recipient, subject, and message body to Email Editor
-                      → Templates as an editable template.
-                    </span>
-                  </span>
-                </label>
               </div>
               <div className="flex gap-3 mt-6">
                 <Button

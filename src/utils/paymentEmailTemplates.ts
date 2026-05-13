@@ -3,6 +3,8 @@
  * Structured fields live in `description` under a versioned marker; `htmlBody` is human-editable.
  */
 
+import type { EmailTemplate } from "../services/emailTemplateApi";
+
 export const PAYMENT_EMAIL_TEMPLATE_MARKER = "GHS_PAYMENT_EMAIL_TEMPLATE_V1:";
 
 export type PaymentEmailTemplateKind = "proforma" | "invoice" | "reminder";
@@ -234,4 +236,126 @@ export function buildInvoiceOrProformaTemplatePayload(args: {
       upiId: b.upiId?.trim() || undefined,
     },
   };
+}
+
+function paymentTemplateTimestamp(
+  t: Pick<EmailTemplate, "updatedAt" | "createdAt">,
+): number {
+  const raw = t.updatedAt || t.createdAt;
+  if (!raw) return 0;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+/**
+ * Pick the most recently updated template whose structured `description` matches `kind`.
+ */
+export function selectLatestPaymentEmailTemplate(
+  templates: EmailTemplate[],
+  kind: PaymentEmailTemplateKind,
+): EmailTemplate | null {
+  const candidates = templates.filter((template) => {
+    const parsed = parsePaymentEmailTemplateDescription(template.description);
+    return parsed?.kind === kind;
+  });
+  if (candidates.length === 0) return null;
+  candidates.sort(
+    (a, b) => paymentTemplateTimestamp(b) - paymentTemplateTimestamp(a),
+  );
+  return candidates[0];
+}
+
+/**
+ * Extract the main message block from HTML produced by `buildPaymentEmailTemplateHtml`
+ * (content after the first `<hr>`, before bank details or the footer note).
+ */
+export function extractCustomMessageFromPaymentTemplateHtml(
+  htmlBody: string | undefined,
+  _kind: PaymentEmailTemplateKind,
+): string {
+  if (!htmlBody?.trim()) return "";
+  try {
+    const doc = new DOMParser().parseFromString(htmlBody, "text/html");
+    const children = Array.from(doc.body.children);
+    const hrIdx = children.findIndex(
+      (n) => n.nodeName.toLowerCase() === "hr",
+    );
+    if (hrIdx < 0) return "";
+    const chunks: string[] = [];
+    for (let i = hrIdx + 1; i < children.length; i++) {
+      const el = children[i] as HTMLElement;
+      const tag = el.nodeName.toLowerCase();
+      if (tag === "h3" && /bank details/i.test(el.textContent || "")) break;
+      const t = (el.textContent || "").trim();
+      if (/saved from project payments/i.test(t)) break;
+      if (tag === "p" && t) chunks.push(t);
+    }
+    return chunks.join("\n\n").trim();
+  } catch {
+    return "";
+  }
+}
+
+export function resolvePaymentModalCustomMessage(options: {
+  templates: EmailTemplate[];
+  kind: "proforma" | "invoice";
+  fallback: string;
+}): string {
+  const picked = selectLatestPaymentEmailTemplate(
+    options.templates,
+    options.kind,
+  );
+  if (!picked) return options.fallback;
+  const payload = parsePaymentEmailTemplateDescription(picked.description);
+  if (
+    payload?.kind === options.kind &&
+    "customMessage" in payload &&
+    payload.customMessage?.trim()
+  ) {
+    return payload.customMessage.trim();
+  }
+  const extracted = extractCustomMessageFromPaymentTemplateHtml(
+    picked.htmlBody,
+    options.kind,
+  );
+  if (extracted.trim()) return extracted.trim();
+  return options.fallback;
+}
+
+export function resolvePaymentReminderModalDefaults(options: {
+  templates: EmailTemplate[];
+  fallbackSubject: string;
+  fallbackMessage: string;
+}): { subject: string; customMessage: string } {
+  const picked = selectLatestPaymentEmailTemplate(
+    options.templates,
+    "reminder",
+  );
+  if (!picked) {
+    return {
+      subject: options.fallbackSubject,
+      customMessage: options.fallbackMessage,
+    };
+  }
+  const payload = parsePaymentEmailTemplateDescription(picked.description);
+
+  let customMessage = options.fallbackMessage;
+  if (payload?.kind === "reminder" && payload.customMessage?.trim()) {
+    customMessage = payload.customMessage.trim();
+  } else {
+    const extracted = extractCustomMessageFromPaymentTemplateHtml(
+      picked.htmlBody,
+      "reminder",
+    );
+    if (extracted.trim()) customMessage = extracted.trim();
+  }
+
+  let subject = options.fallbackSubject;
+  if (payload?.kind === "reminder" && payload.subject?.trim()) {
+    subject = payload.subject.trim();
+  } else if ((picked.subject || "").trim()) {
+    subject = (picked.subject || "").trim();
+  }
+
+  return { subject, customMessage };
 }

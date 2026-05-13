@@ -3,7 +3,14 @@ import { X, User, Phone, Mail, Plus, Loader2, Briefcase, FileText } from "lucide
 import { Button, Input } from "../ui";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { createTeamMember } from "../../services/teamApi";
+import {
+  createTeamMember,
+  updateTeamMember,
+  type CreateTeamMemberPayload,
+} from "../../services/teamApi";
+import { VendorKycFileField } from "./VendorKycFileField";
+import type { VendorKycSlot } from "../../services/vendorKycAttachments";
+import { uploadVendorKycAttachment } from "../../services/vendorKycAttachments";
 
 interface AddEngineerModalProps {
   isOpen: boolean;
@@ -72,6 +79,9 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
   const [errors, setErrors] = useState<
     Partial<Record<keyof NewEngineer, string>>
   >({});
+  const [pendingKyc, setPendingKyc] = useState<
+    Partial<Record<VendorKycSlot, File | null>>
+  >({});
 
   const handleInputChange = (field: keyof NewEngineer, value: string) => {
     let sanitizedValue = value;
@@ -124,8 +134,57 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      await createTeamMember(formData);
-      toast.success(`${formData.name} has been added as a vendor!`);
+      const payload: CreateTeamMemberPayload = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        role: formData.role,
+        department: formData.department,
+        memberType: formData.memberType,
+      };
+
+      const created = await createTeamMember(payload);
+
+      const kycUpdates: Partial<{
+        aadhaarUrl: string;
+        panUrl: string;
+        gstCertificateUrl: string;
+        msmeCertificateUrl: string;
+      }> = {};
+      const slots: {
+        slot: VendorKycSlot;
+        field: keyof typeof kycUpdates;
+        label: string;
+      }[] = [
+        { slot: "aadhaar", field: "aadhaarUrl", label: "Aadhaar" },
+        { slot: "pan", field: "panUrl", label: "PAN" },
+        { slot: "gst", field: "gstCertificateUrl", label: "GST certificate" },
+        { slot: "msme", field: "msmeCertificateUrl", label: "MSME certificate" },
+      ];
+      const failedLabels: string[] = [];
+      for (const { slot, field, label } of slots) {
+        const file = pendingKyc[slot];
+        if (!file) continue;
+        try {
+          const att = await uploadVendorKycAttachment(created.id, file, slot, {
+            linkedUserId: created.userId,
+          });
+          if (att.id) kycUpdates[field] = att.id;
+        } catch {
+          failedLabels.push(label);
+        }
+      }
+      if (Object.keys(kycUpdates).length > 0) {
+        await updateTeamMember(created.id, kycUpdates);
+      }
+
+      if (failedLabels.length > 0) {
+        toast.error(
+          `${formData.name} was added, but upload failed for: ${failedLabels.join(", ")}. You can retry from the vendor profile.`,
+        );
+      } else {
+        toast.success(`${formData.name} has been added as a vendor!`);
+      }
       onAdd();
       handleClose();
     } catch (error) {
@@ -151,6 +210,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
       msmeCertificateUrl: "",
     });
     setErrors({});
+    setPendingKyc({});
     onClose();
   };
 
@@ -358,69 +418,60 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                   <span className="text-xs font-normal text-gray-400">(optional)</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Aadhaar URL */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Aadhaar URL
-                    </label>
-                    <Input
-                      type="url"
-                      placeholder="https://storage.example.com/aadhaar.pdf"
-                      value={formData.aadhaarUrl ?? ""}
-                      onChange={(e) =>
-                        handleInputChange("aadhaarUrl", e.target.value)
-                      }
-                      className="rounded-xl"
-                    />
-                  </div>
-
-                  {/* PAN URL */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      PAN URL
-                    </label>
-                    <Input
-                      type="url"
-                      placeholder="https://storage.example.com/pan.pdf"
-                      value={formData.panUrl ?? ""}
-                      onChange={(e) =>
-                        handleInputChange("panUrl", e.target.value)
-                      }
-                      className="rounded-xl"
-                    />
-                  </div>
-
-                  {/* GST Certificate URL */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      GST Certificate URL
-                    </label>
-                    <Input
-                      type="url"
-                      placeholder="https://storage.example.com/gst.pdf"
-                      value={formData.gstCertificateUrl ?? ""}
-                      onChange={(e) =>
-                        handleInputChange("gstCertificateUrl", e.target.value)
-                      }
-                      className="rounded-xl"
-                    />
-                  </div>
-
-                  {/* MSME Certificate URL */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      MSME Certificate URL
-                    </label>
-                    <Input
-                      type="url"
-                      placeholder="https://storage.example.com/msme.pdf"
-                      value={formData.msmeCertificateUrl ?? ""}
-                      onChange={(e) =>
-                        handleInputChange("msmeCertificateUrl", e.target.value)
-                      }
-                      className="rounded-xl"
-                    />
-                  </div>
+                  <VendorKycFileField
+                    label="Aadhaar"
+                    kycSlot="aadhaar"
+                    value={formData.aadhaarUrl ?? ""}
+                    pendingFile={pendingKyc.aadhaar ?? null}
+                    onPendingFileChange={(file) =>
+                      setPendingKyc((p) => ({ ...p, aadhaar: file }))
+                    }
+                    onChange={(next) =>
+                      setFormData((prev) => ({ ...prev, aadhaarUrl: next }))
+                    }
+                  />
+                  <VendorKycFileField
+                    label="PAN"
+                    kycSlot="pan"
+                    value={formData.panUrl ?? ""}
+                    pendingFile={pendingKyc.pan ?? null}
+                    onPendingFileChange={(file) =>
+                      setPendingKyc((p) => ({ ...p, pan: file }))
+                    }
+                    onChange={(next) =>
+                      setFormData((prev) => ({ ...prev, panUrl: next }))
+                    }
+                  />
+                  <VendorKycFileField
+                    label="GST certificate"
+                    kycSlot="gst"
+                    value={formData.gstCertificateUrl ?? ""}
+                    pendingFile={pendingKyc.gst ?? null}
+                    onPendingFileChange={(file) =>
+                      setPendingKyc((p) => ({ ...p, gst: file }))
+                    }
+                    onChange={(next) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        gstCertificateUrl: next,
+                      }))
+                    }
+                  />
+                  <VendorKycFileField
+                    label="MSME certificate"
+                    kycSlot="msme"
+                    value={formData.msmeCertificateUrl ?? ""}
+                    pendingFile={pendingKyc.msme ?? null}
+                    onPendingFileChange={(file) =>
+                      setPendingKyc((p) => ({ ...p, msme: file }))
+                    }
+                    onChange={(next) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        msmeCertificateUrl: next,
+                      }))
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -454,7 +505,7 @@ export const AddEngineerModal: React.FC<AddEngineerModalProps> = ({
                 ) : (
                   <>
                     <Plus className="w-4 h-4" />
-                    Add Team Member
+                    Add Vendor
                   </>
                 )}
               </Button>

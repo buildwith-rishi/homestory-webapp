@@ -55,6 +55,7 @@ export interface UploadAttachmentPayload {
   fileType: string;
   fileBase64: string;
   notes?: string;
+  tags?: string[];
 }
 
 const getAuthHeaders = (): HeadersInit => {

@@ -7,7 +7,6 @@ import {
   Trash2,
   Sparkles,
   FileText,
-  Plus,
   X,
   Loader2,
   CheckCircle2,
@@ -44,7 +43,12 @@ import {
 } from "../../components/email/UserEmailCombobox";
 import { adminAPI } from "../../services/api";
 import { getAllTeamMembers } from "../../services/teamApi";
-import { parsePaymentEmailTemplateDescription } from "../../utils/paymentEmailTemplates";
+import {
+  parsePaymentEmailTemplateDescription,
+  serializePaymentEmailTemplateDescription,
+  extractCustomMessageFromPaymentTemplateHtml,
+  type PaymentEmailTemplatePayload,
+} from "../../utils/paymentEmailTemplates";
 
 function parseEmailDirectoryUsers(response: unknown): DirectoryUser[] {
   let usersList: unknown[] = [];
@@ -258,9 +262,6 @@ export const EmailEditor: React.FC = () => {
   >({});
   const [showVarFillModal, setShowVarFillModal] = useState(false);
   const [emailType, setEmailType] = useState("");
-  const [templateEditMode, setTemplateEditMode] = useState<"create" | "edit">(
-    "create",
-  );
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(
     null,
   );
@@ -284,7 +285,6 @@ export const EmailEditor: React.FC = () => {
     isLoading,
     error,
     fetchTemplates,
-    createTemplate,
     updateTemplate,
     deleteTemplate,
   } = useEmailTemplateStore();
@@ -689,50 +689,6 @@ export const EmailEditor: React.FC = () => {
     setEditingTemplateId(null);
   };
 
-  const openCreateTemplateModal = () => {
-    setTemplateEditMode("create");
-    setEditingTemplateId(null);
-
-    // If the composer already has content, use that; otherwise load a starter
-    const capturedHtml = editorRef.current?.getHtml().trim() || "";
-    const isEmpty =
-      !capturedHtml ||
-      capturedHtml === "<br>" ||
-      capturedHtml === "<p></p>" ||
-      capturedHtml === "<p><br></p>";
-
-    // Pick the best-guess category from a starter based on current subject keywords
-    const guessCategory = (): keyof typeof STARTER_TEMPLATES => {
-      const s = (subject || "").toLowerCase();
-      if (s.includes("welcome") || s.includes("onboard")) return "ONBOARDING";
-      if (s.includes("update") || s.includes("progress"))
-        return "PROJECT_UPDATE";
-      if (s.includes("payment") || s.includes("invoice")) return "PAYMENT";
-      if (s.includes("complet") || s.includes("done") || s.includes("finish"))
-        return "COMPLETION";
-      if (s.includes("follow")) return "FOLLOW_UP";
-      if (
-        s.includes("happy") ||
-        s.includes("birthday") ||
-        s.includes("occasion")
-      )
-        return "OCCASION";
-      return "ONBOARDING"; // default to most common
-    };
-
-    const defaultCategory = guessCategory();
-    const starter = STARTER_TEMPLATES[defaultCategory];
-
-    setTemplateBodyHtml(isEmpty ? starter.html : capturedHtml);
-    setTemplateFormData({
-      name: "",
-      category: defaultCategory as typeof templateFormData.category,
-      description: "",
-      subject: subject.trim() || starter.subject,
-    });
-    setShowTemplateModal(true);
-  };
-
   const handleSaveTemplate = async () => {
     if (!templateFormData.name.trim()) {
       toast.error("Please enter a template name");
@@ -740,6 +696,10 @@ export const EmailEditor: React.FC = () => {
     }
     if (!templateFormData.subject.trim()) {
       toast.error("Please add a subject line");
+      return;
+    }
+    if (!editingTemplateId) {
+      toast.error("Nothing to update");
       return;
     }
 
@@ -752,7 +712,6 @@ export const EmailEditor: React.FC = () => {
         templateEditorRef.current?.getTextContent().trim() ||
         `Template: ${templateFormData.name.trim()}`;
 
-      // Auto-detect {{variable}} placeholders from subject + body
       const varRegex = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
       const detected = new Set<string>();
       let m;
@@ -776,18 +735,59 @@ export const EmailEditor: React.FC = () => {
         variables,
       };
 
-      if (templateEditMode === "create") {
-        await createTemplate(templateData);
-        toast.success("Template created!");
-      } else if (editingTemplateId) {
-        await updateTemplate(editingTemplateId, templateData);
-        toast.success("Template updated!");
+      const existing = templates.find((x) => x.id === editingTemplateId);
+      const paymentPayload = existing
+        ? parsePaymentEmailTemplateDescription(existing.description)
+        : null;
+
+      let description: string | undefined =
+        templateFormData.description?.trim() || undefined;
+
+      if (
+        paymentPayload &&
+        (paymentPayload.kind === "proforma" ||
+          paymentPayload.kind === "invoice" ||
+          paymentPayload.kind === "reminder")
+      ) {
+        const extracted = extractCustomMessageFromPaymentTemplateHtml(
+          htmlBody,
+          paymentPayload.kind,
+        );
+        const customMessageRaw =
+          extracted.trim() ||
+          ("customMessage" in paymentPayload &&
+          typeof paymentPayload.customMessage === "string" &&
+          paymentPayload.customMessage.trim()
+            ? paymentPayload.customMessage
+            : "") ||
+          "";
+
+        let nextPayload: PaymentEmailTemplatePayload;
+        if (paymentPayload.kind === "reminder") {
+          nextPayload = {
+            ...paymentPayload,
+            customMessage: customMessageRaw,
+            subject:
+              templateFormData.subject.trim() || paymentPayload.subject,
+          };
+        } else {
+          nextPayload = {
+            ...paymentPayload,
+            customMessage: customMessageRaw,
+          };
+        }
+        description = serializePaymentEmailTemplateDescription(nextPayload);
       }
 
+      await updateTemplate(editingTemplateId, {
+        ...templateData,
+        ...(description !== undefined ? { description } : {}),
+      });
+      toast.success("Template updated!");
       await fetchTemplates();
       resetTemplateModal();
     } catch (err: any) {
-      toast.error(err?.message || `Failed to ${templateEditMode} template`);
+      toast.error(err?.message || "Failed to update template");
     }
   };
 
@@ -859,14 +859,6 @@ export const EmailEditor: React.FC = () => {
                 className={`w-3.5 h-3.5 opacity-60 transition-transform duration-200 ${showTemplates ? "rotate-180" : ""}`}
               />
             </button>
-
-            <button
-              onClick={openCreateTemplateModal}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/30"
-            >
-              <Plus className="w-4 h-4" />
-              Save as Template
-            </button>
           </div>
         </div>
       </div>
@@ -889,13 +881,6 @@ export const EmailEditor: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={openCreateTemplateModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
-              >
-                <Plus className="w-3 h-3" />
-                New Template
-              </button>
               <button
                 onClick={() => setShowTemplates(false)}
                 className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -926,15 +911,10 @@ export const EmailEditor: React.FC = () => {
                 <p className="text-sm font-semibold text-gray-500">
                   No templates yet
                 </p>
-                <p className="text-xs mt-1 text-gray-400">
-                  Save your first email template to see it here
+                <p className="text-xs mt-1 text-gray-400 text-center max-w-xs">
+                  Templates are created from the admin side or legacy flows. Edit
+                  existing templates below once they appear here.
                 </p>
-                <button
-                  onClick={openCreateTemplateModal}
-                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-xl transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Create Template
-                </button>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -984,7 +964,6 @@ export const EmailEditor: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setTemplateEditMode("edit");
                             setEditingTemplateId(t.id);
                             setTemplateFormData({
                               name: t.name,
@@ -1654,14 +1633,10 @@ export const EmailEditor: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-gray-900">
-                      {templateEditMode === "create"
-                        ? "Save as Template"
-                        : "Edit Template"}
+                      Edit Template
                     </h2>
                     <p className="text-[11px] text-gray-400">
-                      {templateEditMode === "create"
-                        ? "Give it a name, subject and write the email body"
-                        : "Update the template name, subject or body"}
+                      Update the template name, subject or body
                     </p>
                   </div>
                 </div>
@@ -1699,50 +1674,16 @@ export const EmailEditor: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
                         Category
                       </label>
-                      {templateEditMode === "create" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const starter =
-                              STARTER_TEMPLATES[templateFormData.category] ||
-                              STARTER_TEMPLATES["OTHER"];
-                            setTemplateFormData((prev) => ({
-                              ...prev,
-                              subject: starter.subject,
-                            }));
-                            setTemplateBodyHtml(starter.html);
-                            templateEditorRef.current?.setHtml(starter.html);
-                          }}
-                          className="text-[10px] font-semibold text-orange-500 hover:text-orange-600 hover:bg-orange-50 px-2 py-0.5 rounded-md transition-colors"
-                        >
-                          ↺ Load example
-                        </button>
-                      )}
                     </div>
                     <select
                       value={templateFormData.category}
                       onChange={(e) => {
                         const newCat = e.target
                           .value as typeof templateFormData.category;
-                        const starter =
-                          STARTER_TEMPLATES[newCat] ||
-                          STARTER_TEMPLATES["OTHER"];
-                        // Auto-swap subject if it still matches any starter (not custom-typed)
-                        const isStillStarter = Object.values(
-                          STARTER_TEMPLATES,
-                        ).some((s) => s.subject === templateFormData.subject);
                         setTemplateFormData((prev) => ({
                           ...prev,
                           category: newCat,
-                          subject:
-                            templateEditMode === "create" && isStillStarter
-                              ? starter.subject
-                              : prev.subject,
                         }));
-                        if (templateEditMode === "create") {
-                          setTemplateBodyHtml(starter.html);
-                          templateEditorRef.current?.setHtml(starter.html);
-                        }
                       }}
                       className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-300 outline-none bg-white transition-colors"
                     >
@@ -1805,9 +1746,7 @@ export const EmailEditor: React.FC = () => {
               {/* Footer */}
               <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0 bg-gray-50/40">
                 <p className="text-xs text-gray-400">
-                  {templateEditMode === "create"
-                    ? "Starter content pre-loaded · switch category to load a different example"
-                    : "Edit fields or body then save to update the template"}
+                  Edit fields or body then save to update the template
                 </p>
                 <div className="flex items-center gap-3">
                   <button
@@ -1820,9 +1759,7 @@ export const EmailEditor: React.FC = () => {
                     onClick={handleSaveTemplate}
                     className="px-6 py-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl transition-all shadow-md shadow-orange-500/20"
                   >
-                    {templateEditMode === "create"
-                      ? "Create Template"
-                      : "Update Template"}
+                    Update Template
                   </button>
                 </div>
               </div>

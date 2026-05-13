@@ -18,7 +18,6 @@ import {
   User,
   Clock,
   FileText,
-  ExternalLink,
 } from "lucide-react";
 import { Button } from "../ui";
 import {
@@ -28,6 +27,9 @@ import {
   type UpdateTeamMemberPayload,
 } from "../../services/teamApi";
 import toast from "react-hot-toast";
+import { VendorKycFileField } from "./VendorKycFileField";
+import { VendorKycDocLink } from "./VendorKycDocLink";
+import type { VendorKycSlot } from "../../services/vendorKycAttachments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -509,11 +511,27 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                     </h3>
                     <div className="space-y-3">
                       {([
-                        { key: "aadhaarUrl" as const, label: "Aadhaar" },
-                        { key: "panUrl" as const, label: "PAN" },
-                        { key: "gstCertificateUrl" as const, label: "GST Certificate" },
-                        { key: "msmeCertificateUrl" as const, label: "MSME Certificate" },
-                      ]).map(({ key, label }) => (
+                        {
+                          key: "aadhaarUrl" as const,
+                          label: "Aadhaar",
+                          slot: "aadhaar" satisfies VendorKycSlot,
+                        },
+                        {
+                          key: "panUrl" as const,
+                          label: "PAN",
+                          slot: "pan" satisfies VendorKycSlot,
+                        },
+                        {
+                          key: "gstCertificateUrl" as const,
+                          label: "GST Certificate",
+                          slot: "gst" satisfies VendorKycSlot,
+                        },
+                        {
+                          key: "msmeCertificateUrl" as const,
+                          label: "MSME Certificate",
+                          slot: "msme" satisfies VendorKycSlot,
+                        },
+                      ]).map(({ key, label, slot }) => (
                         <div
                           key={key}
                           className="flex items-center gap-3 p-3 rounded-xl bg-gray-50"
@@ -522,32 +540,33 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                             <FileText className="w-4 h-4 text-purple-600" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-500 mb-0.5">{label}</p>
                             {isEditing ? (
-                              <input
-                                type="url"
+                              <VendorKycFileField
+                                label={label}
+                                kycSlot={slot}
+                                teamMemberId={member.id}
+                                linkedUserId={member.userId}
                                 value={(editForm[key] as string) ?? ""}
-                                onChange={(e) =>
+                                onChange={(next) =>
                                   setEditForm((p) => ({
                                     ...p,
-                                    [key]: e.target.value || null,
+                                    [key]: next || null,
                                   }))
                                 }
-                                placeholder="https://storage.example.com/doc.pdf"
-                                className="w-full text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-purple-400"
                               />
-                            ) : member[key] ? (
-                              <a
-                                href={member[key]!}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-medium text-purple-600 hover:text-purple-800 flex items-center gap-1 truncate"
-                              >
-                                <span className="truncate">View Document</span>
-                                <ExternalLink className="w-3 h-3 shrink-0" />
-                              </a>
                             ) : (
-                              <span className="text-sm text-gray-400">Not provided</span>
+                              <>
+                                <p className="text-xs text-gray-500 mb-0.5">
+                                  {label}
+                                </p>
+                                {member[key] ? (
+                                  <VendorKycDocLink stored={member[key]!} />
+                                ) : (
+                                  <span className="text-sm text-gray-400">
+                                    Not provided
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 
-import { FileText, ExternalLink } from "lucide-react";
+import { FileText } from "lucide-react";
 
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -48,6 +48,9 @@ import {
 } from "../../services/teamApi";
 import { useTeamMemberStore } from "../../stores/teamMemberStore";
 import toast from "react-hot-toast";
+import { VendorKycFileField } from "../../components/dashboard/VendorKycFileField";
+import { VendorKycDocLink } from "../../components/dashboard/VendorKycDocLink";
+import type { VendorKycSlot } from "../../services/vendorKycAttachments";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -864,11 +867,15 @@ const SectionTitle: React.FC<{ title: string }> = ({ title }) => (
 // ─── Page Component ──────────────────────────────────────────────────────────
 
 
-const KYC_URL_FIELDS: { field: keyof TeamMember; label: string }[] = [
-  { field: "aadhaarUrl", label: "Aadhaar" },
-  { field: "panUrl", label: "PAN" },
-  { field: "gstCertificateUrl", label: "GST Certificate" },
-  { field: "msmeCertificateUrl", label: "MSME Certificate" },
+const KYC_URL_FIELDS: {
+  field: keyof TeamMember;
+  label: string;
+  slot: VendorKycSlot;
+}[] = [
+  { field: "aadhaarUrl", label: "Aadhaar", slot: "aadhaar" },
+  { field: "panUrl", label: "PAN", slot: "pan" },
+  { field: "gstCertificateUrl", label: "GST Certificate", slot: "gst" },
+  { field: "msmeCertificateUrl", label: "MSME Certificate", slot: "msme" },
 ];
 
 const MemberKycPanel = ({ member }: { member: TeamMember }) => {
@@ -896,15 +903,11 @@ const MemberKycPanel = ({ member }: { member: TeamMember }) => {
                   </div>
                   <span className="text-sm font-semibold text-gray-800">{label}</span>
                 </div>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  View
-                </a>
+                <VendorKycDocLink
+                  stored={url}
+                  linkLabel={url.startsWith("data:") ? "Open file" : "View"}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium transition-colors shrink-0"
+                />
               </div>
             );
           })}
@@ -1408,24 +1411,33 @@ export const EngineerDetails: React.FC = () => {
         {/* KYC Document URLs — editable when in edit mode */}
         {isEditing && (
           <Card className="rounded-2xl p-6 lg:col-span-2">
-            <SectionTitle title="KYC & Compliance Document URLs" />
+            <SectionTitle title="KYC & Compliance documents" />
+            <p className="text-xs text-gray-500 mb-4">
+              Upload PDF or images (stored with this vendor). You can replace files
+              anytime while editing.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {KYC_URL_FIELDS.map(({ field, label }) => (
-                <div key={field} className="p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    {label} URL
-                  </label>
-                  <input
-                    type="url"
-                    value={(editForm[field as keyof UpdateTeamMemberPayload] as string) ?? ""}
-                    onChange={(e) =>
+              {KYC_URL_FIELDS.map(({ field, label, slot }) => (
+                <div
+                  key={field}
+                  className="p-4 rounded-xl bg-gray-50 border border-gray-100"
+                >
+                  <VendorKycFileField
+                    label={label}
+                    kycSlot={slot}
+                    teamMemberId={member.id}
+                    linkedUserId={member.userId}
+                    value={
+                      (editForm[field as keyof UpdateTeamMemberPayload] as
+                        | string
+                        | undefined) ?? ""
+                    }
+                    onChange={(next) =>
                       setEditForm((p) => ({
                         ...p,
-                        [field]: e.target.value || null,
+                        [field]: next || null,
                       }))
                     }
-                    placeholder="https://storage.example.com/doc.pdf"
-                    className="w-full text-sm text-gray-900 bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
                   />
                 </div>
               ))}
