@@ -18,6 +18,28 @@ export type VendorKycFieldKey =
 
 const DEFAULT_MAX_BYTES = 4 * 1024 * 1024; // 4 MB — keeps JSON payloads reasonable
 
+function humanizeStored(value: string): string {
+  if (!value.trim()) return "";
+  if (value.startsWith("data:")) return "Saved file";
+  if (isVendorKycAttachmentId(value)) return "Uploaded";
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const u = new URL(value);
+      const host = u.hostname.replace(/^www\./, "");
+      const tail =
+        u.pathname && u.pathname !== "/"
+          ? u.pathname.length > 20
+            ? `${u.pathname.slice(0, 18)}…`
+            : u.pathname
+          : "";
+      return tail ? `${host}${tail}` : host;
+    } catch {
+      return value.length > 36 ? `${value.slice(0, 34)}…` : value;
+    }
+  }
+  return value.length > 40 ? `${value.slice(0, 38)}…` : value;
+}
+
 type Props = {
   label: string;
   /** Persisted: attachment UUID, https URL, or legacy data URL */
@@ -35,6 +57,10 @@ type Props = {
   accept?: string;
   maxBytes?: number;
   disabled?: boolean;
+  /** Parent renders label (e.g. in a table row) */
+  hideLabel?: boolean;
+  /** Tighter padding for inline / list layouts */
+  dense?: boolean;
 };
 
 function displaySummary(
@@ -43,10 +69,7 @@ function displaySummary(
 ): string {
   if (pendingFile?.name) return pendingFile.name;
   if (!value?.trim()) return "";
-  if (value.startsWith("data:")) return "File attached (legacy)";
-  if (isVendorKycAttachmentId(value)) return "Document linked (cloud)";
-  if (/^https?:\/\//i.test(value)) return value;
-  return value;
+  return humanizeStored(value);
 }
 
 /**
@@ -65,6 +88,8 @@ export const VendorKycFileField: React.FC<Props> = ({
   accept = ".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*",
   maxBytes = DEFAULT_MAX_BYTES,
   disabled,
+  hideLabel,
+  dense,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -127,12 +152,17 @@ export const VendorKycFileField: React.FC<Props> = ({
   };
 
   const busy = uploading || disabled;
+  const pad = dense ? "px-3 py-2.5" : "px-3 py-3";
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+      {!hideLabel && (
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {label}
+        </label>
+      )}
       <div
-        className={`flex flex-col gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-3 py-3 ${
+        className={`flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50/50 ${pad} ${
           disabled ? "opacity-60 pointer-events-none" : ""
         }`}
       >
@@ -149,21 +179,21 @@ export const VendorKycFileField: React.FC<Props> = ({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:border-orange-300 hover:bg-orange-50/60 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-800 shadow-sm hover:border-gray-400 hover:bg-gray-50 transition-colors"
           >
             {uploading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-500" />
             ) : (
-              <Upload className="w-3.5 h-3.5 text-orange-500" />
+              <Upload className="w-3.5 h-3.5 text-gray-500" />
             )}
-            {uploading ? "Uploading…" : "Choose file"}
+            {uploading ? "Uploading…" : hasValue ? "Replace" : "Upload"}
           </button>
           {hasValue && (
             <button
               type="button"
               onClick={handleRemove}
               disabled={busy}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-transparent hover:border-gray-200 hover:bg-white transition-colors"
             >
               <X className="w-3.5 h-3.5" />
               Remove
@@ -171,17 +201,15 @@ export const VendorKycFileField: React.FC<Props> = ({
           )}
         </div>
         {hasValue && (
-          <div className="flex items-center gap-2 text-xs text-gray-600">
-            <FileText className="w-3.5 h-3.5 shrink-0 text-purple-500" />
-            <span className="truncate">{displaySummary(value, pendingFile)}</span>
+          <div className="flex items-start gap-2 text-xs text-gray-600">
+            <FileText className="w-3.5 h-3.5 shrink-0 text-gray-400 mt-0.5" />
+            <span className="break-all line-clamp-2">{displaySummary(value, pendingFile)}</span>
           </div>
         )}
-        {!hasValue && (
+        {!hasValue && !dense && (
           <p className="text-[11px] text-gray-400">
-            PDF or image. Max {Math.round(maxBytes / (1024 * 1024))} MB.
-            {teamMemberId
-              ? " Uploads immediately."
-              : " Files upload after you save the new vendor."}
+            PDF or image · max {Math.round(maxBytes / (1024 * 1024))} MB
+            {teamMemberId ? " · saves on upload" : " · uploads after vendor is created"}
           </p>
         )}
       </div>

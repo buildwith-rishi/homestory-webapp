@@ -506,10 +506,13 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
 
                   {/* ── KYC / Compliance Documents ──────────────────────── */}
                   <section>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                      KYC &amp; Compliance Documents
+                    <h3 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">
+                      Compliance
                     </h3>
-                    <div className="space-y-3">
+                    <p className="text-xs text-gray-500 mb-3">
+                      IDs and certificates for this member.
+                    </p>
+                    <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white overflow-hidden">
                       {([
                         {
                           key: "aadhaarUrl" as const,
@@ -534,14 +537,21 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                       ]).map(({ key, label, slot }) => (
                         <div
                           key={key}
-                          className="flex items-center gap-3 p-3 rounded-xl bg-gray-50"
+                          className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-                            <FileText className="w-4 h-4 text-purple-600" />
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-gray-100 bg-gray-50 text-gray-500">
+                              <FileText className="h-3.5 w-3.5" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-900">
+                              {label}
+                            </span>
                           </div>
-                          <div className="flex-1 min-w-0">
+                          <div className="min-w-0 sm:max-w-[200px] sm:flex-1 sm:flex sm:justify-end">
                             {isEditing ? (
                               <VendorKycFileField
+                                hideLabel
+                                dense
                                 label={label}
                                 kycSlot={slot}
                                 teamMemberId={member.id}
@@ -554,19 +564,18 @@ export const TeamMemberProfileDrawer: React.FC<Props> = ({
                                   }))
                                 }
                               />
+                            ) : member[key] ? (
+                              <VendorKycDocLink
+                                stored={member[key]!}
+                                variant="minimal"
+                                linkLabel={
+                                  String(member[key]).startsWith("data:")
+                                    ? "Open"
+                                    : "View"
+                                }
+                              />
                             ) : (
-                              <>
-                                <p className="text-xs text-gray-500 mb-0.5">
-                                  {label}
-                                </p>
-                                {member[key] ? (
-                                  <VendorKycDocLink stored={member[key]!} />
-                                ) : (
-                                  <span className="text-sm text-gray-400">
-                                    Not provided
-                                  </span>
-                                )}
-                              </>
+                              <span className="text-xs text-gray-400">—</span>
                             )}
                           </div>
                         </div>

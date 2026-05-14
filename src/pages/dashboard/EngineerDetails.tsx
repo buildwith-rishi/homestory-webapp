@@ -856,12 +856,16 @@ function getInitials(name?: string) {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-const SectionTitle: React.FC<{ title: string }> = ({ title }) => (
-  <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-    <span className="w-4 h-px bg-gray-300" />
-    {title}
-    <span className="flex-1 h-px bg-gray-100" />
-  </h2>
+const CardHeading: React.FC<{ title: string; subtitle?: string }> = ({
+  title,
+  subtitle,
+}) => (
+  <div className="mb-5">
+    <h2 className="text-sm font-semibold text-gray-900 tracking-tight">{title}</h2>
+    {subtitle ? (
+      <p className="text-xs text-gray-500 mt-1 leading-relaxed">{subtitle}</p>
+    ) : null}
+  </div>
 );
 
 // ─── Page Component ──────────────────────────────────────────────────────────
@@ -878,44 +882,87 @@ const KYC_URL_FIELDS: {
   { field: "msmeCertificateUrl", label: "MSME Certificate", slot: "msme" },
 ];
 
-const MemberKycPanel = ({ member }: { member: TeamMember }) => {
-  const docs = KYC_URL_FIELDS.filter(
-    ({ field }) => !!(member as unknown as Record<string, unknown>)[field],
-  );
-
-  return (
-    <Card className="rounded-2xl p-6">
-      <SectionTitle title="KYC & Compliance Documents" />
-      {docs.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-4">No KYC documents on file.</p>
-      ) : (
-        <div className="space-y-3">
-          {docs.map(({ field, label }) => {
-            const url = (member as unknown as Record<string, unknown>)[field] as string;
-            return (
-              <div
-                key={field}
-                className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-100 hover:border-orange-200 hover:bg-orange-50/40 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
-                    <FileText className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <span className="text-sm font-semibold text-gray-800">{label}</span>
-                </div>
-                <VendorKycDocLink
-                  stored={url}
-                  linkLabel={url.startsWith("data:") ? "Open file" : "View"}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium transition-colors shrink-0"
-                />
+const VendorComplianceCard: React.FC<{
+  member: TeamMember;
+  isEditing: boolean;
+  editForm: UpdateTeamMemberPayload;
+  setEditForm: React.Dispatch<React.SetStateAction<UpdateTeamMemberPayload>>;
+}> = ({ member, isEditing, editForm, setEditForm }) => (
+  <Card className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm h-full flex flex-col">
+    <div className="mb-4">
+      <h2 className="text-sm font-semibold text-gray-900 tracking-tight">
+        Compliance documents
+      </h2>
+      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+        {isEditing
+          ? "Upload or replace PDFs and images (max 4 MB each). Changes save when you upload."
+          : "KYC items on file for this vendor."}
+      </p>
+    </div>
+    <ul className="flex-1 divide-y divide-gray-100 rounded-xl border border-gray-100 bg-gray-50/30 overflow-hidden">
+      {KYC_URL_FIELDS.map(({ field, label, slot }) => {
+        const raw = (
+          isEditing
+            ? (editForm[field as keyof UpdateTeamMemberPayload] as string | undefined)
+            : (member[field as keyof TeamMember] as string | undefined)
+        )
+          ?.trim() ?? "";
+        const has = Boolean(raw);
+        return (
+          <li
+            key={field}
+            className="flex flex-col gap-3 bg-white px-4 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+          >
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-100 bg-gray-50 text-gray-500">
+                <FileText className="h-4 w-4" />
               </div>
-            );
-          })}
-        </div>
-      )}
-    </Card>
-  );
-};
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900">{label}</p>
+                {!isEditing && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {has ? "On file" : "Not uploaded"}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="w-full min-w-0 sm:max-w-[240px] shrink-0 sm:ml-auto">
+              {isEditing ? (
+                <VendorKycFileField
+                  hideLabel
+                  dense
+                  label={label}
+                  kycSlot={slot}
+                  teamMemberId={member.id}
+                  linkedUserId={member.userId}
+                  value={raw}
+                  onChange={(next) =>
+                    setEditForm((p) => ({
+                      ...p,
+                      [field]: next || null,
+                    }))
+                  }
+                />
+              ) : has ? (
+                <div className="flex sm:justify-end pt-0.5">
+                  <VendorKycDocLink
+                    stored={raw}
+                    variant="minimal"
+                    linkLabel={raw.startsWith("data:") ? "Open file" : "View"}
+                  />
+                </div>
+              ) : (
+                <span className="text-xs text-gray-400 sm:block sm:text-right">
+                  —
+                </span>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  </Card>
+);
 
 export const EngineerDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -1131,34 +1178,29 @@ export const EngineerDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Hero Banner ──────────────────────────────────────────────────── */}
-      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 p-8 text-white">
-        {/* decorative shapes */}
-        <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/10" />
-        <div className="absolute -bottom-10 -left-10 w-36 h-36 rounded-full bg-white/10" />
-        <div className="absolute top-1/2 right-24 w-20 h-20 rounded-full bg-white/5" />
-
-        <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
-          {/* Avatar */}
-          <div className="w-24 h-24 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl font-bold shadow-xl border border-white/30 shrink-0">
+      {/* ── Profile header (minimal) ───────────────────────────────────── */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 md:p-8 shadow-sm">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-2xl font-semibold text-white shadow-md ring-4 ring-orange-500/10">
             {isEditing && editForm.name
               ? getInitials(editForm.name)
               : getInitials(member.name)}
           </div>
 
-          {/* Name & Role */}
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             {isEditing ? (
               <input
                 value={editForm.name ?? ""}
                 onChange={(e) =>
                   setEditForm((p) => ({ ...p, name: e.target.value }))
                 }
-                className="w-full bg-white/20 border border-white/40 rounded-xl px-4 py-2 text-2xl font-bold text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/60 mb-2"
+                className="mb-2 w-full max-w-xl rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-2xl font-semibold tracking-tight text-gray-900 placeholder:text-gray-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
                 placeholder="Full name"
               />
             ) : (
-              <h1 className="text-3xl font-bold truncate">{member.name}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl">
+                {member.name}
+              </h1>
             )}
             {isEditing && !isInternalRole ? (
               <select
@@ -1166,23 +1208,22 @@ export const EngineerDetails: React.FC = () => {
                 onChange={(e) =>
                   setEditForm((p) => ({ ...p, role: e.target.value }))
                 }
-                className="bg-white/20 border border-white/40 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/60 mt-1"
+                className="mt-2 max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
               >
-                <option value="" disabled className="text-gray-800">
+                <option value="" disabled>
                   Select role
                 </option>
                 {ROLE_OPTIONS.map((r) => (
-                  <option key={r} value={r} className="text-gray-800">
+                  <option key={r} value={r}>
                     {r}
                   </option>
                 ))}
               </select>
             ) : (
-              <p className="text-orange-100 text-lg mt-1">{member.role}</p>
+              <p className="mt-1 text-sm text-gray-600">{member.role}</p>
             )}
 
-            {/* Status badges */}
-            <div className="flex flex-wrap items-center gap-2 mt-4">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
               {isEditing ? (
                 <button
                   type="button"
@@ -1192,61 +1233,64 @@ export const EngineerDetails: React.FC = () => {
                       isActive: !(p.isActive ?? isActive),
                     }))
                   }
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer transition-all ${
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     (editForm.isActive ?? isActive)
-                      ? "bg-white/20 text-white border-white/30 hover:bg-white/30"
-                      : "bg-red-100 text-red-700 border-red-200 hover:bg-red-200"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                      : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
                   }`}
                 >
                   {(editForm.isActive ?? isActive) ? (
                     <>
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Active
                     </>
                   ) : (
                     <>
-                      <XCircle className="w-3.5 h-3.5" /> Inactive
+                      <XCircle className="h-3.5 w-3.5" /> Inactive
                     </>
                   )}
                 </button>
               ) : (
                 <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${isActive ? "bg-white/20 text-white border border-white/30" : "bg-red-100 text-red-700 border border-red-200"}`}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+                    isActive
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-gray-200 bg-gray-50 text-gray-600"
+                  }`}
                 >
                   {isActive ? (
                     <>
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Active
                     </>
                   ) : (
                     <>
-                      <XCircle className="w-3.5 h-3.5" /> Inactive
+                      <XCircle className="h-3.5 w-3.5" /> Inactive
                     </>
                   )}
                 </span>
               )}
               {member.department && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30">
-                  <Building2 className="w-3.5 h-3.5" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700">
+                  <Building2 className="h-3.5 w-3.5 text-gray-500" />
                   {member.department}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Quick actions (view-only mode) */}
           {!isEditing && (
-            <div className="flex flex-col gap-2 shrink-0">
+            <div className="flex w-full shrink-0 flex-col gap-2 border-t border-gray-100 pt-4 md:w-auto md:border-l md:border-t-0 md:pl-8 md:pt-0">
               <a
                 href={`tel:${member.phone}`}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-orange-600 font-medium text-sm hover:bg-orange-50 transition-colors shadow-md"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 shadow-sm hover:border-gray-300 hover:bg-gray-50"
               >
-                <Phone className="w-4 h-4" />
+                <Phone className="h-4 w-4 text-gray-500" />
                 Call
               </a>
               <a
                 href={`mailto:${member.email}`}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 border border-white/40 text-white font-medium text-sm hover:bg-white/30 transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 shadow-sm hover:border-gray-300 hover:bg-gray-50"
               >
-                <Mail className="w-4 h-4" />
+                <Mail className="h-4 w-4 text-gray-500" />
                 Email
               </a>
             </div>
@@ -1254,20 +1298,18 @@ export const EngineerDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Contact + Role grid ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Contact Information */}
-        <Card className="rounded-2xl p-6">
-          <SectionTitle title="Contact Information" />
-          <div>
-            {/* Phone */}
-            <div className="flex items-start gap-4 py-4 border-b border-gray-100">
-              <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center shrink-0 mt-0.5">
-                <Phone className="w-4 h-4 text-orange-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
-                  Phone Number
+      {/* ── Details grid ───────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+        <div className="space-y-6">
+          <Card className="rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <CardHeading
+              title="Contact"
+              subtitle="Reach this vendor directly."
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                  Phone
                 </p>
                 {isEditing ? (
                   <input
@@ -1275,35 +1317,28 @@ export const EngineerDetails: React.FC = () => {
                     onChange={(e) =>
                       setEditForm((p) => ({ ...p, phone: e.target.value }))
                     }
-                    className="w-full text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    placeholder="+91 98765 43210"
+                    className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20"
+                    placeholder="+91 …"
                   />
                 ) : (
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-900">
+                  <>
+                    <p className="mt-2 text-sm font-medium text-gray-900">
                       {member.phone || "—"}
-                    </span>
-                    {member.phone && (
+                    </p>
+                    {member.phone ? (
                       <a
                         href={`tel:${member.phone}`}
-                        className="text-xs text-orange-600 font-medium hover:underline"
+                        className="mt-2 inline-block text-xs font-medium text-orange-600 hover:text-orange-700"
                       >
-                        Call now →
+                        Call now
                       </a>
-                    )}
-                  </div>
+                    ) : null}
+                  </>
                 )}
               </div>
-            </div>
-
-            {/* Email */}
-            <div className="flex items-start gap-4 py-4">
-              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
-                <Mail className="w-4 h-4 text-blue-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
-                  Email Address
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                  Email
                 </p>
                 {isEditing ? (
                   <input
@@ -1312,142 +1347,99 @@ export const EngineerDetails: React.FC = () => {
                     onChange={(e) =>
                       setEditForm((p) => ({ ...p, email: e.target.value }))
                     }
-                    className="w-full text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20"
                     placeholder="name@example.com"
                   />
                 ) : (
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-900 truncate">
+                  <>
+                    <p className="mt-2 truncate text-sm font-medium text-gray-900">
                       {member.email || "—"}
-                    </span>
-                    {member.email && (
+                    </p>
+                    {member.email ? (
                       <a
                         href={`mailto:${member.email}`}
-                        className="text-xs text-blue-600 font-medium hover:underline shrink-0"
+                        className="mt-2 inline-block text-xs font-medium text-orange-600 hover:text-orange-700"
                       >
-                        Send email →
+                        Send email
                       </a>
-                    )}
-                  </div>
+                    ) : null}
+                  </>
                 )}
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* KYC Panel */}
-        <MemberKycPanel member={member} />
-        
-        {/* Role & Department */}
-        <Card className="rounded-2xl p-6">
-          <SectionTitle title="Role & Department" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Job Role */}
-            <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
-              <div className="flex items-center gap-2 mb-3">
-                <Briefcase className="w-4 h-4 text-gray-400" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Job Role
-                </span>
-              </div>
-              {isEditing && !isInternalRole ? (
-                <select
-                  value={editForm.role ?? ""}
-                  onChange={(e) =>
-                    setEditForm((p) => ({ ...p, role: e.target.value }))
-                  }
-                  className="w-full text-sm font-semibold text-gray-900 bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                >
-                  <option value="" disabled>
-                    Select role
-                  </option>
-                  {ROLE_OPTIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-sm font-semibold text-gray-900">
-                  {member.role || "—"}
+          <Card className="rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <CardHeading title="Role & department" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                  Job role
                 </p>
-              )}
-            </div>
-
-            {/* Department */}
-            <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
-              <div className="flex items-center gap-2 mb-3">
-                <Building2 className="w-4 h-4 text-gray-400" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                {isEditing && !isInternalRole ? (
+                  <select
+                    value={editForm.role ?? ""}
+                    onChange={(e) =>
+                      setEditForm((p) => ({ ...p, role: e.target.value }))
+                    }
+                    className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20"
+                  >
+                    <option value="" disabled>
+                      Select role
+                    </option>
+                    {ROLE_OPTIONS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="mt-2 text-sm font-medium text-gray-900">
+                    {member.role || "—"}
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
                   Department
-                </span>
-              </div>
-              {isEditing ? (
-                <select
-                  value={editForm.department ?? ""}
-                  onChange={(e) =>
-                    setEditForm((p) => ({ ...p, department: e.target.value }))
-                  }
-                  className="w-full text-sm font-semibold text-gray-900 bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                >
-                  <option value="" disabled>
-                    Select department
-                  </option>
-                  {DEPARTMENT_OPTIONS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-sm font-semibold text-gray-900">
-                  {member.department || "—"}
                 </p>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        {/* KYC Document URLs — editable when in edit mode */}
-        {isEditing && (
-          <Card className="rounded-2xl p-6 lg:col-span-2">
-            <SectionTitle title="KYC & Compliance documents" />
-            <p className="text-xs text-gray-500 mb-4">
-              Upload PDF or images (stored with this vendor). You can replace files
-              anytime while editing.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {KYC_URL_FIELDS.map(({ field, label, slot }) => (
-                <div
-                  key={field}
-                  className="p-4 rounded-xl bg-gray-50 border border-gray-100"
-                >
-                  <VendorKycFileField
-                    label={label}
-                    kycSlot={slot}
-                    teamMemberId={member.id}
-                    linkedUserId={member.userId}
-                    value={
-                      (editForm[field as keyof UpdateTeamMemberPayload] as
-                        | string
-                        | undefined) ?? ""
+                {isEditing ? (
+                  <select
+                    value={editForm.department ?? ""}
+                    onChange={(e) =>
+                      setEditForm((p) => ({ ...p, department: e.target.value }))
                     }
-                    onChange={(next) =>
-                      setEditForm((p) => ({
-                        ...p,
-                        [field]: next || null,
-                      }))
-                    }
-                  />
-                </div>
-              ))}
+                    className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20"
+                  >
+                    <option value="" disabled>
+                      Select department
+                    </option>
+                    {DEPARTMENT_OPTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="mt-2 text-sm font-medium text-gray-900">
+                    {member.department || "—"}
+                  </p>
+                )}
+              </div>
             </div>
           </Card>
-        )}
+        </div>
+
+        <VendorComplianceCard
+          member={member}
+          isEditing={isEditing}
+          editForm={editForm}
+          setEditForm={setEditForm}
+        />
       </div>
 
       {/* ── Tasks Section — tasks from GET /api/team/:id (dayTasks) ────── */}
-      <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <MemberTasksPanel
           memberId={member.id}
           userId={member.userId}

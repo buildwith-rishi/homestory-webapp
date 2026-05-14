@@ -9,16 +9,22 @@ type Props = {
   stored: string;
   className?: string;
   linkLabel?: string;
+  /** `minimal` — subtle text link; `primary` — solid button (default) */
+  variant?: "primary" | "minimal";
 };
 
 /**
  * Resolves vendor KYC `stored` values: attachment UUID → GET /api/attachments/:id,
  * or opens http(s) / data URLs directly.
  */
+const minimalClass =
+  "inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 underline-offset-2 hover:underline";
+
 export const VendorKycDocLink: React.FC<Props> = ({
   stored,
   className,
   linkLabel = "View document",
+  variant = "primary",
 }) => {
   const [href, setHref] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => isVendorKycAttachmentId(stored));
@@ -52,7 +58,9 @@ export const VendorKycDocLink: React.FC<Props> = ({
 
   if (loading) {
     return (
-      <span className={`inline-flex items-center gap-1.5 text-xs text-gray-500 ${className ?? ""}`}>
+      <span
+        className={`inline-flex items-center gap-1.5 text-xs text-gray-500 ${className ?? ""}`}
+      >
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
         Loading…
       </span>
@@ -61,23 +69,21 @@ export const VendorKycDocLink: React.FC<Props> = ({
   if (failed || !href) {
     return (
       <span className={`text-xs text-gray-400 ${className ?? ""}`}>
-        Could not load document
+        Could not open
       </span>
     );
   }
 
+  const mergedClass =
+    className ??
+    (variant === "minimal"
+      ? minimalClass
+      : "inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-800 transition-colors");
+
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={
-        className ??
-        "text-sm font-medium text-purple-600 hover:text-purple-800 flex items-center gap-1 truncate"
-      }
-    >
-      <span className="truncate">{linkLabel}</span>
-      <ExternalLink className="w-3 h-3 shrink-0" />
+    <a href={href} target="_blank" rel="noopener noreferrer" className={mergedClass}>
+      <span className="truncate max-w-[10rem] sm:max-w-[14rem]">{linkLabel}</span>
+      <ExternalLink className="w-3 h-3 shrink-0 opacity-80" />
     </a>
   );
 };
