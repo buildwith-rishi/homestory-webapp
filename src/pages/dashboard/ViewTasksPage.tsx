@@ -168,14 +168,14 @@ export const ViewTasksPage: React.FC = () => {
   const resolvedAttachmentIdsRef = useRef<Set<string>>(new Set());
   const didAutoOpenRef = useRef(false);
 
+  /**
+   * Only junior designers see a single-row directory (themselves) with tasks
+   * auto-opened. Project Manager, Lead PM, and Lead Designer (DESIGN_HEAD)
+   * use the same full user list + per-user task drill-in as Super Admin.
+   */
   const isSelfOnlyRole = useMemo(() => {
     if (!roleId) return false;
-    return new Set<RoleId>([
-      "DESIGNER",
-      "DESIGN_HEAD",
-      "LEAD_PROJECT_MANAGER",
-      "PROJECT_MANAGER",
-    ]).has(roleId);
+    return roleId === "DESIGNER";
   }, [roleId]);
 
   const selfUserRow = useMemo<UserRow | null>(() => {

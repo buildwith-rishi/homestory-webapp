@@ -260,7 +260,14 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
   ],
 
   // ── ACCOUNTS / FINANCE ────────────────────────────────────────────────────
-  ACCOUNTS: ["payments.*", "projects.read", "reports.view", "dashboard.view"],
+  ACCOUNTS: [
+    "payments.*",
+    "projects.read",
+    "reports.view",
+    "dashboard.view",
+    // Vendors (/dashboard/engineers) is gated with users.read — same directory as PM/LPM.
+    "users.read",
+  ],
 
   // ── DESIGNER ──────────────────────────────────────────────────────────────
   DESIGNER: [
@@ -446,13 +453,14 @@ export const NAV_ITEMS: NavItemConfig[] = [
     path: "/dashboard/engineers",
     icon: "Users",
     section: "account",
-    // Keep vendor/team directory visible to operational leadership roles,
-    // but hide it for HR as requested.
+    // Vendor directory: ops leadership + finance (same Engineers/Vendors pages).
+    // Hidden for HR as requested.
     allowedRoles: [
       "SUPER_ADMIN",
       "ADMIN",
       "LEAD_PROJECT_MANAGER",
       "PROJECT_MANAGER",
+      "ACCOUNTS",
     ],
   },
   {

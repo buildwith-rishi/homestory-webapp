@@ -27,7 +27,6 @@ import {
   AlertCircle,
   RefreshCw,
   Mail,
-
   MessageSquare,
   Send,
   BellRing,
@@ -38,7 +37,6 @@ import {
   Ban,
   Image,
   Gift,
-
   Plus,
   Paperclip,
   Pencil,
@@ -49,12 +47,7 @@ import {
   Lock,
   Activity as ActivityIcon,
 } from "lucide-react";
-import {
-  Button,
-  Badge,
-  Card,
-  PageLoader,
-} from "../../components/ui";
+import { Button, Badge, Card, PageLoader } from "../../components/ui";
 import { ProjectStagesSection } from "../../components/dashboard/stages";
 import { TestimonialsTab } from "../../components/dashboard/testimonials";
 import { ProjectReferencesTab } from "../../components/dashboard/references";
@@ -102,7 +95,6 @@ import {
 } from "../../services/attachmentApi";
 import { adminAPI } from "../../services/api";
 
-
 // Helper function to format currency
 const formatCurrency = (value: number): string => {
   if (value >= 10000000) {
@@ -125,6 +117,36 @@ const formatCurrencyExact = (value: number): string => {
     maximumFractionDigits: 0,
   }).format(value);
 };
+
+/** Parse payment API string/number fields (same basis as milestone cards). */
+function parsePaymentMoneyField(
+  value: string | number | null | undefined,
+): number {
+  if (value === null || value === undefined || value === "") return 0;
+  const n = parseFloat(String(value).replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Amount shown as "Invoice Amount" on the milestone card: positive invoice
+ * amount when set, otherwise expected amount.
+ */
+function getPaymentMilestoneBillableAmount(payment: ProjectPayment): number {
+  const expected = parsePaymentMoneyField(payment.expectedAmount);
+  const invoiceAmount = parsePaymentMoneyField(payment.invoiceAmount);
+  return invoiceAmount > 0 ? invoiceAmount : expected;
+}
+
+/**
+ * Outstanding for this milestone (matches card "Remaining": expected − collected,
+ * with actual capped at expected).
+ */
+function getPaymentMilestoneOutstandingAmount(payment: ProjectPayment): number {
+  const expected = parsePaymentMoneyField(payment.expectedAmount);
+  const actual = parsePaymentMoneyField(payment.actualAmount);
+  const boundedActual = Math.max(0, Math.min(actual, expected));
+  return Math.max(0, expected - boundedActual);
+}
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -164,8 +186,9 @@ const normalizeProjectAssignableUsers = (response: unknown): TeamMember[] => {
       typeof responseObj.data === "object" &&
       Array.isArray((responseObj.data as Record<string, unknown>).users)
     ) {
-      usersList = (responseObj.data as Record<string, unknown>)
-        .users as Array<Record<string, unknown>>;
+      usersList = (responseObj.data as Record<string, unknown>).users as Array<
+        Record<string, unknown>
+      >;
     } else if (Array.isArray(responseObj.data)) {
       usersList = responseObj.data as Array<Record<string, unknown>>;
     }
@@ -225,8 +248,9 @@ const normalizeCcUserOptions = (response: unknown): CcUserOption[] => {
       typeof responseObj.data === "object" &&
       Array.isArray((responseObj.data as Record<string, unknown>).users)
     ) {
-      usersList = (responseObj.data as Record<string, unknown>)
-        .users as Array<Record<string, unknown>>;
+      usersList = (responseObj.data as Record<string, unknown>).users as Array<
+        Record<string, unknown>
+      >;
     } else if (Array.isArray(responseObj.data)) {
       usersList = responseObj.data as Array<Record<string, unknown>>;
     }
@@ -263,9 +287,7 @@ const sanitizeNumericInput = (value: string): string => {
   if (firstDotIndex === -1) return cleaned;
   return (
     cleaned.slice(0, firstDotIndex + 1) +
-    cleaned
-      .slice(firstDotIndex + 1)
-      .replace(/\./g, "")
+    cleaned.slice(firstDotIndex + 1).replace(/\./g, "")
   );
 };
 
@@ -275,7 +297,10 @@ const toAmountNumber = (value: string): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const calculateTotalValue = (designValue: string, executionValue: string): string => {
+const calculateTotalValue = (
+  designValue: string,
+  executionValue: string,
+): string => {
   const total = toAmountNumber(designValue) + toAmountNumber(executionValue);
   return total > 0 ? String(total) : "";
 };
@@ -343,12 +368,14 @@ const isPdfDocument = (doc: PaymentDocumentListItem): boolean => {
 
 const isImageDocument = (doc: PaymentDocumentListItem): boolean => {
   const fileName = String(doc.fileName || doc.url || "").toLowerCase();
-  return (".png,.jpg,.jpeg,.gif,.webp,.bmp,.svg").split(",").some((ext) =>
-    fileName.endsWith(ext),
-  );
+  return ".png,.jpg,.jpeg,.gif,.webp,.bmp,.svg"
+    .split(",")
+    .some((ext) => fileName.endsWith(ext));
 };
 
-const getAttachmentIdFromDoc = (doc: PaymentDocumentListItem): string | null => {
+const getAttachmentIdFromDoc = (
+  doc: PaymentDocumentListItem,
+): string | null => {
   if (doc.id) return doc.id;
   const raw = String(doc.url || "");
   if (!raw) return null;
@@ -360,8 +387,9 @@ const getAttachmentIdFromDoc = (doc: PaymentDocumentListItem): string | null => 
   return null;
 };
 
-
-const PARTIAL_PAYMENT_HISTORY_MARKER = "\n---PARTIAL_HISTORY---\n";
+/** Serialized partial-payment ledger is appended after this token in `notes`. */
+const PARTIAL_HISTORY_TOKEN = "---PARTIAL_HISTORY---";
+const PARTIAL_PAYMENT_HISTORY_MARKER = `\n${PARTIAL_HISTORY_TOKEN}\n`;
 
 type PartialPaymentHistoryEntry = {
   amount: number;
@@ -373,18 +401,22 @@ type PartialPaymentHistoryEntry = {
 
 const parsePaymentNotesHistory = (notes?: string | null) => {
   const raw = String(notes || "");
-  if (!raw.includes(PARTIAL_PAYMENT_HISTORY_MARKER)) {
-    return { userNotes: raw.trim(), history: [] as PartialPaymentHistoryEntry[] };
+  const idx = raw.indexOf(PARTIAL_HISTORY_TOKEN);
+  if (idx < 0) {
+    return {
+      userNotes: raw.trim(),
+      history: [] as PartialPaymentHistoryEntry[],
+    };
   }
-
-  const [userNotesPart, historyPart] = raw.split(
-    PARTIAL_PAYMENT_HISTORY_MARKER,
-  );
-  const userNotes = (userNotesPart || "").trim();
+  const userNotes = raw.slice(0, idx).trim();
+  const historyPart = raw
+    .slice(idx + PARTIAL_HISTORY_TOKEN.length)
+    .replace(/^\s+/, "")
+    .trim();
   let history: PartialPaymentHistoryEntry[] = [];
-  if (historyPart?.trim()) {
+  if (historyPart) {
     try {
-      const parsed = JSON.parse(historyPart.trim());
+      const parsed = JSON.parse(historyPart);
       if (Array.isArray(parsed)) {
         history = parsed.filter(Boolean) as PartialPaymentHistoryEntry[];
       }
@@ -578,8 +610,7 @@ function attachActivityTimestampsToLines(
     }
     if (idx === -1) {
       idx = pool.findIndex(
-        (p) =>
-          trimmed.includes(p.description) && p.description.length >= 14,
+        (p) => trimmed.includes(p.description) && p.description.length >= 14,
       );
     }
     if (idx !== -1) {
@@ -646,11 +677,17 @@ const CompactNoteRows: React.FC<{
               <div className="shrink-0 text-right">
                 {when ? (
                   <p className="flex items-center justify-end gap-0.5 text-[10px] leading-tight text-gray-500 tabular-nums">
-                    <Clock className="h-2.5 w-2.5 shrink-0 opacity-70" aria-hidden />
+                    <Clock
+                      className="h-2.5 w-2.5 shrink-0 opacity-70"
+                      aria-hidden
+                    />
                     <span>{when}</span>
                   </p>
                 ) : (
-                  <span className="text-[10px] text-gray-300" title="No matching activity log">
+                  <span
+                    className="text-[10px] text-gray-300"
+                    title="No matching activity log"
+                  >
                     —
                   </span>
                 )}
@@ -759,15 +796,13 @@ export const ProjectDetails: React.FC = () => {
     : "/dashboard/projects";
   const isSiteEngineerMobileApp =
     roleId === "SITE_ENGINEER" && isAppShellProjectView;
-  
+
   // Permissions
   const canCreatePayment = hasPermission(roleId as RoleId, "payments.create");
   const canUpdatePayment = hasPermission(roleId as RoleId, "payments.update");
   const canDeletePayment = hasPermission(roleId as RoleId, "payments.delete");
   // Basic check for project editing (further scoped by assignment for designers)
   const canEditProjectBase = hasPermission(roleId as RoleId, "projects.update");
-
-
 
   // Store
   const {
@@ -802,11 +837,11 @@ export const ProjectDetails: React.FC = () => {
     // Check precise ID matches first
     if (currentProject.assignedDesignerId === user.id) return true;
     if (currentProject.assignedPMId === user.id) return true;
-    
+
     // Fallback: Check name matches in string arrays (designTeam, executionTeam are string[])
     if (currentProject.designTeam?.includes(user.name)) return true;
     if (currentProject.executionTeam?.includes(user.name)) return true;
-    
+
     return false;
   }, [currentProject, user]);
 
@@ -854,7 +889,6 @@ export const ProjectDetails: React.FC = () => {
   }, [isSiteEngineerMobileApp, roleId]);
 
   // Project options from API
-
 
   // Local state
   const [activeTab, setActiveTab] = useState<
@@ -969,8 +1003,9 @@ export const ProjectDetails: React.FC = () => {
   const [showSendInvoiceModal, setShowSendInvoiceModal] = useState(false);
   const [invoiceTargetPayment, setInvoiceTargetPayment] =
     useState<ProjectPayment | null>(null);
-  const [invoiceSendMode, setInvoiceSendMode] =
-    useState<"invoice" | "proforma">("invoice");
+  const [invoiceSendMode, setInvoiceSendMode] = useState<
+    "invoice" | "proforma"
+  >("invoice");
   const [isSendingInvoice, setIsSendingInvoice] = useState(false);
   const [showInvoiceSentSuccessModal, setShowInvoiceSentSuccessModal] =
     useState(false);
@@ -1000,7 +1035,12 @@ export const ProjectDetails: React.FC = () => {
     }>,
   });
   const selectedCcEmails = useMemo(
-    () => Array.from(new Set(parseEmailList(sendInvoiceForm.ccEmails).map((e) => e.toLowerCase()))),
+    () =>
+      Array.from(
+        new Set(
+          parseEmailList(sendInvoiceForm.ccEmails).map((e) => e.toLowerCase()),
+        ),
+      ),
     [sendInvoiceForm.ccEmails],
   );
 
@@ -1072,6 +1112,10 @@ export const ProjectDetails: React.FC = () => {
     subject: "",
     customMessage: "",
   });
+  /** UI-only: which automated reminder lead times are selected per milestone (no API). */
+  const [paymentReminderLeadDaysUi, setPaymentReminderLeadDaysUi] = useState<
+    Record<string, { d7: boolean; d4: boolean; d1: boolean }>
+  >({});
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -1194,11 +1238,7 @@ export const ProjectDetails: React.FC = () => {
     members: string[],
   ) => {
     const unique = Array.from(
-      new Set(
-        members
-          .map((member) => member.trim())
-          .filter(Boolean),
-      ),
+      new Set(members.map((member) => member.trim()).filter(Boolean)),
     );
     setEditForm((prev) => ({
       ...prev,
@@ -1260,8 +1300,6 @@ export const ProjectDetails: React.FC = () => {
   >(null);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
 
-
-
   // Fetch project data on mount (stages load only after project is started — see below)
   const shouldFetchPayments =
     roleId !== "SITE_ENGINEER" && roleId !== "DESIGNER";
@@ -1274,16 +1312,12 @@ export const ProjectDetails: React.FC = () => {
       }
       fetchProjectAttachments(projectId);
     }
-  }, [
-    projectId,
-    fetchProjectById,
-    fetchProjectPayments,
-    shouldFetchPayments,
-  ]);
+  }, [projectId, fetchProjectById, fetchProjectPayments, shouldFetchPayments]);
 
   // Load stages only when the project is not "YET TO START" (aligns with locked Stages tab)
   useEffect(() => {
-    if (!projectId || !currentProject || currentProject.id !== projectId) return;
+    if (!projectId || !currentProject || currentProject.id !== projectId)
+      return;
     const yetToStart =
       String(currentProject.status ?? "").toUpperCase() === "YET_TO_START";
     if (yetToStart) return;
@@ -1561,7 +1595,7 @@ export const ProjectDetails: React.FC = () => {
     try {
       // Get the attachment details before deletion for logging
       const attachmentToDelete = projectAttachments.find((a) => a.id === id);
-      
+
       await deleteAttachment(id);
       setProjectAttachments((prev) => prev.filter((a) => a.id !== id));
       toast.success("Document deleted successfully!");
@@ -1605,7 +1639,7 @@ export const ProjectDetails: React.FC = () => {
         fullAttachment.downloadUrl ||
         fullAttachment.url ||
         fullAttachment.fileUrl;
-      
+
       if (url && (url.startsWith("http") || url.startsWith("//"))) {
         window.open(url, "_blank");
         toast.dismiss(toastId);
@@ -1816,16 +1850,17 @@ export const ProjectDetails: React.FC = () => {
         // user can fill in manually
       }
     }
-    const displayAmount =
-      payment.expectedAmount ??
-      payment.invoiceAmount ??
-      payment.actualAmount ??
-      payment.amount ??
-      "";
+    const billable = getPaymentMilestoneBillableAmount(payment);
+    const outstanding = getPaymentMilestoneOutstandingAmount(payment);
+    const proformaAmt = formatCurrencyExact(billable);
+    const invoiceDueAmt = formatCurrencyExact(
+      payment.status === "COLLECTED" ? 0 : outstanding,
+    );
+    const stageLabel = payment.title || `Stage ${payment.paymentStage}`;
     const defaultMsg =
       mode === "proforma"
-        ? `Please find the proforma invoice for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount: ₹${displayAmount}.`
-        : `Please make the payment for: ${payment.title || `Stage ${payment.paymentStage}`}. Amount due: ₹${displayAmount}.`;
+        ? `Please find the proforma invoice for: ${stageLabel}. Amount: ${proformaAmt}.`
+        : `Please make the payment for: ${stageLabel}. Amount due: ${invoiceDueAmt}.`;
 
     setSendInvoiceForm((prev) => ({
       ...prev,
@@ -1877,7 +1912,9 @@ export const ProjectDetails: React.FC = () => {
     const normalizedEmail = email.toLowerCase();
     setSendInvoiceForm((prev) => {
       const current = Array.from(
-        new Set(parseEmailList(prev.ccEmails).map((value) => value.toLowerCase())),
+        new Set(
+          parseEmailList(prev.ccEmails).map((value) => value.toLowerCase()),
+        ),
       );
       const exists = current.includes(normalizedEmail);
       const next = exists
@@ -1951,8 +1988,7 @@ export const ProjectDetails: React.FC = () => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const readFileAsBase64 =
-      (file: File) =>
+    const readFileAsBase64 = (file: File) =>
       new Promise<{ fileName: string; fileType: string; fileBase64: string }>(
         (resolve, reject) => {
           const reader = new FileReader();
@@ -2248,15 +2284,11 @@ export const ProjectDetails: React.FC = () => {
         // user can fill in manually
       }
     }
-    const displayAmount =
-      payment.expectedAmount ??
-      payment.invoiceAmount ??
-      payment.actualAmount ??
-      payment.amount ??
-      "";
+    const outstanding = getPaymentMilestoneOutstandingAmount(payment);
+    const dueFmt = formatCurrencyExact(outstanding);
     const paymentLabel = payment.title || `Stage ${payment.paymentStage}`;
     const defaultSubject = `Payment reminder — ${paymentLabel}`;
-    const defaultMessage = `Gentle reminder: Payment of ₹${displayAmount} for "${paymentLabel}" is pending. Kindly complete the payment at your earliest convenience.`;
+    const defaultMessage = `Gentle reminder: Payment of ${dueFmt} for "${paymentLabel}" is pending. Kindly complete the payment at your earliest convenience.`;
 
     setSendReminderForm({
       toEmail,
@@ -2480,7 +2512,9 @@ export const ProjectDetails: React.FC = () => {
         (currentProject as any).assignedDesigner?.id ||
         "",
       assignedPMId:
-        currentProject.assignedPMId || (currentProject as any).assignedPM?.id || "",
+        currentProject.assignedPMId ||
+        (currentProject as any).assignedPM?.id ||
+        "",
       designPackage: currentProject.designPackage || "",
       design3DStatus: currentProject.design3DStatus || "",
       moodBoardShared: currentProject.moodBoardShared || false,
@@ -2497,12 +2531,13 @@ export const ProjectDetails: React.FC = () => {
       executionValue: currentProject.executionValue
         ? String(currentProject.executionValue)
         : "",
-      totalValue: calculateTotalValue(
-        currentProject.designValue ? String(currentProject.designValue) : "",
-        currentProject.executionValue
-          ? String(currentProject.executionValue)
-          : "",
-      ) ||
+      totalValue:
+        calculateTotalValue(
+          currentProject.designValue ? String(currentProject.designValue) : "",
+          currentProject.executionValue
+            ? String(currentProject.executionValue)
+            : "",
+        ) ||
         (currentProject.totalValue ? String(currentProject.totalValue) : ""),
       billingAddress: currentProject.billingAddress || "",
       pauseReason: currentProject.pauseReason || "",
@@ -2549,8 +2584,9 @@ export const ProjectDetails: React.FC = () => {
         return fallbackMatch?.id || null;
       };
       const currentAssignedDesignerName =
-        teamMembersList.find((member) => member.id === editForm.assignedDesignerId)
-          ?.name || null;
+        teamMembersList.find(
+          (member) => member.id === editForm.assignedDesignerId,
+        )?.name || null;
       const currentAssignedExecutionName =
         teamMembersList.find((member) => member.id === editForm.assignedPMId)
           ?.name || null;
@@ -2781,10 +2817,13 @@ export const ProjectDetails: React.FC = () => {
         (currentProject as any).assignedDesigner?.id ||
         null;
       const currentAssignedPMId =
-        currentProject.assignedPMId || (currentProject as any).assignedPM?.id || null;
+        currentProject.assignedPMId ||
+        (currentProject as any).assignedPM?.id ||
+        null;
       const currentAssignedDesignerName =
         (currentProject as any).assignedDesigner?.name || null;
-      const currentAssignedPMName = (currentProject as any).assignedPM?.name || null;
+      const currentAssignedPMName =
+        (currentProject as any).assignedPM?.name || null;
 
       const nextAssignedDesignerId =
         nextDesignTeam.length === 0
@@ -2797,7 +2836,8 @@ export const ProjectDetails: React.FC = () => {
       const nextAssignedPMId =
         nextExecutionTeam.length === 0
           ? null
-          : currentAssignedPMName && nextExecutionTeam.includes(currentAssignedPMName)
+          : currentAssignedPMName &&
+              nextExecutionTeam.includes(currentAssignedPMName)
             ? currentAssignedPMId
             : byName.get(nextExecutionTeam[0]) || null;
 
@@ -3242,7 +3282,9 @@ export const ProjectDetails: React.FC = () => {
                       type="button"
                       onClick={() => {
                         if (project.account?.id) {
-                          navigate(`/dashboard/customers/${project.account.id}`);
+                          navigate(
+                            `/dashboard/customers/${project.account.id}`,
+                          );
                         } else if (project.lead?.id) {
                           navigate(`/dashboard/leads/${project.lead.id}`);
                         }
@@ -3266,42 +3308,43 @@ export const ProjectDetails: React.FC = () => {
 
             <div className="flex flex-wrap gap-2">
               {/* Status Action Buttons */}
-              {canEditProject && getStatusActions().map((statusAction) => (
-                <button
-                  key={statusAction.action}
-                  onClick={() => {
-                    if (statusAction.action === "pause") {
-                      setShowPauseModal(true);
-                    } else {
-                      setShowStatusConfirm(statusAction.action);
-                    }
-                  }}
-                  className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${statusAction.className}`}
-                >
-                  {statusAction.icon}
-                  {statusAction.label}
-                </button>
-              ))}
+              {canEditProject &&
+                getStatusActions().map((statusAction) => (
+                  <button
+                    key={statusAction.action}
+                    onClick={() => {
+                      if (statusAction.action === "pause") {
+                        setShowPauseModal(true);
+                      } else {
+                        setShowStatusConfirm(statusAction.action);
+                      }
+                    }}
+                    className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${statusAction.className}`}
+                  >
+                    {statusAction.icon}
+                    {statusAction.label}
+                  </button>
+                ))}
 
               {canEditProject && (
-              <Button
-                variant="secondary"
-                className="bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-md"
-                onClick={handleOpenEdit}
-              >
-                <Edit3 className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
+                <Button
+                  variant="secondary"
+                  className="bg-white hover:bg-orange-50 border-2 border-gray-400 hover:border-orange-500 text-gray-700 hover:text-orange-600 shadow-md"
+                  onClick={handleOpenEdit}
+                >
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
               )}
               {canDeleteProject && (
-              <Button
-                variant="secondary"
-                className="bg-white hover:bg-red-50 border-2 border-red-400 hover:border-red-500 text-red-600 hover:text-red-700 shadow-md"
-                onClick={() => setShowDeleteConfirm(true)}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
-              </Button>
+                <Button
+                  variant="secondary"
+                  className="bg-white hover:bg-red-50 border-2 border-red-400 hover:border-red-500 text-red-600 hover:text-red-700 shadow-md"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
               )}
             </div>
           </div>
@@ -3340,73 +3383,79 @@ export const ProjectDetails: React.FC = () => {
       {/* Pause Info Banner */}
       {project.status?.toUpperCase() === "PAUSED" && (
         <div className="max-w-[1600px] mx-auto px-4 sm:px-5">
-        <div className="bg-yellow-50 border border-yellow-200 mt-2 rounded-lg p-3">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
-              <Pause className="w-5 h-5 text-yellow-600" />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-bold text-yellow-800 mb-1">
-                Project is Paused
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                {project.pauseReason && (
-                  <div>
-                    <span className="text-yellow-600 font-medium">Reason:</span>{" "}
-                    <span className="text-yellow-900">
-                      {project.pauseReason}
-                    </span>
-                  </div>
-                )}
-                {project.pausedAt && (
-                  <div>
-                    <span className="text-yellow-600 font-medium">Paused:</span>{" "}
-                    <span className="text-yellow-900">
-                      {formatDate(project.pausedAt)}
-                    </span>
-                  </div>
-                )}
-                {project.pausedUntil && (
-                  <div>
-                    <span className="text-yellow-600 font-medium">Until:</span>{" "}
-                    <span className="text-yellow-900">
-                      {formatDate(project.pausedUntil)}
-                    </span>
-                  </div>
-                )}
-                {pauseStatus?.daysRemaining != null &&
-                  pauseStatus.daysRemaining > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 mt-2 rounded-lg p-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                <Pause className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-yellow-800 mb-1">
+                  Project is Paused
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  {project.pauseReason && (
                     <div>
                       <span className="text-yellow-600 font-medium">
-                        Days Left:
+                        Reason:
                       </span>{" "}
-                      <span className="text-yellow-900 font-bold">
-                        {pauseStatus.daysRemaining}
+                      <span className="text-yellow-900">
+                        {project.pauseReason}
                       </span>
                     </div>
                   )}
-                {pauseStatus?.isExpired && (
-                  <div className="col-span-2">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">
-                      <AlertCircle className="w-3 h-3" />
-                      Pause Expired{" "}
-                      {pauseStatus.daysOverdue
-                        ? `(${pauseStatus.daysOverdue} days overdue)`
-                        : ""}
-                    </span>
-                  </div>
-                )}
+                  {project.pausedAt && (
+                    <div>
+                      <span className="text-yellow-600 font-medium">
+                        Paused:
+                      </span>{" "}
+                      <span className="text-yellow-900">
+                        {formatDate(project.pausedAt)}
+                      </span>
+                    </div>
+                  )}
+                  {project.pausedUntil && (
+                    <div>
+                      <span className="text-yellow-600 font-medium">
+                        Until:
+                      </span>{" "}
+                      <span className="text-yellow-900">
+                        {formatDate(project.pausedUntil)}
+                      </span>
+                    </div>
+                  )}
+                  {pauseStatus?.daysRemaining != null &&
+                    pauseStatus.daysRemaining > 0 && (
+                      <div>
+                        <span className="text-yellow-600 font-medium">
+                          Days Left:
+                        </span>{" "}
+                        <span className="text-yellow-900 font-bold">
+                          {pauseStatus.daysRemaining}
+                        </span>
+                      </div>
+                    )}
+                  {pauseStatus?.isExpired && (
+                    <div className="col-span-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">
+                        <AlertCircle className="w-3 h-3" />
+                        Pause Expired{" "}
+                        {pauseStatus.daysOverdue
+                          ? `(${pauseStatus.daysOverdue} days overdue)`
+                          : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
+              <button
+                onClick={() => setShowStatusConfirm("resume")}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold transition-all shadow-sm"
+              >
+                <Play className="w-4 h-4" />
+                Resume
+              </button>
             </div>
-            <button
-              onClick={() => setShowStatusConfirm("resume")}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold transition-all shadow-sm"
-            >
-              <Play className="w-4 h-4" />
-              Resume
-            </button>
           </div>
-        </div>
         </div>
       )}
 
@@ -3575,36 +3624,42 @@ export const ProjectDetails: React.FC = () => {
                 </h2>
                 <div className="space-y-3">
                   {visibleDesignTeamMembers.map((member, idx) => (
-                      <TeamMemberItem
-                        key={`design-${idx}`}
-                        name={member}
-                        role="Design Team"
-                        badge="Design"
-                        onRemove={
-                          canEditProject
-                            ? () => handleRemoveAssignedTeamMember("design", member)
-                            : undefined
-                        }
-                        isRemoving={removingTeamMemberKey === `design:${member}`}
-                      />
-                    ))}
+                    <TeamMemberItem
+                      key={`design-${idx}`}
+                      name={member}
+                      role="Design Team"
+                      badge="Design"
+                      onRemove={
+                        canEditProject
+                          ? () =>
+                              handleRemoveAssignedTeamMember("design", member)
+                          : undefined
+                      }
+                      isRemoving={removingTeamMemberKey === `design:${member}`}
+                    />
+                  ))}
 
                   {/* Execution Team members (string array) */}
                   {visibleExecutionTeamMembers.map((member, idx) => (
-                      <TeamMemberItem
-                        key={`exec-${idx}`}
-                        name={member}
-                        role="Execution Team"
-                        badge="Execution"
-                        onRemove={
-                          canEditProject
-                            ? () =>
-                                handleRemoveAssignedTeamMember("execution", member)
-                            : undefined
-                        }
-                        isRemoving={removingTeamMemberKey === `execution:${member}`}
-                      />
-                    ))}
+                    <TeamMemberItem
+                      key={`exec-${idx}`}
+                      name={member}
+                      role="Execution Team"
+                      badge="Execution"
+                      onRemove={
+                        canEditProject
+                          ? () =>
+                              handleRemoveAssignedTeamMember(
+                                "execution",
+                                member,
+                              )
+                          : undefined
+                      }
+                      isRemoving={
+                        removingTeamMemberKey === `execution:${member}`
+                      }
+                    />
+                  ))}
 
                   {!visibleDesignTeamMembers.length &&
                     !visibleExecutionTeamMembers.length && (
@@ -3709,12 +3764,12 @@ export const ProjectDetails: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
-                                onClick={() => handleViewAttachment(attachment)}
-                                className="p-1.5 rounded-lg hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
-                                title="View / Download"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
+                              onClick={() => handleViewAttachment(attachment)}
+                              className="p-1.5 rounded-lg hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors"
+                              title="View / Download"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               onClick={() => {
                                 setEditingAttachment(attachment);
@@ -3764,7 +3819,9 @@ export const ProjectDetails: React.FC = () => {
               </button>
 
               {/* Customer */}
-              {(project.account?.name || project.account?.email || project.account?.phone) && (
+              {(project.account?.name ||
+                project.account?.email ||
+                project.account?.phone) && (
                 <Card className="p-3 bg-white/80 backdrop-blur-sm border-gray-200/50 shadow-sm">
                   <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
@@ -3789,7 +3846,6 @@ export const ProjectDetails: React.FC = () => {
                   )}
                 </Card>
               )}
-
             </div>
           </div>
         )}
@@ -3934,10 +3990,10 @@ export const ProjectDetails: React.FC = () => {
               const actual = parseFloat(String(payment.actualAmount)) || 0;
               const boundedActual = Math.max(0, Math.min(actual, expected));
               const hasActualCollection = boundedActual > 0;
-              const headerAmount =
-                invoiceAmount > 0
-                  ? invoiceAmount
-                  : expected;
+              const headerAmount = invoiceAmount > 0 ? invoiceAmount : expected;
+              const paymentNotesVisible = parsePaymentNotesHistory(
+                payment.notes,
+              ).userNotes;
               return (
                 <div
                   key={payment.id}
@@ -3968,7 +4024,8 @@ export const ProjectDetails: React.FC = () => {
                           )}
                           {!isCollected && hasActualCollection && (
                             <span className="text-orange-700 font-medium">
-                              Remaining: {formatCurrency(expected - boundedActual)}
+                              Remaining:{" "}
+                              {formatCurrency(expected - boundedActual)}
                             </span>
                           )}
                           {payment.dueDate && (
@@ -3993,9 +4050,9 @@ export const ProjectDetails: React.FC = () => {
                             )}
                           </div>
                         )}
-                        {payment.notes && (
+                        {paymentNotesVisible && (
                           <p className="text-xs text-gray-400 mt-1 line-clamp-1 italic">
-                            {payment.notes}
+                            {paymentNotesVisible}
                           </p>
                         )}
                       </div>
@@ -4014,16 +4071,69 @@ export const ProjectDetails: React.FC = () => {
                       </Badge>
                     </div>
                   </div>
+                  {(payment.status === "PENDING" ||
+                    payment.status === "OVERDUE" ||
+                    payment.status === "PARTIALLY_PAID") && (
+                    <div className="mt-3 pt-3 border-t border-dashed border-gray-200">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                        Send reminder email before due date
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        {(
+                          [
+                            { key: "d7" as const, label: "7 days before" },
+                            { key: "d4" as const, label: "4 days before" },
+                            { key: "d1" as const, label: "1 day before" },
+                          ] as const
+                        ).map(({ key, label }) => {
+                          const row = paymentReminderLeadDaysUi[payment.id] ?? {
+                            d7: false,
+                            d4: false,
+                            d1: false,
+                          };
+                          return (
+                            <label
+                              key={key}
+                              className="inline-flex items-center gap-2 cursor-pointer select-none text-xs text-gray-700"
+                            >
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                checked={row[key]}
+                                onChange={(e) => {
+                                  setPaymentReminderLeadDaysUi((prev) => {
+                                    const cur = prev[payment.id] ?? {
+                                      d7: false,
+                                      d4: false,
+                                      d1: false,
+                                    };
+                                    return {
+                                      ...prev,
+                                      [payment.id]: {
+                                        ...cur,
+                                        [key]: e.target.checked,
+                                      },
+                                    };
+                                  });
+                                }}
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
                     {canUpdatePayment && (
-                    <button
-                      onClick={() => handleEditPayment(payment)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                      title="Update payment status"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      Update Status
-                    </button>
+                      <button
+                        onClick={() => handleEditPayment(payment)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                        title="Update payment status"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        Update Status
+                      </button>
                     )}
                     <button
                       onClick={() => handleOpenSendInvoice(payment, "proforma")}
@@ -4104,30 +4214,30 @@ export const ProjectDetails: React.FC = () => {
                       </button>
                     )}
                     {canDeletePayment && (
-                    <button
-                      onClick={async () => {
-                        if (
-                          !window.confirm(
-                            "Delete this payment milestone? This cannot be undone.",
+                      <button
+                        onClick={async () => {
+                          if (
+                            !window.confirm(
+                              "Delete this payment milestone? This cannot be undone.",
+                            )
                           )
-                        )
-                          return;
-                        try {
-                          await deleteProjectPayment(
-                            payment.projectId,
-                            payment.id,
-                          );
-                          toast.success("Payment milestone deleted");
-                        } catch {
-                          toast.error("Failed to delete payment milestone");
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors ml-auto"
-                      title="Delete milestone"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete
-                    </button>
+                            return;
+                          try {
+                            await deleteProjectPayment(
+                              payment.projectId,
+                              payment.id,
+                            );
+                            toast.success("Payment milestone deleted");
+                          } catch {
+                            toast.error("Failed to delete payment milestone");
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors ml-auto"
+                        title="Delete milestone"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </button>
                     )}
                   </div>
                 </div>
@@ -4251,44 +4361,44 @@ export const ProjectDetails: React.FC = () => {
                       </Button>
                       {/* Add Payment for active phase */}
                       {canCreatePayment && (
-                      <Button
-                        onClick={() => {
-                          const nextStage =
-                            projectPayments.filter(
-                              (p) => p.phaseType === paymentPhaseTab,
-                            ).length + 1;
-                          setNewPaymentForm((prev) => ({
-                            ...prev,
-                            phaseType: paymentPhaseTab,
-                            paymentStage: nextStage,
-                            title: "",
-                            description: "",
-                            stageCode: "",
-                            projectStageId: "",
-                            percentage: 0,
-                            expectedAmount: "",
-                            invoiceAmount: "",
-                            taxPercentage: "",
-                            dueDate: "",
-                            notes: "",
-                            status: "PENDING",
-                          }));
-                          setShowAddPaymentModal(true);
-                          if (projectId) fetchProjectStages(projectId);
-                        }}
-                        className={`text-white text-sm px-4 py-2 ${
-                          paymentPhaseTab === "DESIGN"
-                            ? "bg-blue-500 hover:bg-blue-600"
-                            : "bg-orange-500 hover:bg-orange-600"
-                        }`}
-                      >
-                        <Plus className="w-4 h-4 mr-1.5" />
-                        Add{" "}
-                        {paymentPhaseTab === "DESIGN"
-                          ? "Design"
-                          : "Execution"}{" "}
-                        Payment
-                      </Button>
+                        <Button
+                          onClick={() => {
+                            const nextStage =
+                              projectPayments.filter(
+                                (p) => p.phaseType === paymentPhaseTab,
+                              ).length + 1;
+                            setNewPaymentForm((prev) => ({
+                              ...prev,
+                              phaseType: paymentPhaseTab,
+                              paymentStage: nextStage,
+                              title: "",
+                              description: "",
+                              stageCode: "",
+                              projectStageId: "",
+                              percentage: 0,
+                              expectedAmount: "",
+                              invoiceAmount: "",
+                              taxPercentage: "",
+                              dueDate: "",
+                              notes: "",
+                              status: "PENDING",
+                            }));
+                            setShowAddPaymentModal(true);
+                            if (projectId) fetchProjectStages(projectId);
+                          }}
+                          className={`text-white text-sm px-4 py-2 ${
+                            paymentPhaseTab === "DESIGN"
+                              ? "bg-blue-500 hover:bg-blue-600"
+                              : "bg-orange-500 hover:bg-orange-600"
+                          }`}
+                        >
+                          <Plus className="w-4 h-4 mr-1.5" />
+                          Add{" "}
+                          {paymentPhaseTab === "DESIGN"
+                            ? "Design"
+                            : "Execution"}{" "}
+                          Payment
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -4419,7 +4529,12 @@ export const ProjectDetails: React.FC = () => {
                 <button
                   onClick={() => {
                     setShowAddPaymentModal(false);
-                    setPaymentFormErrors({ percentage: "", expectedAmount: "", taxPercentage: "", invoiceAmount: "" });
+                    setPaymentFormErrors({
+                      percentage: "",
+                      expectedAmount: "",
+                      taxPercentage: "",
+                      invoiceAmount: "",
+                    });
                   }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
@@ -4493,7 +4608,8 @@ export const ProjectDetails: React.FC = () => {
                       const phaseBaseValue =
                         nextPhaseType === "DESIGN"
                           ? parseFloat(String(project?.designValue ?? 0)) || 0
-                          : parseFloat(String(project?.executionValue ?? 0)) || 0;
+                          : parseFloat(String(project?.executionValue ?? 0)) ||
+                            0;
                       const autoExpected =
                         newPaymentForm.percentage > 0 && phaseBaseValue > 0
                           ? String(
@@ -4503,9 +4619,13 @@ export const ProjectDetails: React.FC = () => {
                               ),
                             )
                           : newPaymentForm.expectedAmount;
-                      const tax = parseFloat(newPaymentForm.taxPercentage || "0");
+                      const tax = parseFloat(
+                        newPaymentForm.taxPercentage || "0",
+                      );
                       const autoInvoice = autoExpected
-                        ? (parseFloat(autoExpected) * (1 + tax / 100)).toFixed(2)
+                        ? (parseFloat(autoExpected) * (1 + tax / 100)).toFixed(
+                            2,
+                          )
                         : newPaymentForm.invoiceAmount;
                       setNewPaymentForm({
                         ...newPaymentForm,
@@ -4578,20 +4698,35 @@ export const ProjectDetails: React.FC = () => {
                       onChange={(e) => {
                         const val = parseFloat(e.target.value);
                         if (!isNaN(val) && val < 0) {
-                          setPaymentFormErrors((prev) => ({ ...prev, percentage: "Value cannot be negative" }));
+                          setPaymentFormErrors((prev) => ({
+                            ...prev,
+                            percentage: "Value cannot be negative",
+                          }));
                           return;
                         }
-                        setPaymentFormErrors((prev) => ({ ...prev, percentage: "", expectedAmount: "" }));
+                        setPaymentFormErrors((prev) => ({
+                          ...prev,
+                          percentage: "",
+                          expectedAmount: "",
+                        }));
                         const phaseBaseValue =
                           newPaymentForm.phaseType === "DESIGN"
                             ? parseFloat(String(project?.designValue ?? 0)) || 0
-                            : parseFloat(String(project?.executionValue ?? 0)) || 0;
-                        const autoExpected = (!isNaN(val) && val > 0 && phaseBaseValue > 0)
-                          ? String(Math.round((val / 100) * phaseBaseValue))
-                          : newPaymentForm.expectedAmount;
-                        const tax = parseFloat(newPaymentForm.taxPercentage || "0");
+                            : parseFloat(
+                                String(project?.executionValue ?? 0),
+                              ) || 0;
+                        const autoExpected =
+                          !isNaN(val) && val > 0 && phaseBaseValue > 0
+                            ? String(Math.round((val / 100) * phaseBaseValue))
+                            : newPaymentForm.expectedAmount;
+                        const tax = parseFloat(
+                          newPaymentForm.taxPercentage || "0",
+                        );
                         const autoInvoice = autoExpected
-                          ? (parseFloat(autoExpected) * (1 + tax / 100)).toFixed(2)
+                          ? (
+                              parseFloat(autoExpected) *
+                              (1 + tax / 100)
+                            ).toFixed(2)
                           : newPaymentForm.invoiceAmount;
                         setNewPaymentForm({
                           ...newPaymentForm,
@@ -4604,7 +4739,9 @@ export const ProjectDetails: React.FC = () => {
                       placeholder="50"
                     />
                     {paymentFormErrors.percentage && (
-                      <p className="text-red-500 text-xs mt-1">{paymentFormErrors.percentage}</p>
+                      <p className="text-red-500 text-xs mt-1">
+                        {paymentFormErrors.percentage}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -4625,10 +4762,16 @@ export const ProjectDetails: React.FC = () => {
                       onChange={(e) => {
                         const expected = e.target.value;
                         if (expected !== "" && parseFloat(expected) < 0) {
-                          setPaymentFormErrors((prev) => ({ ...prev, expectedAmount: "Value cannot be negative" }));
+                          setPaymentFormErrors((prev) => ({
+                            ...prev,
+                            expectedAmount: "Value cannot be negative",
+                          }));
                           return;
                         }
-                        setPaymentFormErrors((prev) => ({ ...prev, expectedAmount: "" }));
+                        setPaymentFormErrors((prev) => ({
+                          ...prev,
+                          expectedAmount: "",
+                        }));
                         const tax = parseFloat(
                           newPaymentForm.taxPercentage || "0",
                         );
@@ -4645,7 +4788,9 @@ export const ProjectDetails: React.FC = () => {
                       placeholder="50000"
                     />
                     {paymentFormErrors.expectedAmount && (
-                      <p className="text-red-500 text-xs mt-1">{paymentFormErrors.expectedAmount}</p>
+                      <p className="text-red-500 text-xs mt-1">
+                        {paymentFormErrors.expectedAmount}
+                      </p>
                     )}
                   </div>
                   <div>
@@ -4666,10 +4811,16 @@ export const ProjectDetails: React.FC = () => {
                       onChange={(e) => {
                         const tax = e.target.value;
                         if (tax !== "" && parseFloat(tax) < 0) {
-                          setPaymentFormErrors((prev) => ({ ...prev, taxPercentage: "Value cannot be negative" }));
+                          setPaymentFormErrors((prev) => ({
+                            ...prev,
+                            taxPercentage: "Value cannot be negative",
+                          }));
                           return;
                         }
-                        setPaymentFormErrors((prev) => ({ ...prev, taxPercentage: "" }));
+                        setPaymentFormErrors((prev) => ({
+                          ...prev,
+                          taxPercentage: "",
+                        }));
                         const expected = parseFloat(
                           newPaymentForm.expectedAmount || "0",
                         );
@@ -4689,7 +4840,9 @@ export const ProjectDetails: React.FC = () => {
                       placeholder="18"
                     />
                     {paymentFormErrors.taxPercentage && (
-                      <p className="text-red-500 text-xs mt-1">{paymentFormErrors.taxPercentage}</p>
+                      <p className="text-red-500 text-xs mt-1">
+                        {paymentFormErrors.taxPercentage}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -4712,10 +4865,16 @@ export const ProjectDetails: React.FC = () => {
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val !== "" && parseFloat(val) < 0) {
-                        setPaymentFormErrors((prev) => ({ ...prev, invoiceAmount: "Value cannot be negative" }));
+                        setPaymentFormErrors((prev) => ({
+                          ...prev,
+                          invoiceAmount: "Value cannot be negative",
+                        }));
                         return;
                       }
-                      setPaymentFormErrors((prev) => ({ ...prev, invoiceAmount: "" }));
+                      setPaymentFormErrors((prev) => ({
+                        ...prev,
+                        invoiceAmount: "",
+                      }));
                       setNewPaymentForm({
                         ...newPaymentForm,
                         invoiceAmount: val,
@@ -4725,7 +4884,9 @@ export const ProjectDetails: React.FC = () => {
                     placeholder="Auto-filled from expected amount + tax"
                   />
                   {paymentFormErrors.invoiceAmount && (
-                    <p className="text-red-500 text-xs mt-1">{paymentFormErrors.invoiceAmount}</p>
+                    <p className="text-red-500 text-xs mt-1">
+                      {paymentFormErrors.invoiceAmount}
+                    </p>
                   )}
                 </div>
 
@@ -4802,7 +4963,12 @@ export const ProjectDetails: React.FC = () => {
                   className="flex-1"
                   onClick={() => {
                     setShowAddPaymentModal(false);
-                    setPaymentFormErrors({ percentage: "", expectedAmount: "", taxPercentage: "", invoiceAmount: "" });
+                    setPaymentFormErrors({
+                      percentage: "",
+                      expectedAmount: "",
+                      taxPercentage: "",
+                      invoiceAmount: "",
+                    });
                   }}
                 >
                   Cancel
@@ -5132,8 +5298,8 @@ export const ProjectDetails: React.FC = () => {
                     placeholder="Type CC addresses (comma or space separated), e.g. team@company.com, cc@example.com"
                   />
                   <p className="text-xs text-gray-500 mb-2">
-                    Or pick from your team below. Manual entries and selections are
-                    combined.
+                    Or pick from your team below. Manual entries and selections
+                    are combined.
                   </p>
                   <div className="relative" ref={ccDropdownRef}>
                     <button
@@ -5192,7 +5358,9 @@ export const ProjectDetails: React.FC = () => {
                             </div>
                           ) : (
                             filteredCcUsers.map((user) => {
-                              const checked = selectedCcEmails.includes(user.email);
+                              const checked = selectedCcEmails.includes(
+                                user.email,
+                              );
                               return (
                                 <label
                                   key={user.id}
@@ -5302,7 +5470,8 @@ export const ProjectDetails: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    Selected files will be sent as attachments with this invoice email.
+                    Selected files will be sent as attachments with this invoice
+                    email.
                   </p>
                 </div>
                 {invoiceSendMode === "invoice" && (
@@ -5824,30 +5993,30 @@ export const ProjectDetails: React.FC = () => {
                           key={idx}
                           className="flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl hover:bg-teal-50 hover:border-teal-200 transition-colors"
                         >
-                        <FileText className="w-5 h-5 text-teal-500 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-800 truncate">
-                            {doc.fileName}
-                          </p>
-                          <p className="text-xs text-gray-400 capitalize">
-                            {doc.documentType}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenPaymentDocument(doc)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-100 hover:bg-teal-200 rounded-lg transition-colors flex-shrink-0"
-                          title={
-                            isPdfDocument(doc)
-                              ? "Download PDF"
-                              : isImageDocument(doc)
-                                ? "Open in new tab"
-                                : "Open"
-                          }
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View
-                        </button>
+                          <FileText className="w-5 h-5 text-teal-500 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-800 truncate">
+                              {doc.fileName}
+                            </p>
+                            <p className="text-xs text-gray-400 capitalize">
+                              {doc.documentType}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPaymentDocument(doc)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-100 hover:bg-teal-200 rounded-lg transition-colors flex-shrink-0"
+                            title={
+                              isPdfDocument(doc)
+                                ? "Download PDF"
+                                : isImageDocument(doc)
+                                  ? "Open in new tab"
+                                  : "Open"
+                            }
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View
+                          </button>
                         </div>
                       );
                     })}
@@ -5998,13 +6167,16 @@ export const ProjectDetails: React.FC = () => {
               ).length === 0 ? (
                 <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
                   <Paperclip className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">No work attachments uploaded yet.</p>
+                  <p className="text-sm text-gray-500">
+                    No work attachments uploaded yet.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {projectAttachments
                     .filter(
-                      (attachment) => attachment.attachmentType === "QUICK_ACTION",
+                      (attachment) =>
+                        attachment.attachmentType === "QUICK_ACTION",
                     )
                     .map((attachment) => (
                       <div
@@ -6382,7 +6554,6 @@ export const ProjectDetails: React.FC = () => {
                     />
                   </div>
 
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Tentative Handover Date
@@ -6491,7 +6662,9 @@ export const ProjectDetails: React.FC = () => {
                           {selectedDesignTeamMembers.length > 0 && (
                             <button
                               type="button"
-                              onClick={() => setTeamMembersInForm("designTeam", [])}
+                              onClick={() =>
+                                setTeamMembersInForm("designTeam", [])
+                              }
                               className="text-xs text-red-600 hover:text-red-700"
                             >
                               Clear All
@@ -6533,7 +6706,9 @@ export const ProjectDetails: React.FC = () => {
                         <div className="grid grid-cols-2 gap-2">
                           <select
                             value={designTeamRoleFilter}
-                            onChange={(e) => setDesignTeamRoleFilter(e.target.value)}
+                            onChange={(e) =>
+                              setDesignTeamRoleFilter(e.target.value)
+                            }
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
                           >
                             <option value="">All Roles</option>
@@ -6564,9 +6739,8 @@ export const ProjectDetails: React.FC = () => {
                             </p>
                           ) : (
                             filteredDesignMembers.map((member) => {
-                              const checked = selectedDesignTeamMembers.includes(
-                                member.name,
-                              );
+                              const checked =
+                                selectedDesignTeamMembers.includes(member.name);
                               return (
                                 <label
                                   key={member.id}
@@ -6609,7 +6783,9 @@ export const ProjectDetails: React.FC = () => {
                             onClick={() =>
                               setTeamMembersInForm("designTeam", [
                                 ...selectedDesignTeamMembers,
-                                ...filteredDesignMembers.map((member) => member.name),
+                                ...filteredDesignMembers.map(
+                                  (member) => member.name,
+                                ),
                               ])
                             }
                             className="text-xs px-2 py-1 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
@@ -6690,18 +6866,20 @@ export const ProjectDetails: React.FC = () => {
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
-                        <select
-                          value={executionTeamRoleFilter}
-                          onChange={(e) => setExecutionTeamRoleFilter(e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                        >
-                          <option value="">All Roles</option>
-                          {uniqueRoles.map((role) => (
-                            <option key={role} value={role}>
-                              {role.replace(/_/g, " ")}
-                            </option>
-                          ))}
-                        </select>
+                          <select
+                            value={executionTeamRoleFilter}
+                            onChange={(e) =>
+                              setExecutionTeamRoleFilter(e.target.value)
+                            }
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                          >
+                            <option value="">All Roles</option>
+                            {uniqueRoles.map((role) => (
+                              <option key={role} value={role}>
+                                {role.replace(/_/g, " ")}
+                              </option>
+                            ))}
+                          </select>
                           <div className="relative">
                             <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                             <input
@@ -6724,7 +6902,9 @@ export const ProjectDetails: React.FC = () => {
                           ) : (
                             filteredExecutionMembers.map((member) => {
                               const checked =
-                                selectedExecutionTeamMembers.includes(member.name);
+                                selectedExecutionTeamMembers.includes(
+                                  member.name,
+                                );
                               return (
                                 <label
                                   key={member.id}
@@ -6815,7 +6995,9 @@ export const ProjectDetails: React.FC = () => {
                       inputMode="numeric"
                       value={editForm.designValue}
                       onChange={(e) => {
-                        const designValue = sanitizeNumericInput(e.target.value);
+                        const designValue = sanitizeNumericInput(
+                          e.target.value,
+                        );
                         setEditForm((prev) => ({
                           ...prev,
                           designValue,
@@ -7122,7 +7304,9 @@ export const ProjectDetails: React.FC = () => {
                     placeholder="Why is this project being paused?"
                   />
                   {pauseReasonError && (
-                    <p className="mt-2 text-sm text-red-600">{pauseReasonError}</p>
+                    <p className="mt-2 text-sm text-red-600">
+                      {pauseReasonError}
+                    </p>
                   )}
                 </div>
               </div>

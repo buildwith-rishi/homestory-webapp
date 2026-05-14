@@ -27,7 +27,7 @@ import {
   Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { useEmailTemplateStore } from "../../stores/emailTemplateStore";
+import useEmailTemplateStore from "../../stores/emailTemplateStore";
 import { EmailTemplate, Project } from "../../types";
 import { getProjectById, listProjects } from "../../services/projectApi";
 import EmailSendAPI, {
@@ -48,6 +48,10 @@ import {
   serializePaymentEmailTemplateDescription,
   extractCustomMessageFromPaymentTemplateHtml,
   type PaymentEmailTemplatePayload,
+  type MilestoneEmailComposeKind,
+  type MilestoneComposeDefaultsContext,
+  resolveMilestoneQuickTemplate,
+  isBuiltinMilestoneTemplateId,
 } from "../../utils/paymentEmailTemplates";
 
 function parseEmailDirectoryUsers(response: unknown): DirectoryUser[] {
@@ -186,6 +190,53 @@ const STARTER_TEMPLATES: Record<
   },
 };
 
+function buildMilestoneComposeContext(
+  project: Project | null,
+  optional?: { milestoneTitle?: string; amountDisplay?: string },
+): MilestoneComposeDefaultsContext {
+  const toEmail = project?.lead?.email || project?.account?.email || "";
+  const toName = project?.lead?.name || project?.account?.name || "";
+  const milestoneTitle =
+    (optional?.milestoneTitle && optional.milestoneTitle.trim()) ||
+    project?.projectName ||
+    "Your project";
+  const amountDisplay =
+    (optional?.amountDisplay && optional.amountDisplay.trim()) || "";
+  return { toEmail, toName, milestoneTitle, amountDisplay };
+}
+
+const MILESTONE_QUICK_SLOTS: Array<{
+  kind: MilestoneEmailComposeKind;
+  title: string;
+  subtitle: string;
+  colorClass: string;
+}> = [
+  {
+    kind: "invoice",
+    title: "Invoice template",
+    subtitle: "Payment request and bank details",
+    colorClass: "from-emerald-50 to-green-50 border-emerald-100",
+  },
+  {
+    kind: "proforma",
+    title: "Proforma invoice template",
+    subtitle: "Proforma request body",
+    colorClass: "from-green-50 to-teal-50 border-green-100",
+  },
+  {
+    kind: "reminder",
+    title: "Send reminder template",
+    subtitle: "Friendly payment reminder",
+    colorClass: "from-amber-50 to-orange-50 border-amber-100",
+  },
+  {
+    kind: "task_completion",
+    title: "Task completion template",
+    subtitle: "Milestone completed confirmation",
+    colorClass: "from-violet-50 to-purple-50 border-violet-100",
+  },
+];
+
 // ── Sub-components ────────────────────────────────────────────────
 
 const FieldRow: React.FC<{
@@ -273,7 +324,8 @@ export const EmailEditor: React.FC = () => {
       | "PAYMENT"
       | "FOLLOW_UP"
       | "OCCASION"
-      | "OTHER",
+      | "OTHER"
+      | "COMPLETION",
     description: "",
     subject: "",
   });
@@ -530,7 +582,11 @@ export const EmailEditor: React.FC = () => {
 
   // ── Template actions ────────────────────────────────────────────
 
-  const applyTemplate = (template: EmailTemplate) => {
+  const applyTemplate = (
+    template: EmailTemplate,
+    projectOverride?: Project | null,
+  ) => {
+    const projectForVars = projectOverride ?? selectedProject;
     // 1. Save raw HTML + subject so we can re-resolve when vars change
     const rawHtml = template.htmlBody || "";
     const rawSubject = template.subject || "";
@@ -543,7 +599,11 @@ export const EmailEditor: React.FC = () => {
     if (paymentPayload) {
       setTo(paymentPayload.toEmail.trim());
       setToName(paymentPayload.toName.trim());
-      if (paymentPayload.kind === "proforma" || paymentPayload.kind === "invoice") {
+      if (
+        paymentPayload.kind === "proforma" ||
+        paymentPayload.kind === "invoice" ||
+        paymentPayload.kind === "task_completion"
+      ) {
         const ccJoined = paymentPayload.cc.join(", ").trim();
         setCc(ccJoined);
         setShowCc(ccJoined.length > 0);
@@ -554,8 +614,8 @@ export const EmailEditor: React.FC = () => {
     }
 
     // 2. Build vars: start from project data (if available), overlay template var defaults
-    const projectVars = selectedProject
-      ? buildVarsFromProject(selectedProject)
+    const projectVars = projectForVars
+      ? buildVarsFromProject(projectForVars)
       : {};
     const initialVars: Record<string, string> = {};
     if (template.variables && template.variables.length > 0) {
@@ -589,6 +649,12 @@ export const EmailEditor: React.FC = () => {
 
     setShowTemplates(false);
     toast.success(`"${template.name}" template applied`);
+  };
+
+  const applyMilestoneSlot = (kind: MilestoneEmailComposeKind) => {
+    const ctx = buildMilestoneComposeContext(selectedProject);
+    const tpl = resolveMilestoneQuickTemplate(kind, templates, ctx);
+    applyTemplate(tpl, selectedProject ?? null);
   };
 
   // ── Preview toggle ───────────────────────────────────────────────
@@ -642,7 +708,10 @@ export const EmailEditor: React.FC = () => {
 
     setSending(true);
     try {
-      if (appliedTemplate) {
+      const useBuiltin =
+        appliedTemplate &&
+        isBuiltinMilestoneTemplateId(appliedTemplate.id);
+      if (appliedTemplate && !useBuiltin) {
         const payload: SendTemplateEmailRequest = {
           templateName: appliedTemplate.name.toLowerCase().replace(/\s+/g, "_"),
           to: to.trim(),
@@ -747,7 +816,8 @@ export const EmailEditor: React.FC = () => {
         paymentPayload &&
         (paymentPayload.kind === "proforma" ||
           paymentPayload.kind === "invoice" ||
-          paymentPayload.kind === "reminder")
+          paymentPayload.kind === "reminder" ||
+          paymentPayload.kind === "task_completion")
       ) {
         const extracted = extractCustomMessageFromPaymentTemplateHtml(
           htmlBody,
@@ -832,10 +902,8 @@ export const EmailEditor: React.FC = () => {
             <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-50 border border-gray-200">
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
                 <FileText className="w-3.5 h-3.5 text-orange-500" />
-                <span className="font-semibold text-gray-700">
-                  {templates.length}
-                </span>
-                <span>templates</span>
+                <span className="font-semibold text-gray-700">4</span>
+                <span>milestone templates</span>
               </div>
               <div className="w-px h-3.5 bg-gray-200" />
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -876,7 +944,7 @@ export const EmailEditor: React.FC = () => {
                   Quick Templates
                 </h3>
                 <p className="text-[11px] text-gray-400">
-                  {templates.length} templates available
+                  Four payment-milestone layouts (saved overrides or defaults)
                 </p>
               </div>
             </div>
@@ -903,102 +971,102 @@ export const EmailEditor: React.FC = () => {
                 <AlertCircle className="w-4 h-4" />
                 {error}
               </div>
-            ) : templates.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-                <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-                  <FileText className="w-7 h-7 text-gray-300" />
-                </div>
-                <p className="text-sm font-semibold text-gray-500">
-                  No templates yet
-                </p>
-                <p className="text-xs mt-1 text-gray-400 text-center max-w-xs">
-                  Templates are created from the admin side or legacy flows. Edit
-                  existing templates below once they appear here.
-                </p>
-              </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                {templates.map((t) => {
-                  const categoryColors: Record<string, string> = {
-                    ONBOARDING: "from-blue-50 to-indigo-50 border-blue-100",
-                    PROJECT_UPDATE:
-                      "from-amber-50 to-yellow-50 border-amber-100",
-                    PAYMENT: "from-green-50 to-emerald-50 border-green-100",
-                    COMPLETION: "from-purple-50 to-violet-50 border-purple-100",
-                    OCCASION: "from-pink-50 to-rose-50 border-pink-100",
-                    FOLLOW_UP: "from-cyan-50 to-teal-50 border-cyan-100",
-                    OTHER: "from-gray-50 to-slate-50 border-gray-100",
-                  };
-                  const colorClass =
-                    categoryColors[t.category] || categoryColors.OTHER;
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                {MILESTONE_QUICK_SLOTS.map((slot) => {
+                  const ctx = buildMilestoneComposeContext(selectedProject);
+                  const resolved = resolveMilestoneQuickTemplate(
+                    slot.kind,
+                    templates,
+                    ctx,
+                  );
+                  const builtin = isBuiltinMilestoneTemplateId(resolved.id);
                   return (
                     <div
-                      key={t.id}
-                      className={`relative group bg-gradient-to-br ${colorClass} rounded-xl border hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden cursor-pointer`}
-                      onClick={() => applyTemplate(t)}
+                      key={slot.kind}
+                      className={`relative group bg-gradient-to-br ${slot.colorClass} rounded-xl border hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden cursor-pointer`}
+                      onClick={() => applyMilestoneSlot(slot.kind)}
                     >
                       <div className="p-3.5 flex flex-col items-center gap-2 text-center">
                         <span className="text-2xl">
-                          {CATEGORY_EMOJI[t.category] || "📧"}
+                          {CATEGORY_EMOJI[resolved.category] || "📧"}
                         </span>
                         <span className="text-[11px] font-semibold text-gray-700 line-clamp-2 leading-tight">
-                          {t.name}
+                          {slot.title}
                         </span>
-                        {t.subject && (
+                        <span className="text-[10px] text-gray-500 line-clamp-2 w-full">
+                          {slot.subtitle}
+                        </span>
+                        {resolved.subject ? (
                           <span className="text-[10px] text-gray-400 line-clamp-1 w-full">
-                            {t.subject}
+                            {resolved.subject}
                           </span>
-                        )}
+                        ) : null}
                       </div>
-                      {/* Hover actions */}
                       <div className="absolute inset-0 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-1.5 rounded-xl">
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            applyTemplate(t);
+                            applyMilestoneSlot(slot.kind);
                           }}
                           className="px-3 py-1.5 text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors shadow-md"
                         >
                           Apply
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTemplateId(t.id);
-                            setTemplateFormData({
-                              name: t.name,
-                              category: t.category as any,
-                              description: t.description || "",
-                              subject: t.subject || "",
-                            });
-                            setTemplateBodyHtml(t.htmlBody || "");
-                            setShowTemplateModal(true);
-                          }}
-                          className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200 text-blue-600 hover:bg-blue-50 transition-colors"
-                          title="Edit"
-                        >
-                          <Pen className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (
-                              window.confirm(`Delete template "${t.name}"?`)
-                            ) {
-                              try {
-                                await deleteTemplate(t.id);
-                                toast.success("Template deleted");
-                                await fetchTemplates();
-                              } catch {
-                                toast.error("Failed to delete template");
-                              }
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200 text-red-500 hover:bg-red-50 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        {!builtin && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTemplateId(resolved.id);
+                                setTemplateFormData({
+                                  name: resolved.name,
+                                  category: resolved.category as
+                                    | "ONBOARDING"
+                                    | "PROJECT_UPDATE"
+                                    | "PAYMENT"
+                                    | "FOLLOW_UP"
+                                    | "OCCASION"
+                                    | "OTHER"
+                                    | "COMPLETION",
+                                  description: resolved.description || "",
+                                  subject: resolved.subject || "",
+                                });
+                                setTemplateBodyHtml(resolved.htmlBody || "");
+                                setShowTemplateModal(true);
+                              }}
+                              className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                              title="Edit"
+                            >
+                              <Pen className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (
+                                  window.confirm(
+                                    `Delete template "${resolved.name}"?`,
+                                  )
+                                ) {
+                                  try {
+                                    await deleteTemplate(resolved.id);
+                                    toast.success("Template deleted");
+                                    await fetchTemplates();
+                                  } catch {
+                                    toast.error("Failed to delete template");
+                                  }
+                                }
+                              }}
+                              className="p-1.5 rounded-lg bg-white shadow-sm border border-gray-200 text-red-500 hover:bg-red-50 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );

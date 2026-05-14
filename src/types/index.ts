@@ -475,6 +475,8 @@ export interface UpdatePaymentRequest {
   notes?: string;
   invoiceAmount?: number;
   projectStageId?: string;
+  /** Subset of {7, 4, 1} — days before due date to send reminder emails. */
+  reminderDaysBeforeDue?: number[];
 }
 
 // Create Payment Request Interface (POST /api/payments)
@@ -494,6 +496,8 @@ export interface CreatePaymentRequest {
   status?: string;
   dueDate?: string;
   notes?: string;
+  /** Subset of {7, 4, 1} — days before due date to send reminder emails. */
+  reminderDaysBeforeDue?: number[];
 }
 
 // Project Filters Interface
@@ -1275,6 +1279,12 @@ export interface ProjectPayment {
   invoiceDate?: string | null;
   invoiceSentAt?: string | null;
   invoiceSentToEmail?: string | null;
+
+  /**
+   * Days before `dueDate` when an automatic payment reminder email may be sent
+   * (e.g. [7, 4, 1]). Persisted when the API supports `reminderDaysBeforeDue`.
+   */
+  reminderDaysBeforeDue?: number[] | null;
 
   // Legacy fields for backward compatibility
   milestoneName?: string;
