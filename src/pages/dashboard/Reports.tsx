@@ -27,14 +27,8 @@ import {
   generateAccountsReport,
   type ReportMeta,
   type ListReportsParams,
-  type DesignExecutionReportKind,
-  type ReportTimelinePreset,
-  type TeamStakeholdersFilters,
 } from "../../services/reportsApi";
 import { listProjects } from "../../services/projectApi";
-import { loadMatrixAssigneeData } from "../../utils/matrixAssigneeLoaders";
-import type { AdminUser } from "../../types";
-import type { TeamMember } from "../../services/teamApi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,26 +78,22 @@ const REPORT_TYPE_CONFIG: Record<
   },
 };
 
-const DESIGN_STAKEHOLDER_ROLES = [
-  "Design Head",
-  "Lead Designer",
-  "Junior Designer",
-  "3D Visualizer",
-  "Drafting Team",
-] as const;
+function formatYmdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
-const EXECUTION_STAKEHOLDER_ROLES = [
-  "Lead Designer",
-  "Project Manager",
-  "Site Engineer",
-  "Vendor",
-] as const;
+function defaultAccountsDateFrom(): string {
+  const d = new Date();
+  d.setMonth(0, 1);
+  return formatYmdLocal(d);
+}
 
-const TIMELINE_OPTIONS: { value: ReportTimelinePreset; label: string }[] = [
-  { value: "last_month", label: "Last 30 days" },
-  { value: "last_3_months", label: "Last 90 days" },
-  { value: "last_6_months", label: "Last 180 days" },
-];
+function defaultAccountsDateTo(): string {
+  return formatYmdLocal(new Date());
+}
 
 // ─── Generate Report Modal ────────────────────────────────────────────────────
 
@@ -120,28 +110,15 @@ interface GenerateModalProps {
 }
 
 function GenerateReportModal({ onClose, onGenerated }: GenerateModalProps) {
-  const [reportType, setReportType] = useState<"DESIGN" | "EXECUTION" | "ACCOUNTS">("DESIGN");
-  const [reportKind, setReportKind] =
-    useState<DesignExecutionReportKind>("project-overview");
+  const [reportType, setReportType] = useState<"DESIGN" | "EXECUTION" | "ACCOUNTS">(
+    "DESIGN",
+  );
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [accountsDateFrom, setAccountsDateFrom] = useState(defaultAccountsDateFrom);
+  const [accountsDateTo, setAccountsDateTo] = useState(defaultAccountsDateTo);
   const [generating, setGenerating] = useState(false);
-
-  const [assigneesLoading, setAssigneesLoading] = useState(true);
-  const [crmUsers, setCrmUsers] = useState<AdminUser[]>([]);
-  const [vendors, setVendors] = useState<TeamMember[]>([]);
-
-  const [timelineMode, setTimelineMode] = useState<
-    "" | ReportTimelinePreset | "custom"
-  >("");
-  const [customRangeStart, setCustomRangeStart] = useState("");
-  const [customRangeEnd, setCustomRangeEnd] = useState("");
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
-  const [userPickSearch, setUserPickSearch] = useState("");
-  const [vendorPickSearch, setVendorPickSearch] = useState("");
 
   useEffect(() => {
     setProjectsLoading(true);
@@ -158,102 +135,22 @@ function GenerateReportModal({ onClose, onGenerated }: GenerateModalProps) {
       .finally(() => setProjectsLoading(false));
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    setAssigneesLoading(true);
-    loadMatrixAssigneeData()
-      .then((d) => {
-        if (!cancelled) {
-          setCrmUsers(d.users);
-          setVendors(d.vendors);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCrmUsers([]);
-          setVendors([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setAssigneesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const stakeholderRoles =
-    reportType === "DESIGN"
-      ? DESIGN_STAKEHOLDER_ROLES
-      : EXECUTION_STAKEHOLDER_ROLES;
-
-  const filteredPickUsers = React.useMemo(() => {
-    const q = userPickSearch.trim().toLowerCase();
-    const base = crmUsers.filter((u) => u.id);
-    if (!q) return base;
-    return base.filter(
-      (u) =>
-        (u.name || "").toLowerCase().includes(q) ||
-        (u.email || "").toLowerCase().includes(q),
-    );
-  }, [crmUsers, userPickSearch]);
-
-  const filteredPickVendors = React.useMemo(() => {
-    const q = vendorPickSearch.trim().toLowerCase();
-    const base = vendors.filter((v) => v.id);
-    if (!q) return base;
-    return base.filter(
-      (v) =>
-        (v.name || "").toLowerCase().includes(q) ||
-        (v.email || "").toLowerCase().includes(q),
-    );
-  }, [vendors, vendorPickSearch]);
-
-  const toggleRole = (role: string) => {
-    setSelectedRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
-    );
-  };
-
-  const toggleUserId = (id: string) => {
-    setSelectedUserIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
-
-  const toggleVendorId = (id: string) => {
-    setSelectedVendorIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
-
-  const buildTeamStakeholdersFilters = (): TeamStakeholdersFilters => {
-    const filters: TeamStakeholdersFilters = {};
-    if (timelineMode === "custom") {
-      if (customRangeStart && customRangeEnd) {
-        filters.timeline = {
-          startDate: customRangeStart,
-          endDate: customRangeEnd,
-        };
-      }
-    } else if (
-      timelineMode === "last_month" ||
-      timelineMode === "last_3_months" ||
-      timelineMode === "last_6_months"
-    ) {
-      filters.timeline = timelineMode;
-    }
-    if (selectedRoles.length) filters.role = [...selectedRoles];
-    if (selectedUserIds.length) filters.userId = [...selectedUserIds];
-    if (selectedVendorIds.length) filters.vendorId = [...selectedVendorIds];
-    return filters;
-  };
-
   const handleGenerate = async () => {
     if (reportType === "ACCOUNTS") {
+      if (!accountsDateFrom || !accountsDateTo) {
+        toast.error("Please select both start and end dates");
+        return;
+      }
+      if (accountsDateFrom > accountsDateTo) {
+        toast.error("Start date must be on or before end date");
+        return;
+      }
       setGenerating(true);
       try {
-        await generateAccountsReport();
+        await generateAccountsReport({
+          dateFrom: accountsDateFrom,
+          dateTo: accountsDateTo,
+        });
         toast.success("Report generated successfully!");
         onGenerated();
         onClose();
@@ -267,33 +164,17 @@ function GenerateReportModal({ onClose, onGenerated }: GenerateModalProps) {
       return;
     }
 
-    if (reportKind === "project-overview" && !selectedProjectId) {
+    if (!selectedProjectId) {
       toast.error("Please select a project");
       return;
     }
 
     setGenerating(true);
     try {
-      if (reportKind === "project-overview") {
-        const body = {
-          reportType: "project-overview" as const,
-          filters: { projectId: selectedProjectId },
-        };
-        if (reportType === "DESIGN") {
-          await generateDesignReport(body);
-        } else {
-          await generateExecutionReport(body);
-        }
+      if (reportType === "DESIGN") {
+        await generateDesignReport({ projectId: selectedProjectId });
       } else {
-        const body = {
-          reportType: "team-stakeholders" as const,
-          filters: buildTeamStakeholdersFilters(),
-        };
-        if (reportType === "DESIGN") {
-          await generateDesignReport(body);
-        } else {
-          await generateExecutionReport(body);
-        }
+        await generateExecutionReport({ projectId: selectedProjectId });
       }
       toast.success("Report generated successfully!");
       onGenerated();
@@ -307,12 +188,11 @@ function GenerateReportModal({ onClose, onGenerated }: GenerateModalProps) {
     }
   };
 
-  const needsProjectForOverview =
-    reportType !== "ACCOUNTS" && reportKind === "project-overview";
-
   const generateDisabled =
     generating ||
-    (needsProjectForOverview && !selectedProjectId);
+    (reportType === "ACCOUNTS"
+      ? !accountsDateFrom || !accountsDateTo
+      : !selectedProjectId);
 
   const modalContent = (
     <div
@@ -358,13 +238,6 @@ function GenerateReportModal({ onClose, onGenerated }: GenerateModalProps) {
                     onClick={() => {
                       setReportType(type);
                       setSelectedProjectId("");
-                      setReportKind("project-overview");
-                      setSelectedRoles([]);
-                      setSelectedUserIds([]);
-                      setSelectedVendorIds([]);
-                      setTimelineMode("");
-                      setCustomRangeStart("");
-                      setCustomRangeEnd("");
                     }}
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-sm font-medium ${
                       active
@@ -382,243 +255,63 @@ function GenerateReportModal({ onClose, onGenerated }: GenerateModalProps) {
             </div>
           </div>
 
-          {reportType === "ACCOUNTS" && (
-            <p className="text-sm text-gray-600 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-              Accounts reports include all projects. No filters are required.
-            </p>
-          )}
-
-          {reportType !== "ACCOUNTS" && (
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Report scope
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setReportKind("project-overview")}
-                    className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                      reportKind === "project-overview"
-                        ? "border-orange-500 bg-orange-50 text-orange-900"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    Project overview
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReportKind("team-stakeholders")}
-                    className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                      reportKind === "team-stakeholders"
-                        ? "border-orange-500 bg-orange-50 text-orange-900"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    Team & stakeholders
-                  </button>
+          {reportType === "ACCOUNTS" ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                Choose the reporting period. Both dates are required to generate
+                an accounts report.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Date from <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={accountsDateFrom}
+                    onChange={(e) => setAccountsDateFrom(e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Date to <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={accountsDateTo}
+                    onChange={(e) => setAccountsDateTo(e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                  />
                 </div>
               </div>
-
-              {reportKind === "project-overview" && (
-                <div className="mb-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Project <span className="text-red-500">*</span>
-                  </label>
-                  {projectsLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading projects…
-                    </div>
-                  ) : (
-                    <select
-                      value={selectedProjectId}
-                      onChange={(e) => setSelectedProjectId(e.target.value)}
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
-                    >
-                      <option value="">Select a project…</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.projectNumber ? `${p.projectNumber} — ` : ""}
-                          {p.projectName || p.name || p.id}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+            </div>
+          ) : (
+            <div className="mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Project <span className="text-red-500">*</span>
+              </label>
+              {projectsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading projects…
                 </div>
+              ) : (
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
+                >
+                  <option value="">Select a project…</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.projectNumber ? `${p.projectNumber} — ` : ""}
+                      {p.projectName || p.name || p.id}
+                    </option>
+                  ))}
+                </select>
               )}
-
-              {reportKind === "team-stakeholders" && (
-                <div className="space-y-4 pt-1">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Timeline{" "}
-                      <span className="text-gray-400 font-normal text-xs">
-                        (optional)
-                      </span>
-                    </label>
-                    <select
-                      value={timelineMode}
-                      onChange={(e) =>
-                        setTimelineMode(
-                          e.target.value as "" | ReportTimelinePreset | "custom",
-                        )
-                      }
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
-                    >
-                      <option value="">Any / not filtered</option>
-                      {TIMELINE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                      <option value="custom">Custom date range</option>
-                    </select>
-                    {timelineMode === "custom" && (
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          type="date"
-                          value={customRangeStart}
-                          onChange={(e) =>
-                            setCustomRangeStart(e.target.value)
-                          }
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                        />
-                        <input
-                          type="date"
-                          value={customRangeEnd}
-                          onChange={(e) => setCustomRangeEnd(e.target.value)}
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Roles{" "}
-                      <span className="text-gray-400 font-normal text-xs">
-                        (optional)
-                      </span>
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border border-gray-100 rounded-xl p-3 bg-gray-50/80">
-                      {stakeholderRoles.map((role) => (
-                        <label
-                          key={role}
-                          className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedRoles.includes(role)}
-                            onChange={() => toggleRole(role)}
-                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                          />
-                          {role}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Users{" "}
-                      <span className="text-gray-400 font-normal text-xs">
-                        (optional)
-                      </span>
-                    </label>
-                    {assigneesLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading users…
-                      </div>
-                    ) : (
-                      <>
-                        <input
-                          type="text"
-                          value={userPickSearch}
-                          onChange={(e) =>
-                            setUserPickSearch(e.target.value)
-                          }
-                          placeholder="Search users…"
-                          className="w-full mb-2 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                        <div className="max-h-36 overflow-y-auto border border-gray-100 rounded-xl p-2 space-y-1 bg-white">
-                          {filteredPickUsers.length === 0 ? (
-                            <p className="text-xs text-gray-400 px-1 py-2">
-                              No users match your search.
-                            </p>
-                          ) : (
-                            filteredPickUsers.map((u) => (
-                              <label
-                                key={u.id}
-                                className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer py-0.5"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={selectedUserIds.includes(u.id)}
-                                  onChange={() => toggleUserId(u.id)}
-                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                />
-                                <span className="truncate">{u.name}</span>
-                              </label>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      External / vendor{" "}
-                      <span className="text-gray-400 font-normal text-xs">
-                        (optional)
-                      </span>
-                    </label>
-                    {assigneesLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading vendors…
-                      </div>
-                    ) : (
-                      <>
-                        <input
-                          type="text"
-                          value={vendorPickSearch}
-                          onChange={(e) =>
-                            setVendorPickSearch(e.target.value)
-                          }
-                          placeholder="Search vendors…"
-                          className="w-full mb-2 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                        <div className="max-h-36 overflow-y-auto border border-gray-100 rounded-xl p-2 space-y-1 bg-white">
-                          {filteredPickVendors.length === 0 ? (
-                            <p className="text-xs text-gray-400 px-1 py-2">
-                              No vendor records found.
-                            </p>
-                          ) : (
-                            filteredPickVendors.map((v) => (
-                              <label
-                                key={v.id}
-                                className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer py-0.5"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={selectedVendorIds.includes(v.id)}
-                                  onChange={() => toggleVendorId(v.id)}
-                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                />
-                                <span className="truncate">{v.name}</span>
-                              </label>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
+            </div>
           )}
         </div>
 
@@ -749,12 +442,27 @@ export const ReportsPage: React.FC = () => {
   const [filterType, setFilterType] = useState<"" | "DESIGN" | "EXECUTION" | "ACCOUNTS">("");
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
+  const [filterProjectId, setFilterProjectId] = useState("");
+  const [filterProjects, setFilterProjects] = useState<Project[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
   // Pagination
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 20;
+
+  useEffect(() => {
+    listProjects({ limit: 200 })
+      .then((res) => {
+        const list: Project[] = Array.isArray(res)
+          ? res
+          : Array.isArray((res as { projects?: Project[] }).projects)
+            ? (res as { projects: Project[] }).projects
+            : [];
+        setFilterProjects(list);
+      })
+      .catch(() => setFilterProjects([]));
+  }, []);
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
@@ -765,6 +473,7 @@ export const ReportsPage: React.FC = () => {
         offset: page * PAGE_SIZE,
       };
       if (filterType) params.reportType = filterType;
+      if (filterProjectId) params.projectId = filterProjectId;
       if (filterFrom) params.fromDate = filterFrom;
       if (filterTo) params.toDate = filterTo;
 
@@ -778,7 +487,7 @@ export const ReportsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, filterType, filterFrom, filterTo]);
+  }, [page, filterType, filterProjectId, filterFrom, filterTo]);
 
   useEffect(() => {
     void fetchReports();
@@ -801,13 +510,14 @@ export const ReportsPage: React.FC = () => {
 
   const handleClearFilters = () => {
     setFilterType("");
+    setFilterProjectId("");
     setFilterFrom("");
     setFilterTo("");
     setSearchQuery("");
     setPage(0);
   };
 
-  const hasActiveFilters = filterType || filterFrom || filterTo;
+  const hasActiveFilters = filterType || filterProjectId || filterFrom || filterTo;
 
   // Summary counts
   const designCount = reports.filter((r) => r.reportType === "DESIGN").length;
@@ -950,6 +660,27 @@ export const ReportsPage: React.FC = () => {
         {/* Date Filters */}
         {showFilters && (
           <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-3 items-end">
+            <div className="min-w-[200px] flex-1 sm:flex-initial">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Project
+              </label>
+              <select
+                value={filterProjectId}
+                onChange={(e) => {
+                  setFilterProjectId(e.target.value);
+                  setPage(0);
+                }}
+                className="w-full max-w-xs border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+              >
+                <option value="">All projects</option>
+                {filterProjects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.projectNumber ? `${p.projectNumber} — ` : ""}
+                    {p.projectName || p.name || p.id}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 From Date

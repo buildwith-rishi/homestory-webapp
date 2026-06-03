@@ -1,4 +1,4 @@
-// Reports API Service — POST /design, /execution, /accounts; GET /api/reports, /api/reports/:id
+// Reports API — POST /api/reports/design|execution|accounts; GET /api/reports; GET /api/reports/:id
 
 import { fetchAPI } from "./api";
 
@@ -7,37 +7,6 @@ const API_PREFIX = "/api/reports";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ReportCategoryApi = "DESIGN" | "EXECUTION" | "ACCOUNTS";
-
-export type ReportTimelinePreset = "last_month" | "last_3_months" | "last_6_months";
-
-export type ReportTimeline =
-  | ReportTimelinePreset
-  | { startDate: string; endDate: string };
-
-export type DesignExecutionReportKind =
-  | "project-overview"
-  | "team-stakeholders";
-
-export interface ProjectOverviewFilters {
-  projectId: string;
-}
-
-export interface TeamStakeholdersFilters {
-  timeline?: ReportTimeline;
-  role?: string[];
-  userId?: string[];
-  vendorId?: string[];
-}
-
-export interface DesignReportRequestBody {
-  reportType: DesignExecutionReportKind;
-  filters: ProjectOverviewFilters | TeamStakeholdersFilters;
-}
-
-export interface ExecutionReportRequestBody {
-  reportType: DesignExecutionReportKind;
-  filters: ProjectOverviewFilters | TeamStakeholdersFilters;
-}
 
 export interface ReportMeta {
   id: string;
@@ -73,6 +42,22 @@ export interface ListReportsParams {
   toDate?: string;
   limit?: number;
   offset?: number;
+}
+
+/** POST /api/reports/design */
+export interface GenerateDesignReportBody {
+  projectId: string;
+}
+
+/** POST /api/reports/execution */
+export interface GenerateExecutionReportBody {
+  projectId: string;
+}
+
+/** POST /api/reports/accounts */
+export interface GenerateAccountsReportBody {
+  dateFrom: string;
+  dateTo: string;
 }
 
 // ─── Normalization ────────────────────────────────────────────────────────────
@@ -241,30 +226,34 @@ function normalizeReportListPayload(
 // ─── Generate ─────────────────────────────────────────────────────────────────
 
 export async function generateDesignReport(
-  body: DesignReportRequestBody,
+  body: GenerateDesignReportBody,
 ): Promise<GenerateReportResponse> {
   const raw = await fetchAPI<unknown>(`${API_PREFIX}/design`, {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ projectId: body.projectId }),
   });
   return normalizeGeneratePayload(raw);
 }
 
 export async function generateExecutionReport(
-  body: ExecutionReportRequestBody,
+  body: GenerateExecutionReportBody,
 ): Promise<GenerateReportResponse> {
   const raw = await fetchAPI<unknown>(`${API_PREFIX}/execution`, {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ projectId: body.projectId }),
   });
   return normalizeGeneratePayload(raw);
 }
 
-/** Accounts report — no filters; all projects. */
-export async function generateAccountsReport(): Promise<GenerateReportResponse> {
+export async function generateAccountsReport(
+  body: GenerateAccountsReportBody,
+): Promise<GenerateReportResponse> {
   const raw = await fetchAPI<unknown>(`${API_PREFIX}/accounts`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      dateFrom: body.dateFrom,
+      dateTo: body.dateTo,
+    }),
   });
   return normalizeGeneratePayload(raw);
 }
